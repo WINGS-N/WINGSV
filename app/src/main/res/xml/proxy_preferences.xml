@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="Proxy" />
+
+    <EditTextPreference
+        android:key="pref_endpoint"
+        android:title="Endpoint"
+        android:dialogTitle="Endpoint"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_vk_link"
+        android:title="VK Link"
+        android:dialogTitle="VK Link"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_threads"
+        android:title="Потоки"
+        android:defaultValue="8" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_use_udp"
+        android:title="Использовать UDP"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_no_obfuscation"
+        android:title="Без обфускации"
+        android:defaultValue="false" />
+
+    <EditTextPreference
+        android:key="pref_local_endpoint"
+        android:title="Локальный endpoint"
+        android:defaultValue="127.0.0.1:9000" />
+
+    <EditTextPreference
+        android:key="pref_turn_host"
+        android:title="TURN host override"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_turn_port"
+        android:title="TURN port override"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="WireGuard Interface" />
+
+    <EditTextPreference
+        android:key="pref_wg_private_key"
+        android:title="Private key" />
+
+    <EditTextPreference
+        android:key="pref_wg_addresses"
+        android:title="Addresses"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_wg_dns"
+        android:title="DNS"
+        android:defaultValue="1.1.1.1, 1.0.0.1"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_wg_mtu"
+        android:title="MTU"
+        android:defaultValue="1280" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="WireGuard Peer" />
+
+    <EditTextPreference
+        android:key="pref_wg_public_key"
+        android:title="Public key" />
+
+    <EditTextPreference
+        android:key="pref_wg_allowed_ips"
+        android:title="Allowed IPs"
+        android:defaultValue="0.0.0.0/0, ::/0"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:key="pref_category_root"
+        android:title="@string/root_category_title" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_root_mode"
+        android:title="@string/root_mode_title"
+        android:summary="@string/root_mode_summary"
+        android:defaultValue="false" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="Система" />
+
+    <Preference
+        android:key="pref_open_permissions"
+        android:title="Проверить разрешения"
+        android:summary="Открыть стартовый экран разрешений вручную" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_auto_start_on_boot"
+        android:title="@string/auto_start_title"
+        android:summary="@string/auto_start_summary"
+        android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_open_proxy_logs"
+        android:title="Логи vk-turn-proxy"
+        android:summary="Открыть live stdout/stderr бинарника" />
+
+    <Preference
+        android:key="pref_open_about"
+        android:title="@string/about_app_title"
+        android:summary="@string/about_app_summary" />
+
+</PreferenceScreen>

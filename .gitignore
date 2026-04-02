@@ -1,0 +1,28 @@
+*.iml
+.DS_Store
+
+# IDE
+/.idea/
+
+# Local tooling
+/.codex
+/.gradle
+/.kotlin
+/local.properties
+
+# Build outputs
+/build
+**/build/
+/captures
+/.externalNativeBuild
+/.cxx
+**/.externalNativeBuild/
+**/.cxx/
+
+# Signing
+keystore.properties
+*.jks
+*.keystore
+
+# Local
+/tmp

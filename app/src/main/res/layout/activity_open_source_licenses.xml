@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/licenses_title">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:paddingBottom="24dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="10dp"
+            android:paddingTop="10dp">
+
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?android:colorBackground"
+                android:orientation="vertical"
+                android:padding="22dp"
+                app:roundedCorners="all">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/licenses_title"
+                    android:textAppearance="?android:attr/textAppearanceLarge"
+                    android:textColor="?android:textColorPrimary"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/licenses_subtitle"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    android:textColor="?android:textColorSecondary" />
+            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+            <dev.oneuiproject.oneui.widget.Separator
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/licenses_title" />
+
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="?android:colorBackground"
+                android:orientation="vertical"
+                app:roundedCorners="all">
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_oneui_design"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:showTopDivider="false"
+                    app:summary="@string/license_oneui_design_summary"
+                    app:title="@string/license_oneui_design_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_sesl_androidx"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_sesl_androidx_summary"
+                    app:title="@string/license_sesl_androidx_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_sesl_material"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_sesl_material_summary"
+                    app:title="@string/license_sesl_material_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_wireguard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_wireguard_summary"
+                    app:title="@string/license_wireguard_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_vk_turn_proxy"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_vk_turn_proxy_summary"
+                    app:title="@string/license_vk_turn_proxy_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_vpn_hotspot"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_vpn_hotspot_summary"
+                    app:title="@string/license_vpn_hotspot_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_librootkotlinx"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_librootkotlinx_summary"
+                    app:title="@string/license_librootkotlinx_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_hidden_api_bypass"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_hidden_api_bypass_summary"
+                    app:title="@string/license_hidden_api_bypass_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_dnsjava"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_dnsjava_summary"
+                    app:title="@string/license_dnsjava_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_ktor_network"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_ktor_network_summary"
+                    app:title="@string/license_ktor_network_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_timber"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:showBottomDivider="false"
+                    app:summary="@string/license_timber_summary"
+                    app:title="@string/license_timber_title" />
+            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</dev.oneuiproject.oneui.layout.ToolbarLayout>
