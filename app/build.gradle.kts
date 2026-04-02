@@ -212,8 +212,10 @@ android {
         viewBinding = true
     }
 
-    sourceSets.getByName("main").jniLibs.srcDir(generatedVkTurnJniLibsDir.get().asFile)
-    sourceSets.getByName("main").java.srcDir(generatedProtoJavaDir.get().asFile)
+    sourceSets.getByName("main") {
+        jniLibs.srcDirs(generatedVkTurnJniLibsDir.get().asFile)
+        java.srcDirs(generatedProtoJavaDir.get().asFile)
+    }
 
     packaging {
         resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"

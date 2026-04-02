@@ -67,6 +67,11 @@ jobs:
             "ndk;28.2.13676358" \
             "cmake;3.22.1"
 
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug
 
