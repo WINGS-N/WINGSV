@@ -1,0 +1,510 @@
+package wings.v.ui;
+
+import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import wings.v.R;
+import wings.v.core.AppPrefs;
+import wings.v.core.Haptics;
+import wings.v.databinding.FragmentAppsBinding;
+
+public class AppsFragment extends Fragment {
+    private static final String STATE_SEARCH_QUERY = "apps_search_query";
+    private static final String STATE_SEARCH_VISIBLE = "apps_search_visible";
+    private static final String STATE_SELECTED_ONLY_MODE = "apps_selected_only_mode";
+    private static final long SEARCH_BAR_ANIMATION_MS = 180L;
+    private static final float SEARCH_BAR_HIDDEN_ALPHA = 0.92f;
+
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final List<AppRoutingEntry> appEntries = new ArrayList<>();
+    private final Set<String> enabledPackages = new LinkedHashSet<>();
+    private final OnBackPressedCallback searchBackCallback = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            hideSearchOverlay(true);
+        }
+    };
+
+    private FragmentAppsBinding binding;
+    private AppRoutingAdapter adapter;
+    private AppSearchAdapter searchAdapter;
+    private String searchQuery = "";
+    private boolean searchOverlayVisible;
+    private boolean searchBarHidden;
+    private boolean selectedOnlyMode;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            searchQuery = savedInstanceState.getString(STATE_SEARCH_QUERY, "");
+            searchOverlayVisible = savedInstanceState.getBoolean(STATE_SEARCH_VISIBLE, false);
+            selectedOnlyMode = savedInstanceState.getBoolean(STATE_SELECTED_ONLY_MODE, false);
+        }
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
+        binding = FragmentAppsBinding.inflate(inflater, container, false);
+        return binding.getRoot();
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        requireActivity().getOnBackPressedDispatcher().addCallback(
+                getViewLifecycleOwner(),
+                searchBackCallback
+        );
+
+        adapter = new AppRoutingAdapter(new AppRoutingAdapter.Callback() {
+            @Override
+            public void onPackageToggled(String packageName, boolean enabled, View sourceView) {
+                AppsFragment.this.onPackageToggled(packageName, enabled, sourceView);
+            }
+
+            @Override
+            public void onBypassModeChanged(boolean enabled, View sourceView) {
+                AppsFragment.this.onBypassModeChanged(enabled, sourceView);
+            }
+
+            @Override
+            public void onSelectedAppsRequested(View sourceView) {
+                AppsFragment.this.onSelectedAppsRequested(sourceView);
+            }
+        });
+        searchAdapter = new AppSearchAdapter(this::onPackageToggled);
+
+        binding.recyclerApps.setLayoutManager(new LinearLayoutManager(requireContext()));
+        binding.recyclerApps.setAdapter(adapter);
+        binding.recyclerSearchResults.setLayoutManager(new LinearLayoutManager(requireContext()));
+        binding.recyclerSearchResults.setAdapter(searchAdapter);
+        binding.recyclerApps.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                if (dy == 0) {
+                    return;
+                }
+                hideKeyboard();
+                if (!searchOverlayVisible) {
+                    if (dy > 0) {
+                        setSearchBarHidden(true);
+                    } else if (dy < 0) {
+                        setSearchBarHidden(false);
+                    }
+                }
+                updateScrollToTopButton();
+            }
+        });
+        binding.recyclerSearchResults.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                if (dy != 0) {
+                    hideKeyboard();
+                }
+                updateScrollToTopButton();
+            }
+        });
+
+        binding.searchBarContainer.setOnClickListener(v -> {
+            binding.inputAppSearch.requestFocus();
+            showSearchOverlay(true);
+        });
+        binding.inputAppSearch.setOnClickListener(v -> showSearchOverlay(true));
+        binding.inputAppSearch.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                showSearchOverlay(true);
+            }
+        });
+        binding.inputAppSearch.setOnEditorActionListener((v, actionId, event) -> {
+            boolean isSearchAction = actionId == EditorInfo.IME_ACTION_SEARCH
+                    || actionId == EditorInfo.IME_ACTION_DONE
+                    || (event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_DOWN);
+            if (!isSearchAction) {
+                return false;
+            }
+            hideKeyboard();
+            binding.inputAppSearch.clearFocus();
+            return true;
+        });
+        binding.inputAppSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                onSearchQueryChanged(s != null ? s.toString() : "");
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+        binding.buttonSearchClose.setOnClickListener(v -> {
+            binding.inputAppSearch.setText("");
+            hideSearchOverlay(true);
+            Haptics.softSliderStep(v);
+        });
+        binding.buttonScrollToTop.setOnClickListener(v -> {
+            RecyclerView activeRecycler = searchOverlayVisible
+                    ? binding.recyclerSearchResults
+                    : binding.recyclerApps;
+            activeRecycler.smoothScrollToPosition(0);
+            setSearchBarHidden(false);
+            Haptics.softSliderStep(v);
+        });
+
+        binding.inputAppSearch.setText(searchQuery);
+        binding.inputAppSearch.setSelection(binding.inputAppSearch.length());
+        loadApplications();
+
+        if (searchOverlayVisible) {
+            binding.inputAppSearch.post(() -> showSearchOverlay(true));
+        } else {
+            updateSearchResults();
+        }
+        updateScrollToTopButton();
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_SEARCH_QUERY, searchQuery);
+        outState.putBoolean(STATE_SEARCH_VISIBLE, searchOverlayVisible);
+        outState.putBoolean(STATE_SELECTED_ONLY_MODE, selectedOnlyMode);
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        binding.recyclerApps.setAdapter(null);
+        binding.recyclerSearchResults.setAdapter(null);
+        binding = null;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        executor.shutdownNow();
+    }
+
+    private void onPackageToggled(String packageName, boolean enabled, View sourceView) {
+        Context context = requireContext();
+        AppPrefs.setAppRoutingPackageEnabled(context, packageName, enabled);
+        if (enabled) {
+            enabledPackages.add(packageName);
+        } else {
+            enabledPackages.remove(packageName);
+        }
+        adapter.setPackageEnabled(packageName, enabled);
+        searchAdapter.setPackageEnabled(packageName, enabled);
+        updateSearchResultsEmptyState();
+        Haptics.softSliderStep(sourceView);
+    }
+
+    private void onBypassModeChanged(boolean enabled, View sourceView) {
+        AppPrefs.setAppRoutingBypassEnabled(requireContext(), enabled);
+        adapter.setBypassEnabled(enabled);
+        Haptics.softSliderStep(sourceView);
+    }
+
+    private void onSearchQueryChanged(String query) {
+        searchQuery = query == null ? "" : query;
+        updateSearchResults();
+        if (!searchOverlayVisible && binding != null && binding.inputAppSearch.hasFocus()) {
+            selectedOnlyMode = false;
+            showSearchOverlay(false);
+        }
+    }
+
+    private void onSelectedAppsRequested(View sourceView) {
+        showSelectedAppsOverlay();
+        Haptics.softSliderStep(sourceView);
+    }
+
+    private void loadApplications() {
+        if (binding == null) {
+            return;
+        }
+        Context appContext = requireContext().getApplicationContext();
+        binding.progressApps.setVisibility(View.VISIBLE);
+        binding.recyclerApps.setVisibility(View.VISIBLE);
+        binding.textAppsEmpty.setVisibility(View.GONE);
+        executor.execute(() -> {
+            List<AppRoutingEntry> entries = queryInstalledApps(appContext);
+            Set<String> storedEnabledPackages = AppPrefs.getAppRoutingPackages(appContext);
+            boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(appContext);
+            mainHandler.post(() -> {
+                if (!isAdded() || binding == null) {
+                    return;
+                }
+                binding.progressApps.setVisibility(View.GONE);
+                appEntries.clear();
+                appEntries.addAll(entries);
+                enabledPackages.clear();
+                enabledPackages.addAll(storedEnabledPackages);
+                adapter.replaceItems(entries, enabledPackages, bypassEnabled);
+                updateMainEmptyState();
+                updateSearchResults();
+                updateScrollToTopButton();
+            });
+        });
+    }
+
+    private void updateMainEmptyState() {
+        if (binding == null || adapter == null || binding.progressApps.getVisibility() == View.VISIBLE) {
+            return;
+        }
+        if (!adapter.hasAnyApps()) {
+            binding.textAppsEmpty.setText(R.string.apps_empty);
+            binding.textAppsEmpty.setVisibility(View.VISIBLE);
+            return;
+        }
+        binding.textAppsEmpty.setVisibility(View.GONE);
+    }
+
+    private void updateSearchResults() {
+        if (binding == null || searchAdapter == null) {
+            return;
+        }
+        searchAdapter.replaceItems(filterEntries(searchQuery), enabledPackages);
+        updateSearchResultsEmptyState();
+    }
+
+    private void updateSearchResultsEmptyState() {
+        if (binding == null) {
+            return;
+        }
+        if (!searchOverlayVisible) {
+            binding.textSearchEmpty.setVisibility(View.GONE);
+            return;
+        }
+        List<AppRoutingEntry> filteredEntries = filterEntries(searchQuery);
+        if (selectedOnlyMode && enabledPackages.isEmpty()) {
+            binding.textSearchEmpty.setText(R.string.apps_selected_empty);
+            binding.textSearchEmpty.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (appEntries.isEmpty()) {
+            binding.textSearchEmpty.setText(R.string.apps_empty);
+            binding.textSearchEmpty.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (filteredEntries.isEmpty()) {
+            binding.textSearchEmpty.setText(R.string.apps_no_results);
+            binding.textSearchEmpty.setVisibility(View.VISIBLE);
+            return;
+        }
+        binding.textSearchEmpty.setVisibility(View.GONE);
+    }
+
+    private List<AppRoutingEntry> filterEntries(String query) {
+        List<AppRoutingEntry> filteredEntries = new ArrayList<>();
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.getDefault());
+        if (normalizedQuery.isEmpty()) {
+            if (selectedOnlyMode) {
+                for (AppRoutingEntry entry : appEntries) {
+                    if (enabledPackages.contains(entry.packageName)) {
+                        filteredEntries.add(entry);
+                    }
+                }
+            } else {
+                filteredEntries.addAll(appEntries);
+            }
+            return filteredEntries;
+        }
+        for (AppRoutingEntry entry : appEntries) {
+            if (selectedOnlyMode && !enabledPackages.contains(entry.packageName)) {
+                continue;
+            }
+            if (entry.label.toLowerCase(Locale.getDefault()).contains(normalizedQuery)) {
+                filteredEntries.add(entry);
+            }
+        }
+        return filteredEntries;
+    }
+
+    private void showSearchOverlay(boolean requestKeyboard) {
+        if (binding == null) {
+            return;
+        }
+        searchOverlayVisible = true;
+        searchBackCallback.setEnabled(true);
+        binding.searchOverlayContainer.setVisibility(View.VISIBLE);
+        binding.buttonSearchClose.setVisibility(View.VISIBLE);
+        setSearchBarHidden(false);
+        updateSearchResults();
+        updateScrollToTopButton();
+        if (requestKeyboard) {
+            binding.inputAppSearch.requestFocus();
+            showKeyboard();
+        }
+    }
+
+    private void showSelectedAppsOverlay() {
+        if (binding == null) {
+            return;
+        }
+        selectedOnlyMode = true;
+        searchQuery = "";
+        if (binding.inputAppSearch.getText() == null
+                || binding.inputAppSearch.getText().length() != 0) {
+            binding.inputAppSearch.setText("");
+        }
+        binding.inputAppSearch.clearFocus();
+        hideKeyboard();
+        searchOverlayVisible = true;
+        searchBackCallback.setEnabled(true);
+        binding.searchOverlayContainer.setVisibility(View.VISIBLE);
+        binding.buttonSearchClose.setVisibility(View.VISIBLE);
+        binding.recyclerSearchResults.scrollToPosition(0);
+        setSearchBarHidden(false);
+        updateSearchResults();
+        updateScrollToTopButton();
+    }
+
+    private void hideSearchOverlay(boolean clearFocus) {
+        if (binding == null) {
+            return;
+        }
+        searchOverlayVisible = false;
+        selectedOnlyMode = false;
+        searchBackCallback.setEnabled(false);
+        binding.searchOverlayContainer.setVisibility(View.GONE);
+        binding.textSearchEmpty.setVisibility(View.GONE);
+        binding.buttonSearchClose.setVisibility(View.GONE);
+        updateScrollToTopButton();
+        if (clearFocus) {
+            binding.inputAppSearch.clearFocus();
+            hideKeyboard();
+        }
+    }
+
+    private void setSearchBarHidden(boolean hidden) {
+        if (binding == null || searchOverlayVisible && hidden) {
+            return;
+        }
+        if (searchBarHidden == hidden) {
+            return;
+        }
+        searchBarHidden = hidden;
+        float targetTranslation = hidden ? binding.searchBarContainer.getHeight() + dpToPx(24) : 0f;
+        float targetAlpha = hidden ? SEARCH_BAR_HIDDEN_ALPHA : 1f;
+        binding.searchBarContainer.animate()
+                .translationY(targetTranslation)
+                .alpha(targetAlpha)
+                .setDuration(SEARCH_BAR_ANIMATION_MS)
+                .start();
+    }
+
+    private void updateScrollToTopButton() {
+        if (binding == null) {
+            return;
+        }
+        boolean shouldShow;
+        if (searchOverlayVisible) {
+            shouldShow = false;
+        } else {
+            shouldShow = searchBarHidden && binding.recyclerApps.canScrollVertically(-1);
+        }
+        binding.buttonScrollToTop.animate().cancel();
+        if (shouldShow) {
+            binding.buttonScrollToTop.setVisibility(View.VISIBLE);
+            binding.buttonScrollToTop.setAlpha(1f);
+            binding.buttonScrollToTop.setScaleX(1f);
+            binding.buttonScrollToTop.setScaleY(1f);
+        } else {
+            binding.buttonScrollToTop.setVisibility(View.GONE);
+        }
+    }
+
+    private float dpToPx(int value) {
+        return value * requireContext().getResources().getDisplayMetrics().density;
+    }
+
+    private void showKeyboard() {
+        if (binding == null) {
+            return;
+        }
+        InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
+        if (inputMethodManager != null) {
+            binding.inputAppSearch.post(() ->
+                    inputMethodManager.showSoftInput(binding.inputAppSearch, InputMethodManager.SHOW_IMPLICIT)
+            );
+        }
+    }
+
+    private void hideKeyboard() {
+        if (binding == null) {
+            return;
+        }
+        InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
+        if (inputMethodManager != null) {
+            inputMethodManager.hideSoftInputFromWindow(binding.inputAppSearch.getWindowToken(), 0);
+        }
+    }
+
+    private List<AppRoutingEntry> queryInstalledApps(Context context) {
+        PackageManager packageManager = context.getPackageManager();
+        List<ApplicationInfo> installedApplications;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            installedApplications = packageManager.getInstalledApplications(
+                    PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA)
+            );
+        } else {
+            installedApplications = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
+        }
+
+        List<AppRoutingEntry> entries = new ArrayList<>(installedApplications.size());
+        for (ApplicationInfo applicationInfo : installedApplications) {
+            String label = applicationInfo.loadLabel(packageManager).toString().trim();
+            if (label.isEmpty()) {
+                label = applicationInfo.packageName;
+            }
+            entries.add(new AppRoutingEntry(
+                    label,
+                    applicationInfo.packageName,
+                    applicationInfo.loadIcon(packageManager)
+            ));
+        }
+        entries.sort(Comparator
+                .comparing((AppRoutingEntry entry) -> entry.label.toLowerCase(Locale.getDefault()))
+                .thenComparing(entry -> entry.packageName));
+        return entries;
+    }
+}

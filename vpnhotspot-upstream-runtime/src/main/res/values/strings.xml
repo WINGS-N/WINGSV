@@ -1,0 +1,7 @@
+<resources>
+    <string name="exception_interface_not_found">Network interface not found</string>
+    <string name="failure_reason_unknown">Unknown failure reason</string>
+    <string name="warn_vpn_firewall">Failed to update VPN firewall rules</string>
+    <string name="error_vpn_firewall_reboot">VPN firewall rules may require reboot to apply</string>
+    <string name="noisy_su_failure">Root monitor returned unexpected output</string>
+</resources>

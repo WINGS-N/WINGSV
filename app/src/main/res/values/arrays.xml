@@ -1,0 +1,41 @@
+<resources>
+    <string-array name="sharing_masquerade_entries">
+        <item>@string/sharing_masquerade_none</item>
+        <item>@string/sharing_masquerade_simple</item>
+        <item>@string/sharing_masquerade_netd</item>
+    </string-array>
+
+    <string-array name="sharing_masquerade_values">
+        <item>none</item>
+        <item>simple</item>
+        <item>netd</item>
+    </string-array>
+
+    <string-array name="sharing_wifi_lock_entries">
+        <item>@string/sharing_wifi_lock_system</item>
+        <item>@string/sharing_wifi_lock_full</item>
+        <item>@string/sharing_wifi_lock_high_perf</item>
+        <item>@string/sharing_wifi_lock_low_latency</item>
+    </string-array>
+
+    <string-array name="sharing_wifi_lock_values">
+        <item>system</item>
+        <item>full</item>
+        <item>high_perf</item>
+        <item>low_latency</item>
+    </string-array>
+
+    <string-array name="sharing_ip_monitor_entries">
+        <item>@string/sharing_ip_monitor_netlink</item>
+        <item>@string/sharing_ip_monitor_netlink_root</item>
+        <item>@string/sharing_ip_monitor_poll</item>
+        <item>@string/sharing_ip_monitor_poll_root</item>
+    </string-array>
+
+    <string-array name="sharing_ip_monitor_values">
+        <item>netlink</item>
+        <item>netlink_root</item>
+        <item>poll</item>
+        <item>poll_root</item>
+    </string-array>
+</resources>

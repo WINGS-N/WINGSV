@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_home"
+        android:icon="@drawable/ic_home"
+        android:title="@string/home"
+        android:checked="true" />
+
+    <item
+        android:id="@+id/menu_apps"
+        android:icon="@drawable/ic_apps"
+        android:title="@string/apps" />
+
+    <item
+        android:id="@+id/menu_sharing"
+        android:icon="@drawable/ic_sharing_nav"
+        android:title="@string/sharing" />
+
+    <item
+        android:id="@+id/menu_settings"
+        android:icon="@drawable/ic_settings"
+        android:title="@string/settings" />
+
+</menu>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="wingsv_accent">#0A84FF</color>
+    <color name="wingsv_window">#F5F6FA</color>
+    <color name="wingsv_surface">#FFFFFFFF</color>
+    <color name="wingsv_surface_alt">#EEF2F8</color>
+    <color name="wingsv_text_primary">#10131A</color>
+    <color name="wingsv_text_secondary">#646D7C</color>
+    <color name="wingsv_success">#16965A</color>
+    <color name="wingsv_error">#D13A4B</color>
+    <color name="wingsv_warning">#F2A93B</color>
+    <color name="wingsv_power_off">#D9E2F0</color>
+    <color name="wingsv_power_on">#0A84FF</color>
+    <color name="wingsv_power_on_text">#FFFFFFFF</color>
+    <color name="wingsv_power_off_text">#10131A</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

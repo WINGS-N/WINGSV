@@ -1,0 +1,15 @@
+<resources>
+    <style name="Theme.WINGSV" parent="OneUITheme" />
+
+    <style name="Theme.AppCompat.PickerDialog" parent="Theme.AppCompat.Dialog.Alert" />
+
+    <style name="Theme.AppCompat.Light.PickerDialog" parent="Theme.AppCompat.Light.Dialog.Alert" />
+
+    <style name="Theme.AppCompat.PickerDialog.TimePicker" parent="Theme.AppCompat.PickerDialog" />
+
+    <style name="Theme.AppCompat.Light.PickerDialog.TimePicker" parent="Theme.AppCompat.Light.PickerDialog" />
+
+    <style name="Theme.AppCompat.PickerDialog.DatePicker" parent="Theme.AppCompat.PickerDialog" />
+
+    <style name="Theme.AppCompat.Light.PickerDialog.DatePicker" parent="Theme.AppCompat.Light.PickerDialog" />
+</resources>
