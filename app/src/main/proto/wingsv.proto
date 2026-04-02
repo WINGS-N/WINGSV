@@ -37,6 +37,14 @@ message Turn {
   Endpoint local_endpoint = 6;
   string host = 7;
   optional uint32 port = 8;
+  TurnSessionMode session_mode = 9;
+}
+
+enum TurnSessionMode {
+  TURN_SESSION_MODE_UNSPECIFIED = 0;
+  TURN_SESSION_MODE_AUTO = 1;
+  TURN_SESSION_MODE_LEGACY = 2;
+  TURN_SESSION_MODE_MUX = 3;
 }
 
 message WireGuard {

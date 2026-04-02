@@ -796,6 +796,10 @@ public class ProxyTunnelService extends Service {
         if (settings.noObfuscation) {
             command.add("-no-dtls");
         }
+        if (!TextUtils.isEmpty(settings.turnSessionMode)) {
+            command.add("-session-mode");
+            command.add(settings.turnSessionMode);
+        }
         if (!TextUtils.isEmpty(settings.turnHost)) {
             command.add("-turn");
             command.add(settings.turnHost);

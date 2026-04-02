@@ -127,6 +127,10 @@
     <string name="root_mode_title">Использовать root режим</string>
     <string name="root_mode_summary">Kernel WireGuard вместо Android VpnService</string>
     <string name="root_mode_unavailable">Root режим недоступен: %1$s</string>
+    <string name="turn_session_mode_title">TURN session mode</string>
+    <string name="turn_session_mode_auto">Auto</string>
+    <string name="turn_session_mode_legacy">Legacy</string>
+    <string name="turn_session_mode_mux">Mux</string>
     <string name="auto_start_title">Автозапуск при старте устройства</string>
     <string name="auto_start_summary">Автоматически поднимать подключение после загрузки системы</string>
 

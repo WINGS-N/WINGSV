@@ -8,6 +8,7 @@ public class ProxySettings {
     public int threads;
     public boolean useUdp;
     public boolean noObfuscation;
+    public String turnSessionMode;
     public String localEndpoint;
     public String turnHost;
     public String turnPort;
