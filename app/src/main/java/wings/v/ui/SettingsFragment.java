@@ -9,6 +9,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
@@ -51,6 +52,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     private void configurePreferences() {
         bindNumericPreference(AppPrefs.KEY_THREADS);
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
+        bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
         bindSummaryPreference(AppPrefs.KEY_VK_LINK);
@@ -247,6 +249,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
         syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
         syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
+        syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
         syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
         syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
         syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
@@ -283,5 +286,25 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         preference.setChecked(checked);
+    }
+
+    private void bindListPreference(String key) {
+        ListPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+    }
+
+    private void syncListPreference(String key, @Nullable String value) {
+        ListPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        String normalizedValue = TextUtils.isEmpty(value) ? "auto" : value;
+        if (TextUtils.equals(preference.getValue(), normalizedValue)) {
+            return;
+        }
+        preference.setValue(normalizedValue);
     }
 }

@@ -17,6 +17,7 @@ public final class AppPrefs {
     public static final String KEY_THREADS = "pref_threads";
     public static final String KEY_USE_UDP = "pref_use_udp";
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
+    public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
     public static final String KEY_TURN_PORT = "pref_turn_port";
@@ -322,6 +323,7 @@ public final class AppPrefs {
         settings.threads = parseInt(prefs.getString(KEY_THREADS, "8"), 8);
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
+        settings.turnSessionMode = trim(prefs.getString(KEY_TURN_SESSION_MODE, "auto"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
         settings.turnPort = trim(prefs.getString(KEY_TURN_PORT, ""));
@@ -347,6 +349,9 @@ public final class AppPrefs {
         editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
         editor.putBoolean(KEY_NO_OBFUSCATION,
                 importedConfig.noObfuscation != null && importedConfig.noObfuscation);
+        editor.putString(KEY_TURN_SESSION_MODE, TextUtils.isEmpty(trim(importedConfig.turnSessionMode))
+                ? "auto"
+                : trim(importedConfig.turnSessionMode));
         editor.putString(KEY_LOCAL_ENDPOINT, TextUtils.isEmpty(trim(importedConfig.localEndpoint))
                 ? "127.0.0.1:9000"
                 : trim(importedConfig.localEndpoint));

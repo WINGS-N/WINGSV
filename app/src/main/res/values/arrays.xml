@@ -1,4 +1,16 @@
 <resources>
+    <string-array name="turn_session_mode_entries">
+        <item>@string/turn_session_mode_auto</item>
+        <item>@string/turn_session_mode_legacy</item>
+        <item>@string/turn_session_mode_mux</item>
+    </string-array>
+
+    <string-array name="turn_session_mode_values">
+        <item>auto</item>
+        <item>legacy</item>
+        <item>mux</item>
+    </string-array>
+
     <string-array name="sharing_masquerade_entries">
         <item>@string/sharing_masquerade_none</item>
         <item>@string/sharing_masquerade_simple</item>

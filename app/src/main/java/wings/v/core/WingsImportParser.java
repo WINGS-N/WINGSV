@@ -26,6 +26,7 @@ public final class WingsImportParser {
     private static final int DEFAULT_THREADS = 8;
     private static final boolean DEFAULT_USE_UDP = true;
     private static final boolean DEFAULT_NO_OBFUSCATION = false;
+    private static final String DEFAULT_SESSION_MODE = "auto";
     private static final String DEFAULT_LOCAL_ENDPOINT = "127.0.0.1:9000";
     private static final String DEFAULT_WG_DNS = "1.1.1.1, 1.0.0.1";
     private static final int DEFAULT_WG_MTU = 1280;
@@ -111,6 +112,12 @@ public final class WingsImportParser {
         }
         if (settings.noObfuscation != DEFAULT_NO_OBFUSCATION) {
             builder.setNoObfuscation(settings.noObfuscation);
+        }
+        String sessionMode = value(settings.turnSessionMode);
+        WingsvProto.TurnSessionMode protoSessionMode = toProtoSessionMode(sessionMode);
+        if (protoSessionMode != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO
+                && protoSessionMode != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_UNSPECIFIED) {
+            builder.setSessionMode(protoSessionMode);
         }
         String localEndpoint = value(settings.localEndpoint);
         if (!TextUtils.isEmpty(localEndpoint) && !DEFAULT_LOCAL_ENDPOINT.equals(localEndpoint)) {
@@ -213,6 +220,9 @@ public final class WingsImportParser {
             if (turn.hasNoObfuscation()) {
                 importedConfig.noObfuscation = turn.getNoObfuscation();
             }
+            if (turn.getSessionMode() != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_UNSPECIFIED) {
+                importedConfig.turnSessionMode = fromProtoSessionMode(turn.getSessionMode());
+            }
             if (turn.hasLocalEndpoint()) {
                 importedConfig.localEndpoint = formatEndpoint(turn.getLocalEndpoint());
             }
@@ -287,6 +297,7 @@ public final class WingsImportParser {
         if (turn.has("no_obfuscation")) {
             importedConfig.noObfuscation = turn.optBoolean("no_obfuscation");
         }
+        importedConfig.turnSessionMode = turn.optString("session_mode");
         importedConfig.localEndpoint = turn.optString("local_endpoint");
         importedConfig.turnHost = turn.optString("host");
         importedConfig.turnPort = turn.optString("port");
@@ -478,12 +489,37 @@ public final class WingsImportParser {
         return value == null ? "" : value.trim();
     }
 
+    private static WingsvProto.TurnSessionMode toProtoSessionMode(String rawValue) {
+        String normalized = value(rawValue);
+        if (TextUtils.isEmpty(normalized) || DEFAULT_SESSION_MODE.equals(normalized)) {
+            return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO;
+        }
+        if ("legacy".equals(normalized)) {
+            return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_LEGACY;
+        }
+        if ("mux".equals(normalized)) {
+            return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MUX;
+        }
+        return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO;
+    }
+
+    private static String fromProtoSessionMode(WingsvProto.TurnSessionMode value) {
+        if (value == WingsvProto.TurnSessionMode.TURN_SESSION_MODE_LEGACY) {
+            return "legacy";
+        }
+        if (value == WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MUX) {
+            return "mux";
+        }
+        return DEFAULT_SESSION_MODE;
+    }
+
     public static final class ImportedConfig {
         public String endpoint;
         public String link;
         public Integer threads;
         public Boolean useUdp;
         public Boolean noObfuscation;
+        public String turnSessionMode;
         public String localEndpoint;
         public String turnHost;
         public String turnPort;

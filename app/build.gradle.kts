@@ -19,6 +19,8 @@ val hasReleaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPas
     !keystoreProperties.getProperty(it).isNullOrBlank()
 }
 val vkTurnRepoDir = rootProject.file("external/vk-turn-proxy")
+val vkTurnProtoSourceDir = vkTurnRepoDir.resolve("proto")
+val vkTurnGeneratedProtoGo = vkTurnRepoDir.resolve("sessionproto/session.pb.go")
 val generatedVkTurnJniLibsDir = layout.buildDirectory.dir("generated/vkturn/jniLibs")
 val generatedVkTurnBinary = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
 val protoSourceDir = project.file("src/main/proto")
@@ -106,6 +108,28 @@ val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
             "./client"
         )
     }
+}
+
+val generateVkTurnProxyProtoGo by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Generates Go protobuf sources for external/vk-turn-proxy."
+
+    inputs.files(fileTree(vkTurnProtoSourceDir) {
+        include("**/*.proto")
+    })
+    outputs.file(vkTurnGeneratedProtoGo)
+
+    doFirst {
+        check(vkTurnRepoDir.isDirectory) {
+            "vk-turn-proxy submodule not found at ${vkTurnRepoDir.absolutePath}. Run git submodule update --init --recursive."
+        }
+        workingDir = vkTurnRepoDir
+        commandLine("sh", "scripts/generate_proto.sh")
+    }
+}
+
+buildVkTurnProxyArm64.configure {
+    dependsOn(generateVkTurnProxyProtoGo)
 }
 
 val generateWingsProtoJava by tasks.registering(Exec::class) {
@@ -215,7 +239,7 @@ android {
 }
 
 tasks.named("preBuild") {
-    dependsOn(buildVkTurnProxyArm64, generateWingsProtoJava)
+    dependsOn(generateVkTurnProxyProtoGo, buildVkTurnProxyArm64, generateWingsProtoJava)
 }
 
 dependencies {
