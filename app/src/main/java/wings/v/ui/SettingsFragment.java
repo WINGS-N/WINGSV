@@ -54,10 +54,12 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         bindSecretPreference(AppPrefs.KEY_WG_PRIVATE_KEY);
         bindSecretPreference(AppPrefs.KEY_WG_PUBLIC_KEY);
+        bindSecretPreference(AppPrefs.KEY_WG_PRESHARED_KEY);
 
         makeMultiLine(AppPrefs.KEY_VK_LINK);
         makeMultiLine(AppPrefs.KEY_WG_PRIVATE_KEY);
         makeMultiLine(AppPrefs.KEY_WG_PUBLIC_KEY);
+        makeMultiLine(AppPrefs.KEY_WG_PRESHARED_KEY);
         makeMultiLine(AppPrefs.KEY_WG_ADDRESSES);
         makeMultiLine(AppPrefs.KEY_WG_DNS);
         makeMultiLine(AppPrefs.KEY_WG_ALLOWED_IPS);

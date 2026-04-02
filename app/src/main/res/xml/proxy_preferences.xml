@@ -82,6 +82,10 @@
         android:title="Public key" />
 
     <EditTextPreference
+        android:key="pref_wg_preshared_key"
+        android:title="Preshared key (PSK)" />
+
+    <EditTextPreference
         android:key="pref_wg_allowed_ips"
         android:title="Allowed IPs"
         android:defaultValue="0.0.0.0/0, ::/0"

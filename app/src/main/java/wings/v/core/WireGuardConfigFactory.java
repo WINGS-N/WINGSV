@@ -41,6 +41,9 @@ public final class WireGuardConfigFactory {
         builder.append("MTU = ").append(settings.wgMtu).append("\n\n");
         builder.append("[Peer]\n");
         builder.append("PublicKey = ").append(settings.wgPublicKey).append('\n');
+        if (!isBlank(settings.wgPresharedKey)) {
+            builder.append("PresharedKey = ").append(settings.wgPresharedKey).append('\n');
+        }
         builder.append("AllowedIPs = ").append(settings.wgAllowedIps).append('\n');
         builder.append("Endpoint = ").append(settings.localEndpoint).append('\n');
 

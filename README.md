@@ -45,6 +45,7 @@
     },
     "peer": {
       "public_key": "WireGuard peer public key",
+      "preshared_key": "WireGuard peer preshared key",
       "allowed_ips": "0.0.0.0/0, ::/0"
     }
   }
@@ -83,6 +84,5 @@ GitHub Actions собирают:
 
 - CI debug build на `main`
 - release APK по тегам `v*`
-
 
 

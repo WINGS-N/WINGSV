@@ -25,6 +25,7 @@ public final class AppPrefs {
     public static final String KEY_WG_DNS = "pref_wg_dns";
     public static final String KEY_WG_MTU = "pref_wg_mtu";
     public static final String KEY_WG_PUBLIC_KEY = "pref_wg_public_key";
+    public static final String KEY_WG_PRESHARED_KEY = "pref_wg_preshared_key";
     public static final String KEY_WG_ALLOWED_IPS = "pref_wg_allowed_ips";
     public static final String KEY_APP_ROUTING_BYPASS = "pref_app_routing_bypass";
     public static final String KEY_APP_ROUTING_PACKAGES = "pref_app_routing_packages";
@@ -329,6 +330,7 @@ public final class AppPrefs {
         settings.wgDns = trim(prefs.getString(KEY_WG_DNS, "1.1.1.1, 1.0.0.1"));
         settings.wgMtu = parseInt(prefs.getString(KEY_WG_MTU, "1280"), 1280);
         settings.wgPublicKey = trim(prefs.getString(KEY_WG_PUBLIC_KEY, ""));
+        settings.wgPresharedKey = trim(prefs.getString(KEY_WG_PRESHARED_KEY, ""));
         settings.wgAllowedIps = trim(prefs.getString(KEY_WG_ALLOWED_IPS, "0.0.0.0/0, ::/0"));
         settings.rootModeEnabled = prefs.getBoolean(KEY_ROOT_MODE, false);
         return settings;
@@ -346,6 +348,7 @@ public final class AppPrefs {
         putIfNotEmpty(editor, KEY_WG_ADDRESSES, importedConfig.wgAddresses);
         putIfNotEmpty(editor, KEY_WG_DNS, importedConfig.wgDns);
         putIfNotEmpty(editor, KEY_WG_PUBLIC_KEY, importedConfig.wgPublicKey);
+        putIfNotEmpty(editor, KEY_WG_PRESHARED_KEY, importedConfig.wgPresharedKey);
         putIfNotEmpty(editor, KEY_WG_ALLOWED_IPS, importedConfig.wgAllowedIps);
 
         if (importedConfig.threads != null && importedConfig.threads > 0) {

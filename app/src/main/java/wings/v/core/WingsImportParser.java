@@ -41,6 +41,7 @@ public final class WingsImportParser {
 
         JSONObject peer = new JSONObject();
         peer.put("public_key", nullToEmpty(settings != null ? settings.wgPublicKey : null));
+        peer.put("preshared_key", nullToEmpty(settings != null ? settings.wgPresharedKey : null));
         peer.put("allowed_ips", nullToEmpty(settings != null ? settings.wgAllowedIps : null));
         wg.put("peer", peer);
         root.put("wg", wg);
@@ -114,6 +115,7 @@ public final class WingsImportParser {
             JSONObject peer = wg.optJSONObject("peer");
             if (peer != null) {
                 importedConfig.wgPublicKey = peer.optString("public_key");
+                importedConfig.wgPresharedKey = peer.optString("preshared_key");
                 importedConfig.wgAllowedIps = peer.optString("allowed_ips");
             }
         }
@@ -165,6 +167,7 @@ public final class WingsImportParser {
         public String wgDns;
         public Integer wgMtu;
         public String wgPublicKey;
+        public String wgPresharedKey;
         public String wgAllowedIps;
     }
 }

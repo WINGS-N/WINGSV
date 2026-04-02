@@ -16,6 +16,7 @@ public class ProxySettings {
     public String wgDns;
     public int wgMtu;
     public String wgPublicKey;
+    public String wgPresharedKey;
     public String wgAllowedIps;
     public boolean rootModeEnabled;
 
