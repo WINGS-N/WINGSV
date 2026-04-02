@@ -1,5 +1,6 @@
 package wings.v.ui;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -21,8 +22,11 @@ import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.RootUtils;
 import wings.v.core.UiFormatter;
+import wings.v.core.ProxySettings;
 
 public class SettingsFragment extends PreferenceFragmentCompat {
+    private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
@@ -33,7 +37,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onResume() {
         super.onResume();
+        registerPreferencesListener();
+        syncPreferenceValuesFromPrefs();
         configureRootPreferences();
+    }
+
+    @Override
+    public void onPause() {
+        unregisterPreferencesListener();
+        super.onPause();
     }
 
     private void configurePreferences() {
@@ -93,6 +105,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
 
         configureRootPreferences();
+        syncPreferenceValuesFromPrefs();
     }
 
     private void configureRootPreferences() {
@@ -200,5 +213,75 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                     | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         });
+    }
+
+    private void registerPreferencesListener() {
+        if (preferencesChangeListener != null) {
+            return;
+        }
+        preferencesChangeListener = (sharedPreferences, key) -> {
+            if (!isAdded()) {
+                return;
+            }
+            syncPreferenceValuesFromPrefs();
+            configureRootPreferences();
+        };
+        getPreferenceManager().getSharedPreferences()
+                .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+    }
+
+    private void unregisterPreferencesListener() {
+        if (preferencesChangeListener == null) {
+            return;
+        }
+        getPreferenceManager().getSharedPreferences()
+                .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        preferencesChangeListener = null;
+    }
+
+    private void syncPreferenceValuesFromPrefs() {
+        ProxySettings settings = AppPrefs.getSettings(requireContext());
+
+        syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
+        syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
+        syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
+        syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
+        syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
+        syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
+        syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
+        syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
+        syncEditTextPreference(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
+        syncEditTextPreference(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
+        syncEditTextPreference(AppPrefs.KEY_WG_DNS, settings.wgDns);
+        syncEditTextPreference(AppPrefs.KEY_WG_MTU, String.valueOf(settings.wgMtu));
+        syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
+        syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
+        syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
+        syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(requireContext()));
+        syncSwitchPreference(
+                AppPrefs.KEY_AUTO_START_ON_BOOT,
+                AppPrefs.isAutoStartOnBootEnabled(requireContext())
+        );
+    }
+
+    private void syncEditTextPreference(String key, @Nullable String value) {
+        EditTextPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        String normalizedValue = value == null ? "" : value;
+        String currentValue = preference.getText();
+        if (TextUtils.equals(currentValue, normalizedValue)) {
+            return;
+        }
+        preference.setText(normalizedValue);
+    }
+
+    private void syncSwitchPreference(String key, boolean checked) {
+        SwitchPreferenceCompat preference = findPreference(key);
+        if (preference == null || preference.isChecked() == checked) {
+            return;
+        }
+        preference.setChecked(checked);
     }
 }

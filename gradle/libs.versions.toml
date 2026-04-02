@@ -5,6 +5,7 @@ junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 kotlin = "2.2.20"
+protobuf = "4.31.1"
 librootkotlinx = "1.2.1"
 oneuiDesign = "0.9.4+oneui8"
 wireguardTunnel = "1.0.20260102"
@@ -35,6 +36,7 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 librootkotlinx = { module = "be.mygod.librootkotlinx:librootkotlinx", version.ref = "librootkotlinx" }
 oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneuiDesign" }
 wireguard-tunnel = { module = "com.wireguard.android:tunnel", version.ref = "wireguardTunnel" }
+protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
 sesl-appcompat = { module = "sesl.androidx.appcompat:appcompat", version.ref = "sesl-appcompat" }
 sesl-core = { module = "sesl.androidx.core:core", version.ref = "sesl-core" }
 sesl-coreKtx = { module = "sesl.androidx.core:core-ktx", version.ref = "sesl-coreKtx" }

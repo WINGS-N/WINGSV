@@ -339,43 +339,38 @@ public final class AppPrefs {
     public static void applyImportedConfig(Context context, WingsImportParser.ImportedConfig importedConfig) {
         SharedPreferences.Editor editor = prefs(context).edit();
 
-        putIfNotEmpty(editor, KEY_ENDPOINT, importedConfig.endpoint);
-        putIfNotEmpty(editor, KEY_VK_LINK, importedConfig.link);
-        putIfNotEmpty(editor, KEY_LOCAL_ENDPOINT, importedConfig.localEndpoint);
-        putIfNotEmpty(editor, KEY_TURN_HOST, importedConfig.turnHost);
-        putIfNotEmpty(editor, KEY_TURN_PORT, importedConfig.turnPort);
-        putIfNotEmpty(editor, KEY_WG_PRIVATE_KEY, importedConfig.wgPrivateKey);
-        putIfNotEmpty(editor, KEY_WG_ADDRESSES, importedConfig.wgAddresses);
-        putIfNotEmpty(editor, KEY_WG_DNS, importedConfig.wgDns);
-        putIfNotEmpty(editor, KEY_WG_PUBLIC_KEY, importedConfig.wgPublicKey);
-        putIfNotEmpty(editor, KEY_WG_PRESHARED_KEY, importedConfig.wgPresharedKey);
-        putIfNotEmpty(editor, KEY_WG_ALLOWED_IPS, importedConfig.wgAllowedIps);
-
-        if (importedConfig.threads != null && importedConfig.threads > 0) {
-            editor.putString(KEY_THREADS, String.valueOf(importedConfig.threads));
-        }
-        if (importedConfig.useUdp != null) {
-            editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp);
-        }
-        if (importedConfig.noObfuscation != null) {
-            editor.putBoolean(KEY_NO_OBFUSCATION, importedConfig.noObfuscation);
-        }
-
-        if (importedConfig.wgMtu != null) {
-            editor.putString(KEY_WG_MTU, String.valueOf(importedConfig.wgMtu));
-        }
+        editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
+        editor.putString(KEY_VK_LINK, trim(importedConfig.link));
+        editor.putString(KEY_THREADS, String.valueOf(
+                importedConfig.threads != null && importedConfig.threads > 0 ? importedConfig.threads : 8
+        ));
+        editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
+        editor.putBoolean(KEY_NO_OBFUSCATION,
+                importedConfig.noObfuscation != null && importedConfig.noObfuscation);
+        editor.putString(KEY_LOCAL_ENDPOINT, TextUtils.isEmpty(trim(importedConfig.localEndpoint))
+                ? "127.0.0.1:9000"
+                : trim(importedConfig.localEndpoint));
+        editor.putString(KEY_TURN_HOST, trim(importedConfig.turnHost));
+        editor.putString(KEY_TURN_PORT, trim(importedConfig.turnPort));
+        editor.putString(KEY_WG_PRIVATE_KEY, trim(importedConfig.wgPrivateKey));
+        editor.putString(KEY_WG_ADDRESSES, trim(importedConfig.wgAddresses));
+        editor.putString(KEY_WG_DNS, TextUtils.isEmpty(trim(importedConfig.wgDns))
+                ? "1.1.1.1, 1.0.0.1"
+                : trim(importedConfig.wgDns));
+        editor.putString(KEY_WG_MTU, String.valueOf(
+                importedConfig.wgMtu != null && importedConfig.wgMtu > 0 ? importedConfig.wgMtu : 1280
+        ));
+        editor.putString(KEY_WG_PUBLIC_KEY, trim(importedConfig.wgPublicKey));
+        editor.putString(KEY_WG_PRESHARED_KEY, trim(importedConfig.wgPresharedKey));
+        editor.putString(KEY_WG_ALLOWED_IPS, TextUtils.isEmpty(trim(importedConfig.wgAllowedIps))
+                ? "0.0.0.0/0, ::/0"
+                : trim(importedConfig.wgAllowedIps));
 
         editor.apply();
     }
 
     private static SharedPreferences prefs(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
-    }
-
-    private static void putIfNotEmpty(SharedPreferences.Editor editor, String key, String value) {
-        if (!TextUtils.isEmpty(value)) {
-            editor.putString(key, value.trim());
-        }
     }
 
     private static int parseInt(String rawValue, int fallback) {

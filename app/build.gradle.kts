@@ -21,6 +21,8 @@ val hasReleaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPas
 val vkTurnRepoDir = rootProject.file("external/vk-turn-proxy")
 val generatedVkTurnJniLibsDir = layout.buildDirectory.dir("generated/vkturn/jniLibs")
 val generatedVkTurnBinary = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
+val protoSourceDir = project.file("src/main/proto")
+val generatedProtoJavaDir = layout.buildDirectory.dir("generated/source/proto/main/java")
 
 fun resolveAndroidSdkDir(): File {
     val candidates = listOf(
@@ -106,6 +108,28 @@ val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
     }
 }
 
+val generateWingsProtoJava by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Generates Java lite sources from app/src/main/proto via protoc."
+
+    inputs.files(fileTree(protoSourceDir) {
+        include("**/*.proto")
+    })
+    outputs.dir(generatedProtoJavaDir)
+
+    doFirst {
+        val outDir = generatedProtoJavaDir.get().asFile
+        outDir.mkdirs()
+        workingDir = projectDir
+        commandLine(
+            "protoc",
+            "--proto_path=${protoSourceDir.absolutePath}",
+            "--java_out=lite:${outDir.absolutePath}",
+            "${protoSourceDir.resolve("wingsv.proto").absolutePath}"
+        )
+    }
+}
+
 configurations.configureEach {
     exclude(group = "androidx.core", module = "core")
     exclude(group = "androidx.core", module = "core-ktx")
@@ -138,8 +162,8 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.6"
+        versionCode = 17
+        versionName = "1.7"
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -165,6 +189,7 @@ android {
     }
 
     sourceSets.getByName("main").jniLibs.srcDir(generatedVkTurnJniLibsDir.get().asFile)
+    sourceSets.getByName("main").java.srcDir(generatedProtoJavaDir.get().asFile)
 
     packaging {
         resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
@@ -190,12 +215,13 @@ android {
 }
 
 tasks.named("preBuild") {
-    dependsOn(buildVkTurnProxyArm64)
+    dependsOn(buildVkTurnProxyArm64, generateWingsProtoJava)
 }
 
 dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.oneui.design)
+    implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
     implementation(project(":vpnhotspot-bridge"))
 

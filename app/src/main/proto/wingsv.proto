@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package wingsv;
+
+option java_package = "wings.v.proto";
+option java_outer_classname = "WingsvProto";
+option optimize_for = LITE_RUNTIME;
+
+message Config {
+  uint32 ver = 1;
+  ConfigType type = 2;
+  Turn turn = 3;
+  WireGuard wg = 4;
+}
+
+enum ConfigType {
+  CONFIG_TYPE_UNSPECIFIED = 0;
+  CONFIG_TYPE_VK = 1;
+}
+
+message Endpoint {
+  string host = 1;
+  uint32 port = 2;
+}
+
+message Cidr {
+  bytes addr = 1;
+  uint32 prefix = 2;
+}
+
+message Turn {
+  Endpoint endpoint = 1;
+  string link = 2;
+  optional uint32 threads = 3;
+  optional bool use_udp = 4;
+  optional bool no_obfuscation = 5;
+  Endpoint local_endpoint = 6;
+  string host = 7;
+  optional uint32 port = 8;
+}
+
+message WireGuard {
+  Interface iface = 1;
+  Peer peer = 2;
+}
+
+message Interface {
+  bytes private_key = 1;
+  repeated string addrs = 2;
+  repeated string dns = 3;
+  optional uint32 mtu = 4;
+}
+
+message Peer {
+  bytes public_key = 1;
+  bytes preshared_key = 2;
+  repeated Cidr allowed_ips = 3;
+}
