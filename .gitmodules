@@ -10,3 +10,6 @@
 [submodule "external/Xray-core"]
 	path = external/Xray-core
 	url = https://github.com/XTLS/Xray-core.git
+[submodule "external/amneziawg-android"]
+	path = external/amneziawg-android
+	url = https://github.com/amnezia-vpn/amneziawg-android.git
