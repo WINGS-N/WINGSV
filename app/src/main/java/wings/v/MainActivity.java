@@ -2,8 +2,10 @@ package wings.v;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -12,26 +14,33 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.preference.PreferenceManager;
 import androidx.viewpager2.widget.ViewPager2;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
 import wings.v.core.WingsImportParser;
+import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityMainBinding;
 import wings.v.service.ProxyTunnelService;
 
 public class MainActivity extends AppCompatActivity {
+    public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
+
     private ActivityMainBinding binding;
     private MainPagerAdapter pagerAdapter;
     private int currentTabId = R.id.menu_home;
+    private boolean hasProfilesTab;
     private boolean hasSharingTab;
     private boolean pendingStartAfterOnboarding;
     private boolean pageSelectionReady;
+    private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private final ExecutorService rootStateExecutor = Executors.newSingleThreadExecutor();
     private volatile int rootStateRefreshGeneration;
 
@@ -53,15 +62,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AppPrefs.ensureDefaults(this);
+        hasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
         hasSharingTab = AppPrefs.isRootAccessGranted(this) || AppPrefs.hasRootRuntimeState(this);
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-
-        if (!hasSharingTab) {
-            binding.bottomTab.removeMenuItem(R.id.menu_sharing);
-        }
-        pagerAdapter = new MainPagerAdapter(this, hasSharingTab);
+        configureToolbar();
+        inflateBottomTabMenu();
+        pagerAdapter = new MainPagerAdapter(this, hasProfilesTab, hasSharingTab);
         binding.mainPager.setAdapter(pagerAdapter);
         binding.mainPager.setOffscreenPageLimit(pagerAdapter.getPageCount());
         binding.mainPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -81,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
         binding.bottomTab.setOnMenuItemClickListener(item -> {
             int position = positionForTabId(item.getItemId());
             if (binding.mainPager.getCurrentItem() != position) {
-                binding.mainPager.setCurrentItem(position, true);
+                binding.mainPager.setCurrentItem(position, false);
             } else {
                 Haptics.softSliderStep(binding.bottomTab);
             }
@@ -93,6 +101,14 @@ public class MainActivity extends AppCompatActivity {
             initialTabId = R.id.menu_home;
         } else {
             initialTabId = savedInstanceState.getInt("current_tab_id", R.id.menu_home);
+        }
+        int forcedTabId = getIntent().getIntExtra(EXTRA_FORCE_CURRENT_TAB_ID, 0);
+        if (forcedTabId != 0) {
+            initialTabId = forcedTabId;
+            getIntent().removeExtra(EXTRA_FORCE_CURRENT_TAB_ID);
+        }
+        if (!hasProfilesTab && initialTabId == R.id.menu_profiles) {
+            initialTabId = R.id.menu_home;
         }
         if (!hasSharingTab && initialTabId == R.id.menu_sharing) {
             initialTabId = R.id.menu_home;
@@ -117,13 +133,27 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        syncNavigationState();
         refreshRootStateAsync();
         maybeRecoverRuntimeState();
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        registerPreferencesListener();
+    }
+
+    @Override
+    protected void onStop() {
+        unregisterPreferencesListener();
+        super.onStop();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
+        unregisterPreferencesListener();
         rootStateExecutor.shutdownNow();
     }
 
@@ -141,7 +171,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (AppPrefs.isRootModeEnabled(this)) {
-            String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(this, true);
+            String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
+                    this,
+                    XrayStore.getBackendType(this),
+                    true
+            );
             if (!TextUtils.isEmpty(rootUnavailableReason)) {
                 Toast.makeText(
                         this,
@@ -171,48 +205,77 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateTitle(int tabId) {
-        if (tabId == R.id.menu_apps) {
-            binding.toolbarLayout.setTitle(getString(R.string.apps));
-            return;
-        }
-        if (tabId == R.id.menu_sharing) {
-            binding.toolbarLayout.setTitle(getString(R.string.sharing));
-            return;
-        }
-        if (tabId == R.id.menu_settings) {
-            binding.toolbarLayout.setTitle(getString(R.string.settings));
+        String screenTitle;
+        if (tabId == R.id.menu_profiles) {
+            screenTitle = getString(R.string.xray_profiles_title);
+        } else if (tabId == R.id.menu_apps) {
+            screenTitle = getString(R.string.apps);
+        } else if (tabId == R.id.menu_sharing) {
+            screenTitle = getString(R.string.sharing);
+        } else if (tabId == R.id.menu_settings) {
+            screenTitle = getString(R.string.settings);
         } else {
-            binding.toolbarLayout.setTitle(getString(R.string.home));
+            screenTitle = getString(R.string.home);
         }
+        binding.toolbarLayout.setTitle(getString(R.string.main_toolbar_title_format, screenTitle));
     }
 
     private int positionForTabId(int tabId) {
+        if (tabId == R.id.menu_profiles) {
+            return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_PROFILES);
+        }
         if (tabId == R.id.menu_apps) {
-            return MainPagerAdapter.PAGE_APPS;
+            return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_APPS);
         }
         if (tabId == R.id.menu_sharing && hasSharingTab) {
-            return MainPagerAdapter.PAGE_SHARING;
+            return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_SHARING);
         }
         if (tabId == R.id.menu_settings) {
-            return hasSharingTab ? MainPagerAdapter.PAGE_SETTINGS : MainPagerAdapter.PAGE_SHARING;
+            return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_SETTINGS);
         }
-        return MainPagerAdapter.PAGE_HOME;
+        return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_HOME);
     }
 
     private int tabIdForPosition(int position) {
-        if (position == MainPagerAdapter.PAGE_APPS) {
+        long itemId = pagerAdapter.getItemAt(position);
+        if (itemId == MainPagerAdapter.ITEM_PROFILES) {
+            return R.id.menu_profiles;
+        }
+        if (itemId == MainPagerAdapter.ITEM_APPS) {
             return R.id.menu_apps;
         }
-        if (hasSharingTab && position == MainPagerAdapter.PAGE_SHARING) {
+        if (itemId == MainPagerAdapter.ITEM_SHARING) {
             return R.id.menu_sharing;
         }
-        if (!hasSharingTab && position == MainPagerAdapter.PAGE_SHARING) {
-            return R.id.menu_settings;
-        }
-        if (position == MainPagerAdapter.PAGE_SETTINGS) {
+        if (itemId == MainPagerAdapter.ITEM_SETTINGS) {
             return R.id.menu_settings;
         }
         return R.id.menu_home;
+    }
+
+    private void configureToolbar() {
+        binding.toolbarLayout.setShowNavigationButton(false);
+    }
+
+    private void inflateBottomTabMenu() {
+        int menuResId;
+        if (hasProfilesTab && hasSharingTab) {
+            menuResId = R.menu.menu_bottom_tabs_xray_sharing;
+        } else if (hasProfilesTab) {
+            menuResId = R.menu.menu_bottom_tabs_xray;
+        } else if (hasSharingTab) {
+            menuResId = R.menu.menu_bottom_tabs_sharing;
+        } else {
+            menuResId = R.menu.menu_bottom_tabs_default;
+        }
+        binding.bottomTab.inflateMenu(menuResId, null);
+    }
+
+    public void setBottomNavigationSuppressed(boolean suppressed) {
+        if (binding == null) {
+            return;
+        }
+        binding.bottomTab.setVisibility(suppressed ? View.GONE : View.VISIBLE);
     }
 
     private void maybeShowOnboardingOnFirstLaunch() {
@@ -240,11 +303,7 @@ public class MainActivity extends AppCompatActivity {
                 if (isFinishing() || isDestroyed() || generation != rootStateRefreshGeneration) {
                     return;
                 }
-                boolean nextHasSharingTab = AppPrefs.isRootAccessGranted(this)
-                        || AppPrefs.hasRootRuntimeState(this);
-                if (hasSharingTab != nextHasSharingTab) {
-                    recreate();
-                }
+                syncNavigationState();
             });
         });
     }
@@ -253,21 +312,75 @@ public class MainActivity extends AppCompatActivity {
         ProxyTunnelService.requestRuntimeSyncIfNeeded(this);
     }
 
+    private void syncNavigationState() {
+        boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
+        boolean nextHasSharingTab = AppPrefs.isRootAccessGranted(this)
+                || AppPrefs.hasRootRuntimeState(this);
+        if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
+            restartPreservingTab(currentTabId);
+        }
+    }
+
+    public void restartPreservingTab(int targetTabId) {
+        Intent intent = getIntent();
+        if (intent == null) {
+            intent = new Intent(this, MainActivity.class);
+        }
+        intent.putExtra(EXTRA_FORCE_CURRENT_TAB_ID, targetTabId);
+        setIntent(intent);
+        recreate();
+        overridePendingTransition(0, 0);
+    }
+
     private void handleImportIntent(Intent intent) {
         if (intent == null || intent.getDataString() == null) {
             return;
         }
 
         String rawData = intent.getDataString();
-        if (TextUtils.isEmpty(rawData) || !rawData.startsWith("wingsv://")) {
+        if (TextUtils.isEmpty(rawData)
+                || (!rawData.startsWith("wingsv://") && !rawData.startsWith("vless://"))) {
             return;
         }
 
         try {
             AppPrefs.applyImportedConfig(this, WingsImportParser.parseFromText(rawData));
             Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+            intent.setData(null);
+            boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
+            boolean nextHasSharingTab = AppPrefs.isRootAccessGranted(this)
+                    || AppPrefs.hasRootRuntimeState(this);
+            if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
+                restartPreservingTab(currentTabId);
+            }
         } catch (Exception ignored) {
             Toast.makeText(this, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
+            intent.setData(null);
         }
+    }
+
+    private void registerPreferencesListener() {
+        if (preferencesChangeListener != null) {
+            return;
+        }
+        preferencesChangeListener = (sharedPreferences, key) -> {
+            if (AppPrefs.KEY_BACKEND_TYPE.equals(key)
+                    || AppPrefs.KEY_ROOT_ACCESS_GRANTED.equals(key)
+                    || AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key)
+                    || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)) {
+                runOnUiThread(this::syncNavigationState);
+            }
+        };
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+    }
+
+    private void unregisterPreferencesListener() {
+        if (preferencesChangeListener == null) {
+            return;
+        }
+        PreferenceManager.getDefaultSharedPreferences(this)
+                .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        preferencesChangeListener = null;
     }
 }

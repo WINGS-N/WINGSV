@@ -1,0 +1,56 @@
+package wings.v.core;
+
+import java.util.Objects;
+
+public final class XraySettings {
+    public boolean allowLan;
+    public boolean allowInsecure;
+    public int localProxyPort;
+    public String remoteDns;
+    public String directDns;
+    public boolean ipv6;
+    public boolean sniffingEnabled;
+
+    public XraySettings copy() {
+        XraySettings copy = new XraySettings();
+        copy.allowLan = allowLan;
+        copy.allowInsecure = allowInsecure;
+        copy.localProxyPort = localProxyPort;
+        copy.remoteDns = remoteDns;
+        copy.directDns = directDns;
+        copy.ipv6 = ipv6;
+        copy.sniffingEnabled = sniffingEnabled;
+        return copy;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof XraySettings)) {
+            return false;
+        }
+        XraySettings that = (XraySettings) other;
+        return allowLan == that.allowLan
+                && allowInsecure == that.allowInsecure
+                && localProxyPort == that.localProxyPort
+                && ipv6 == that.ipv6
+                && sniffingEnabled == that.sniffingEnabled
+                && Objects.equals(remoteDns, that.remoteDns)
+                && Objects.equals(directDns, that.directDns);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+                allowLan,
+                allowInsecure,
+                localProxyPort,
+                remoteDns,
+                directDns,
+                ipv6,
+                sniffingEnabled
+        );
+    }
+}

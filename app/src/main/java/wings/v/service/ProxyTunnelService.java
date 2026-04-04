@@ -14,6 +14,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.RouteInfo;
 import android.net.TetheringManager;
+import android.net.TrafficStats;
 import android.net.VpnService;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -69,25 +70,34 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import wings.v.MainActivity;
+import wings.v.CaptchaBrowserActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
 import wings.v.core.WireGuardConfigFactory;
+import wings.v.core.XrayStore;
 import wings.v.root.server.RootProcessResult;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
 import wings.v.vpnhotspot.bridge.sharing.VpnHotspotSharingConfig;
+import wings.v.xray.XrayBridge;
+import wings.v.xray.XrayConfigFactory;
 
 public class ProxyTunnelService extends Service {
     public static final String ACTION_START = "wings.v.action.START";
     public static final String ACTION_STOP = "wings.v.action.STOP";
     public static final String ACTION_REFRESH_IP = "wings.v.action.REFRESH_IP";
+    public static final String ACTION_RECONNECT = "wings.v.action.RECONNECT";
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
     private static final String NOTIFICATION_CHANNEL_ID = "wingsv_tunnel";
+    private static final String CAPTCHA_NOTIFICATION_CHANNEL_ID = "wingsv_captcha";
+    private static final int SERVICE_NOTIFICATION_ID = 1;
+    private static final int CAPTCHA_NOTIFICATION_ID = 2;
     private static final long NETWORK_READY_TIMEOUT_MS = 8_000L;
     private static final long NETWORK_READY_POLL_MS = 250L;
     private static final long PROXY_START_GRACE_MS = 1_500L;
@@ -96,6 +106,9 @@ public class ProxyTunnelService extends Service {
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int MAX_PROXY_LOG_LINES = 600;
     private static final long ROOT_TETHER_SYNC_INTERVAL_MS = 3_000L;
+    private static final int CONNECTION_REFUSED_NOTICE_THRESHOLD = 4;
+    private static final long CONNECTION_REFUSED_NOTICE_WINDOW_MS = 12_000L;
+    private static final long CAPTCHA_NOTIFICATION_COOLDOWN_MS = 2 * 60_000L;
     private static final String NETLINK_PERMISSION_DENIED = "netlinkrib: permission denied";
     private static final String ROOT_TUNNEL_NAME = "wingsv";
     private static final int ROOT_UPSTREAM_TABLE = 54000;
@@ -115,6 +128,8 @@ public class ProxyTunnelService extends Service {
             Pattern.compile("^([^\\s]+) - TetheredState - lastError = \\d+$");
     private static final Object PROXY_LOG_LOCK = new Object();
     private static final ArrayDeque<String> sProxyLogLines = new ArrayDeque<>();
+    private static final Object RUNTIME_LOG_LOCK = new Object();
+    private static final ArrayDeque<String> sRuntimeLogLines = new ArrayDeque<>();
 
     private enum ServiceState {
         STOPPED,
@@ -132,8 +147,16 @@ public class ProxyTunnelService extends Service {
     private static volatile String sPublicCountry;
     private static volatile String sPublicIsp;
     private static volatile String sLastError;
+    private static volatile String sVisibleErrorNotice;
+    private static volatile long sErrorNoticeSessionId;
+    private static volatile long sDismissedErrorNoticeSessionId = -1L;
+    private static volatile int sConnectionRefusedNoticeCount;
+    private static volatile long sConnectionRefusedNoticeStartedAtMs;
     private static volatile boolean sPublicIpRefreshInProgress;
     private static volatile long sProxyLogVersion;
+    private static volatile long sRuntimeLogVersion;
+    private static volatile String sPendingCaptchaUrl;
+    private static volatile long sLastCaptchaNotificationAtElapsedMs;
 
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
@@ -157,6 +180,7 @@ public class ProxyTunnelService extends Service {
     private ToolsInstaller toolsInstaller;
     private RootRoutingState rootRoutingState;
     private boolean rootModeActive;
+    private BackendType activeBackendType = BackendType.VK_TURN_WIREGUARD;
     private String activeTunnelName = ROOT_TUNNEL_NAME;
     private String appliedTetherUpstreamName;
     private volatile PublicIpFetcher.Request publicIpRequest;
@@ -170,6 +194,8 @@ public class ProxyTunnelService extends Service {
     private WifiManager.WifiLock sharingWifiLock;
     private PowerManager.WakeLock sharingPowerLock;
     private int sharingWifiLockMode = -1;
+    private long xrayTrafficBaseRx = -1L;
+    private long xrayTrafficBaseTx = -1L;
     private final TetheringManager.TetheringEventCallback tetheringEventCallback =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
                     ? new TetheringManager.TetheringEventCallback() {
@@ -201,8 +227,43 @@ public class ProxyTunnelService extends Service {
         return new Intent(context, ProxyTunnelService.class).setAction(ACTION_STOP);
     }
 
+    public static void requestStop(Context context) {
+        Context appContext = context != null ? context.getApplicationContext() : null;
+        if (appContext == null) {
+            return;
+        }
+        Intent intent = createStopIntent(appContext);
+        try {
+            appContext.startService(intent);
+        } catch (Exception startError) {
+            try {
+                ContextCompat.startForegroundService(appContext, intent);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    public static void clearPendingCaptchaPrompt(Context context) {
+        Context appContext = context != null ? context.getApplicationContext() : null;
+        if (appContext == null) {
+            return;
+        }
+        sPendingCaptchaUrl = null;
+        NotificationManager notificationManager = appContext.getSystemService(NotificationManager.class);
+        if (notificationManager != null) {
+            try {
+                notificationManager.cancel(CAPTCHA_NOTIFICATION_ID);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
     public static Intent createRefreshIpIntent(Context context) {
         return new Intent(context, ProxyTunnelService.class).setAction(ACTION_REFRESH_IP);
+    }
+
+    public static Intent createReconnectIntent(Context context) {
+        return new Intent(context, ProxyTunnelService.class).setAction(ACTION_RECONNECT);
     }
 
     public static Intent createReapplySharingIntent(Context context) {
@@ -275,6 +336,18 @@ public class ProxyTunnelService extends Service {
         return sLastError;
     }
 
+    @Nullable
+    public static String getVisibleErrorNotice() {
+        if (TextUtils.isEmpty(sVisibleErrorNotice) || sDismissedErrorNoticeSessionId == sErrorNoticeSessionId) {
+            return null;
+        }
+        return sVisibleErrorNotice;
+    }
+
+    public static void dismissVisibleErrorNotice() {
+        sDismissedErrorNoticeSessionId = sErrorNoticeSessionId;
+    }
+
     public static boolean isPublicIpRefreshInProgress() {
         return sPublicIpRefreshInProgress;
     }
@@ -299,10 +372,37 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    public static long getRuntimeLogVersion() {
+        return sRuntimeLogVersion;
+    }
+
+    public static String getRuntimeLogSnapshot() {
+        synchronized (RUNTIME_LOG_LOCK) {
+            if (sRuntimeLogLines.isEmpty()) {
+                return "";
+            }
+            StringBuilder builder = new StringBuilder();
+            for (String line : sRuntimeLogLines) {
+                if (builder.length() > 0) {
+                    builder.append('\n');
+                }
+                builder.append(line);
+            }
+            return builder.toString();
+        }
+    }
+
     public static void clearProxyLogs() {
         synchronized (PROXY_LOG_LOCK) {
             sProxyLogLines.clear();
             sProxyLogVersion++;
+        }
+    }
+
+    public static void clearRuntimeLogs() {
+        synchronized (RUNTIME_LOG_LOCK) {
+            sRuntimeLogLines.clear();
+            sRuntimeLogVersion++;
         }
     }
 
@@ -319,19 +419,29 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    public static void applyPublicIpInfo(@Nullable PublicIpFetcher.IpInfo ipInfo) {
-        if (ipInfo == null) {
+    private static void appendRuntimeLogLine(String line) {
+        if (TextUtils.isEmpty(line)) {
             return;
         }
-        if (!TextUtils.isEmpty(ipInfo.ip)) {
-            sPublicIp = ipInfo.ip;
+        synchronized (RUNTIME_LOG_LOCK) {
+            while (sRuntimeLogLines.size() >= MAX_PROXY_LOG_LINES) {
+                sRuntimeLogLines.removeFirst();
+            }
+            sRuntimeLogLines.addLast(line);
+            sRuntimeLogVersion++;
         }
-        if (!TextUtils.isEmpty(ipInfo.country)) {
-            sPublicCountry = ipInfo.country;
+    }
+
+    public static void applyPublicIpInfo(@Nullable PublicIpFetcher.IpInfo ipInfo) {
+        if (ipInfo == null) {
+            sPublicIp = null;
+            sPublicCountry = null;
+            sPublicIsp = null;
+            return;
         }
-        if (!TextUtils.isEmpty(ipInfo.isp)) {
-            sPublicIsp = ipInfo.isp;
-        }
+        sPublicIp = TextUtils.isEmpty(ipInfo.ip) ? null : ipInfo.ip;
+        sPublicCountry = TextUtils.isEmpty(ipInfo.country) ? null : ipInfo.country;
+        sPublicIsp = TextUtils.isEmpty(ipInfo.isp) ? null : ipInfo.isp;
     }
 
     @Override
@@ -364,10 +474,10 @@ public class ProxyTunnelService extends Service {
                 }
                 try {
                     reapplyRootSharingState();
-                    sLastError = null;
+                    clearLastError();
                 } catch (Exception error) {
-                    sLastError = error.getMessage();
-                    appendProxyLogLine("Root sharing reapply failed: " + error.getMessage());
+                    setLastError(error.getMessage());
+                    appendRuntimeLogLine("Root sharing reapply failed: " + error.getMessage());
                 }
             });
             return START_STICKY;
@@ -386,6 +496,30 @@ public class ProxyTunnelService extends Service {
             requestPublicIpRefresh(true);
             return START_STICKY;
         }
+        if (ACTION_RECONNECT.equals(action)) {
+            if (!isActive()) {
+                setServiceState(ServiceState.CONNECTING);
+                startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+                startWork();
+                return START_STICKY;
+            }
+            resetRuntimeSnapshot();
+            clearLastError();
+            setServiceState(ServiceState.CONNECTING);
+            startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+            workExecutor.execute(() -> {
+                stopWorkInternalForReconnect();
+                stopping = false;
+                clearLastError();
+                setServiceState(ServiceState.CONNECTING);
+                try {
+                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+                } catch (Exception ignored) {
+                }
+                startWork();
+            });
+            return START_STICKY;
+        }
         if (ACTION_SYNC_RUNTIME.equals(action)) {
             if (!AppPrefs.isRootModeEnabled(getApplicationContext())
                     || !AppPrefs.hasRootRuntimeHint(getApplicationContext())) {
@@ -393,13 +527,13 @@ public class ProxyTunnelService extends Service {
                 return START_NOT_STICKY;
             }
             setServiceState(ServiceState.CONNECTING);
-            startForeground(1, buildNotification());
+            startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
             recoverExistingRootRuntime();
             return START_STICKY;
         }
 
         setServiceState(ServiceState.CONNECTING);
-        startForeground(1, buildNotification());
+        startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
         startWork();
         return START_STICKY;
     }
@@ -423,11 +557,14 @@ public class ProxyTunnelService extends Service {
                 return;
             }
 
+            clearPendingCaptchaPrompt(getApplicationContext());
+            beginErrorNoticeSession();
             clearProxyLogs();
+            clearRuntimeLogs();
             ProxySettings settings = AppPrefs.getSettings(getApplicationContext());
             String validationError = settings.validate();
             if (!TextUtils.isEmpty(validationError)) {
-                sLastError = validationError;
+                setLastError(validationError);
                 setServiceState(ServiceState.STOPPED);
                 stopSelf();
                 return;
@@ -436,12 +573,16 @@ public class ProxyTunnelService extends Service {
             try {
                 ensureRuntimeStillWanted(generation);
                 stopping = false;
-                sLastError = null;
+                clearLastError();
                 resetRuntimeSnapshot();
+                activeBackendType = settings.backendType != null
+                        ? settings.backendType
+                        : BackendType.VK_TURN_WIREGUARD;
                 rootModeActive = settings.rootModeEnabled;
                 if (rootModeActive) {
                     String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
                             getApplicationContext(),
+                            activeBackendType,
                             true
                     );
                     if (!TextUtils.isEmpty(rootUnavailableReason)) {
@@ -451,18 +592,24 @@ public class ProxyTunnelService extends Service {
                     clearPersistedRootRuntimeState();
                 }
 
-                if (settings.rootModeEnabled && AppPrefs.hasRootRuntimeHint(getApplicationContext())) {
+                if (activeBackendType == BackendType.VK_TURN_WIREGUARD
+                        && settings.rootModeEnabled
+                        && AppPrefs.hasRootRuntimeHint(getApplicationContext())) {
                     if (recoverExistingRootRuntimeInternal(settings, true, generation)) {
                         return;
                     }
                     ensureRuntimeStillWanted(generation);
                     setServiceState(ServiceState.CONNECTING);
-                    startForeground(1, buildNotification());
+                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 }
 
                 ensureRuntimeStillWanted(generation);
                 setServiceState(ServiceState.CONNECTING);
                 waitForUsablePhysicalNetwork(generation);
+                if (activeBackendType == BackendType.XRAY) {
+                    startXrayRuntime(settings, generation);
+                    return;
+                }
                 prepareBackend(settings, null);
                 ensureRuntimeStillWanted(generation);
                 if (rootModeActive) {
@@ -491,13 +638,14 @@ public class ProxyTunnelService extends Service {
                 }
                 setServiceState(ServiceState.RUNNING);
                 sRunning = true;
+                AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
                 requestPublicIpRefresh(true);
                 restoreSharingOnBootIfNeeded();
 
                 startPolling();
             } catch (Exception error) {
                 if (!stopping) {
-                    sLastError = error.getMessage();
+                    setLastError(error.getMessage());
                 }
                 stopWorkInternal();
                 stopSelf();
@@ -507,10 +655,18 @@ public class ProxyTunnelService extends Service {
 
     private void stopWork(boolean removeNotification) {
         invalidateRuntimeOperations();
+        stopping = true;
+        sRunning = false;
+        setServiceState(ServiceState.STOPPED);
+        if (removeNotification) {
+            try {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } catch (Exception ignored) {
+            }
+        }
         workExecutor.execute(() -> {
             stopWorkInternal();
             if (removeNotification) {
-                stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
             }
         });
@@ -518,15 +674,77 @@ public class ProxyTunnelService extends Service {
 
     private void abortConnectingNow(boolean removeNotification) {
         invalidateRuntimeOperations();
+        stopping = true;
+        sRunning = false;
+        setServiceState(ServiceState.STOPPED);
+        if (removeNotification) {
+            try {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } catch (Exception ignored) {
+            }
+        }
         Thread abortThread = new Thread(() -> {
             stopWorkInternal();
             if (removeNotification) {
-                stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
             }
         }, "wingsv-connect-abort");
         abortThread.setDaemon(true);
         abortThread.start();
+    }
+
+    private void startXrayRuntime(ProxySettings settings, int generation) throws Exception {
+        ensureRuntimeStillWanted(generation);
+        clearPersistedRootRuntimeState();
+        AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+        activeTunnelName = "";
+        backend = null;
+        currentTunnel = null;
+        currentConfig = null;
+        closeProtectBridge();
+        protectSocketName = null;
+
+        XrayVpnService vpnService = XrayVpnService.ensureServiceStarted(getApplicationContext());
+        if (vpnService == null) {
+            throw new IllegalStateException("Не удалось запустить Xray VPN service");
+        }
+        int tunFd = vpnService.establishTunnel(settings);
+        if (tunFd <= 0) {
+            throw new IllegalStateException("Не удалось открыть Xray TUN");
+        }
+        ensureRuntimeStillWanted(generation);
+
+        if (rootModeActive) {
+            VpnHotspotBridge.initializeRootServer(getApplicationContext());
+        }
+
+        try {
+            XrayBridge.stop();
+        } catch (Exception ignored) {
+        }
+
+        String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
+        String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
+        XrayBridge.prepareRuntime(vpnService, remoteDns, directDns);
+        String configJson = XrayConfigFactory.buildConfigJson(getApplicationContext(), settings);
+        appendRuntimeLogLine("Starting Xray backend");
+        XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
+        if (!XrayBridge.isRunning()) {
+            throw new IllegalStateException("Xray core не перешел в состояние running");
+        }
+
+        if (rootModeActive) {
+            registerTetherReceiverIfNeeded();
+            registerTetherEventCallbackIfNeeded();
+            syncRootTetherRouting(null);
+        }
+
+        setServiceState(ServiceState.RUNNING);
+        sRunning = true;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
+        requestPublicIpRefresh(true);
+        restoreSharingOnBootIfNeeded();
+        startPolling();
     }
 
     private void stopWorkInternal() {
@@ -535,6 +753,8 @@ public class ProxyTunnelService extends Service {
         sRunning = false;
         resetRuntimeSnapshot();
         sPublicIpRefreshInProgress = false;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
+        clearPendingCaptchaPrompt(getApplicationContext());
 
         cancelPublicIpRefresh();
 
@@ -543,7 +763,13 @@ public class ProxyTunnelService extends Service {
             statsExecutor = null;
         }
 
-        if (backend != null && currentTunnel != null && currentConfig != null) {
+        if (activeBackendType == BackendType.XRAY) {
+            XrayVpnService.stopService(getApplicationContext());
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {
+            }
+        } else if (backend != null && currentTunnel != null && currentConfig != null) {
             try {
                 backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
             } catch (Exception ignored) {
@@ -569,12 +795,78 @@ public class ProxyTunnelService extends Service {
         backend = null;
         protectSocketName = null;
         rootModeActive = false;
+        activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
         pendingSharingRestoreOnBoot = false;
 
         closeProtectBridge();
         GoBackendVpnAccess.stopService(getApplicationContext());
+        XrayVpnService.stopService(getApplicationContext());
+        if (rootShell != null) {
+            rootShell.stop();
+            rootShell = null;
+        }
+        try {
+            VpnHotspotBridge.closeExistingRootServer();
+        } catch (Exception ignored) {
+        }
+        toolsInstaller = null;
+        clearPersistedRootRuntimeState();
+    }
+
+    private void stopWorkInternalForReconnect() {
+        stopping = true;
+        sRunning = false;
+        cancelPublicIpRefresh();
+        sPublicIpRefreshInProgress = false;
+        clearPendingCaptchaPrompt(getApplicationContext());
+
+        if (statsExecutor != null) {
+            statsExecutor.shutdownNow();
+            statsExecutor = null;
+        }
+
+        if (activeBackendType == BackendType.XRAY) {
+            XrayVpnService.stopService(getApplicationContext());
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {
+            }
+        } else if (backend != null && currentTunnel != null && currentConfig != null) {
+            try {
+                backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
+            } catch (Exception ignored) {
+            }
+        }
+        forceLinkDownActiveTunnelIfNeeded();
+
+        clearRootTetherRouting();
+        clearRootAppTunnelRouting();
+        unregisterTetherReceiver();
+        unregisterTetherEventCallback();
+        releaseSharingWifiLocks();
+        clearRootRouting();
+
+        if (proxyProcess != null) {
+            proxyProcess.destroy();
+            proxyProcess = null;
+        }
+        killPersistedRootProxyIfNeeded();
+
+        currentConfig = null;
+        currentTunnel = null;
+        backend = null;
+        protectSocketName = null;
+        rootModeActive = false;
+        activeBackendType = BackendType.VK_TURN_WIREGUARD;
+        activeTunnelName = ROOT_TUNNEL_NAME;
+        appliedTetherUpstreamName = null;
+        pendingSharingRestoreOnBoot = false;
+
+        closeProtectBridge();
+        GoBackendVpnAccess.stopService(getApplicationContext());
+        XrayVpnService.stopService(getApplicationContext());
         if (rootShell != null) {
             rootShell.stop();
             rootShell = null;
@@ -594,6 +886,7 @@ public class ProxyTunnelService extends Service {
         resetRuntimeSnapshot();
         sPublicIpRefreshInProgress = false;
         cancelPublicIpRefresh();
+        clearPendingCaptchaPrompt(getApplicationContext());
         if (statsExecutor != null) {
             statsExecutor.shutdownNow();
             statsExecutor = null;
@@ -607,11 +900,13 @@ public class ProxyTunnelService extends Service {
         backend = null;
         protectSocketName = null;
         rootModeActive = false;
+        activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
         pendingSharingRestoreOnBoot = false;
         closeProtectBridge();
         GoBackendVpnAccess.stopService(getApplicationContext());
+        XrayVpnService.stopService(getApplicationContext());
         if (rootShell != null) {
             rootShell.stop();
             rootShell = null;
@@ -634,6 +929,8 @@ public class ProxyTunnelService extends Service {
                 if (proxyProcess != null || backend != null || currentTunnel != null) {
                     return;
                 }
+                beginErrorNoticeSession();
+                clearPendingCaptchaPrompt(getApplicationContext());
                 ProxySettings settings = AppPrefs.getSettings(getApplicationContext());
                 if (!recoverExistingRootRuntimeInternal(settings, false, generation)) {
                     clearPersistedRootRuntimeState();
@@ -642,7 +939,7 @@ public class ProxyTunnelService extends Service {
                 }
             } catch (Exception error) {
                 if (!stopping) {
-                    sLastError = error.getMessage();
+                    setLastError(error.getMessage());
                 }
                 abandonRecoveredRuntime(!isRecoveredRuntimeAliveNow(
                         AppPrefs.getRootRuntimeTunnelName(getApplicationContext()),
@@ -668,7 +965,7 @@ public class ProxyTunnelService extends Service {
         long proxyPid = AppPrefs.getRootRuntimeProxyPid(getApplicationContext());
 
         stopping = false;
-        sLastError = null;
+        clearLastError();
         resetRuntimeSnapshot();
 
         String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
@@ -724,6 +1021,7 @@ public class ProxyTunnelService extends Service {
         syncRootTetherRouting(null);
         setServiceState(ServiceState.RUNNING);
         sRunning = true;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
         requestPublicIpRefresh(true);
         restoreSharingOnBootIfNeeded();
         startPolling();
@@ -750,7 +1048,7 @@ public class ProxyTunnelService extends Service {
 
             if (!launchedProcess.waitFor(PROXY_START_GRACE_MS, TimeUnit.MILLISECONDS)) {
                 proxyProcess = launchedProcess;
-                sLastError = null;
+                clearLastError();
                 attachProxyWaitThread(launchedProcess);
                 return launchedAt;
             }
@@ -761,7 +1059,7 @@ public class ProxyTunnelService extends Service {
                     sLastError,
                     "Proxy завершился с кодом " + exitCode
             );
-            sLastError = launchError;
+            setLastError(launchError);
 
             if (shouldRetryProxyLaunch(launchError, attempt)) {
                 sleepInterruptibly(PROXY_RETRY_DELAY_MS, generation);
@@ -843,6 +1141,59 @@ public class ProxyTunnelService extends Service {
         sPublicIsp = null;
         lastRxSample = -1L;
         lastTxSample = -1L;
+        xrayTrafficBaseRx = -1L;
+        xrayTrafficBaseTx = -1L;
+    }
+
+    private static void beginErrorNoticeSession() {
+        sErrorNoticeSessionId = Math.max(1L, sErrorNoticeSessionId + 1L);
+        sDismissedErrorNoticeSessionId = -1L;
+        sVisibleErrorNotice = null;
+        sConnectionRefusedNoticeCount = 0;
+        sConnectionRefusedNoticeStartedAtMs = 0L;
+    }
+
+    private static void clearLastError() {
+        sLastError = null;
+        sVisibleErrorNotice = null;
+        sConnectionRefusedNoticeCount = 0;
+        sConnectionRefusedNoticeStartedAtMs = 0L;
+    }
+
+    private static void setLastError(@Nullable String error) {
+        sLastError = TextUtils.isEmpty(error) ? null : error;
+        if (TextUtils.isEmpty(sLastError)) {
+            sVisibleErrorNotice = null;
+            sConnectionRefusedNoticeCount = 0;
+            sConnectionRefusedNoticeStartedAtMs = 0L;
+            return;
+        }
+        if (isConnectionRefusedError(sLastError)) {
+            long now = SystemClock.elapsedRealtime();
+            if (sConnectionRefusedNoticeStartedAtMs <= 0L
+                    || now - sConnectionRefusedNoticeStartedAtMs > CONNECTION_REFUSED_NOTICE_WINDOW_MS) {
+                sConnectionRefusedNoticeStartedAtMs = now;
+                sConnectionRefusedNoticeCount = 1;
+            } else {
+                sConnectionRefusedNoticeCount++;
+            }
+            if (sConnectionRefusedNoticeCount >= CONNECTION_REFUSED_NOTICE_THRESHOLD) {
+                sVisibleErrorNotice = sLastError;
+            }
+            return;
+        }
+        sConnectionRefusedNoticeCount = 0;
+        sConnectionRefusedNoticeStartedAtMs = 0L;
+        sVisibleErrorNotice = sLastError;
+    }
+
+    private static boolean isConnectionRefusedError(@Nullable String error) {
+        if (TextUtils.isEmpty(error)) {
+            return false;
+        }
+        String lower = error.toLowerCase(Locale.US);
+        return lower.contains("connection refused")
+                || lower.contains("err_connection_refused");
     }
 
     private File getRootProxyPidFile() {
@@ -1129,11 +1480,12 @@ public class ProxyTunnelService extends Service {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     appendProxyLogLine(line);
+                    handleProxyEventLine(line);
                     if (line.toLowerCase().contains("panic")
                             || line.toLowerCase().contains("failed")
                             || line.toLowerCase().contains("error")) {
                         processError.set(line);
-                        sLastError = line;
+                        setLastError(line);
                     }
                 }
             } catch (Exception ignored) {
@@ -1143,13 +1495,112 @@ public class ProxyTunnelService extends Service {
         outputReader.start();
     }
 
+    private void handleProxyEventLine(String line) {
+        if (TextUtils.isEmpty(line)) {
+            return;
+        }
+        final String captchaPrefix = "CAPTCHA_REQUIRED:";
+        final String pendingCaptchaPrefix = "CAPTCHA_PENDING:";
+        if (line.startsWith(captchaPrefix)) {
+            clearPendingCaptchaPrompt(getApplicationContext());
+            String url = line.substring(captchaPrefix.length()).trim();
+            if (TextUtils.isEmpty(url)) {
+                return;
+            }
+            appendRuntimeLogLine("VK captcha requested");
+            openCaptchaBrowser(url, true);
+            return;
+        }
+        if (line.startsWith(pendingCaptchaPrefix)) {
+            String url = line.substring(pendingCaptchaPrefix.length()).trim();
+            if (TextUtils.isEmpty(url)) {
+                return;
+            }
+            appendRuntimeLogLine("Background VK captcha deferred to notification");
+            showPendingCaptchaNotification(url);
+            return;
+        }
+        if ("CAPTCHA_SOLVED".equals(line)
+                || "CAPTCHA_CANCELLED".equals(line)
+                || "CAPTCHA_EXPIRED".equals(line)) {
+            clearPendingCaptchaPrompt(getApplicationContext());
+        }
+    }
+
+    private void openCaptchaBrowser(String url, boolean stopConnectionOnCancel) {
+        try {
+            boolean transientExternalFlow = AppPrefs.isExternalActionTransientLaunchPending(
+                    getApplicationContext()
+            );
+            Intent intent = CaptchaBrowserActivity.createIntent(
+                    getApplicationContext(),
+                    url,
+                    transientExternalFlow,
+                    stopConnectionOnCancel
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+        } catch (Exception error) {
+            appendRuntimeLogLine("Failed to open captcha browser: " + error.getMessage());
+        }
+    }
+
+    private void showPendingCaptchaNotification(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return;
+        }
+        sPendingCaptchaUrl = url;
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        if (notificationManager == null) {
+            return;
+        }
+        long nowElapsed = SystemClock.elapsedRealtime();
+        boolean inCooldown = sLastCaptchaNotificationAtElapsedMs > 0
+                && nowElapsed - sLastCaptchaNotificationAtElapsedMs < CAPTCHA_NOTIFICATION_COOLDOWN_MS;
+
+        Intent openIntent = CaptchaBrowserActivity.createIntent(
+                this,
+                url,
+                false,
+                false
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent openPendingIntent = PendingIntent.getActivity(
+                this,
+                201,
+                openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CAPTCHA_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_power)
+                .setContentTitle(getString(R.string.captcha_notification_title))
+                .setContentText(getString(R.string.captcha_notification_text))
+                .setStyle(new NotificationCompat.BigTextStyle()
+                        .bigText(getString(R.string.captcha_notification_text)))
+                .setAutoCancel(true)
+                .setContentIntent(openPendingIntent)
+                .addAction(0, getString(R.string.captcha_notification_open), openPendingIntent)
+                .setOnlyAlertOnce(false)
+                .setSilent(inCooldown);
+        try {
+            notificationManager.notify(CAPTCHA_NOTIFICATION_ID, builder.build());
+            if (!inCooldown) {
+                sLastCaptchaNotificationAtElapsedMs = nowElapsed;
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private void attachProxyWaitThread(Process monitoredProcess) {
         Thread waitThread = new Thread(() -> {
             try {
                 int exitCode = monitoredProcess.waitFor();
                 if (!stopping && exitCode != 0) {
                     if (TextUtils.isEmpty(sLastError)) {
-                        sLastError = "Proxy завершился с кодом " + exitCode;
+                        setLastError("Proxy завершился с кодом " + exitCode);
                     }
                     setServiceState(ServiceState.STOPPED);
                     stopWork(true);
@@ -1326,19 +1777,28 @@ public class ProxyTunnelService extends Service {
     }
 
     private void syncRootTetherRouting(@Nullable Intent tetherIntent) {
-        if (!rootModeActive || rootShell == null) {
+        if (!rootModeActive) {
             return;
         }
-        String liveTunnelName = !TextUtils.isEmpty(activeTunnelName)
-                && RootUtils.isRootInterfaceAlive(getApplicationContext(), activeTunnelName)
-                ? activeTunnelName
-                : resolveRecoveryTunnelName();
-        if (TextUtils.isEmpty(liveTunnelName)) {
-            AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
-            appendProxyLogLine("Root tether routing skipped: live root tunnel не найден");
-            return;
+        String upstreamNameForLog;
+        if (activeBackendType == BackendType.XRAY) {
+            upstreamNameForLog = firstNonEmpty(
+                    AppPrefs.getSharingUpstreamInterface(getApplicationContext()),
+                    "vpn"
+            );
+        } else {
+            String liveTunnelName = !TextUtils.isEmpty(activeTunnelName)
+                    && RootUtils.isRootInterfaceAlive(getApplicationContext(), activeTunnelName)
+                    ? activeTunnelName
+                    : resolveRecoveryTunnelName();
+            if (TextUtils.isEmpty(liveTunnelName)) {
+                AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+                appendRuntimeLogLine("Root tether routing skipped: live root tunnel не найден");
+                return;
+            }
+            activeTunnelName = liveTunnelName;
+            upstreamNameForLog = liveTunnelName;
         }
-        activeTunnelName = liveTunnelName;
         Set<String> tetherInterfaces = readLiveTetheredInterfaces(
                 tetherIntent != null ? tetherIntent : getStickyTetherIntent()
         );
@@ -1358,13 +1818,13 @@ public class ProxyTunnelService extends Service {
                     buildSharingConfig()
             );
             syncSharingWifiLocks(configuredInterfaces);
-            appliedTetherUpstreamName = liveTunnelName;
-            String syncMessage = "Root tether routing synced: " + configuredInterfaces + " upstream=" + liveTunnelName;
-            appendProxyLogLine(syncMessage);
+            appliedTetherUpstreamName = upstreamNameForLog;
+            String syncMessage = "Root tether routing synced: " + configuredInterfaces + " upstream=" + upstreamNameForLog;
+            appendRuntimeLogLine(syncMessage);
             Log.i(TAG, syncMessage);
         } catch (Exception error) {
             releaseSharingWifiLocks();
-            appendProxyLogLine("Root tether routing sync failed: " + error.getMessage());
+            appendRuntimeLogLine("Root tether routing sync failed: " + error.getMessage());
             Log.e(TAG, "Root tether routing sync failed", error);
         }
     }
@@ -1421,7 +1881,7 @@ public class ProxyTunnelService extends Service {
         }
         Set<TetherType> desiredTypes = AppPrefs.getSharingLastActiveTypes(appContext);
         if (desiredTypes.isEmpty()) {
-            appendProxyLogLine("Sharing boot restore skipped: no saved tether types");
+            appendRuntimeLogLine("Sharing boot restore skipped: no saved tether types");
             return;
         }
         Set<TetherType> currentTypes = TetherType.readEnabledTypes(getStickyTetherIntent());
@@ -1434,17 +1894,17 @@ public class ProxyTunnelService extends Service {
             try {
                 RootUtils.runRootHelper(appContext, "tether", "start", type.commandName);
                 changed = true;
-                appendProxyLogLine("Sharing boot restore started: " + type.commandName);
+                appendRuntimeLogLine("Sharing boot restore started: " + type.commandName);
             } catch (Exception error) {
                 if (TextUtils.isEmpty(firstError)) {
                     firstError = error.getMessage();
                 }
-                appendProxyLogLine("Sharing boot restore failed for "
+                appendRuntimeLogLine("Sharing boot restore failed for "
                         + type.commandName + ": " + error.getMessage());
             }
         }
         if (!TextUtils.isEmpty(firstError)) {
-            sLastError = firstError;
+            setLastError(firstError);
         }
         if (changed) {
             SystemClock.sleep(1_000L);
@@ -1636,7 +2096,7 @@ public class ProxyTunnelService extends Service {
         try {
             VpnHotspotBridge.setupVpnFirewall(getApplicationContext());
         } catch (Exception error) {
-            appendProxyLogLine("Root firewall setup warning: " + error.getMessage());
+            appendRuntimeLogLine("Root firewall setup warning: " + error.getMessage());
             Log.w(TAG, "Root firewall setup warning", error);
         }
         StringBuilder script = new StringBuilder("set -e;");
@@ -1750,7 +2210,7 @@ public class ProxyTunnelService extends Service {
         }
         String tunnelTableLookup = resolveTunnelTableLookup();
         if (TextUtils.isEmpty(tunnelTableLookup)) {
-            appendProxyLogLine("Root app tunnel routing skipped: table для " + activeTunnelName + " не найдена");
+            appendRuntimeLogLine("Root app tunnel routing skipped: table для " + activeTunnelName + " не найдена");
             return;
         }
         int appUid = getApplicationInfo().uid;
@@ -1766,7 +2226,7 @@ public class ProxyTunnelService extends Service {
         try {
             runRootRoutingCommand(script.toString());
         } catch (Exception error) {
-            appendProxyLogLine("Root app tunnel routing failed: " + error.getMessage());
+            appendRuntimeLogLine("Root app tunnel routing failed: " + error.getMessage());
         }
     }
 
@@ -1785,21 +2245,44 @@ public class ProxyTunnelService extends Service {
 
     private VpnHotspotSharingConfig buildSharingConfig() {
         ProxySettings settings = AppPrefs.getSettings(getApplicationContext());
-        String upstreamInterface = activeTunnelName;
-        if (rootModeActive && !RootUtils.isRootInterfaceAlive(getApplicationContext(), upstreamInterface)) {
-            String recoveredTunnelName = resolveRecoveryTunnelName();
-            if (!TextUtils.isEmpty(recoveredTunnelName)) {
-                upstreamInterface = recoveredTunnelName;
+        String upstreamInterface = AppPrefs.getSharingUpstreamInterface(getApplicationContext());
+        String explicitDnsServers = settings != null ? settings.wgDns : "";
+
+        if (activeBackendType == BackendType.XRAY) {
+            explicitDnsServers = buildXrayExplicitDnsServers(settings);
+        } else if (TextUtils.isEmpty(upstreamInterface)) {
+            upstreamInterface = activeTunnelName;
+            if (rootModeActive && !RootUtils.isRootInterfaceAlive(getApplicationContext(), upstreamInterface)) {
+                String recoveredTunnelName = resolveRecoveryTunnelName();
+                if (!TextUtils.isEmpty(recoveredTunnelName)) {
+                    upstreamInterface = recoveredTunnelName;
+                }
             }
         }
         return new VpnHotspotSharingConfig(
                 upstreamInterface,
                 AppPrefs.getSharingFallbackUpstreamInterface(getApplicationContext()),
-                settings != null ? settings.wgDns : "",
+                explicitDnsServers,
                 AppPrefs.getSharingMasqueradeMode(getApplicationContext()),
                 AppPrefs.isSharingDhcpWorkaroundEnabled(getApplicationContext()),
                 AppPrefs.isSharingDisableIpv6Enabled(getApplicationContext())
         );
+    }
+
+    private String buildXrayExplicitDnsServers(@Nullable ProxySettings settings) {
+        if (settings == null || settings.xraySettings == null) {
+            return "";
+        }
+        LinkedHashSet<String> dnsServers = new LinkedHashSet<>();
+        String remoteDns = settings.xraySettings.remoteDns;
+        String directDns = settings.xraySettings.directDns;
+        if (!TextUtils.isEmpty(remoteDns)) {
+            dnsServers.add(remoteDns.trim());
+        }
+        if (!TextUtils.isEmpty(directDns)) {
+            dnsServers.add(directDns.trim());
+        }
+        return TextUtils.join(", ", dnsServers);
     }
 
     @Nullable
@@ -1850,7 +2333,7 @@ public class ProxyTunnelService extends Service {
         if (isRootNatTableAvailable()) {
             return configuredMode;
         }
-        appendProxyLogLine("Root tether NAT fallback: iptables nat недоступен, переключаемся на netd");
+        appendRuntimeLogLine("Root tether NAT fallback: iptables nat недоступен, переключаемся на netd");
         Log.w(TAG, "Root tether NAT fallback: iptables nat unavailable, using netd masquerade");
         return AppPrefs.SHARING_MASQUERADE_NETD;
     }
@@ -1986,7 +2469,7 @@ public class ProxyTunnelService extends Service {
         try {
             RootProcessResult result = VpnHotspotBridge.runRootQuiet(getApplicationContext(), command, false);
             if (result.getExitCode() != 0) {
-                appendProxyLogLine("Root routing command failed: " + result.primaryMessage());
+                appendRuntimeLogLine("Root routing command failed: " + result.primaryMessage());
                 return lines;
             }
             if (TextUtils.isEmpty(result.getStdout())) {
@@ -1995,7 +2478,7 @@ public class ProxyTunnelService extends Service {
             Collections.addAll(lines, result.getStdout().split("\\r?\\n"));
             return lines;
         } catch (Exception error) {
-            appendProxyLogLine("Root routing command failed: " + error.getMessage());
+            appendRuntimeLogLine("Root routing command failed: " + error.getMessage());
             return lines;
         }
     }
@@ -2121,6 +2604,9 @@ public class ProxyTunnelService extends Service {
     }
 
     private void forceLinkDownActiveTunnelIfNeeded() {
+        if (activeBackendType == BackendType.XRAY) {
+            return;
+        }
         Context appContext = getApplicationContext();
         String persistedTunnelName = AppPrefs.getRootRuntimeTunnelName(appContext);
         String tunnelName = !TextUtils.isEmpty(persistedTunnelName) ? persistedTunnelName : activeTunnelName;
@@ -2154,7 +2640,9 @@ public class ProxyTunnelService extends Service {
 
     private boolean shouldAttemptRootRuntimeRecovery() {
         Context appContext = getApplicationContext();
-        return AppPrefs.isRootModeEnabled(appContext) && AppPrefs.hasRootRuntimeHint(appContext);
+        return XrayStore.getBackendType(appContext) == BackendType.VK_TURN_WIREGUARD
+                && AppPrefs.isRootModeEnabled(appContext)
+                && AppPrefs.hasRootRuntimeHint(appContext);
     }
 
     private void invalidateRuntimeOperations() {
@@ -2231,13 +2719,10 @@ public class ProxyTunnelService extends Service {
         sampleStatisticsNow();
         statsExecutor = Executors.newSingleThreadScheduledExecutor();
         statsExecutor.scheduleAtFixedRate(() -> {
-            if (!sRunning || backend == null || currentTunnel == null) {
+            if (!sRunning) {
                 return;
             }
-            try {
-                applyStatisticsSnapshot(backend.getStatistics(currentTunnel));
-            } catch (Exception ignored) {
-            }
+            sampleStatisticsNow();
         }, 1L, 1L, TimeUnit.SECONDS);
 
         statsExecutor.scheduleAtFixedRate(() -> {
@@ -2256,7 +2741,18 @@ public class ProxyTunnelService extends Service {
     }
 
     private void sampleStatisticsNow() {
-        if (!sRunning || backend == null || currentTunnel == null) {
+        if (!sRunning) {
+            return;
+        }
+        if (activeBackendType == BackendType.XRAY) {
+            InterfaceTrafficSnapshot snapshot = readActiveVpnTrafficSnapshot();
+            if (snapshot.isZero()) {
+                snapshot = readUidTrafficSnapshot();
+            }
+            applyTrafficStatsSnapshot(snapshot.rxBytes, snapshot.txBytes);
+            return;
+        }
+        if (backend == null || currentTunnel == null) {
             return;
         }
         try {
@@ -2269,9 +2765,24 @@ public class ProxyTunnelService extends Service {
         if (statistics == null) {
             return;
         }
-        long rxTotal = statistics.totalRx();
-        long txTotal = statistics.totalTx();
+        applyTrafficStatsSnapshot(statistics.totalRx(), statistics.totalTx());
+    }
 
+    private void applyTrafficStatsSnapshot(long rxTotal, long txTotal) {
+        if (rxTotal < 0L) {
+            rxTotal = 0L;
+        }
+        if (txTotal < 0L) {
+            txTotal = 0L;
+        }
+        if (activeBackendType == BackendType.XRAY) {
+            if (xrayTrafficBaseRx < 0L || xrayTrafficBaseTx < 0L) {
+                xrayTrafficBaseRx = rxTotal;
+                xrayTrafficBaseTx = txTotal;
+            }
+            rxTotal = Math.max(0L, rxTotal - xrayTrafficBaseRx);
+            txTotal = Math.max(0L, txTotal - xrayTrafficBaseTx);
+        }
         if (lastRxSample >= 0L) {
             sRxBytesPerSecond = Math.max(0L, rxTotal - lastRxSample);
         } else {
@@ -2289,6 +2800,135 @@ public class ProxyTunnelService extends Service {
         sTxBytes = txTotal;
     }
 
+    private InterfaceTrafficSnapshot readActiveVpnTrafficSnapshot() {
+        String interfaceName = resolveActiveVpnInterfaceName();
+        try (BufferedReader reader = new BufferedReader(new FileReader("/proc/net/dev"))) {
+            java.util.LinkedHashMap<String, InterfaceTrafficSnapshot> snapshots = new java.util.LinkedHashMap<>();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                int separator = line.indexOf(':');
+                if (separator <= 0) {
+                    continue;
+                }
+                String candidate = line.substring(0, separator).trim();
+                String[] columns = line.substring(separator + 1).trim().split("\\s+");
+                if (columns.length < 9) {
+                    continue;
+                }
+                long rxBytes = parseLong(columns[0]);
+                long txBytes = parseLong(columns[8]);
+                snapshots.put(candidate, new InterfaceTrafficSnapshot(rxBytes, txBytes));
+            }
+            if (snapshots.isEmpty()) {
+                return InterfaceTrafficSnapshot.ZERO;
+            }
+
+            if (!TextUtils.isEmpty(interfaceName)) {
+                InterfaceTrafficSnapshot exact = snapshots.get(interfaceName);
+                if (exact != null) {
+                    return exact;
+                }
+            }
+
+            InterfaceTrafficSnapshot tun0 = snapshots.get("tun0");
+            if (tun0 != null) {
+                return tun0;
+            }
+
+            String selectedTunName = null;
+            InterfaceTrafficSnapshot selectedTun = null;
+            long selectedTraffic = -1L;
+            for (java.util.Map.Entry<String, InterfaceTrafficSnapshot> entry : snapshots.entrySet()) {
+                String candidate = entry.getKey();
+                if (!candidate.startsWith("tun") || TextUtils.equals(candidate, "tunl0")) {
+                    continue;
+                }
+                InterfaceTrafficSnapshot snapshot = entry.getValue();
+                long totalTraffic = snapshot.rxBytes + snapshot.txBytes;
+                if (selectedTun == null || totalTraffic > selectedTraffic) {
+                    selectedTunName = candidate;
+                    selectedTun = snapshot;
+                    selectedTraffic = totalTraffic;
+                }
+            }
+            if (selectedTun != null) {
+                return selectedTun;
+            }
+
+            if (!TextUtils.isEmpty(interfaceName) && interfaceName.startsWith("wingsv-")) {
+                for (java.util.Map.Entry<String, InterfaceTrafficSnapshot> entry : snapshots.entrySet()) {
+                    String candidate = entry.getKey();
+                    if (candidate.startsWith("tun") && !TextUtils.equals(candidate, "tunl0")) {
+                        return entry.getValue();
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return InterfaceTrafficSnapshot.ZERO;
+    }
+
+    private InterfaceTrafficSnapshot readUidTrafficSnapshot() {
+        try {
+            int uid = getApplicationInfo().uid;
+            long rxBytes = TrafficStats.getUidRxBytes(uid);
+            long txBytes = TrafficStats.getUidTxBytes(uid);
+            if (rxBytes == TrafficStats.UNSUPPORTED || txBytes == TrafficStats.UNSUPPORTED) {
+                return InterfaceTrafficSnapshot.ZERO;
+            }
+            return new InterfaceTrafficSnapshot(rxBytes, txBytes);
+        } catch (Exception ignored) {
+            return InterfaceTrafficSnapshot.ZERO;
+        }
+    }
+
+    @Nullable
+    private String resolveActiveVpnInterfaceName() {
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return null;
+        }
+        try {
+            Network[] networks = connectivityManager.getAllNetworks();
+            if (networks == null) {
+                return null;
+            }
+            for (Network network : networks) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (capabilities == null || !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                    continue;
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    int ownerUid = capabilities.getOwnerUid();
+                    if (ownerUid != android.os.Process.INVALID_UID && ownerUid != getApplicationInfo().uid) {
+                        continue;
+                    }
+                }
+                LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
+                if (linkProperties == null) {
+                    continue;
+                }
+                String interfaceName = linkProperties.getInterfaceName();
+                if (!TextUtils.isEmpty(interfaceName)) {
+                    return interfaceName;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "tun0";
+    }
+
+    private static long parseLong(@Nullable String value) {
+        if (TextUtils.isEmpty(value)) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (Exception ignored) {
+            return 0L;
+        }
+    }
+
     private void requestPublicIpRefresh(boolean forceRestart) {
         if (stopping || sServiceState == ServiceState.STOPPED) {
             return;
@@ -2304,7 +2944,7 @@ public class ProxyTunnelService extends Service {
         final int requestGeneration = ++publicIpRequestGeneration;
         publicIpRequest = PublicIpFetcher.fetchAsyncCancelable(
                 getApplicationContext(),
-                !rootModeActive,
+                shouldPreferVpnForPublicIp(),
                 result -> {
             if (requestGeneration != publicIpRequestGeneration) {
                 return;
@@ -2313,6 +2953,10 @@ public class ProxyTunnelService extends Service {
             sPublicIpRefreshInProgress = false;
             applyPublicIpInfo(result);
         });
+    }
+
+    private boolean shouldPreferVpnForPublicIp() {
+        return activeBackendType == BackendType.XRAY || !rootModeActive;
     }
 
     private void cancelPublicIpRefresh() {
@@ -2371,9 +3015,9 @@ public class ProxyTunnelService extends Service {
         }
         try {
             if (sServiceState == ServiceState.STOPPED) {
-                notificationManager.cancel(1);
+                notificationManager.cancel(SERVICE_NOTIFICATION_ID);
             } else {
-                notificationManager.notify(1, buildNotification());
+                notificationManager.notify(SERVICE_NOTIFICATION_ID, buildNotification());
             }
         } catch (Exception ignored) {
         }
@@ -2398,9 +3042,16 @@ public class ProxyTunnelService extends Service {
                 "WINGS V",
                 NotificationManager.IMPORTANCE_LOW
         );
+        NotificationChannel captchaChannel = new NotificationChannel(
+                CAPTCHA_NOTIFICATION_CHANNEL_ID,
+                "WINGS V Captcha",
+                NotificationManager.IMPORTANCE_DEFAULT
+        );
+        captchaChannel.setDescription("Captcha prompts for background TURN identity refresh");
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         if (notificationManager != null) {
             notificationManager.createNotificationChannel(channel);
+            notificationManager.createNotificationChannel(captchaChannel);
         }
     }
 
@@ -2421,6 +3072,22 @@ public class ProxyTunnelService extends Service {
             this.ipv4Routes = ipv4Routes != null ? ipv4Routes : new ArrayList<>();
             this.ipv6Routes = ipv6Routes != null ? ipv6Routes : new ArrayList<>();
             this.bypassUids = bypassUids != null ? bypassUids : new LinkedHashSet<>();
+        }
+    }
+
+    private static final class InterfaceTrafficSnapshot {
+        private static final InterfaceTrafficSnapshot ZERO = new InterfaceTrafficSnapshot(0L, 0L);
+
+        private final long rxBytes;
+        private final long txBytes;
+
+        private InterfaceTrafficSnapshot(long rxBytes, long txBytes) {
+            this.rxBytes = Math.max(rxBytes, 0L);
+            this.txBytes = Math.max(txBytes, 0L);
+        }
+
+        private boolean isZero() {
+            return rxBytes <= 0L && txBytes <= 0L;
         }
     }
 

@@ -40,6 +40,15 @@ public final class PermissionUtils {
     }
 
     public static boolean areCorePermissionsGranted(Context context) {
+        BackendType backendType = XrayStore.getBackendType(context);
+        if (backendType == BackendType.XRAY) {
+            boolean granted = areBasePermissionsGranted(context)
+                    && isVpnPermissionGranted(context);
+            if (AppPrefs.isRootModeEnabled(context)) {
+                granted = granted && isRootPermissionGranted(context);
+            }
+            return granted;
+        }
         if (AppPrefs.isRootModeEnabled(context)) {
             return areBasePermissionsGranted(context)
                     && isRootPermissionGranted(context);

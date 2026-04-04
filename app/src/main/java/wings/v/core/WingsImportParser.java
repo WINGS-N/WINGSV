@@ -1,5 +1,6 @@
 package wings.v.core;
 
+import android.content.Context;
 import android.text.TextUtils;
 import android.util.Base64;
 
@@ -9,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,7 +38,152 @@ public final class WingsImportParser {
     }
 
     public static String buildLink(ProxySettings settings) throws Exception {
-        WingsvProto.Config config = buildProtoConfig(settings);
+        return buildLink(null, settings);
+    }
+
+    public static String buildLink(Context context, ProxySettings settings) throws Exception {
+        WingsvProto.Config config = buildProtoConfig(context, settings);
+        return encodeConfig(config);
+    }
+
+    public static String buildXrayProfilesLink(Context context,
+                                               List<XrayProfile> profiles,
+                                               String activeProfileId) throws Exception {
+        if (context == null) {
+            throw new IllegalArgumentException("Context is required");
+        }
+        LinkedHashMap<String, XrayProfile> dedupedProfiles = new LinkedHashMap<>();
+        if (profiles != null) {
+            for (XrayProfile profile : profiles) {
+                if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
+                    continue;
+                }
+                dedupedProfiles.put(profile.stableDedupKey(), profile);
+            }
+        }
+        if (dedupedProfiles.isEmpty()) {
+            throw new IllegalArgumentException("No Xray profiles to export");
+        }
+
+        WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
+                .setVer(CURRENT_VERSION)
+                .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
+
+        WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder();
+        xray.setMergeOnly(true);
+        String resolvedActiveId = value(activeProfileId);
+        if (TextUtils.isEmpty(resolvedActiveId)) {
+            resolvedActiveId = dedupedProfiles.values().iterator().next().id;
+        }
+        xray.setActiveProfileId(resolvedActiveId);
+        for (XrayProfile profile : dedupedProfiles.values()) {
+            xray.addProfiles(toProtoProfile(profile));
+        }
+
+        LinkedHashMap<String, XraySubscription> matchingSubscriptions = new LinkedHashMap<>();
+        for (XrayProfile profile : dedupedProfiles.values()) {
+            if (TextUtils.isEmpty(profile.subscriptionId)) {
+                continue;
+            }
+            matchingSubscriptions.put(profile.subscriptionId, null);
+        }
+        if (!matchingSubscriptions.isEmpty()) {
+            for (XraySubscription subscription : XrayStore.getSubscriptions(context)) {
+                if (subscription == null || TextUtils.isEmpty(subscription.id)) {
+                    continue;
+                }
+                if (!matchingSubscriptions.containsKey(subscription.id)) {
+                    continue;
+                }
+                WingsvProto.Subscription.Builder subscriptionBuilder = WingsvProto.Subscription.newBuilder()
+                        .setId(value(subscription.id))
+                        .setTitle(value(subscription.title))
+                        .setUrl(value(subscription.url))
+                        .setFormatHint(value(subscription.formatHint));
+                if (subscription.refreshIntervalHours > 0) {
+                    subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
+                }
+                if (!subscription.autoUpdate) {
+                    subscriptionBuilder.setAutoUpdate(false);
+                }
+                if (subscription.lastUpdatedAt > 0L) {
+                    subscriptionBuilder.setLastUpdatedAt(subscription.lastUpdatedAt);
+                }
+                xray.addSubscriptions(subscriptionBuilder.build());
+            }
+        }
+
+        config.setXray(xray.build());
+        return encodeConfig(config.build());
+    }
+
+    public static String buildSingleXrayProfileLink(XrayProfile profile) throws Exception {
+        if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
+            throw new IllegalArgumentException("No active Xray profile to export");
+        }
+
+        WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
+                .setVer(CURRENT_VERSION)
+                .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
+
+        WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder()
+                .setMergeOnly(true)
+                .setActiveProfileId(value(profile.id))
+                .addProfiles(toProtoProfile(profile));
+
+        config.setXray(xray.build());
+        return encodeConfig(config.build());
+    }
+
+    public static String buildXraySubscriptionsLink(Context context,
+                                                    List<XraySubscription> subscriptions) throws Exception {
+        if (context == null) {
+            throw new IllegalArgumentException("Context is required");
+        }
+        LinkedHashMap<String, XraySubscription> dedupedSubscriptions = new LinkedHashMap<>();
+        if (subscriptions != null) {
+            for (XraySubscription subscription : subscriptions) {
+                if (subscription == null || TextUtils.isEmpty(subscription.url)) {
+                    continue;
+                }
+                dedupedSubscriptions.put(subscription.stableDedupKey(), subscription);
+            }
+        }
+        if (dedupedSubscriptions.isEmpty()) {
+            throw new IllegalArgumentException("No Xray subscriptions to export");
+        }
+
+        WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
+                .setVer(CURRENT_VERSION)
+                .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
+
+        WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder()
+                .setMergeOnly(true);
+        for (XraySubscription subscription : dedupedSubscriptions.values()) {
+            WingsvProto.Subscription.Builder subscriptionBuilder = WingsvProto.Subscription.newBuilder()
+                    .setId(value(subscription.id))
+                    .setTitle(value(subscription.title))
+                    .setUrl(value(subscription.url))
+                    .setFormatHint(value(subscription.formatHint));
+            if (subscription.refreshIntervalHours > 0) {
+                subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
+            }
+            if (!subscription.autoUpdate) {
+                subscriptionBuilder.setAutoUpdate(false);
+            }
+            if (subscription.lastUpdatedAt > 0L) {
+                subscriptionBuilder.setLastUpdatedAt(subscription.lastUpdatedAt);
+            }
+            xray.addSubscriptions(subscriptionBuilder.build());
+        }
+        config.setXray(xray.build());
+        return encodeConfig(config.build());
+    }
+
+    private static String encodeConfig(WingsvProto.Config config) {
         byte[] protobufPayload = config.toByteArray();
         byte[] compressedPayload = deflate(protobufPayload);
         byte[] framedPayload = new byte[compressedPayload.length + 1];
@@ -46,6 +193,15 @@ public final class WingsImportParser {
     }
 
     public static ImportedConfig parseFromText(String rawText) throws Exception {
+        XrayProfile directProfile = VlessLinkParser.parseProfile(rawText, "", "");
+        if (directProfile != null) {
+            ImportedConfig directImport = new ImportedConfig();
+            directImport.backendType = BackendType.XRAY;
+            directImport.xrayProfiles.add(directProfile);
+            directImport.activeXrayProfileId = directProfile.id;
+            directImport.xraySettings = defaultXraySettings();
+            return directImport;
+        }
         String link = extractLink(rawText);
         if (TextUtils.isEmpty(link)) {
             throw new IllegalArgumentException("WINGSV ссылка не найдена");
@@ -80,10 +236,24 @@ public final class WingsImportParser {
         return null;
     }
 
-    private static WingsvProto.Config buildProtoConfig(ProxySettings settings) throws Exception {
+    private static WingsvProto.Config buildProtoConfig(Context context, ProxySettings settings) throws Exception {
+        BackendType backendType = settings != null && settings.backendType != null
+                ? settings.backendType
+                : BackendType.VK_TURN_WIREGUARD;
         WingsvProto.Config.Builder builder = WingsvProto.Config.newBuilder()
                 .setVer(CURRENT_VERSION)
-                .setType(WingsvProto.ConfigType.CONFIG_TYPE_VK);
+                .setBackend(backendType.toProto())
+                .setType(backendType == BackendType.XRAY
+                        ? WingsvProto.ConfigType.CONFIG_TYPE_XRAY
+                        : WingsvProto.ConfigType.CONFIG_TYPE_VK);
+
+        if (settings != null && backendType == BackendType.XRAY) {
+            WingsvProto.Xray xray = buildXray(context, settings);
+            if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
+                builder.setXray(xray);
+            }
+            return builder.build();
+        }
 
         if (settings != null) {
             WingsvProto.Turn turn = buildTurn(settings);
@@ -93,6 +263,66 @@ public final class WingsImportParser {
             WingsvProto.WireGuard wg = buildWireGuard(settings);
             if (!wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
                 builder.setWg(wg);
+            }
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.Xray buildXray(Context context, ProxySettings settings) {
+        WingsvProto.Xray.Builder builder = WingsvProto.Xray.newBuilder();
+        XrayProfile activeProfile = settings.activeXrayProfile;
+        LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
+        if (context != null) {
+            for (XrayProfile profile : XrayStore.getProfiles(context)) {
+                if (profile != null && !TextUtils.isEmpty(profile.rawLink)) {
+                    profiles.put(profile.stableDedupKey(), profile);
+                }
+            }
+        }
+        if (activeProfile != null && !TextUtils.isEmpty(activeProfile.rawLink)) {
+            profiles.put(activeProfile.stableDedupKey(), activeProfile);
+        }
+        String activeProfileId = activeProfile != null ? value(activeProfile.id) : "";
+        if (TextUtils.isEmpty(activeProfileId) && context != null) {
+            activeProfileId = value(XrayStore.getActiveProfileId(context));
+        }
+        if (!TextUtils.isEmpty(activeProfileId)) {
+            builder.setActiveProfileId(activeProfileId);
+        }
+        for (XrayProfile profile : profiles.values()) {
+            builder.addProfiles(toProtoProfile(profile));
+        }
+        XraySettings xraySettings = settings.xraySettings;
+        if (xraySettings != null) {
+            WingsvProto.XraySettings protoSettings = toProtoXraySettings(xraySettings);
+            if (!protoSettings.equals(WingsvProto.XraySettings.getDefaultInstance())) {
+                builder.setSettings(protoSettings);
+            }
+        }
+        if (context != null) {
+            for (XraySubscription subscription : XrayStore.getSubscriptions(context)) {
+                if (subscription == null || TextUtils.isEmpty(subscription.url)) {
+                    continue;
+                }
+                WingsvProto.Subscription.Builder subscriptionBuilder = WingsvProto.Subscription.newBuilder()
+                        .setId(value(subscription.id))
+                        .setTitle(value(subscription.title))
+                        .setUrl(value(subscription.url))
+                        .setFormatHint(value(subscription.formatHint));
+                if (subscription.refreshIntervalHours > 0) {
+                    subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
+                }
+                if (!subscription.autoUpdate) {
+                    subscriptionBuilder.setAutoUpdate(false);
+                }
+                if (subscription.lastUpdatedAt > 0L) {
+                    subscriptionBuilder.setLastUpdatedAt(subscription.lastUpdatedAt);
+                }
+                builder.addSubscriptions(subscriptionBuilder.build());
+            }
+            String importedSubscriptionJson = XrayStore.getImportedSubscriptionJson(context);
+            if (!TextUtils.isEmpty(importedSubscriptionJson)) {
+                builder.setSubscriptionJson(importedSubscriptionJson);
             }
         }
         return builder.build();
@@ -200,11 +430,20 @@ public final class WingsImportParser {
         if (config.getVer() <= 0) {
             throw new IllegalArgumentException("Отсутствует или некорректен ver");
         }
-        if (config.getType() != WingsvProto.ConfigType.CONFIG_TYPE_VK) {
-            throw new IllegalArgumentException("Поддерживается только type=vk");
-        }
 
         ImportedConfig importedConfig = new ImportedConfig();
+        importedConfig.backendType = BackendType.fromProto(config.getBackend());
+        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XRAY
+                || importedConfig.backendType == BackendType.XRAY
+                || config.hasXray()) {
+            importedConfig.backendType = BackendType.XRAY;
+            parseXray(config, importedConfig);
+            return importedConfig;
+        }
+        if (config.getType() != WingsvProto.ConfigType.CONFIG_TYPE_VK) {
+            throw new IllegalArgumentException("Поддерживается только type=vk/xray");
+        }
+
         if (config.hasTurn()) {
             WingsvProto.Turn turn = config.getTurn();
             if (turn.hasEndpoint()) {
@@ -269,6 +508,28 @@ public final class WingsImportParser {
         return importedConfig;
     }
 
+    private static void parseXray(WingsvProto.Config config, ImportedConfig importedConfig) {
+        WingsvProto.Xray xray = config.hasXray()
+                ? config.getXray()
+                : WingsvProto.Xray.getDefaultInstance();
+        importedConfig.xrayMergeOnly = xray.hasMergeOnly() && xray.getMergeOnly();
+        importedConfig.xraySettings = xray.hasSettings()
+                ? fromProtoXraySettings(xray.getSettings())
+                : defaultXraySettings();
+        importedConfig.activeXrayProfileId = value(xray.getActiveProfileId());
+        importedConfig.xraySubscriptionJson = value(xray.getSubscriptionJson());
+        if (xray.getSubscriptionsCount() > 0) {
+            for (WingsvProto.Subscription subscription : xray.getSubscriptionsList()) {
+                importedConfig.xraySubscriptions.add(fromProtoSubscription(subscription));
+            }
+        }
+        if (xray.getProfilesCount() > 0) {
+            for (WingsvProto.VlessProfile profile : xray.getProfilesList()) {
+                importedConfig.xrayProfiles.add(fromProtoProfile(profile));
+            }
+        }
+    }
+
     private static ImportedConfig parseJsonPayload(byte[] decodedPayload) throws Exception {
         JSONObject root = new JSONObject(new String(decodedPayload, StandardCharsets.UTF_8));
         int version = root.optInt("ver", -1);
@@ -286,6 +547,7 @@ public final class WingsImportParser {
         }
 
         ImportedConfig importedConfig = new ImportedConfig();
+        importedConfig.backendType = BackendType.VK_TURN_WIREGUARD;
         importedConfig.endpoint = turn.optString("endpoint");
         importedConfig.link = turn.optString("link");
         if (turn.has("threads")) {
@@ -489,13 +751,126 @@ public final class WingsImportParser {
         return value == null ? "" : value.trim();
     }
 
+    private static WingsvProto.VlessProfile toProtoProfile(XrayProfile profile) {
+        WingsvProto.VlessProfile.Builder builder = WingsvProto.VlessProfile.newBuilder();
+        builder.setId(value(profile.id));
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            builder.setTitle(value(profile.title));
+        }
+        builder.setRawLink(value(profile.rawLink));
+        if (!TextUtils.isEmpty(value(profile.subscriptionId))) {
+            builder.setSubscriptionId(value(profile.subscriptionId));
+        }
+        if (!TextUtils.isEmpty(value(profile.subscriptionTitle))) {
+            builder.setSubscriptionTitle(value(profile.subscriptionTitle));
+        }
+        if (!TextUtils.isEmpty(value(profile.address))) {
+            builder.setAddress(value(profile.address));
+        }
+        if (profile.port > 0) {
+            builder.setPort(profile.port);
+        }
+        return builder.build();
+    }
+
+    private static XrayProfile fromProtoProfile(WingsvProto.VlessProfile profile) {
+        return new XrayProfile(
+                value(profile.getId()),
+                value(profile.getTitle()),
+                value(profile.getRawLink()),
+                value(profile.getSubscriptionId()),
+                value(profile.getSubscriptionTitle()),
+                value(profile.getAddress()),
+                profile.hasPort() ? profile.getPort() : 0
+        );
+    }
+
+    private static XraySettings fromProtoXraySettings(WingsvProto.XraySettings settings) {
+        XraySettings result = defaultXraySettings();
+        if (settings.hasAllowLan()) {
+            result.allowLan = settings.getAllowLan();
+        }
+        if (settings.hasAllowInsecure()) {
+            result.allowInsecure = settings.getAllowInsecure();
+        }
+        if (settings.hasLocalProxyPort()) {
+            result.localProxyPort = settings.getLocalProxyPort();
+        }
+        if (!TextUtils.isEmpty(value(settings.getRemoteDns()))) {
+            result.remoteDns = value(settings.getRemoteDns());
+        }
+        if (!TextUtils.isEmpty(value(settings.getDirectDns()))) {
+            result.directDns = value(settings.getDirectDns());
+        }
+        if (settings.hasIpv6()) {
+            result.ipv6 = settings.getIpv6();
+        }
+        if (settings.hasSniffingEnabled()) {
+            result.sniffingEnabled = settings.getSniffingEnabled();
+        }
+        return result;
+    }
+
+    private static WingsvProto.XraySettings toProtoXraySettings(XraySettings settings) {
+        WingsvProto.XraySettings.Builder builder = WingsvProto.XraySettings.newBuilder();
+        if (settings == null) {
+            return builder.build();
+        }
+        if (settings.allowLan) {
+            builder.setAllowLan(true);
+        }
+        if (settings.allowInsecure) {
+            builder.setAllowInsecure(true);
+        }
+        if (settings.localProxyPort > 0) {
+            builder.setLocalProxyPort(settings.localProxyPort);
+        }
+        if (!TextUtils.isEmpty(value(settings.remoteDns))) {
+            builder.setRemoteDns(value(settings.remoteDns));
+        }
+        if (!TextUtils.isEmpty(value(settings.directDns))) {
+            builder.setDirectDns(value(settings.directDns));
+        }
+        if (!settings.ipv6) {
+            builder.setIpv6(false);
+        }
+        if (!settings.sniffingEnabled) {
+            builder.setSniffingEnabled(false);
+        }
+        return builder.build();
+    }
+
+    private static XraySubscription fromProtoSubscription(WingsvProto.Subscription subscription) {
+        return new XraySubscription(
+                value(subscription.getId()),
+                value(subscription.getTitle()),
+                value(subscription.getUrl()),
+                value(subscription.getFormatHint()),
+                subscription.hasRefreshIntervalHours() ? subscription.getRefreshIntervalHours() : 0,
+                !subscription.hasAutoUpdate() || subscription.getAutoUpdate(),
+                subscription.hasLastUpdatedAt() ? subscription.getLastUpdatedAt() : 0L
+        );
+    }
+
+    private static XraySettings defaultXraySettings() {
+        XraySettings settings = new XraySettings();
+        settings.allowLan = false;
+        settings.allowInsecure = false;
+        settings.localProxyPort = 10808;
+        settings.remoteDns = "https://common.dot.dns.yandex.net/dns-query";
+        settings.directDns = "https://common.dot.dns.yandex.net/dns-query";
+        settings.ipv6 = true;
+        settings.sniffingEnabled = true;
+        return settings;
+    }
+
     private static WingsvProto.TurnSessionMode toProtoSessionMode(String rawValue) {
         String normalized = value(rawValue);
         if (TextUtils.isEmpty(normalized) || DEFAULT_SESSION_MODE.equals(normalized)) {
             return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO;
         }
-        if ("legacy".equals(normalized)) {
-            return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_LEGACY;
+        if ("mainline".equals(normalized)) {
+            return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MAINLINE;
         }
         if ("mux".equals(normalized)) {
             return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MUX;
@@ -504,8 +879,8 @@ public final class WingsImportParser {
     }
 
     private static String fromProtoSessionMode(WingsvProto.TurnSessionMode value) {
-        if (value == WingsvProto.TurnSessionMode.TURN_SESSION_MODE_LEGACY) {
-            return "legacy";
+        if (value == WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MAINLINE) {
+            return "mainline";
         }
         if (value == WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MUX) {
             return "mux";
@@ -514,6 +889,7 @@ public final class WingsImportParser {
     }
 
     public static final class ImportedConfig {
+        public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
         public String endpoint;
         public String link;
         public Integer threads;
@@ -530,5 +906,11 @@ public final class WingsImportParser {
         public String wgPublicKey;
         public String wgPresharedKey;
         public String wgAllowedIps;
+        public String activeXrayProfileId;
+        public final List<XrayProfile> xrayProfiles = new ArrayList<>();
+        public final List<XraySubscription> xraySubscriptions = new ArrayList<>();
+        public XraySettings xraySettings = defaultXraySettings();
+        public String xraySubscriptionJson;
+        public boolean xrayMergeOnly;
     }
 }

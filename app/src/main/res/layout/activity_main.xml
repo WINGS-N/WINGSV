@@ -18,7 +18,6 @@
         android:id="@+id/bottom_tab"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:layout_location="footer"
-        app:menu="@menu/menu_bottom_tabs" />
+        app:layout_location="footer" />
 
 </dev.oneuiproject.oneui.layout.ToolbarLayout>

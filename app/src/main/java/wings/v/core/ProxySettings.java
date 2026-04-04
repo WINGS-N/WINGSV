@@ -3,6 +3,7 @@ package wings.v.core;
 import android.text.TextUtils;
 
 public class ProxySettings {
+    public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
     public String endpoint;
     public String vkLink;
     public int threads;
@@ -20,8 +21,16 @@ public class ProxySettings {
     public String wgPresharedKey;
     public String wgAllowedIps;
     public boolean rootModeEnabled;
+    public XrayProfile activeXrayProfile;
+    public XraySettings xraySettings;
 
     public String validate() {
+        if (backendType == BackendType.XRAY) {
+            if (activeXrayProfile == null || TextUtils.isEmpty(activeXrayProfile.rawLink)) {
+                return "Xray профиль не выбран";
+            }
+            return null;
+        }
         if (TextUtils.isEmpty(endpoint)) {
             return "Endpoint не заполнен";
         }

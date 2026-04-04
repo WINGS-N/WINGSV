@@ -7,8 +7,10 @@ import android.content.Intent;
 import androidx.core.content.ContextCompat;
 
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
+import wings.v.core.XrayStore;
 import wings.v.service.ProxyTunnelService;
 
 public class BootReceiver extends BroadcastReceiver {
@@ -35,8 +37,9 @@ public class BootReceiver extends BroadcastReceiver {
         if (!PermissionUtils.areCorePermissionsGranted(context)) {
             return;
         }
+        BackendType backendType = XrayStore.getBackendType(context);
         if (AppPrefs.isRootModeEnabled(context)
-                && !RootUtils.isRootModeSupported(context)) {
+                && !RootUtils.isRootModeSupported(context, backendType, false)) {
             return;
         }
         try {

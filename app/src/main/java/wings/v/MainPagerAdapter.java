@@ -5,36 +5,66 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import wings.v.ui.AppsFragment;
 import wings.v.ui.HomeFragment;
-import wings.v.ui.SharingFragment;
+import wings.v.ui.ProfilesFragment;
 import wings.v.ui.SettingsFragment;
+import wings.v.ui.SharingFragment;
 
 public class MainPagerAdapter extends FragmentStateAdapter {
-    public static final int PAGE_HOME = 0;
-    public static final int PAGE_APPS = 1;
-    public static final int PAGE_SHARING = 2;
-    public static final int PAGE_SETTINGS = 3;
-    private static final long ITEM_HOME = 100L;
-    private static final long ITEM_APPS = 101L;
-    private static final long ITEM_SHARING = 102L;
-    private static final long ITEM_SETTINGS = 103L;
+    public static final long ITEM_HOME = 100L;
+    public static final long ITEM_PROFILES = 101L;
+    public static final long ITEM_APPS = 102L;
+    public static final long ITEM_SHARING = 103L;
+    public static final long ITEM_SETTINGS = 104L;
 
-    private final boolean hasSharingTab;
+    private final List<Long> items = new ArrayList<>();
 
-    public MainPagerAdapter(@NonNull AppCompatActivity activity, boolean hasSharingTab) {
+    public MainPagerAdapter(@NonNull AppCompatActivity activity,
+                            boolean hasProfilesTab,
+                            boolean hasSharingTab) {
         super(activity);
-        this.hasSharingTab = hasSharingTab;
+        items.add(ITEM_HOME);
+        if (hasProfilesTab) {
+            items.add(ITEM_PROFILES);
+        }
+        items.add(ITEM_APPS);
+        if (hasSharingTab) {
+            items.add(ITEM_SHARING);
+        }
+        items.add(ITEM_SETTINGS);
     }
 
     public int getPageCount() {
-        return hasSharingTab ? 4 : 3;
+        return items.size();
+    }
+
+    public int positionForItem(long itemId) {
+        for (int index = 0; index < items.size(); index++) {
+            if (items.get(index) == itemId) {
+                return index;
+            }
+        }
+        return 0;
+    }
+
+    public long getItemAt(int position) {
+        if (position < 0 || position >= items.size()) {
+            return ITEM_HOME;
+        }
+        return items.get(position);
     }
 
     @NonNull
     @Override
     public Fragment createFragment(int position) {
         long itemId = getItemId(position);
+        if (itemId == ITEM_PROFILES) {
+            return new ProfilesFragment();
+        }
         if (itemId == ITEM_APPS) {
             return new AppsFragment();
         }
@@ -49,28 +79,16 @@ public class MainPagerAdapter extends FragmentStateAdapter {
 
     @Override
     public int getItemCount() {
-        return getPageCount();
+        return items.size();
     }
 
     @Override
     public long getItemId(int position) {
-        if (position == PAGE_HOME) {
-            return ITEM_HOME;
-        }
-        if (position == PAGE_APPS) {
-            return ITEM_APPS;
-        }
-        if (hasSharingTab && position == PAGE_SHARING) {
-            return ITEM_SHARING;
-        }
-        return ITEM_SETTINGS;
+        return getItemAt(position);
     }
 
     @Override
     public boolean containsItem(long itemId) {
-        if (itemId == ITEM_HOME || itemId == ITEM_APPS || itemId == ITEM_SETTINGS) {
-            return true;
-        }
-        return hasSharingTab && itemId == ITEM_SHARING;
+        return items.contains(itemId);
     }
 }

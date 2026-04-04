@@ -11,11 +11,20 @@ message Config {
   ConfigType type = 2;
   Turn turn = 3;
   WireGuard wg = 4;
+  BackendType backend = 5;
+  Xray xray = 6;
 }
 
 enum ConfigType {
   CONFIG_TYPE_UNSPECIFIED = 0;
   CONFIG_TYPE_VK = 1;
+  CONFIG_TYPE_XRAY = 2;
+}
+
+enum BackendType {
+  BACKEND_TYPE_UNSPECIFIED = 0;
+  BACKEND_TYPE_VK_TURN_WIREGUARD = 1;
+  BACKEND_TYPE_XRAY = 2;
 }
 
 message Endpoint {
@@ -43,7 +52,7 @@ message Turn {
 enum TurnSessionMode {
   TURN_SESSION_MODE_UNSPECIFIED = 0;
   TURN_SESSION_MODE_AUTO = 1;
-  TURN_SESSION_MODE_LEGACY = 2;
+  TURN_SESSION_MODE_MAINLINE = 2;
   TURN_SESSION_MODE_MUX = 3;
 }
 
@@ -63,4 +72,43 @@ message Peer {
   bytes public_key = 1;
   bytes preshared_key = 2;
   repeated Cidr allowed_ips = 3;
+}
+
+message Xray {
+  string active_profile_id = 1;
+  repeated VlessProfile profiles = 2;
+  repeated Subscription subscriptions = 3;
+  XraySettings settings = 4;
+  string subscription_json = 5;
+  optional bool merge_only = 6;
+}
+
+message Subscription {
+  string id = 1;
+  string title = 2;
+  string url = 3;
+  string format_hint = 4;
+  optional uint32 refresh_interval_hours = 5;
+  optional bool auto_update = 6;
+  optional int64 last_updated_at = 7;
+}
+
+message VlessProfile {
+  string id = 1;
+  string title = 2;
+  string raw_link = 3;
+  string subscription_id = 4;
+  string subscription_title = 5;
+  string address = 6;
+  optional uint32 port = 7;
+}
+
+message XraySettings {
+  optional bool allow_lan = 1;
+  optional bool allow_insecure = 2;
+  optional uint32 local_proxy_port = 3;
+  string remote_dns = 4;
+  string direct_dns = 5;
+  optional bool ipv6 = 6;
+  optional bool sniffing_enabled = 7;
 }

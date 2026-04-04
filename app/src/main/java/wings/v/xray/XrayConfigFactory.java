@@ -1,0 +1,435 @@
+package wings.v.xray;
+
+import android.content.Context;
+import android.text.TextUtils;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import wings.v.core.ProxySettings;
+import wings.v.core.XrayProfile;
+import wings.v.core.XraySettings;
+
+public final class XrayConfigFactory {
+    private static final String TUN_TAG = "tun-in";
+    private static final String SOCKS_TAG = "socks-in";
+    private static final String PROXY_TAG = "proxy";
+    private static final String DNS_OUT_TAG = "dns-out";
+    private static final String DIRECT_TAG = "direct";
+    private static final String BLOCK_TAG = "block";
+    private static final int DEFAULT_MTU = 1500;
+
+    private XrayConfigFactory() {
+    }
+
+    public static String buildConfigJson(Context context, ProxySettings settings) throws Exception {
+        if (settings == null || settings.activeXrayProfile == null
+                || TextUtils.isEmpty(settings.activeXrayProfile.rawLink)) {
+            throw new IllegalArgumentException("Xray профиль не выбран");
+        }
+
+        JSONObject converted = new JSONObject(
+                XrayBridge.convertShareLinkToOutboundJson(settings.activeXrayProfile.rawLink)
+        );
+        JSONArray convertedOutbounds = converted.optJSONArray("outbounds");
+        if (convertedOutbounds == null || convertedOutbounds.length() == 0) {
+            throw new IllegalStateException("Не удалось получить outbound из VLESS профиля");
+        }
+
+        XraySettings xraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
+        JSONObject proxyOutbound = new JSONObject(convertedOutbounds.getJSONObject(0).toString());
+        proxyOutbound.put("tag", PROXY_TAG);
+        proxyOutbound.remove("sendThrough");
+        sanitizeOutbound(proxyOutbound, settings.activeXrayProfile);
+        applySecurityOverrides(proxyOutbound, xraySettings);
+
+        JSONObject root = new JSONObject();
+        root.put("log", buildLog(context));
+        root.put("dns", buildDns(xraySettings));
+        root.put("inbounds", buildInbounds(xraySettings));
+        root.put("outbounds", buildOutbounds(proxyOutbound));
+        root.put("routing", buildRouting(xraySettings));
+        String configJson = root.toString();
+        writeDebugArtifacts(context, configJson, proxyOutbound);
+        return configJson;
+    }
+
+    private static JSONObject buildLog(Context context) throws Exception {
+        JSONObject log = new JSONObject();
+        File logDir = new File(context.getFilesDir(), "xray/log");
+        if (!logDir.exists()) {
+            logDir.mkdirs();
+        }
+        File accessLog = new File(logDir, "access.log");
+        File errorLog = new File(logDir, "error.log");
+        resetLogFile(accessLog);
+        resetLogFile(errorLog);
+        log.put("access", accessLog.getAbsolutePath());
+        log.put("error", errorLog.getAbsolutePath());
+        log.put("loglevel", "info");
+        log.put("dnsLog", true);
+        return log;
+    }
+
+    private static void writeDebugArtifacts(Context context, String configJson, JSONObject proxyOutbound) {
+        try {
+            File xrayDir = new File(context.getFilesDir(), "xray");
+            if (!xrayDir.exists()) {
+                xrayDir.mkdirs();
+            }
+            writeFile(new File(xrayDir, "config.json"), configJson);
+            writeFile(new File(xrayDir, "proxy-outbound.json"), proxyOutbound.toString());
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void writeFile(File file, String content) throws Exception {
+        try (FileOutputStream outputStream = new FileOutputStream(file, false)) {
+            outputStream.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    private static void resetLogFile(File file) {
+        try {
+            if (file == null) {
+                return;
+            }
+            File parent = file.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            try (FileOutputStream ignored = new FileOutputStream(file, false)) {
+                // truncate on each startup to keep xray logs session-scoped
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static JSONObject buildDns(XraySettings settings) throws Exception {
+        JSONObject dns = new JSONObject();
+        JSONArray servers = new JSONArray();
+        addDnsServer(servers, settings.remoteDns);
+        addDnsServer(servers, settings.directDns);
+        if (servers.length() > 0) {
+            dns.put("servers", servers);
+        }
+        dns.put("queryStrategy", settings.ipv6 ? "UseIP" : "UseIPv4");
+        return dns;
+    }
+
+    private static void addDnsServer(JSONArray servers, String value) {
+        for (String entry : splitDnsEntries(value)) {
+            String normalized = entry == null ? "" : entry.trim();
+            if (normalized.isEmpty()) {
+                continue;
+            }
+            boolean duplicate = false;
+            for (int index = 0; index < servers.length(); index++) {
+                if (TextUtils.equals(normalized, servers.optString(index))) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                servers.put(normalized);
+            }
+        }
+    }
+
+    private static List<String> splitDnsEntries(String rawValue) {
+        ArrayList<String> values = new ArrayList<>();
+        if (TextUtils.isEmpty(rawValue)) {
+            return values;
+        }
+        String[] parts = rawValue.split(",");
+        for (String part : parts) {
+            String normalized = part == null ? "" : part.trim();
+            if (!TextUtils.isEmpty(normalized)) {
+                values.add(normalized);
+            }
+        }
+        return values;
+    }
+
+    private static JSONArray buildInbounds(XraySettings settings) throws Exception {
+        JSONArray inbounds = new JSONArray();
+        JSONObject tunInbound = new JSONObject();
+        tunInbound.put("tag", TUN_TAG);
+        tunInbound.put("protocol", "tun");
+        tunInbound.put("port", 0);
+        JSONObject tunSettings = new JSONObject();
+        tunSettings.put("name", "wingsv-xray");
+        tunSettings.put("MTU", DEFAULT_MTU);
+        tunSettings.put("user_level", 0);
+        tunInbound.put("settings", tunSettings);
+        tunInbound.put("sniffing", buildSniffing(settings));
+        inbounds.put(tunInbound);
+
+        if (settings.localProxyPort > 0) {
+            JSONObject socksInbound = new JSONObject();
+            socksInbound.put("tag", SOCKS_TAG);
+            socksInbound.put("protocol", "socks");
+            socksInbound.put("listen", settings.allowLan ? "0.0.0.0" : "127.0.0.1");
+            socksInbound.put("port", settings.localProxyPort);
+            JSONObject socksSettings = new JSONObject();
+            socksSettings.put("auth", "noauth");
+            socksSettings.put("udp", true);
+            socksInbound.put("settings", socksSettings);
+            socksInbound.put("sniffing", buildSniffing(settings));
+            inbounds.put(socksInbound);
+        }
+        return inbounds;
+    }
+
+    private static JSONArray buildOutbounds(JSONObject proxyOutbound) throws Exception {
+        JSONArray outbounds = new JSONArray();
+        outbounds.put(proxyOutbound);
+
+        JSONObject dnsOutbound = new JSONObject();
+        dnsOutbound.put("tag", DNS_OUT_TAG);
+        dnsOutbound.put("protocol", "dns");
+        JSONObject dnsOutboundSettings = new JSONObject();
+        dnsOutboundSettings.put("network", "tcp");
+        dnsOutbound.put("settings", dnsOutboundSettings);
+        outbounds.put(dnsOutbound);
+
+        JSONObject direct = new JSONObject();
+        direct.put("tag", DIRECT_TAG);
+        direct.put("protocol", "freedom");
+        outbounds.put(direct);
+
+        JSONObject block = new JSONObject();
+        block.put("tag", BLOCK_TAG);
+        block.put("protocol", "blackhole");
+        outbounds.put(block);
+        return outbounds;
+    }
+
+    private static JSONObject buildRouting(XraySettings settings) throws Exception {
+        JSONObject routing = new JSONObject();
+        routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
+        JSONArray rules = new JSONArray();
+
+        JSONObject dnsRule = new JSONObject();
+        dnsRule.put("type", "field");
+        JSONArray dnsInboundTags = new JSONArray();
+        dnsInboundTags.put(TUN_TAG);
+        if (settings.localProxyPort > 0) {
+            dnsInboundTags.put(SOCKS_TAG);
+        }
+        dnsRule.put("inboundTag", dnsInboundTags);
+        dnsRule.put("network", "udp,tcp");
+        dnsRule.put("port", "53");
+        dnsRule.put("outboundTag", DNS_OUT_TAG);
+        rules.put(dnsRule);
+
+        JSONObject trafficRule = new JSONObject();
+        trafficRule.put("type", "field");
+        JSONArray inboundTags = new JSONArray();
+        inboundTags.put(TUN_TAG);
+        if (settings.localProxyPort > 0) {
+            inboundTags.put(SOCKS_TAG);
+        }
+        trafficRule.put("inboundTag", inboundTags);
+        trafficRule.put("outboundTag", PROXY_TAG);
+        rules.put(trafficRule);
+
+        JSONObject blockBt = new JSONObject();
+        blockBt.put("type", "field");
+        blockBt.put("protocol", new JSONArray().put("bittorrent"));
+        blockBt.put("outboundTag", BLOCK_TAG);
+        rules.put(blockBt);
+
+        routing.put("rules", rules);
+        return routing;
+    }
+
+    private static JSONObject buildSniffing(XraySettings settings) throws Exception {
+        JSONObject sniffing = new JSONObject();
+        sniffing.put("enabled", settings.sniffingEnabled);
+        sniffing.put("destOverride", new JSONArray().put("http").put("tls").put("quic"));
+        return sniffing;
+    }
+
+    private static void applySecurityOverrides(JSONObject outbound, XraySettings settings) throws Exception {
+        if (!settings.allowInsecure) {
+            return;
+        }
+        JSONObject streamSettings = outbound.optJSONObject("streamSettings");
+        if (streamSettings == null) {
+            return;
+        }
+        JSONObject tlsSettings = streamSettings.optJSONObject("tlsSettings");
+        if (tlsSettings != null) {
+            tlsSettings.put("allowInsecure", true);
+        }
+    }
+
+    private static void sanitizeOutbound(JSONObject outbound, XrayProfile activeProfile) throws Exception {
+        pruneJsonObject(outbound);
+        JSONObject streamSettings = outbound.optJSONObject("streamSettings");
+        if (streamSettings == null) {
+            return;
+        }
+        String fallbackServerName = resolveFallbackServerName(outbound, activeProfile);
+        sanitizeTlsSettings(streamSettings, fallbackServerName);
+        sanitizeRealitySettings(streamSettings, fallbackServerName);
+        pruneJsonObject(streamSettings);
+    }
+
+    private static void sanitizeTlsSettings(JSONObject streamSettings, String fallbackServerName) throws Exception {
+        JSONObject tlsSettings = streamSettings.optJSONObject("tlsSettings");
+        if (tlsSettings == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(trim(tlsSettings.optString("serverName")))
+                && !TextUtils.isEmpty(fallbackServerName)) {
+            tlsSettings.put("serverName", fallbackServerName);
+        }
+        pruneJsonObject(tlsSettings);
+        if (tlsSettings.length() == 0) {
+            streamSettings.remove("tlsSettings");
+        }
+    }
+
+    private static void sanitizeRealitySettings(JSONObject streamSettings, String fallbackServerName)
+            throws Exception {
+        JSONObject realitySettings = streamSettings.optJSONObject("realitySettings");
+        if (realitySettings == null) {
+            return;
+        }
+
+        // libXray serializes client REALITY configs with server-only fields as null.
+        // Xray-core treats dest/target json.RawMessage=null as present and switches to
+        // server-side parsing, which then fails on missing serverNames/privateKey.
+        removeKeys(realitySettings,
+                "show",
+                "target",
+                "dest",
+                "type",
+                "xver",
+                "serverNames",
+                "privateKey",
+                "minClientVer",
+                "maxClientVer",
+                "maxTimeDiff",
+                "shortIds",
+                "mldsa65Seed",
+                "limitFallbackUpload",
+                "limitFallbackDownload",
+                "masterKeyLog"
+        );
+        if (TextUtils.isEmpty(trim(realitySettings.optString("serverName")))
+                && !TextUtils.isEmpty(fallbackServerName)) {
+            realitySettings.put("serverName", fallbackServerName);
+        }
+        pruneJsonObject(realitySettings);
+        if (realitySettings.length() == 0) {
+            streamSettings.remove("realitySettings");
+        }
+    }
+
+    private static String resolveFallbackServerName(JSONObject outbound, XrayProfile activeProfile) {
+        if (activeProfile != null && !TextUtils.isEmpty(trim(activeProfile.address))) {
+            return trim(activeProfile.address);
+        }
+        JSONObject settings = outbound.optJSONObject("settings");
+        if (settings == null) {
+            return "";
+        }
+        JSONArray vnext = settings.optJSONArray("vnext");
+        if (vnext != null && vnext.length() > 0) {
+            JSONObject server = vnext.optJSONObject(0);
+            if (server != null && !TextUtils.isEmpty(trim(server.optString("address")))) {
+                return trim(server.optString("address"));
+            }
+        }
+        JSONArray servers = settings.optJSONArray("servers");
+        if (servers != null && servers.length() > 0) {
+            JSONObject server = servers.optJSONObject(0);
+            if (server != null && !TextUtils.isEmpty(trim(server.optString("address")))) {
+                return trim(server.optString("address"));
+            }
+        }
+        return "";
+    }
+
+    private static void pruneJsonObject(JSONObject object) throws Exception {
+        List<String> keys = new ArrayList<>();
+        Iterator<String> iterator = object.keys();
+        while (iterator.hasNext()) {
+            keys.add(iterator.next());
+        }
+        for (String key : keys) {
+            Object value = object.opt(key);
+            if (value == null || value == JSONObject.NULL) {
+                object.remove(key);
+                continue;
+            }
+            if (value instanceof JSONObject) {
+                JSONObject childObject = (JSONObject) value;
+                pruneJsonObject(childObject);
+                if (childObject.length() == 0) {
+                    object.remove(key);
+                }
+                continue;
+            }
+            if (value instanceof JSONArray) {
+                JSONArray childArray = (JSONArray) value;
+                pruneJsonArray(childArray);
+                if (childArray.length() == 0) {
+                    object.remove(key);
+                }
+                continue;
+            }
+            if (value instanceof String && TextUtils.isEmpty(trim((String) value))) {
+                object.remove(key);
+            }
+        }
+    }
+
+    private static void pruneJsonArray(JSONArray array) throws Exception {
+        for (int index = array.length() - 1; index >= 0; index--) {
+            Object value = array.opt(index);
+            if (value == null || value == JSONObject.NULL) {
+                array.remove(index);
+                continue;
+            }
+            if (value instanceof JSONObject) {
+                JSONObject childObject = (JSONObject) value;
+                pruneJsonObject(childObject);
+                if (childObject.length() == 0) {
+                    array.remove(index);
+                }
+                continue;
+            }
+            if (value instanceof JSONArray) {
+                JSONArray childArray = (JSONArray) value;
+                pruneJsonArray(childArray);
+                if (childArray.length() == 0) {
+                    array.remove(index);
+                }
+                continue;
+            }
+            if (value instanceof String && TextUtils.isEmpty(trim((String) value))) {
+                array.remove(index);
+            }
+        }
+    }
+
+    private static void removeKeys(JSONObject object, String... keys) {
+        for (String key : keys) {
+            object.remove(key);
+        }
+    }
+
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
+    }
+}

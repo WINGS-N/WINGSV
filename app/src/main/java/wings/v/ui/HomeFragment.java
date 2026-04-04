@@ -24,11 +24,13 @@ import androidx.fragment.app.Fragment;
 import wings.v.MainActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
 import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
+import wings.v.core.XrayProfile;
 import wings.v.databinding.FragmentHomeBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -78,6 +80,11 @@ public class HomeFragment extends Fragment {
         binding.buttonRefreshIp.setOnClickListener(v -> {
             Haptics.softSelection(v);
             refreshPublicIp();
+        });
+        binding.cardRuntimeNotice.addButton(getString(R.string.runtime_notice_hide), v -> {
+            Haptics.softSelection(v);
+            ProxyTunnelService.dismissVisibleErrorNotice();
+            refreshUi();
         });
     }
 
@@ -162,23 +169,41 @@ public class HomeFragment extends Fragment {
         );
         binding.textIsp.setText(TextUtils.isEmpty(isp) ? getString(R.string.ip_unknown) : isp);
 
-        String error = ProxyTunnelService.getLastError();
+        String error = ProxyTunnelService.getVisibleErrorNotice();
         if (TextUtils.isEmpty(error)) {
-            binding.textRuntimeError.setVisibility(View.GONE);
+            binding.cardRuntimeNotice.setVisibility(View.GONE);
         } else {
-            binding.textRuntimeError.setVisibility(View.VISIBLE);
-            binding.textRuntimeError.setText(getString(R.string.runtime_error, error));
+            binding.cardRuntimeNotice.setVisibility(View.VISIBLE);
+            binding.cardRuntimeNotice.setTitle(getString(R.string.runtime_notice_title));
+            binding.cardRuntimeNotice.setSummary(getString(R.string.runtime_notice_message, error));
         }
 
         syncIpRefreshAnimation();
 
-        String summary;
-        if (TextUtils.isEmpty(settings.endpoint)) {
-            summary = getString(R.string.home_description);
-        } else {
-            summary = settings.endpoint;
-        }
+        String summary = resolveConnectionSummary(settings);
         binding.textConnectionSummary.setText(summary);
+    }
+
+    private String resolveConnectionSummary(ProxySettings settings) {
+        if (settings == null || settings.backendType == null) {
+            return getString(R.string.backend_vk_turn_wireguard_title);
+        }
+        if (settings.backendType == BackendType.XRAY) {
+            XrayProfile activeProfile = settings.activeXrayProfile;
+            if (activeProfile != null) {
+                if (!TextUtils.isEmpty(activeProfile.title)) {
+                    return activeProfile.title;
+                }
+                if (!TextUtils.isEmpty(activeProfile.address) && activeProfile.port > 0) {
+                    return activeProfile.address + ":" + activeProfile.port;
+                }
+            }
+            return getString(R.string.backend_xray_title);
+        }
+        if (!TextUtils.isEmpty(settings.endpoint)) {
+            return settings.endpoint;
+        }
+        return getString(R.string.backend_vk_turn_wireguard_title);
     }
 
     private void requestPublicIpIfNeeded() {
@@ -328,7 +353,17 @@ public class HomeFragment extends Fragment {
             return;
         }
         try {
-            String link = WingsImportParser.buildLink(AppPrefs.getSettings(context));
+            ProxySettings settings = AppPrefs.getSettings(context);
+            String link;
+            if (settings.backendType == BackendType.XRAY) {
+                XrayProfile activeProfile = settings.activeXrayProfile;
+                if (activeProfile == null || TextUtils.isEmpty(activeProfile.rawLink)) {
+                    throw new IllegalArgumentException("No active Xray profile");
+                }
+                link = WingsImportParser.buildSingleXrayProfileLink(activeProfile);
+            } else {
+                link = WingsImportParser.buildLink(context, settings);
+            }
             clipboardManager.setPrimaryClip(ClipData.newPlainText("WINGSV", link));
             Haptics.softConfirm(binding.buttonCopyConfig);
             Toast.makeText(context, R.string.clipboard_copy_success, Toast.LENGTH_SHORT).show();

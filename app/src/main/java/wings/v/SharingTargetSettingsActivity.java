@@ -28,7 +28,9 @@ import dev.oneuiproject.oneui.widget.CardItemView;
 import dev.oneuiproject.oneui.widget.SwitchItemView;
 import kotlin.Unit;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.XrayStore;
 import wings.v.databinding.ActivitySharingTargetSettingsBinding;
 import wings.v.service.ProxyTunnelService;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
@@ -412,6 +414,9 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         String configured = AppPrefs.getSharingUpstreamInterface(this);
         if (!TextUtils.isEmpty(configured)) {
             return configured;
+        }
+        if (XrayStore.getBackendType(this) == BackendType.XRAY) {
+            return getString(R.string.sharing_value_vpn_service);
         }
         if (AppPrefs.isRootModeEnabled(this)) {
             String rootTunnelName = AppPrefs.getRootRuntimeRecoveryTunnelHint(this);

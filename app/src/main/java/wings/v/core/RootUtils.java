@@ -37,27 +37,46 @@ public final class RootUtils {
     }
 
     public static boolean isRootModeSupported(Context context) {
-        return isRootModeSupported(context, false);
+        return isRootModeSupported(context, BackendType.VK_TURN_WIREGUARD, false);
     }
 
     public static boolean isRootModeSupported(Context context, boolean refreshAccess) {
+        return isRootModeSupported(context, BackendType.VK_TURN_WIREGUARD, refreshAccess);
+    }
+
+    public static boolean isRootModeSupported(Context context,
+                                              BackendType backendType,
+                                              boolean refreshAccess) {
         boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
-        return rootGranted && WgQuickBackend.hasKernelSupport();
+        return rootGranted && isBackendRootCapable(backendType);
     }
 
     public static String getRootModeUnavailableReason(Context context) {
-        return getRootModeUnavailableReason(context, false);
+        return getRootModeUnavailableReason(context, BackendType.VK_TURN_WIREGUARD, false);
     }
 
     public static String getRootModeUnavailableReason(Context context, boolean refreshAccess) {
+        return getRootModeUnavailableReason(context, BackendType.VK_TURN_WIREGUARD, refreshAccess);
+    }
+
+    public static String getRootModeUnavailableReason(Context context,
+                                                      BackendType backendType,
+                                                      boolean refreshAccess) {
         boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
         if (!rootGranted) {
             return "Root-доступ не подтверждён";
         }
-        if (!WgQuickBackend.hasKernelSupport()) {
+        if (!isBackendRootCapable(backendType)) {
             return "Kernel WireGuard недоступен на этом устройстве";
         }
         return null;
+    }
+
+    private static boolean isBackendRootCapable(BackendType backendType) {
+        if (backendType == BackendType.XRAY) {
+            return true;
+        }
+        return WgQuickBackend.hasKernelSupport();
     }
 
     public static boolean isRootInterfaceAlive(Context context, String interfaceName) {

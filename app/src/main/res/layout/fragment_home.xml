@@ -87,6 +87,12 @@
                 android:text="@string/copy_configuration" />
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
+        <dev.oneuiproject.oneui.widget.TipsCard
+            android:id="@+id/card_runtime_notice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
         <dev.oneuiproject.oneui.widget.Separator
             android:layout_width="match_parent"
             android:layout_height="wrap_content" />
@@ -255,14 +261,6 @@
                         android:textAppearance="?android:attr/textAppearanceLarge"
                         android:textColor="?android:textColorPrimary"
                         android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/text_runtime_error"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:textColor="@color/wingsv_error"
-                        android:visibility="gone" />
                 </LinearLayout>
 
                 <ImageButton

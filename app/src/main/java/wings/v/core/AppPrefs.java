@@ -28,6 +28,24 @@ public final class AppPrefs {
     public static final String KEY_WG_PUBLIC_KEY = "pref_wg_public_key";
     public static final String KEY_WG_PRESHARED_KEY = "pref_wg_preshared_key";
     public static final String KEY_WG_ALLOWED_IPS = "pref_wg_allowed_ips";
+    public static final String KEY_BACKEND_TYPE = "pref_backend_type";
+    public static final String KEY_XRAY_ALLOW_LAN = "pref_xray_allow_lan";
+    public static final String KEY_XRAY_ALLOW_INSECURE = "pref_xray_allow_insecure";
+    public static final String KEY_XRAY_LOCAL_PROXY_PORT = "pref_xray_local_proxy_port";
+    public static final String KEY_XRAY_REMOTE_DNS = "pref_xray_remote_dns";
+    public static final String KEY_XRAY_DIRECT_DNS = "pref_xray_direct_dns";
+    public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
+    public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
+    public static final String KEY_XRAY_SUBSCRIPTIONS_JSON = "pref_xray_subscriptions_json";
+    public static final String KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED = "pref_xray_default_subscription_seeded";
+    public static final String KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED =
+            "pref_xray_universal_subscription_migrated";
+    public static final String KEY_XRAY_PROFILES_JSON = "pref_xray_profiles_json";
+    public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
+    public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
+    public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT = "pref_xray_subscriptions_last_refresh_at";
+    public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR = "pref_xray_subscriptions_last_error";
+    public static final String KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON = "pref_xray_imported_subscription_json";
     public static final String KEY_APP_ROUTING_BYPASS = "pref_app_routing_bypass";
     public static final String KEY_APP_ROUTING_PACKAGES = "pref_app_routing_packages";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
@@ -51,6 +69,8 @@ public final class AppPrefs {
     public static final String KEY_SHARING_TEMP_HOTSPOT_USE_SYSTEM = "pref_sharing_temp_hotspot_use_system";
     public static final String KEY_SHARING_IP_MONITOR_MODE = "pref_sharing_ip_monitor_mode";
     public static final String KEY_ONBOARDING_SEEN = "pref_onboarding_seen";
+    public static final String KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH =
+            "pref_external_action_transient_launch";
     public static final String SHARING_MASQUERADE_NONE = "none";
     public static final String SHARING_MASQUERADE_SIMPLE = "simple";
     public static final String SHARING_MASQUERADE_NETD = "netd";
@@ -72,6 +92,16 @@ public final class AppPrefs {
 
     public static boolean isOnboardingSeen(Context context) {
         return prefs(context).getBoolean(KEY_ONBOARDING_SEEN, false);
+    }
+
+    public static boolean isExternalActionTransientLaunchPending(Context context) {
+        return prefs(context).getBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, false);
+    }
+
+    public static void setExternalActionTransientLaunchPending(Context context, boolean pending) {
+        prefs(context).edit()
+                .putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending)
+                .apply();
     }
 
     public static boolean isRootModeEnabled(Context context) {
@@ -318,12 +348,13 @@ public final class AppPrefs {
     public static ProxySettings getSettings(Context context) {
         SharedPreferences prefs = prefs(context);
         ProxySettings settings = new ProxySettings();
+        settings.backendType = XrayStore.getBackendType(context);
         settings.endpoint = trim(prefs.getString(KEY_ENDPOINT, ""));
         settings.vkLink = trim(prefs.getString(KEY_VK_LINK, ""));
         settings.threads = parseInt(prefs.getString(KEY_THREADS, "8"), 8);
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
-        settings.turnSessionMode = trim(prefs.getString(KEY_TURN_SESSION_MODE, "auto"));
+        settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "auto"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
         settings.turnPort = trim(prefs.getString(KEY_TURN_PORT, ""));
@@ -335,10 +366,22 @@ public final class AppPrefs {
         settings.wgPresharedKey = trim(prefs.getString(KEY_WG_PRESHARED_KEY, ""));
         settings.wgAllowedIps = trim(prefs.getString(KEY_WG_ALLOWED_IPS, "0.0.0.0/0, ::/0"));
         settings.rootModeEnabled = prefs.getBoolean(KEY_ROOT_MODE, false);
+        settings.activeXrayProfile = XrayStore.getActiveProfile(context);
+        settings.xraySettings = XrayStore.getXraySettings(context);
         return settings;
     }
 
     public static void applyImportedConfig(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        if (importedConfig == null) {
+            return;
+        }
+        BackendType backendType = importedConfig.backendType != null
+                ? importedConfig.backendType
+                : BackendType.VK_TURN_WIREGUARD;
+        if (backendType == BackendType.XRAY && importedConfig.xrayMergeOnly) {
+            mergeImportedXrayPayload(context, importedConfig);
+            return;
+        }
         SharedPreferences.Editor editor = prefs(context).edit();
 
         editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
@@ -349,9 +392,7 @@ public final class AppPrefs {
         editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
         editor.putBoolean(KEY_NO_OBFUSCATION,
                 importedConfig.noObfuscation != null && importedConfig.noObfuscation);
-        editor.putString(KEY_TURN_SESSION_MODE, TextUtils.isEmpty(trim(importedConfig.turnSessionMode))
-                ? "auto"
-                : trim(importedConfig.turnSessionMode));
+        editor.putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(importedConfig.turnSessionMode));
         editor.putString(KEY_LOCAL_ENDPOINT, TextUtils.isEmpty(trim(importedConfig.localEndpoint))
                 ? "127.0.0.1:9000"
                 : trim(importedConfig.localEndpoint));
@@ -372,6 +413,124 @@ public final class AppPrefs {
                 : trim(importedConfig.wgAllowedIps));
 
         editor.apply();
+
+        XrayStore.setBackendType(context, backendType);
+        if (backendType == BackendType.XRAY) {
+            XrayStore.setXraySettings(context, importedConfig.xraySettings);
+            XrayStore.setSubscriptions(context, importedConfig.xraySubscriptions);
+            XrayStore.setProfiles(context, importedConfig.xrayProfiles);
+            XrayStore.setActiveProfileId(context, importedConfig.activeXrayProfileId);
+            XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
+            XrayStore.setLastSubscriptionsError(context, "");
+        }
+    }
+
+    private static void mergeImportedXrayPayload(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        java.util.List<XraySubscription> currentSubscriptions = XrayStore.getSubscriptions(context);
+        java.util.LinkedHashMap<String, XraySubscription> subscriptionsByKey = new java.util.LinkedHashMap<>();
+        for (XraySubscription subscription : currentSubscriptions) {
+            if (subscription != null && !TextUtils.isEmpty(subscription.url)) {
+                subscriptionsByKey.put(subscription.stableDedupKey(), subscription);
+            }
+        }
+
+        java.util.LinkedHashMap<String, String> importedSubscriptionIdsToMergedIds = new java.util.LinkedHashMap<>();
+        for (XraySubscription importedSubscription : importedConfig.xraySubscriptions) {
+            if (importedSubscription == null || TextUtils.isEmpty(importedSubscription.url)) {
+                continue;
+            }
+            String dedupKey = importedSubscription.stableDedupKey();
+            XraySubscription existing = subscriptionsByKey.get(dedupKey);
+            XraySubscription merged = existing == null
+                    ? importedSubscription
+                    : new XraySubscription(
+                            existing.id,
+                            trim(importedSubscription.title),
+                            trim(importedSubscription.url),
+                            trim(importedSubscription.formatHint),
+                            importedSubscription.refreshIntervalHours,
+                            importedSubscription.autoUpdate,
+                            importedSubscription.lastUpdatedAt
+                    );
+            subscriptionsByKey.put(dedupKey, merged);
+            if (!TextUtils.isEmpty(importedSubscription.id)) {
+                importedSubscriptionIdsToMergedIds.put(importedSubscription.id, merged.id);
+            }
+        }
+
+        java.util.List<XraySubscription> mergedSubscriptions = new java.util.ArrayList<>(subscriptionsByKey.values());
+        XrayStore.setSubscriptions(context, mergedSubscriptions);
+
+        java.util.LinkedHashMap<String, XraySubscription> mergedSubscriptionsById = new java.util.LinkedHashMap<>();
+        for (XraySubscription subscription : mergedSubscriptions) {
+            if (subscription != null && !TextUtils.isEmpty(subscription.id)) {
+                mergedSubscriptionsById.put(subscription.id, subscription);
+            }
+        }
+
+        java.util.List<XrayProfile> currentProfiles = XrayStore.getProfiles(context);
+        java.util.LinkedHashMap<String, XrayProfile> profilesByKey = new java.util.LinkedHashMap<>();
+        for (XrayProfile profile : currentProfiles) {
+            if (profile != null && !TextUtils.isEmpty(profile.rawLink)) {
+                profilesByKey.put(profile.stableDedupKey(), profile);
+            }
+        }
+
+        java.util.LinkedHashMap<String, String> importedProfileIdsToMergedIds = new java.util.LinkedHashMap<>();
+        for (XrayProfile importedProfile : importedConfig.xrayProfiles) {
+            if (importedProfile == null || TextUtils.isEmpty(importedProfile.rawLink)) {
+                continue;
+            }
+            String mergedSubscriptionId = trim(importedProfile.subscriptionId);
+            if (!TextUtils.isEmpty(mergedSubscriptionId)) {
+                mergedSubscriptionId = importedSubscriptionIdsToMergedIds.containsKey(mergedSubscriptionId)
+                        ? importedSubscriptionIdsToMergedIds.get(mergedSubscriptionId)
+                        : mergedSubscriptionId;
+            }
+            String mergedSubscriptionTitle = trim(importedProfile.subscriptionTitle);
+            if (!TextUtils.isEmpty(mergedSubscriptionId)) {
+                XraySubscription mergedSubscription = mergedSubscriptionsById.get(mergedSubscriptionId);
+                if (mergedSubscription != null && !TextUtils.isEmpty(mergedSubscription.title)) {
+                    mergedSubscriptionTitle = mergedSubscription.title;
+                }
+            }
+            XrayProfile normalizedImportedProfile = new XrayProfile(
+                    importedProfile.id,
+                    importedProfile.title,
+                    importedProfile.rawLink,
+                    mergedSubscriptionId,
+                    mergedSubscriptionTitle,
+                    importedProfile.address,
+                    importedProfile.port
+            );
+            String dedupKey = normalizedImportedProfile.stableDedupKey();
+            XrayProfile existing = profilesByKey.get(dedupKey);
+            XrayProfile merged = existing == null
+                    ? normalizedImportedProfile
+                    : new XrayProfile(
+                            existing.id,
+                            normalizedImportedProfile.title,
+                            normalizedImportedProfile.rawLink,
+                            normalizedImportedProfile.subscriptionId,
+                            normalizedImportedProfile.subscriptionTitle,
+                            normalizedImportedProfile.address,
+                            normalizedImportedProfile.port
+                    );
+            profilesByKey.put(dedupKey, merged);
+            if (!TextUtils.isEmpty(importedProfile.id)) {
+                importedProfileIdsToMergedIds.put(importedProfile.id, merged.id);
+            }
+        }
+
+        XrayStore.setProfiles(context, new java.util.ArrayList<>(profilesByKey.values()));
+        String currentActiveProfileId = XrayStore.getActiveProfileId(context);
+        if (TextUtils.isEmpty(currentActiveProfileId) && !TextUtils.isEmpty(importedConfig.activeXrayProfileId)) {
+            String mergedActiveProfileId = importedProfileIdsToMergedIds.get(importedConfig.activeXrayProfileId);
+            if (!TextUtils.isEmpty(mergedActiveProfileId)) {
+                XrayStore.setActiveProfileId(context, mergedActiveProfileId);
+            }
+        }
+        XrayStore.setLastSubscriptionsError(context, "");
     }
 
     private static SharedPreferences prefs(Context context) {
@@ -384,6 +543,20 @@ public final class AppPrefs {
         } catch (Exception ignored) {
             return fallback;
         }
+    }
+
+    private static String normalizeTurnSessionMode(String value) {
+        String normalized = trim(value);
+        if (TextUtils.isEmpty(normalized) || "auto".equals(normalized)) {
+            return "auto";
+        }
+        if ("mux".equals(normalized)) {
+            return "mux";
+        }
+        if ("mainline".equals(normalized)) {
+            return "mainline";
+        }
+        return "auto";
     }
 
     private static String trim(String value) {
