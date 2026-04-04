@@ -2,10 +2,10 @@
 `vk-turn-proxy` + WireGuard-клиент в интерфейсе Samsung One UI
 
 ## Скриншоты
-![Главная](readme-res/screenshots/main.jpg)
-![Роутинг приложений](readme-res/screenshots/appsrouting.jpg)
-![VPN Hotspot](readme-res/screenshots/vpnhotspot.jpg)
-![Настройки](readme-res/screenshots/settings.jpg)
+|                                                                                           |                                                                                           |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+![Главная](readme-res/screenshots/main.jpg) | ![Роутинг приложений](readme-res/screenshots/appsrouting.jpg)
+![VPN Hotspot](readme-res/screenshots/vpnhotspot.jpg) | ![Настройки](readme-res/screenshots/settings.jpg)
 
 ## Что умеет
 
