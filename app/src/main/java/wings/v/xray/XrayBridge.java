@@ -57,11 +57,11 @@ public final class XrayBridge {
     public static void runFromJson(Context context, String configJson, int tunFd) throws Exception {
         ensureLoaded();
         File datDir = ensureDatDir(context);
+        LibXray.setTunFd(tunFd);
         String request = LibXray.newXrayRunFromJSONRequest(
                 datDir.getAbsolutePath(),
                 "",
-                configJson,
-                tunFd
+                configJson
         );
         decodeResponse(LibXray.runXrayFromJSON(request));
     }

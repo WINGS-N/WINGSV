@@ -15,23 +15,28 @@ import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 
+import dev.oneuiproject.oneui.preference.UpdatableWidgetPreference;
 import wings.v.MainActivity;
 import wings.v.PermissionOnboardingActivity;
 import wings.v.AboutAppActivity;
 import wings.v.ProxyLogsActivity;
 import wings.v.R;
+import wings.v.AmneziaSettingsActivity;
+import wings.v.core.AmneziaStore;
+import wings.v.core.AppUpdateManager;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.RootUtils;
-import wings.v.core.UiFormatter;
 import wings.v.core.ProxySettings;
+import wings.v.core.UiFormatter;
+import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XrayStore;
 import wings.v.SubscriptionsActivity;
 import wings.v.XraySettingsActivity;
 
 public class SettingsFragment extends PreferenceFragmentCompat {
-    private static final String[] VK_BACKEND_PREFERENCE_KEYS = new String[] {
+    private static final String[] VK_PROXY_PREFERENCE_KEYS = new String[] {
             AppPrefs.KEY_ENDPOINT,
             AppPrefs.KEY_VK_LINK,
             AppPrefs.KEY_THREADS,
@@ -41,6 +46,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             AppPrefs.KEY_LOCAL_ENDPOINT,
             AppPrefs.KEY_TURN_HOST,
             AppPrefs.KEY_TURN_PORT,
+            "pref_inset_after_backend",
+            "pref_inset_after_vk_proxy",
+            "pref_category_vk_proxy"
+    };
+    private static final String[] WG_BACKEND_PREFERENCE_KEYS = new String[] {
             AppPrefs.KEY_WG_PRIVATE_KEY,
             AppPrefs.KEY_WG_ADDRESSES,
             AppPrefs.KEY_WG_DNS,
@@ -48,19 +58,24 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             AppPrefs.KEY_WG_PUBLIC_KEY,
             AppPrefs.KEY_WG_PRESHARED_KEY,
             AppPrefs.KEY_WG_ALLOWED_IPS,
-            "pref_inset_after_backend",
-            "pref_inset_after_vk_proxy",
             "pref_inset_after_wg_interface",
             "pref_inset_after_wg_peer",
-            "pref_category_vk_proxy",
             "pref_category_wg_interface",
             "pref_category_wg_peer"
     };
+    private static final String[] AWG_BACKEND_PREFERENCE_KEYS = new String[] {
+            AmneziaStore.KEY_OPEN_SETTINGS,
+            "pref_category_awg",
+            "pref_inset_after_awg"
+    };
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+    private AppUpdateManager appUpdateManager;
+    private final AppUpdateManager.Listener updateStateListener = this::refreshAboutPreferenceBadge;
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
+        appUpdateManager = AppUpdateManager.getInstance(requireContext());
         setPreferencesFromResource(R.xml.proxy_preferences, rootKey);
         configurePreferences();
     }
@@ -69,14 +84,17 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     public void onResume() {
         super.onResume();
         registerPreferencesListener();
+        appUpdateManager.registerListener(updateStateListener);
         syncPreferenceValuesFromPrefs();
         configureRootPreferences();
         configureXrayPreferences(XrayStore.getBackendType(requireContext()));
+        refreshAboutPreferenceBadge(appUpdateManager.getState());
     }
 
     @Override
     public void onPause() {
         unregisterPreferencesListener();
+        appUpdateManager.unregisterListener(updateStateListener);
         super.onPause();
     }
 
@@ -149,6 +167,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         Preference aboutPreference = findPreference("pref_open_about");
         if (aboutPreference != null) {
             aboutPreference.setIcon(R.drawable.ic_about_app_info);
+            if (aboutPreference instanceof UpdatableWidgetPreference) {
+                ((UpdatableWidgetPreference) aboutPreference).setShowWidget(false);
+            }
             aboutPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 startActivity(AboutAppActivity.createIntent(requireContext()));
@@ -173,6 +194,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     return true;
                 }
                 startActivity(XraySettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference amneziaSettingsPreference = findPreference(AmneziaStore.KEY_OPEN_SETTINGS);
+        if (amneziaSettingsPreference != null) {
+            amneziaSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(AmneziaSettingsActivity.createIntent(requireContext()));
                 return true;
             });
         }
@@ -233,10 +263,17 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
     private void configureXrayPreferences(@Nullable BackendType backendType) {
         boolean xrayBackend = backendType == BackendType.XRAY;
+        boolean awgBackend = backendType == BackendType.AMNEZIAWG;
         Preference subscriptionsPreference = findPreference("pref_open_subscriptions");
         Preference xraySettingsPreference = findPreference("pref_open_xray_settings");
-        for (String key : VK_BACKEND_PREFERENCE_KEYS) {
+        for (String key : VK_PROXY_PREFERENCE_KEYS) {
             setPreferenceVisible(key, !xrayBackend);
+        }
+        for (String key : WG_BACKEND_PREFERENCE_KEYS) {
+            setPreferenceVisible(key, !xrayBackend && !awgBackend);
+        }
+        for (String key : AWG_BACKEND_PREFERENCE_KEYS) {
+            setPreferenceVisible(key, awgBackend);
         }
         if (subscriptionsPreference != null) {
             subscriptionsPreference.setVisible(xrayBackend);
@@ -252,6 +289,19 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         Preference preference = findPreference(key);
         if (preference != null) {
             preference.setVisible(visible);
+        }
+    }
+
+    private void refreshAboutPreferenceBadge(@Nullable AppUpdateManager.UpdateState state) {
+        Preference aboutPreference = findPreference("pref_open_about");
+        if (aboutPreference == null || !isAdded()) {
+            return;
+        }
+        aboutPreference.setIcon(R.drawable.ic_about_app_info);
+        if (aboutPreference instanceof UpdatableWidgetPreference) {
+            ((UpdatableWidgetPreference) aboutPreference).setShowWidget(
+                    UpdateBadgeUtils.shouldShowUpdateBadge(state)
+            );
         }
     }
 

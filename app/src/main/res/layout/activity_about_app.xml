@@ -67,6 +67,112 @@
             <dev.oneuiproject.oneui.widget.Separator
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="@string/about_updates_section" />
+
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?android:colorBackground"
+                android:orientation="vertical"
+                app:roundedCorners="all">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/card_app_update_action"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:showBottomDivider="false"
+                        app:showTopDivider="false"
+                        app:summary="@string/about_updates_check_summary"
+                        app:title="@string/about_updates_check_title" />
+
+                    <ProgressBar
+                        android:id="@+id/progress_update_check"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:layout_marginEnd="18dp"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:id="@+id/layout_update_download_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingStart="20dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="20dp"
+                    android:paddingBottom="18dp"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/text_update_progress_size"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="?android:textColorPrimary" />
+
+                        <TextView
+                            android:id="@+id/text_update_progress_speed"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="?android:textColorSecondary" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ProgressBar
+                            android:id="@+id/progress_update_download"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:max="100"
+                            android:progress="0" />
+
+                        <ImageButton
+                            android:id="@+id/button_cancel_update_download"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="12dp"
+                            android:background="?android:selectableItemBackgroundBorderless"
+                            android:contentDescription="@string/about_updates_cancel_download"
+                            android:padding="6dp"
+                            android:src="@drawable/sesl_ic_close"
+                            android:tint="?android:textColorSecondary" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/text_update_progress_remaining"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:textColor="?android:textColorSecondary" />
+                </LinearLayout>
+            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+            <dev.oneuiproject.oneui.widget.Separator
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="@string/about_developers_section" />
 
             <dev.oneuiproject.oneui.widget.RoundedLinearLayout
@@ -185,6 +291,31 @@
                     app:drawableEnd="@drawable/ic_selected_apps_disclosure"
                     app:summary="@string/about_special_cacggghp_summary"
                     app:title="@string/about_special_cacggghp_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_special_xtls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/about_special_xtls_summary"
+                    app:title="@string/about_special_xtls_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_special_amnezia"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/about_special_amnezia_summary"
+                    app:title="@string/about_special_amnezia_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_special_moroka8"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:showBottomDivider="false"
+                    app:summary="@string/about_special_moroka8_summary"
+                    app:title="@string/about_special_moroka8_title" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

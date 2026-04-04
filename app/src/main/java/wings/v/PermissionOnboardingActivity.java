@@ -140,7 +140,6 @@ public class PermissionOnboardingActivity extends AppCompatActivity {
         binding.rowRoot.permissionAction.setText(
                 rootCheckInProgress ? R.string.checking_label : R.string.check_label
         );
-
         binding.buttonContinue.setEnabled(PermissionUtils.areCorePermissionsGranted(this));
     }
 

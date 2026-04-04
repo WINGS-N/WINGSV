@@ -288,8 +288,8 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "2.0"
+        versionCode = 210
+        versionName = "2.1.0"
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -351,6 +351,7 @@ dependencies {
     implementation(libs.oneui.design)
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
+    implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))
 

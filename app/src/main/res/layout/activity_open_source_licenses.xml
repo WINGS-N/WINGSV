@@ -147,9 +147,33 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:drawableEnd="@drawable/ic_selected_apps_disclosure"
-                    app:showBottomDivider="false"
                     app:summary="@string/license_timber_summary"
                     app:title="@string/license_timber_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_libxray"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_libxray_summary"
+                    app:title="@string/license_libxray_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_xray_core"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:summary="@string/license_xray_core_summary"
+                    app:title="@string/license_xray_core_title" />
+
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/card_license_amneziawg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:showBottomDivider="false"
+                    app:summary="@string/license_amneziawg_summary"
+                    app:title="@string/license_amneziawg_title" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

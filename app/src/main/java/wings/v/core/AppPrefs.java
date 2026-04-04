@@ -28,6 +28,7 @@ public final class AppPrefs {
     public static final String KEY_WG_PUBLIC_KEY = "pref_wg_public_key";
     public static final String KEY_WG_PRESHARED_KEY = "pref_wg_preshared_key";
     public static final String KEY_WG_ALLOWED_IPS = "pref_wg_allowed_ips";
+    public static final String KEY_AWG_QUICK_CONFIG = "pref_awg_quick_config";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
     public static final String KEY_XRAY_ALLOW_LAN = "pref_xray_allow_lan";
     public static final String KEY_XRAY_ALLOW_INSECURE = "pref_xray_allow_insecure";
@@ -71,6 +72,8 @@ public final class AppPrefs {
     public static final String KEY_ONBOARDING_SEEN = "pref_onboarding_seen";
     public static final String KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH =
             "pref_external_action_transient_launch";
+    public static final String KEY_UPDATES_LAST_NOTIFIED_TAG =
+            "pref_updates_last_notified_tag";
     public static final String SHARING_MASQUERADE_NONE = "none";
     public static final String SHARING_MASQUERADE_SIMPLE = "simple";
     public static final String SHARING_MASQUERADE_NETD = "netd";
@@ -88,6 +91,7 @@ public final class AppPrefs {
 
     public static void ensureDefaults(Context context) {
         PreferenceManager.setDefaultValues(context, R.xml.proxy_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.amnezia_preferences, false);
     }
 
     public static boolean isOnboardingSeen(Context context) {
@@ -101,6 +105,16 @@ public final class AppPrefs {
     public static void setExternalActionTransientLaunchPending(Context context, boolean pending) {
         prefs(context).edit()
                 .putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending)
+                .apply();
+    }
+
+    public static String getLastUpdateNotifiedTag(Context context) {
+        return trim(prefs(context).getString(KEY_UPDATES_LAST_NOTIFIED_TAG, ""));
+    }
+
+    public static void setLastUpdateNotifiedTag(Context context, String tagName) {
+        prefs(context).edit()
+                .putString(KEY_UPDATES_LAST_NOTIFIED_TAG, trim(tagName))
                 .apply();
     }
 
@@ -365,6 +379,7 @@ public final class AppPrefs {
         settings.wgPublicKey = trim(prefs.getString(KEY_WG_PUBLIC_KEY, ""));
         settings.wgPresharedKey = trim(prefs.getString(KEY_WG_PRESHARED_KEY, ""));
         settings.wgAllowedIps = trim(prefs.getString(KEY_WG_ALLOWED_IPS, "0.0.0.0/0, ::/0"));
+        settings.awgQuickConfig = AmneziaStore.getEffectiveQuickConfig(context);
         settings.rootModeEnabled = prefs.getBoolean(KEY_ROOT_MODE, false);
         settings.activeXrayProfile = XrayStore.getActiveProfile(context);
         settings.xraySettings = XrayStore.getXraySettings(context);
@@ -411,8 +426,14 @@ public final class AppPrefs {
         editor.putString(KEY_WG_ALLOWED_IPS, TextUtils.isEmpty(trim(importedConfig.wgAllowedIps))
                 ? "0.0.0.0/0, ::/0"
                 : trim(importedConfig.wgAllowedIps));
-
         editor.apply();
+
+        if (backendType == BackendType.AMNEZIAWG) {
+            try {
+                AmneziaStore.applyRawConfig(context, importedConfig.awgQuickConfig);
+            } catch (Exception ignored) {
+            }
+        }
 
         XrayStore.setBackendType(context, backendType);
         if (backendType == BackendType.XRAY) {

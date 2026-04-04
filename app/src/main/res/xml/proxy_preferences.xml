@@ -28,6 +28,18 @@
         android:key="pref_inset_after_backend" />
 
     <PreferenceCategory
+        android:key="pref_category_awg"
+        android:title="@string/settings_awg_category" />
+
+    <Preference
+        android:key="pref_open_amnezia_settings"
+        android:title="@string/awg_settings_title"
+        android:summary="@string/awg_settings_open_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_awg" />
+
+    <PreferenceCategory
         android:key="pref_category_vk_proxy"
         android:title="Proxy" />
 
@@ -174,9 +186,10 @@
         android:title="@string/runtime_logs_title"
         android:summary="@string/runtime_logs_open_summary" />
 
-    <Preference
+    <dev.oneuiproject.oneui.preference.UpdatableWidgetPreference
         android:key="pref_open_about"
         android:title="@string/about_app_title"
-        android:summary="@string/about_app_summary" />
+        android:summary="@string/about_app_summary"
+        app:widgetLayout="@layout/widget_preference_update_badge" />
 
 </PreferenceScreen>

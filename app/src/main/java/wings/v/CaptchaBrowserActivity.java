@@ -5,8 +5,10 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.widget.Toast;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -25,13 +27,16 @@ import java.util.concurrent.Executors;
 
 import wings.v.databinding.ActivityCaptchaBrowserBinding;
 import wings.v.core.AppPrefs;
+import wings.v.core.CaptchaPromptSource;
 import wings.v.service.ProxyTunnelService;
 
 public class CaptchaBrowserActivity extends AppCompatActivity {
     private static final String EXTRA_URL = "wings.v.extra.CAPTCHA_URL";
     private static final String EXTRA_TRANSIENT_EXTERNAL_FLOW = "wings.v.extra.TRANSIENT_EXTERNAL_FLOW";
+    private static final String EXTRA_CAPTCHA_SOURCE = "wings.v.extra.CAPTCHA_SOURCE";
     private static final String EXTRA_STOP_CONNECTION_ON_CANCEL =
             "wings.v.extra.STOP_CONNECTION_ON_CANCEL";
+    private static final String STATE_SUBTITLE_EXPANDED = "wings.v.state.CAPTCHA_SUBTITLE_EXPANDED";
 
     private ActivityCaptchaBrowserBinding binding;
     private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
@@ -39,7 +44,9 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     private String browserBaseUrl;
     private boolean completed;
     private boolean transientExternalFlow;
+    private CaptchaPromptSource captchaSource = CaptchaPromptSource.PRIMARY;
     private boolean stopConnectionOnCancel = true;
+    private boolean subtitleExpanded;
 
     public static Intent createIntent(Context context, String url) {
         return new Intent(context, CaptchaBrowserActivity.class)
@@ -54,8 +61,17 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     public static Intent createIntent(Context context,
                                       String url,
                                       boolean transientExternalFlow,
-                                      boolean stopConnectionOnCancel) {
+                                      CaptchaPromptSource captchaSource) {
         return createIntent(context, url, transientExternalFlow)
+                .putExtra(EXTRA_CAPTCHA_SOURCE, captchaSource.wireValue);
+    }
+
+    public static Intent createIntent(Context context,
+                                      String url,
+                                      boolean transientExternalFlow,
+                                      CaptchaPromptSource captchaSource,
+                                      boolean stopConnectionOnCancel) {
+        return createIntent(context, url, transientExternalFlow, captchaSource)
                 .putExtra(EXTRA_STOP_CONNECTION_ON_CANCEL, stopConnectionOnCancel);
     }
 
@@ -64,11 +80,21 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityCaptchaBrowserBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        subtitleExpanded = savedInstanceState != null
+                && savedInstanceState.getBoolean(STATE_SUBTITLE_EXPANDED, false);
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         binding.buttonCaptchaCancel.setOnClickListener(v -> cancelCaptchaAndFinish());
+        binding.textCaptchaExpand.setOnClickListener(v -> toggleSubtitleExpanded());
         configureBackHandling();
         configureWebView();
+        syncSubtitleExpansionUi();
         loadIntent(getIntent(), true);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_SUBTITLE_EXPANDED, subtitleExpanded);
     }
 
     @Override
@@ -113,6 +139,7 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
 
+        binding.webviewCaptcha.addJavascriptInterface(new CaptchaUiBridge(), "wingsvAndroid");
         binding.webviewCaptcha.setWebChromeClient(new WebChromeClient());
         binding.webviewCaptcha.setWebViewClient(new WebViewClient() {
             @Override
@@ -160,8 +187,15 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         String url = intent != null ? intent.getStringExtra(EXTRA_URL) : null;
         transientExternalFlow = intent != null
                 && intent.getBooleanExtra(EXTRA_TRANSIENT_EXTERNAL_FLOW, false);
+        captchaSource = intent == null
+                ? CaptchaPromptSource.PRIMARY
+                : CaptchaPromptSource.fromWireValue(intent.getStringExtra(EXTRA_CAPTCHA_SOURCE));
         stopConnectionOnCancel = intent == null
-                || intent.getBooleanExtra(EXTRA_STOP_CONNECTION_ON_CANCEL, true);
+                ? captchaSource.stopsConnectionOnCancel()
+                : intent.getBooleanExtra(
+                        EXTRA_STOP_CONNECTION_ON_CANCEL,
+                        captchaSource.stopsConnectionOnCancel()
+                );
         if (TextUtils.isEmpty(url)) {
             finishSelf();
             return;
@@ -172,6 +206,12 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         captchaUrl = url;
         browserBaseUrl = buildBrowserBaseUrl(url);
         completed = false;
+        binding.textCaptchaTitle.setText(captchaSource == CaptchaPromptSource.POOL
+                ? R.string.captcha_browser_headline_pool
+                : R.string.captcha_browser_headline);
+        binding.textCaptchaSubtitle.setText(captchaSource == CaptchaPromptSource.POOL
+                ? R.string.captcha_browser_subtitle_pool
+                : R.string.captcha_browser_subtitle);
         binding.textCaptchaStatus.setText(R.string.captcha_browser_status_loading);
         binding.webviewCaptcha.loadUrl(url);
     }
@@ -211,13 +251,28 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         if (binding == null) {
             return;
         }
-        binding.layoutCaptchaProgress.setVisibility(loading ? View.VISIBLE : View.GONE);
         binding.progressCaptchaStatus.setVisibility(completed ? View.GONE : View.VISIBLE);
         if (completed) {
             return;
         }
         binding.textCaptchaStatus.setText(
                 loading ? R.string.captcha_browser_status_loading : R.string.captcha_browser_status_waiting
+        );
+    }
+
+    private void toggleSubtitleExpanded() {
+        subtitleExpanded = !subtitleExpanded;
+        syncSubtitleExpansionUi();
+    }
+
+    private void syncSubtitleExpansionUi() {
+        if (binding == null) {
+            return;
+        }
+        binding.textCaptchaSubtitle.setMaxLines(subtitleExpanded ? Integer.MAX_VALUE : 2);
+        binding.textCaptchaSubtitle.setEllipsize(subtitleExpanded ? null : TextUtils.TruncateAt.END);
+        binding.textCaptchaExpand.setText(
+                subtitleExpanded ? R.string.captcha_browser_less : R.string.captcha_browser_more
         );
     }
 
@@ -274,6 +329,21 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     private boolean isLocalCaptchaPath(Uri uri, String path) {
         String host = uri.getHost();
         return isLocalHost(host) && TextUtils.equals(path, uri.getPath());
+    }
+
+    private final class CaptchaUiBridge {
+        @JavascriptInterface
+        public void performActionHaptic() {
+            runOnUiThread(() -> {
+                if (binding == null) {
+                    return;
+                }
+                View target = binding.layoutCaptchaStatus != null
+                        ? binding.layoutCaptchaStatus
+                        : binding.getRoot();
+                target.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK);
+            });
+        }
     }
 
     @Nullable

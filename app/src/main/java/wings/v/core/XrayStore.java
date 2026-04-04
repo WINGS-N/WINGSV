@@ -14,6 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import wings.v.qs.QuickSettingsTiles;
+
 public final class XrayStore {
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
     private static final String DEFAULT_SUBSCRIPTION_URL =
@@ -33,10 +35,12 @@ public final class XrayStore {
     }
 
     public static void setBackendType(Context context, BackendType backendType) {
-        prefs(context).edit()
+        Context appContext = context.getApplicationContext();
+        prefs(appContext).edit()
                 .putString(AppPrefs.KEY_BACKEND_TYPE,
                         backendType == null ? BackendType.VK_TURN_WIREGUARD.prefValue : backendType.prefValue)
                 .apply();
+        QuickSettingsTiles.requestRefresh(appContext);
     }
 
     public static XraySettings getXraySettings(Context context) {

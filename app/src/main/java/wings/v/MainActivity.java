@@ -20,11 +20,14 @@ import androidx.viewpager2.widget.ViewPager2;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import dev.oneuiproject.oneui.layout.Badge;
+import wings.v.core.AppUpdateManager;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
+import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityMainBinding;
@@ -43,6 +46,8 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private final ExecutorService rootStateExecutor = Executors.newSingleThreadExecutor();
     private volatile int rootStateRefreshGeneration;
+    private AppUpdateManager appUpdateManager;
+    private final AppUpdateManager.Listener updateStateListener = this::applyUpdateBadgeState;
 
     private final ActivityResultLauncher<Intent> onboardingLauncher =
             registerForActivityResult(
@@ -62,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AppPrefs.ensureDefaults(this);
+        appUpdateManager = AppUpdateManager.getInstance(this);
         hasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
         hasSharingTab = AppPrefs.isRootAccessGranted(this) || AppPrefs.hasRootRuntimeState(this);
 
@@ -117,6 +123,7 @@ public class MainActivity extends AppCompatActivity {
         binding.mainPager.setCurrentItem(positionForTabId(initialTabId), false);
         binding.bottomTab.setSelectedItem(initialTabId);
         updateTitle(initialTabId);
+        applyUpdateBadgeState(appUpdateManager.getState());
         pageSelectionReady = true;
 
         handleImportIntent(getIntent());
@@ -142,11 +149,16 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         registerPreferencesListener();
+        appUpdateManager.registerListener(updateStateListener);
+        if (appUpdateManager.getState().status == AppUpdateManager.Status.IDLE) {
+            appUpdateManager.checkForUpdates();
+        }
     }
 
     @Override
     protected void onStop() {
         unregisterPreferencesListener();
+        appUpdateManager.unregisterListener(updateStateListener);
         super.onStop();
     }
 
@@ -269,6 +281,17 @@ public class MainActivity extends AppCompatActivity {
             menuResId = R.menu.menu_bottom_tabs_default;
         }
         binding.bottomTab.inflateMenu(menuResId, null);
+        applyUpdateBadgeState(appUpdateManager != null ? appUpdateManager.getState() : null);
+    }
+
+    private void applyUpdateBadgeState(@Nullable AppUpdateManager.UpdateState state) {
+        if (binding == null) {
+            return;
+        }
+        binding.bottomTab.setItemBadge(
+                R.id.menu_settings,
+                UpdateBadgeUtils.shouldShowUpdateBadge(state) ? Badge.DOT.INSTANCE : Badge.NONE.INSTANCE
+        );
     }
 
     public void setBottomNavigationSuppressed(boolean suppressed) {

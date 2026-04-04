@@ -6,6 +6,7 @@ import wings.v.proto.WingsvProto;
 
 public enum BackendType {
     VK_TURN_WIREGUARD("vk_turn_wireguard"),
+    AMNEZIAWG("amneziawg"),
     XRAY("xray");
 
     public final String prefValue;
@@ -15,6 +16,9 @@ public enum BackendType {
     }
 
     public static BackendType fromPrefValue(String rawValue) {
+        if (TextUtils.equals(AMNEZIAWG.prefValue, trim(rawValue))) {
+            return AMNEZIAWG;
+        }
         if (TextUtils.equals(XRAY.prefValue, trim(rawValue))) {
             return XRAY;
         }
@@ -22,6 +26,9 @@ public enum BackendType {
     }
 
     public static BackendType fromProto(WingsvProto.BackendType backendType) {
+        if (backendType == WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG) {
+            return AMNEZIAWG;
+        }
         if (backendType == WingsvProto.BackendType.BACKEND_TYPE_XRAY) {
             return XRAY;
         }
@@ -29,6 +36,9 @@ public enum BackendType {
     }
 
     public WingsvProto.BackendType toProto() {
+        if (this == AMNEZIAWG) {
+            return WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG;
+        }
         if (this == XRAY) {
             return WingsvProto.BackendType.BACKEND_TYPE_XRAY;
         }

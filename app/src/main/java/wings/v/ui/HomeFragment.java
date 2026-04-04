@@ -24,6 +24,7 @@ import androidx.fragment.app.Fragment;
 import wings.v.MainActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
+import wings.v.core.AmneziaStore;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
@@ -199,6 +200,16 @@ public class HomeFragment extends Fragment {
                 }
             }
             return getString(R.string.backend_xray_title);
+        }
+        if (settings.backendType == BackendType.AMNEZIAWG) {
+            if (!TextUtils.isEmpty(settings.endpoint)) {
+                return settings.endpoint;
+            }
+            String endpoint = AmneziaStore.getConfiguredEndpoint(requireContext());
+            if (!TextUtils.isEmpty(endpoint)) {
+                return endpoint;
+            }
+            return getString(R.string.backend_amneziawg_title);
         }
         if (!TextUtils.isEmpty(settings.endpoint)) {
             return settings.endpoint;
