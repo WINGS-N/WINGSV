@@ -2,6 +2,11 @@ package wings.v.core;
 
 import android.text.TextUtils;
 
+import org.amnezia.awg.config.Config;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+
 public class ProxySettings {
     public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
     public String endpoint;
@@ -20,6 +25,7 @@ public class ProxySettings {
     public String wgPublicKey;
     public String wgPresharedKey;
     public String wgAllowedIps;
+    public String awgQuickConfig;
     public boolean rootModeEnabled;
     public XrayProfile activeXrayProfile;
     public XraySettings xraySettings;
@@ -28,6 +34,26 @@ public class ProxySettings {
         if (backendType == BackendType.XRAY) {
             if (activeXrayProfile == null || TextUtils.isEmpty(activeXrayProfile.rawLink)) {
                 return "Xray профиль не выбран";
+            }
+            return null;
+        }
+        if (backendType == BackendType.AMNEZIAWG) {
+            if (TextUtils.isEmpty(endpoint)) {
+                return "Endpoint не заполнен";
+            }
+            if (TextUtils.isEmpty(vkLink)) {
+                return "VK Link не заполнен";
+            }
+            if (TextUtils.isEmpty(localEndpoint)) {
+                return "Локальный endpoint не заполнен";
+            }
+            if (TextUtils.isEmpty(awgQuickConfig)) {
+                return "AmneziaWG config не заполнен";
+            }
+            try {
+                Config.parse(new ByteArrayInputStream(awgQuickConfig.getBytes(StandardCharsets.UTF_8)));
+            } catch (Exception error) {
+                return "AmneziaWG config некорректен: " + error.getMessage();
             }
             return null;
         }

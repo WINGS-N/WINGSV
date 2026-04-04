@@ -13,18 +13,25 @@ message Config {
   WireGuard wg = 4;
   BackendType backend = 5;
   Xray xray = 6;
+  AmneziaWG awg = 7;
 }
 
 enum ConfigType {
   CONFIG_TYPE_UNSPECIFIED = 0;
   CONFIG_TYPE_VK = 1;
   CONFIG_TYPE_XRAY = 2;
+  CONFIG_TYPE_AMNEZIAWG = 3;
 }
 
 enum BackendType {
   BACKEND_TYPE_UNSPECIFIED = 0;
   BACKEND_TYPE_VK_TURN_WIREGUARD = 1;
   BACKEND_TYPE_XRAY = 2;
+  BACKEND_TYPE_AMNEZIAWG = 3;
+}
+
+message AmneziaWG {
+  string awg_quick_config = 1;
 }
 
 message Endpoint {

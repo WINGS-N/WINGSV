@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="@string/awg_settings_raw_category" />
+
+    <Preference
+        android:key="pref_awg_import_from_clipboard"
+        android:title="@string/awg_settings_import_from_clipboard_title"
+        android:summary="@string/awg_settings_import_from_clipboard_summary" />
+
+    <EditTextPreference
+        android:key="pref_awg_quick_config"
+        android:title="@string/settings_awg_quick_config_title"
+        android:dialogTitle="@string/settings_awg_quick_config_title"
+        android:summary="@string/settings_awg_quick_config_summary" />
+
+    <Preference
+        android:key="pref_awg_info"
+        android:title="@string/awg_settings_structured_info_title"
+        android:summary="@string/awg_settings_structured_info_summary"
+        android:selectable="false" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/awg_settings_interface_category" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_private_key"
+        android:title="@string/awg_settings_interface_private_key_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_addresses"
+        android:title="@string/awg_settings_interface_addresses_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_dns"
+        android:title="@string/awg_settings_interface_dns_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_listen_port"
+        android:title="@string/awg_settings_interface_listen_port_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_mtu"
+        android:title="@string/awg_settings_interface_mtu_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_jc"
+        android:title="@string/awg_settings_interface_jc_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_jmin"
+        android:title="@string/awg_settings_interface_jmin_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_jmax"
+        android:title="@string/awg_settings_interface_jmax_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_s1"
+        android:title="@string/awg_settings_interface_s1_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_s2"
+        android:title="@string/awg_settings_interface_s2_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_s3"
+        android:title="@string/awg_settings_interface_s3_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_s4"
+        android:title="@string/awg_settings_interface_s4_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_h1"
+        android:title="@string/awg_settings_interface_h1_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_h2"
+        android:title="@string/awg_settings_interface_h2_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_h3"
+        android:title="@string/awg_settings_interface_h3_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_h4"
+        android:title="@string/awg_settings_interface_h4_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_i1"
+        android:title="@string/awg_settings_interface_i1_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_i2"
+        android:title="@string/awg_settings_interface_i2_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_i3"
+        android:title="@string/awg_settings_interface_i3_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_i4"
+        android:title="@string/awg_settings_interface_i4_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_i5"
+        android:title="@string/awg_settings_interface_i5_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/awg_settings_peer_category" />
+
+    <EditTextPreference
+        android:key="pref_awg_peer_public_key"
+        android:title="@string/awg_settings_peer_public_key_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_peer_preshared_key"
+        android:title="@string/awg_settings_peer_preshared_key_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_peer_allowed_ips"
+        android:title="@string/awg_settings_peer_allowed_ips_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_peer_endpoint"
+        android:title="@string/awg_settings_peer_endpoint_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_peer_persistent_keepalive"
+        android:title="@string/awg_settings_peer_keepalive_title"
+        app:useSimpleSummaryProvider="true" />
+
+</PreferenceScreen>

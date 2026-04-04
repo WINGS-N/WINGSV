@@ -7,6 +7,7 @@ import android.content.Intent;
 import androidx.core.content.ContextCompat;
 
 import wings.v.core.AppPrefs;
+import wings.v.core.AppUpdateBackgroundScheduler;
 import wings.v.core.BackendType;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
@@ -24,6 +25,7 @@ public class BootReceiver extends BroadcastReceiver {
                 && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             return;
         }
+        AppUpdateBackgroundScheduler.schedule(context);
         boolean autoStartConnection = AppPrefs.isAutoStartOnBootEnabled(context);
         boolean autoStartSharing = AppPrefs.isSharingAutoStartOnBootEnabled(context)
                 && AppPrefs.isRootModeEnabled(context);

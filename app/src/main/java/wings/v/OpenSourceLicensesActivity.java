@@ -104,6 +104,24 @@ public class OpenSourceLicensesActivity extends AppCompatActivity {
                 Color.parseColor("#7A6B31"),
                 "https://github.com/JakeWharton/timber"
         );
+        configureComponentCard(
+                binding.cardLicenseLibxray,
+                "LX",
+                Color.parseColor("#3C7CB2"),
+                "https://github.com/WINGS-N/libXray"
+        );
+        configureComponentCard(
+                binding.cardLicenseXrayCore,
+                "XC",
+                Color.parseColor("#5164A3"),
+                "https://github.com/XTLS/Xray-core"
+        );
+        configureComponentCard(
+                binding.cardLicenseAmneziawg,
+                "AW",
+                Color.parseColor("#1B8B73"),
+                "https://github.com/amnezia-vpn/amneziawg-android"
+        );
     }
 
     private void configureComponentCard(CardItemView cardItemView,
