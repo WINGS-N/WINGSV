@@ -8,6 +8,11 @@
         android:checked="true" />
 
     <item
+        android:id="@+id/menu_profiles"
+        android:icon="@drawable/ic_profiles"
+        android:title="@string/xray_profiles_title" />
+
+    <item
         android:id="@+id/menu_apps"
         android:icon="@drawable/ic_apps"
         android:title="@string/apps" />

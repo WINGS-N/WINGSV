@@ -15,17 +15,47 @@ import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 
+import wings.v.MainActivity;
 import wings.v.PermissionOnboardingActivity;
 import wings.v.AboutAppActivity;
 import wings.v.ProxyLogsActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.RootUtils;
 import wings.v.core.UiFormatter;
 import wings.v.core.ProxySettings;
+import wings.v.core.XrayStore;
+import wings.v.SubscriptionsActivity;
+import wings.v.XraySettingsActivity;
 
 public class SettingsFragment extends PreferenceFragmentCompat {
+    private static final String[] VK_BACKEND_PREFERENCE_KEYS = new String[] {
+            AppPrefs.KEY_ENDPOINT,
+            AppPrefs.KEY_VK_LINK,
+            AppPrefs.KEY_THREADS,
+            AppPrefs.KEY_USE_UDP,
+            AppPrefs.KEY_NO_OBFUSCATION,
+            AppPrefs.KEY_TURN_SESSION_MODE,
+            AppPrefs.KEY_LOCAL_ENDPOINT,
+            AppPrefs.KEY_TURN_HOST,
+            AppPrefs.KEY_TURN_PORT,
+            AppPrefs.KEY_WG_PRIVATE_KEY,
+            AppPrefs.KEY_WG_ADDRESSES,
+            AppPrefs.KEY_WG_DNS,
+            AppPrefs.KEY_WG_MTU,
+            AppPrefs.KEY_WG_PUBLIC_KEY,
+            AppPrefs.KEY_WG_PRESHARED_KEY,
+            AppPrefs.KEY_WG_ALLOWED_IPS,
+            "pref_inset_after_backend",
+            "pref_inset_after_vk_proxy",
+            "pref_inset_after_wg_interface",
+            "pref_inset_after_wg_peer",
+            "pref_category_vk_proxy",
+            "pref_category_wg_interface",
+            "pref_category_wg_peer"
+    };
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
 
     @Override
@@ -41,6 +71,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         registerPreferencesListener();
         syncPreferenceValuesFromPrefs();
         configureRootPreferences();
+        configureXrayPreferences(XrayStore.getBackendType(requireContext()));
     }
 
     @Override
@@ -53,6 +84,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AppPrefs.KEY_THREADS);
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
+        bindListPreference(AppPrefs.KEY_BACKEND_TYPE);
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
         bindSummaryPreference(AppPrefs.KEY_VK_LINK);
@@ -91,7 +123,25 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (proxyLogsPreference != null) {
             proxyLogsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                startActivity(ProxyLogsActivity.createIntent(requireContext()));
+                startActivity(ProxyLogsActivity.createProxyIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference xrayLogsPreference = findPreference("pref_open_xray_logs");
+        if (xrayLogsPreference != null) {
+            xrayLogsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(ProxyLogsActivity.createXrayIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference runtimeLogsPreference = findPreference("pref_open_runtime_logs");
+        if (runtimeLogsPreference != null) {
+            runtimeLogsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(ProxyLogsActivity.createRuntimeIntent(requireContext()));
                 return true;
             });
         }
@@ -106,7 +156,29 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference subscriptionsPreference = findPreference("pref_open_subscriptions");
+        if (subscriptionsPreference != null) {
+            subscriptionsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(SubscriptionsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference xraySettingsPreference = findPreference("pref_open_xray_settings");
+        if (xraySettingsPreference != null) {
+            xraySettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                if (XrayStore.getBackendType(requireContext()) != BackendType.XRAY) {
+                    return true;
+                }
+                startActivity(XraySettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         configureRootPreferences();
+        configureXrayPreferences(XrayStore.getBackendType(requireContext()));
         syncPreferenceValuesFromPrefs();
     }
 
@@ -126,7 +198,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
 
         rootModePreference.setVisible(true);
-        String unavailableReason = RootUtils.getRootModeUnavailableReason(requireContext());
+        BackendType backendType = XrayStore.getBackendType(requireContext());
+        String unavailableReason = RootUtils.getRootModeUnavailableReason(requireContext(), backendType, false);
         boolean supported = TextUtils.isEmpty(unavailableReason);
         rootModePreference.setEnabled(supported);
         rootModePreference.setSummary(supported
@@ -137,7 +210,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             if (!(newValue instanceof Boolean) || !((Boolean) newValue)) {
                 return true;
             }
-            String reason = RootUtils.getRootModeUnavailableReason(requireContext());
+            String reason = RootUtils.getRootModeUnavailableReason(
+                    requireContext(),
+                    XrayStore.getBackendType(requireContext()),
+                    false
+            );
             if (!TextUtils.isEmpty(reason)) {
                 Toast.makeText(
                         requireContext(),
@@ -148,6 +225,34 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
             return true;
         });
+    }
+
+    private void configureXrayPreferences() {
+        configureXrayPreferences(XrayStore.getBackendType(requireContext()));
+    }
+
+    private void configureXrayPreferences(@Nullable BackendType backendType) {
+        boolean xrayBackend = backendType == BackendType.XRAY;
+        Preference subscriptionsPreference = findPreference("pref_open_subscriptions");
+        Preference xraySettingsPreference = findPreference("pref_open_xray_settings");
+        for (String key : VK_BACKEND_PREFERENCE_KEYS) {
+            setPreferenceVisible(key, !xrayBackend);
+        }
+        if (subscriptionsPreference != null) {
+            subscriptionsPreference.setVisible(xrayBackend);
+        }
+        if (xraySettingsPreference != null) {
+            xraySettingsPreference.setVisible(xrayBackend);
+            xraySettingsPreference.setEnabled(xrayBackend);
+            xraySettingsPreference.setSummary(getString(R.string.drawer_xray_settings_summary));
+        }
+    }
+
+    private void setPreferenceVisible(String key, boolean visible) {
+        Preference preference = findPreference(key);
+        if (preference != null) {
+            preference.setVisible(visible);
+        }
     }
 
     private void bindSwitchHaptics(String key) {
@@ -227,6 +332,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
             syncPreferenceValuesFromPrefs();
             configureRootPreferences();
+            configureXrayPreferences();
         };
         getPreferenceManager().getSharedPreferences()
                 .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
@@ -265,6 +371,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 AppPrefs.KEY_AUTO_START_ON_BOOT,
                 AppPrefs.isAutoStartOnBootEnabled(requireContext())
         );
+        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(requireContext()).prefValue);
     }
 
     private void syncEditTextPreference(String key, @Nullable String value) {
@@ -294,6 +401,22 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         preference.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+        if (AppPrefs.KEY_BACKEND_TYPE.equals(key)) {
+            preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                BackendType nextBackend = BackendType.fromPrefValue(newValue == null
+                        ? null
+                        : String.valueOf(newValue));
+                configureRootPreferences();
+                configureXrayPreferences(nextBackend);
+                requireView().post(() -> {
+                    if (isAdded() && requireActivity() instanceof MainActivity) {
+                        ((MainActivity) requireActivity()).restartPreservingTab(R.id.menu_settings);
+                    }
+                });
+                return true;
+            });
+        }
     }
 
     private void syncListPreference(String key, @Nullable String value) {

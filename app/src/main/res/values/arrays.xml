@@ -1,14 +1,24 @@
 <resources>
     <string-array name="turn_session_mode_entries">
         <item>@string/turn_session_mode_auto</item>
-        <item>@string/turn_session_mode_legacy</item>
+        <item>@string/turn_session_mode_mainline</item>
         <item>@string/turn_session_mode_mux</item>
     </string-array>
 
     <string-array name="turn_session_mode_values">
         <item>auto</item>
-        <item>legacy</item>
+        <item>mainline</item>
         <item>mux</item>
+    </string-array>
+
+    <string-array name="backend_entries">
+        <item>@string/backend_vk_turn_wireguard_title</item>
+        <item>@string/backend_xray_title</item>
+    </string-array>
+
+    <string-array name="backend_values">
+        <item>vk_turn_wireguard</item>
+        <item>xray</item>
     </string-array>
 
     <string-array name="sharing_masquerade_entries">

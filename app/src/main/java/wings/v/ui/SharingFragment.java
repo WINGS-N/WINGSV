@@ -40,6 +40,7 @@ import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
+import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentSharingBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -462,6 +463,9 @@ public class SharingFragment extends Fragment {
         if (!TextUtils.isEmpty(configured)) {
             return configured;
         }
+        if (XrayStore.getBackendType(context) == wings.v.core.BackendType.XRAY) {
+            return getString(R.string.sharing_value_vpn_service);
+        }
         if (AppPrefs.isRootModeEnabled(context)) {
             String rootTunnelName = AppPrefs.getRootRuntimeRecoveryTunnelHint(context);
             if (isInterfacePresent(rootTunnelName)) {
@@ -564,7 +568,11 @@ public class SharingFragment extends Fragment {
     private boolean isRootModeReady() {
         return isAdded()
                 && AppPrefs.isRootModeEnabled(requireContext())
-                && RootUtils.isRootModeSupported(requireContext());
+                && RootUtils.isRootModeSupported(
+                requireContext(),
+                XrayStore.getBackendType(requireContext()),
+                false
+        );
     }
 
     private void refreshStickyState() {

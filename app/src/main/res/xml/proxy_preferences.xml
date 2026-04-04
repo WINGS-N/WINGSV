@@ -3,6 +3,32 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
+        android:key="pref_category_backend"
+        android:title="@string/settings_backend_category" />
+
+    <ListPreference
+        android:key="pref_backend_type"
+        android:title="@string/settings_backend_title"
+        android:defaultValue="vk_turn_wireguard"
+        android:entries="@array/backend_entries"
+        android:entryValues="@array/backend_values"
+        app:useSimpleSummaryProvider="true" />
+
+    <Preference
+        android:key="pref_open_subscriptions"
+        android:title="@string/drawer_subscriptions_title"
+        android:summary="@string/drawer_subscriptions_summary" />
+
+    <Preference
+        android:key="pref_open_xray_settings"
+        android:title="@string/drawer_xray_settings_title"
+        android:summary="@string/drawer_xray_settings_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_backend" />
+
+    <PreferenceCategory
+        android:key="pref_category_vk_proxy"
         android:title="Proxy" />
 
     <EditTextPreference
@@ -55,9 +81,11 @@
         android:title="TURN port override"
         app:useSimpleSummaryProvider="true" />
 
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_vk_proxy" />
 
     <PreferenceCategory
+        android:key="pref_category_wg_interface"
         android:title="WireGuard Interface" />
 
     <EditTextPreference
@@ -80,9 +108,11 @@
         android:title="MTU"
         android:defaultValue="1280" />
 
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_wg_interface" />
 
     <PreferenceCategory
+        android:key="pref_category_wg_peer"
         android:title="WireGuard Peer" />
 
     <EditTextPreference
@@ -99,7 +129,8 @@
         android:defaultValue="0.0.0.0/0, ::/0"
         app:useSimpleSummaryProvider="true" />
 
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_wg_peer" />
 
     <PreferenceCategory
         android:key="pref_category_root"
@@ -111,7 +142,8 @@
         android:summary="@string/root_mode_summary"
         android:defaultValue="false" />
 
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_root" />
 
     <PreferenceCategory
         android:title="Система" />
@@ -131,6 +163,16 @@
         android:key="pref_open_proxy_logs"
         android:title="Логи vk-turn-proxy"
         android:summary="Открыть live stdout/stderr бинарника" />
+
+    <Preference
+        android:key="pref_open_xray_logs"
+        android:title="@string/xray_logs_title"
+        android:summary="@string/xray_logs_open_summary" />
+
+    <Preference
+        android:key="pref_open_runtime_logs"
+        android:title="@string/runtime_logs_title"
+        android:summary="@string/runtime_logs_open_summary" />
 
     <Preference
         android:key="pref_open_about"

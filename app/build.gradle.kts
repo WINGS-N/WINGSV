@@ -23,6 +23,10 @@ val vkTurnProtoSourceDir = vkTurnRepoDir.resolve("proto")
 val vkTurnGeneratedProtoGo = vkTurnRepoDir.resolve("sessionproto/session.pb.go")
 val generatedVkTurnJniLibsDir = layout.buildDirectory.dir("generated/vkturn/jniLibs")
 val generatedVkTurnBinary = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
+val libXrayRepoDir = rootProject.file("external/libXray")
+val generatedLibXrayDir = layout.buildDirectory.dir("generated/xray")
+val generatedLibXrayWorkDir = generatedLibXrayDir.map { File(it.asFile, "work") }
+val generatedLibXrayAar = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
 val protoSourceDir = project.file("src/main/proto")
 val generatedProtoJavaDir = layout.buildDirectory.dir("generated/source/proto/main/java")
 
@@ -60,6 +64,25 @@ fun resolveVkTurnAndroidClang(): File {
     val clang = prebuilt.resolve("aarch64-linux-android21-clang")
     return clang.takeIf { it.isFile }
         ?: error("Android clang not found at ${clang.absolutePath}")
+}
+
+fun resolveGoBinary(toolName: String): String {
+    val userHome = System.getProperty("user.home")
+    val candidates = listOf(
+        System.getenv("GOBIN"),
+        "$userHome/go/bin",
+        "/usr/local/go/bin",
+        "/usr/bin"
+    ).filterNotNull().map { File(it, toolName) }
+    return candidates.firstOrNull { it.isFile }
+        ?.absolutePath
+        ?: toolName
+}
+
+fun resolveToolBinDir(toolName: String, fallbackToolName: String = "go"): String {
+    val resolved = File(resolveGoBinary(toolName))
+    resolved.parentFile?.let { return it.absolutePath }
+    return File(resolveGoBinary(fallbackToolName)).parentFile.absolutePath
 }
 
 val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
@@ -132,6 +155,85 @@ buildVkTurnProxyArm64.configure {
     dependsOn(generateVkTurnProxyProtoGo)
 }
 
+val buildLibXrayAndroidAar by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Builds libXray.aar from external/libXray via gomobile."
+
+    inputs.files(fileTree(libXrayRepoDir) {
+        exclude(".git/**")
+        exclude("**/build/**")
+        exclude("**/*.aar")
+        exclude("**/*-sources.jar")
+    })
+    inputs.property("xrayGoToolchain", "go1.26.0")
+    outputs.file(generatedLibXrayAar)
+
+    doFirst {
+        check(libXrayRepoDir.isDirectory) {
+            "libXray submodule not found at ${libXrayRepoDir.absolutePath}. Run git submodule update --init --recursive."
+        }
+        val outputDir = generatedLibXrayDir.get().asFile
+        val workDir = generatedLibXrayWorkDir.get()
+        outputDir.mkdirs()
+        delete(workDir)
+        copy {
+            from(libXrayRepoDir)
+            into(workDir)
+            exclude(".git/**")
+            exclude("**/build/**")
+            exclude("**/*.aar")
+            exclude("**/*-sources.jar")
+        }
+        workingDir = workDir
+        environment(
+            mapOf(
+                "GOTOOLCHAIN" to "go1.26.0",
+                "ANDROID_SDK_ROOT" to resolveAndroidSdkDir().absolutePath,
+                "ANDROID_HOME" to resolveAndroidSdkDir().absolutePath,
+                "PATH" to buildString {
+                    append(File(resolveAndroidSdkDir(), "platform-tools").absolutePath)
+                    append(File.pathSeparator)
+                    append(File(resolveAndroidSdkDir(), "tools/bin").absolutePath)
+                    append(File.pathSeparator)
+                    append(File(resolveAndroidNdkDir(), "toolchains/llvm/prebuilt/linux-x86_64/bin").absolutePath)
+                    append(File.pathSeparator)
+                    append(resolveToolBinDir("gomobile"))
+                    append(File.pathSeparator)
+                    append(System.getenv("PATH") ?: "")
+                }
+            )
+        )
+        commandLine(
+            "sh",
+            "-lc",
+            """
+            set -e
+            retry() {
+              attempts=0
+              while true; do
+                "$@" && return 0
+                attempts=$((attempts + 1))
+                if [ "${'$'}attempts" -ge 3 ]; then
+                  return 1
+                fi
+                sleep 2
+              done
+            }
+            GO_BIN=${resolveGoBinary("go")}
+            GOMOBILE_BIN=${resolveGoBinary("gomobile")}
+            export GOPROXY=https://proxy.golang.org,direct
+            retry "${'$'}GO_BIN" install golang.org/x/mobile/cmd/gomobile@latest
+            retry "${'$'}GOMOBILE_BIN" init
+            retry "${'$'}GO_BIN" get golang.org/x/mobile/cmd/gomobile
+            retry "${'$'}GO_BIN" get golang.org/x/mobile/bind
+            retry "${'$'}GO_BIN" get google.golang.org/genproto
+            rm -f libXray.aar libXray-sources.jar
+            "${'$'}GOMOBILE_BIN" bind -target android -androidapi 21 -o "${generatedLibXrayAar.get().absolutePath}" .
+            """.trimIndent()
+        )
+    }
+}
+
 val generateWingsProtoJava by tasks.registering(Exec::class) {
     group = "build"
     description = "Generates Java lite sources from app/src/main/proto via protoc."
@@ -186,8 +288,8 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.7"
+        versionCode = 20
+        versionName = "2.0"
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -213,8 +315,8 @@ android {
     }
 
     sourceSets.getByName("main") {
-        jniLibs.srcDirs(generatedVkTurnJniLibsDir.get().asFile)
-        java.srcDirs(generatedProtoJavaDir.get().asFile)
+        jniLibs.setSrcDirs(listOf(generatedVkTurnJniLibsDir.get().asFile))
+        java.setSrcDirs(listOf("src/main/java", generatedProtoJavaDir.get().asFile))
     }
 
     packaging {
@@ -241,7 +343,7 @@ android {
 }
 
 tasks.named("preBuild") {
-    dependsOn(generateVkTurnProxyProtoGo, buildVkTurnProxyArm64, generateWingsProtoJava)
+    dependsOn(generateVkTurnProxyProtoGo, buildVkTurnProxyArm64, generateWingsProtoJava, buildLibXrayAndroidAar)
 }
 
 dependencies {
@@ -249,6 +351,7 @@ dependencies {
     implementation(libs.oneui.design)
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
+    implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))
 
     testImplementation(libs.junit)
