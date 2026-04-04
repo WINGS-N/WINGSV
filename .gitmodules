@@ -4,3 +4,9 @@
 [submodule "external/vk-turn-proxy"]
 	path = external/vk-turn-proxy
 	url = https://github.com/wings-n/vk-turn-proxy.git
+[submodule "external/libXray"]
+	path = external/libXray
+	url = https://github.com/WINGS-N/libXray.git
+[submodule "external/Xray-core"]
+	path = external/Xray-core
+	url = https://github.com/XTLS/Xray-core.git
