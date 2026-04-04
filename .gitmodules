@@ -3,7 +3,7 @@
 	url = https://github.com/WINGS-N/VPNHotspot.git
 [submodule "external/vk-turn-proxy"]
 	path = external/vk-turn-proxy
-	url = https://github.com/wings-n/vk-turn-proxy.git
+	url = https://github.com/WINGS-N/vk-turn-proxy.git
 [submodule "external/libXray"]
 	path = external/libXray
 	url = https://github.com/WINGS-N/libXray.git
@@ -12,4 +12,4 @@
 	url = https://github.com/XTLS/Xray-core.git
 [submodule "external/amneziawg-android"]
 	path = external/amneziawg-android
-	url = https://github.com/amnezia-vpn/amneziawg-android.git
+	url = https://github.com/WINGS-N/amneziawg-android.git
