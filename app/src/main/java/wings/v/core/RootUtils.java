@@ -76,6 +76,9 @@ public final class RootUtils {
         if (backendType == BackendType.XRAY) {
             return true;
         }
+        if (backendType == BackendType.AMNEZIAWG) {
+            return false;
+        }
         return WgQuickBackend.hasKernelSupport();
     }
 

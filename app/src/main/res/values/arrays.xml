@@ -13,11 +13,13 @@
 
     <string-array name="backend_entries">
         <item>@string/backend_vk_turn_wireguard_title</item>
+        <item>@string/backend_amneziawg_title</item>
         <item>@string/backend_xray_title</item>
     </string-array>
 
     <string-array name="backend_values">
         <item>vk_turn_wireguard</item>
+        <item>amneziawg</item>
         <item>xray</item>
     </string-array>
 

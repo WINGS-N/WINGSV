@@ -4,6 +4,7 @@ import android.content.Context;
 import android.text.TextUtils;
 import android.util.Base64;
 
+import org.amnezia.awg.config.Config;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -202,6 +203,12 @@ public final class WingsImportParser {
             directImport.xraySettings = defaultXraySettings();
             return directImport;
         }
+        if (looksLikeAmneziaQuickConfig(rawText)) {
+            ImportedConfig directImport = new ImportedConfig();
+            directImport.backendType = BackendType.AMNEZIAWG;
+            directImport.awgQuickConfig = rawText.trim();
+            return directImport;
+        }
         String link = extractLink(rawText);
         if (TextUtils.isEmpty(link)) {
             throw new IllegalArgumentException("WINGSV ссылка не найдена");
@@ -245,12 +252,25 @@ public final class WingsImportParser {
                 .setBackend(backendType.toProto())
                 .setType(backendType == BackendType.XRAY
                         ? WingsvProto.ConfigType.CONFIG_TYPE_XRAY
+                        : backendType == BackendType.AMNEZIAWG
+                        ? WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG
                         : WingsvProto.ConfigType.CONFIG_TYPE_VK);
 
         if (settings != null && backendType == BackendType.XRAY) {
             WingsvProto.Xray xray = buildXray(context, settings);
             if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
                 builder.setXray(xray);
+            }
+            return builder.build();
+        }
+        if (settings != null && backendType == BackendType.AMNEZIAWG) {
+            WingsvProto.AmneziaWG.Builder awg = WingsvProto.AmneziaWG.newBuilder();
+            if (!TextUtils.isEmpty(value(settings.awgQuickConfig))) {
+                awg.setAwgQuickConfig(value(settings.awgQuickConfig));
+            }
+            WingsvProto.AmneziaWG awgMessage = awg.build();
+            if (!awgMessage.equals(WingsvProto.AmneziaWG.getDefaultInstance())) {
+                builder.setAwg(awgMessage);
             }
             return builder.build();
         }
@@ -440,8 +460,17 @@ public final class WingsImportParser {
             parseXray(config, importedConfig);
             return importedConfig;
         }
+        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG
+                || importedConfig.backendType == BackendType.AMNEZIAWG
+                || config.hasAwg()) {
+            importedConfig.backendType = BackendType.AMNEZIAWG;
+            if (config.hasAwg()) {
+                importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
+            }
+            return importedConfig;
+        }
         if (config.getType() != WingsvProto.ConfigType.CONFIG_TYPE_VK) {
-            throw new IllegalArgumentException("Поддерживается только type=vk/xray");
+            throw new IllegalArgumentException("Поддерживается только type=vk/xray/amneziawg");
         }
 
         if (config.hasTurn()) {
@@ -751,6 +780,22 @@ public final class WingsImportParser {
         return value == null ? "" : value.trim();
     }
 
+    private static boolean looksLikeAmneziaQuickConfig(String rawText) {
+        if (TextUtils.isEmpty(rawText)) {
+            return false;
+        }
+        String trimmed = rawText.trim();
+        if (!trimmed.contains("[Interface]") || !trimmed.contains("[Peer]")) {
+            return false;
+        }
+        try {
+            Config.parse(new java.io.ByteArrayInputStream(trimmed.getBytes(StandardCharsets.UTF_8)));
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private static WingsvProto.VlessProfile toProtoProfile(XrayProfile profile) {
         WingsvProto.VlessProfile.Builder builder = WingsvProto.VlessProfile.newBuilder();
         builder.setId(value(profile.id));
@@ -906,6 +951,7 @@ public final class WingsImportParser {
         public String wgPublicKey;
         public String wgPresharedKey;
         public String wgAllowedIps;
+        public String awgQuickConfig;
         public String activeXrayProfileId;
         public final List<XrayProfile> xrayProfiles = new ArrayList<>();
         public final List<XraySubscription> xraySubscriptions = new ArrayList<>();

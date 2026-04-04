@@ -5,12 +5,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
 import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import libXray.DialerController;
@@ -20,6 +23,7 @@ import wings.v.core.ProxySettings;
 
 public class XrayVpnService extends VpnService implements DialerController {
     private static final long SERVICE_WAIT_TIMEOUT_MS = 2_000L;
+    private static final long HEARTBEAT_INTERVAL_MS = 1_000L;
     private static final String VPN_ADDRESS_V4 = "172.19.0.1";
     private static final int VPN_PREFIX_V4 = 30;
     private static final String VPN_ADDRESS_V6 = "fd19:19::1";
@@ -27,11 +31,14 @@ public class XrayVpnService extends VpnService implements DialerController {
     private static final int DEFAULT_MTU = 1500;
 
     private static volatile CompletableFuture<XrayVpnService> serviceFuture = new CompletableFuture<>();
+    private static volatile long lastHeartbeatElapsedMs;
+    private static volatile boolean tunnelActive;
 
     private final Object tunnelLock = new Object();
     private volatile boolean shuttingDown;
     private ParcelFileDescriptor tunnelFd;
     private String tunnelSignature;
+    private ScheduledExecutorService heartbeatExecutor;
 
     public static XrayVpnService ensureServiceStarted(Context context) {
         if (context == null) {
@@ -44,6 +51,18 @@ public class XrayVpnService extends VpnService implements DialerController {
         resetServiceFuture();
         context.startService(new Intent(context, XrayVpnService.class));
         return awaitService(SERVICE_WAIT_TIMEOUT_MS);
+    }
+
+    public static boolean hasActiveTunnel() {
+        return tunnelActive;
+    }
+
+    public static boolean isHeartbeatFresh(long maxAgeMs) {
+        if (!tunnelActive) {
+            return false;
+        }
+        long lastSeen = lastHeartbeatElapsedMs;
+        return lastSeen > 0L && SystemClock.elapsedRealtime() - lastSeen <= Math.max(1L, maxAgeMs);
     }
 
     @Nullable
@@ -86,27 +105,43 @@ public class XrayVpnService extends VpnService implements DialerController {
         super.onCreate();
         shuttingDown = false;
         serviceFuture.complete(this);
+        updateHeartbeat(false);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_NOT_STICKY;
+        updateHeartbeat(tunnelFd != null);
+        return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        boolean unexpectedShutdown = !shuttingDown;
         shuttingDown = true;
         shutdownTunnel();
         if (getServiceNow() == this) {
             resetServiceFuture();
         }
         super.onDestroy();
+        if (unexpectedShutdown && ProxyTunnelService.isActive()) {
+            ProxyTunnelService.requestReconnect(
+                    getApplicationContext(),
+                    "Xray VPN service destroyed unexpectedly"
+            );
+        }
     }
 
     @Override
     public void onRevoke() {
+        boolean unexpectedRevoke = !shuttingDown;
         shutdown();
         super.onRevoke();
+        if (unexpectedRevoke && ProxyTunnelService.isActive()) {
+            ProxyTunnelService.requestReconnect(
+                    getApplicationContext(),
+                    "Xray VPN service revoked unexpectedly"
+            );
+        }
     }
 
     public int establishTunnel(ProxySettings settings) {
@@ -151,6 +186,8 @@ public class XrayVpnService extends VpnService implements DialerController {
             }
             tunnelFd = established;
             tunnelSignature = signature;
+            ensureHeartbeatLoopLocked();
+            updateHeartbeat(true);
             return established.getFd();
         }
     }
@@ -231,6 +268,8 @@ public class XrayVpnService extends VpnService implements DialerController {
             tunnelFd = null;
             tunnelSignature = null;
         }
+        stopHeartbeatLoopLocked();
+        updateHeartbeat(false);
     }
 
     public void shutdown() {
@@ -243,6 +282,34 @@ public class XrayVpnService extends VpnService implements DialerController {
         synchronized (tunnelLock) {
             closeTunnelLocked();
         }
+    }
+
+    private void ensureHeartbeatLoopLocked() {
+        if (heartbeatExecutor != null) {
+            return;
+        }
+        heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "wingsv-xray-heartbeat");
+            thread.setDaemon(true);
+            return thread;
+        });
+        heartbeatExecutor.scheduleAtFixedRate(() -> {
+            synchronized (tunnelLock) {
+                updateHeartbeat(tunnelFd != null && !shuttingDown);
+            }
+        }, 0L, HEARTBEAT_INTERVAL_MS, TimeUnit.MILLISECONDS);
+    }
+
+    private void stopHeartbeatLoopLocked() {
+        if (heartbeatExecutor != null) {
+            heartbeatExecutor.shutdownNow();
+            heartbeatExecutor = null;
+        }
+    }
+
+    private static void updateHeartbeat(boolean active) {
+        tunnelActive = active;
+        lastHeartbeatElapsedMs = active ? SystemClock.elapsedRealtime() : 0L;
     }
 
     private static String trim(String value) {
@@ -296,5 +363,6 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     private static void resetServiceFuture() {
         serviceFuture = new CompletableFuture<>();
+        updateHeartbeat(false);
     }
 }

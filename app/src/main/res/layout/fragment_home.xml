@@ -114,6 +114,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:drawableStart="@drawable/ic_arrow_down"
+                    android:drawablePadding="6dp"
+                    android:drawableTint="?android:textColorSecondary"
                     android:text="@string/traffic_downlink"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
@@ -141,6 +144,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:drawableStart="@drawable/ic_arrow_up"
+                    android:drawablePadding="6dp"
+                    android:drawableTint="?android:textColorSecondary"
                     android:text="@string/traffic_uplink"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
@@ -178,6 +184,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:drawableStart="@drawable/ic_arrow_down"
+                    android:drawablePadding="6dp"
+                    android:drawableTint="?android:textColorSecondary"
                     android:text="@string/traffic_rx"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
@@ -205,6 +214,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:drawableStart="@drawable/ic_arrow_up"
+                    android:drawablePadding="6dp"
+                    android:drawableTint="?android:textColorSecondary"
                     android:text="@string/traffic_tx"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
@@ -248,6 +260,9 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:drawableStart="@drawable/ic_current_location"
+                        android:drawablePadding="6dp"
+                        android:drawableTint="?android:textColorSecondary"
                         android:text="@string/public_ip"
                         android:textAppearance="?android:attr/textAppearanceSmall"
                         android:textColor="?android:textColorSecondary" />
@@ -296,6 +311,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:drawableStart="@drawable/ic_public"
+                    android:drawablePadding="6dp"
+                    android:drawableTint="?android:textColorSecondary"
                     android:text="@string/ip_country"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
@@ -324,6 +342,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:drawableStart="@drawable/ic_sharing_nav"
+                    android:drawablePadding="6dp"
+                    android:drawableTint="?android:textColorSecondary"
                     android:text="@string/ip_isp"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />

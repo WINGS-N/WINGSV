@@ -12,6 +12,7 @@ import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.net.RouteInfo;
 import android.net.TetheringManager;
 import android.net.TrafficStats;
@@ -44,9 +45,11 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -63,6 +66,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -73,13 +77,16 @@ import wings.v.MainActivity;
 import wings.v.CaptchaBrowserActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
+import wings.v.core.AmneziaConfigFactory;
 import wings.v.core.BackendType;
+import wings.v.core.CaptchaPromptSource;
 import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
 import wings.v.core.WireGuardConfigFactory;
 import wings.v.core.XrayStore;
+import wings.v.qs.QuickSettingsTiles;
 import wings.v.root.server.RootProcessResult;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
 import wings.v.vpnhotspot.bridge.sharing.VpnHotspotSharingConfig;
@@ -103,11 +110,24 @@ public class ProxyTunnelService extends Service {
     private static final long PROXY_START_GRACE_MS = 1_500L;
     private static final long PROXY_WIREGUARD_DELAY_MS = 3_000L;
     private static final long PROXY_RETRY_DELAY_MS = 1_000L;
+    private static final long RUNTIME_RECONNECT_DELAY_MS = 1_500L;
+    private static final long RUNTIME_SUPERVISOR_INTERVAL_MS = 5_000L;
+    private static final long UNDERLYING_NETWORK_RECONNECT_DELAY_MS = 750L;
+    private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 7_500L;
+    private static final long WAKE_FAST_PATH_EVENT_COOLDOWN_MS = 2_000L;
+    private static final long WAKE_FAST_PATH_INITIAL_DELAY_MS = 500L;
+    private static final long WAKE_FAST_PATH_RETRY_DELAY_MS = 750L;
+    private static final long WAKE_FAST_PATH_PROBE_TIMEOUT_MS = 1_500L;
+    private static final long CONNECTIVITY_PROBE_INTERVAL_MS = 20_000L;
+    private static final long CONNECTIVITY_PROBE_TIMEOUT_MS = 4_000L;
+    private static final long CONNECTIVITY_PROBE_SUCCESS_TTL_MIN_MS = 30_000L;
+    private static final long CONNECTIVITY_PROBE_SUCCESS_TTL_MAX_MS = 60_000L;
+    private static final String CONNECTIVITY_PROBE_URL = "https://1.1.1.1/";
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int MAX_PROXY_LOG_LINES = 600;
     private static final long ROOT_TETHER_SYNC_INTERVAL_MS = 3_000L;
-    private static final int CONNECTION_REFUSED_NOTICE_THRESHOLD = 4;
-    private static final long CONNECTION_REFUSED_NOTICE_WINDOW_MS = 12_000L;
+    private static final int TRANSIENT_ERROR_NOTICE_THRESHOLD = 6;
+    private static final long TRANSIENT_ERROR_NOTICE_WINDOW_MS = 20_000L;
     private static final long CAPTCHA_NOTIFICATION_COOLDOWN_MS = 2 * 60_000L;
     private static final String NETLINK_PERMISSION_DENIED = "netlinkrib: permission denied";
     private static final String ROOT_TUNNEL_NAME = "wingsv";
@@ -150,14 +170,28 @@ public class ProxyTunnelService extends Service {
     private static volatile String sVisibleErrorNotice;
     private static volatile long sErrorNoticeSessionId;
     private static volatile long sDismissedErrorNoticeSessionId = -1L;
-    private static volatile int sConnectionRefusedNoticeCount;
-    private static volatile long sConnectionRefusedNoticeStartedAtMs;
+    private static volatile int sTransientErrorNoticeCount;
+    private static volatile long sTransientErrorNoticeStartedAtMs;
+    private static volatile long sLastConnectivityProbeSuccessAtElapsedMs;
+    private static volatile long sConnectivityProbeSuccessTtlMs;
     private static volatile boolean sPublicIpRefreshInProgress;
     private static volatile long sProxyLogVersion;
     private static volatile long sRuntimeLogVersion;
     private static volatile String sPendingCaptchaUrl;
+    private static volatile CaptchaPromptSource sPendingCaptchaSource = CaptchaPromptSource.PRIMARY;
     private static volatile long sLastCaptchaNotificationAtElapsedMs;
 
+    private static final class CaptchaPrompt {
+        final String url;
+        final CaptchaPromptSource source;
+
+        CaptchaPrompt(String url, CaptchaPromptSource source) {
+            this.url = url;
+            this.source = source;
+        }
+    }
+
+    private final Object vpnBackendLock = new Object();
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
     private final AtomicBoolean rootTetherSyncQueued = new AtomicBoolean();
@@ -170,9 +204,14 @@ public class ProxyTunnelService extends Service {
     };
     private ScheduledExecutorService statsExecutor;
     private volatile Future<?> activeWorkTask;
+    private final AtomicBoolean runtimeReconnectQueued = new AtomicBoolean();
+    private final AtomicBoolean connectivityProbeInProgress = new AtomicBoolean();
     private Backend backend;
     private Config currentConfig;
     private Tunnel currentTunnel;
+    private org.amnezia.awg.backend.Backend awgBackend;
+    private org.amnezia.awg.config.Config awgConfig;
+    private org.amnezia.awg.backend.Tunnel awgTunnel;
     private Process proxyProcess;
     private ProxyProtectBridgeServer protectBridgeServer;
     private String protectSocketName;
@@ -191,11 +230,47 @@ public class ProxyTunnelService extends Service {
     private volatile Set<String> activeTetheredInterfaces = Collections.emptySet();
     private long lastRxSample = -1L;
     private long lastTxSample = -1L;
+    private WifiManager.WifiLock tunnelWifiLock;
     private WifiManager.WifiLock sharingWifiLock;
+    private PowerManager.WakeLock tunnelPowerLock;
     private PowerManager.WakeLock sharingPowerLock;
     private int sharingWifiLockMode = -1;
     private long xrayTrafficBaseRx = -1L;
     private long xrayTrafficBaseTx = -1L;
+    private String lastUnderlyingNetworkFingerprint;
+    private Boolean lastUnderlyingNetworkUsable;
+    private long lastWakeFastPathAtElapsedMs;
+    private boolean physicalNetworkCallbackRegistered;
+    private boolean screenStateReceiverRegistered;
+    private final AtomicBoolean wakeFastPathCheckQueued = new AtomicBoolean();
+    private final ConnectivityManager.NetworkCallback physicalNetworkCallback =
+            new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(@Nullable Network network) {
+                    handleUnderlyingNetworkEvent("available", network);
+                }
+
+                @Override
+                public void onLost(@Nullable Network network) {
+                    handleUnderlyingNetworkEvent("lost", network);
+                }
+
+                @Override
+                public void onCapabilitiesChanged(@Nullable Network network, @Nullable NetworkCapabilities networkCapabilities) {
+                    handleUnderlyingNetworkEvent("capabilities", network);
+                }
+
+                @Override
+                public void onLinkPropertiesChanged(@Nullable Network network, @Nullable LinkProperties linkProperties) {
+                    handleUnderlyingNetworkEvent("link", network);
+                }
+            };
+    private final BroadcastReceiver screenStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            handleWakeFastPathEvent(intent != null ? intent.getAction() : null);
+        }
+    };
     private final TetheringManager.TetheringEventCallback tetheringEventCallback =
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
                     ? new TetheringManager.TetheringEventCallback() {
@@ -243,12 +318,32 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    public static void requestReconnect(Context context, @Nullable String reason) {
+        Context appContext = context != null ? context.getApplicationContext() : null;
+        if (appContext == null || !isActive()) {
+            return;
+        }
+        if (!TextUtils.isEmpty(reason)) {
+            appendRuntimeLogLine(reason);
+        }
+        Intent intent = createReconnectIntent(appContext);
+        try {
+            appContext.startService(intent);
+        } catch (Exception startError) {
+            try {
+                ContextCompat.startForegroundService(appContext, intent);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
     public static void clearPendingCaptchaPrompt(Context context) {
         Context appContext = context != null ? context.getApplicationContext() : null;
         if (appContext == null) {
             return;
         }
         sPendingCaptchaUrl = null;
+        sPendingCaptchaSource = CaptchaPromptSource.PRIMARY;
         NotificationManager notificationManager = appContext.getSystemService(NotificationManager.class);
         if (notificationManager != null) {
             try {
@@ -553,7 +648,11 @@ public class ProxyTunnelService extends Service {
     private void startWork() {
         final int generation = runtimeGeneration.incrementAndGet();
         activeWorkTask = workExecutor.submit(() -> {
-            if (proxyProcess != null || backend != null || currentTunnel != null) {
+            if (proxyProcess != null
+                    || backend != null
+                    || currentTunnel != null
+                    || awgBackend != null
+                    || awgTunnel != null) {
                 return;
             }
 
@@ -610,6 +709,10 @@ public class ProxyTunnelService extends Service {
                     startXrayRuntime(settings, generation);
                     return;
                 }
+                if (activeBackendType == BackendType.AMNEZIAWG) {
+                    startAmneziaRuntime(settings, generation);
+                    return;
+                }
                 prepareBackend(settings, null);
                 ensureRuntimeStillWanted(generation);
                 if (rootModeActive) {
@@ -628,7 +731,9 @@ public class ProxyTunnelService extends Service {
                         settings,
                         !rootModeActive
                 );
-                backend.setState(currentTunnel, Tunnel.State.UP, currentConfig);
+                synchronized (vpnBackendLock) {
+                    backend.setState(currentTunnel, Tunnel.State.UP, currentConfig);
+                }
                 persistRootRuntimeState(readRootProxyPid());
                 if (rootModeActive) {
                     syncRootAppTunnelRouting();
@@ -747,8 +852,42 @@ public class ProxyTunnelService extends Service {
         startPolling();
     }
 
+    private void startAmneziaRuntime(ProxySettings settings, int generation) throws Exception {
+        ensureRuntimeStillWanted(generation);
+        clearPersistedRootRuntimeState();
+        AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+        activeTunnelName = ROOT_TUNNEL_NAME;
+        backend = null;
+        currentTunnel = null;
+        currentConfig = null;
+        closeProtectBridge();
+        protectSocketName = null;
+
+        ensureProtectBridgeReady();
+        ensureRuntimeStillWanted(generation);
+        long proxyStartedAt = startProxyProcess(settings, generation);
+        waitForProxyWarmup(proxyStartedAt, generation);
+        ensureRuntimeStillWanted(generation);
+
+        awgBackend = new org.amnezia.awg.backend.GoBackend(getApplicationContext());
+        awgTunnel = new LocalAwgTunnel(activeTunnelName);
+        awgConfig = AmneziaConfigFactory.build(getApplicationContext(), settings);
+        ensureRuntimeStillWanted(generation);
+        synchronized (vpnBackendLock) {
+            awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.UP, awgConfig);
+        }
+
+        setServiceState(ServiceState.RUNNING);
+        sRunning = true;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
+        requestPublicIpRefresh(true);
+        restoreSharingOnBootIfNeeded();
+        startPolling();
+    }
+
     private void stopWorkInternal() {
         stopping = true;
+        runtimeReconnectQueued.set(false);
         setServiceState(ServiceState.STOPPED);
         sRunning = false;
         resetRuntimeSnapshot();
@@ -769,11 +908,8 @@ public class ProxyTunnelService extends Service {
                 XrayBridge.stop();
             } catch (Exception ignored) {
             }
-        } else if (backend != null && currentTunnel != null && currentConfig != null) {
-            try {
-                backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
-            } catch (Exception ignored) {
-            }
+        } else {
+            shutdownVpnBackendsLocked();
         }
         forceLinkDownActiveTunnelIfNeeded();
 
@@ -781,6 +917,7 @@ public class ProxyTunnelService extends Service {
         clearRootAppTunnelRouting();
         unregisterTetherReceiver();
         unregisterTetherEventCallback();
+        releaseTunnelWifiLock();
         releaseSharingWifiLocks();
         clearRootRouting();
 
@@ -790,9 +927,6 @@ public class ProxyTunnelService extends Service {
         }
         killPersistedRootProxyIfNeeded();
 
-        currentConfig = null;
-        currentTunnel = null;
-        backend = null;
         protectSocketName = null;
         rootModeActive = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
@@ -817,6 +951,7 @@ public class ProxyTunnelService extends Service {
 
     private void stopWorkInternalForReconnect() {
         stopping = true;
+        runtimeReconnectQueued.set(false);
         sRunning = false;
         cancelPublicIpRefresh();
         sPublicIpRefreshInProgress = false;
@@ -833,11 +968,8 @@ public class ProxyTunnelService extends Service {
                 XrayBridge.stop();
             } catch (Exception ignored) {
             }
-        } else if (backend != null && currentTunnel != null && currentConfig != null) {
-            try {
-                backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
-            } catch (Exception ignored) {
-            }
+        } else {
+            shutdownVpnBackendsLocked();
         }
         forceLinkDownActiveTunnelIfNeeded();
 
@@ -845,6 +977,7 @@ public class ProxyTunnelService extends Service {
         clearRootAppTunnelRouting();
         unregisterTetherReceiver();
         unregisterTetherEventCallback();
+        releaseTunnelWifiLock();
         releaseSharingWifiLocks();
         clearRootRouting();
 
@@ -854,9 +987,6 @@ public class ProxyTunnelService extends Service {
         }
         killPersistedRootProxyIfNeeded();
 
-        currentConfig = null;
-        currentTunnel = null;
-        backend = null;
         protectSocketName = null;
         rootModeActive = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
@@ -881,6 +1011,7 @@ public class ProxyTunnelService extends Service {
 
     private void abandonRecoveredRuntime(boolean clearPersistedRuntime) {
         stopping = true;
+        runtimeReconnectQueued.set(false);
         setServiceState(ServiceState.STOPPED);
         sRunning = false;
         resetRuntimeSnapshot();
@@ -894,10 +1025,9 @@ public class ProxyTunnelService extends Service {
         unregisterTetherReceiver();
         unregisterTetherEventCallback();
         clearRootAppTunnelRouting();
+        releaseTunnelWifiLock();
         releaseSharingWifiLocks();
-        currentConfig = null;
-        currentTunnel = null;
-        backend = null;
+        clearVpnBackendReferences();
         protectSocketName = null;
         rootModeActive = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
@@ -1143,57 +1273,82 @@ public class ProxyTunnelService extends Service {
         lastTxSample = -1L;
         xrayTrafficBaseRx = -1L;
         xrayTrafficBaseTx = -1L;
+        lastUnderlyingNetworkFingerprint = null;
+        lastUnderlyingNetworkUsable = null;
     }
 
     private static void beginErrorNoticeSession() {
         sErrorNoticeSessionId = Math.max(1L, sErrorNoticeSessionId + 1L);
         sDismissedErrorNoticeSessionId = -1L;
         sVisibleErrorNotice = null;
-        sConnectionRefusedNoticeCount = 0;
-        sConnectionRefusedNoticeStartedAtMs = 0L;
+        sTransientErrorNoticeCount = 0;
+        sTransientErrorNoticeStartedAtMs = 0L;
+        sLastConnectivityProbeSuccessAtElapsedMs = 0L;
+        sConnectivityProbeSuccessTtlMs = 0L;
     }
 
     private static void clearLastError() {
         sLastError = null;
         sVisibleErrorNotice = null;
-        sConnectionRefusedNoticeCount = 0;
-        sConnectionRefusedNoticeStartedAtMs = 0L;
+        sTransientErrorNoticeCount = 0;
+        sTransientErrorNoticeStartedAtMs = 0L;
     }
 
     private static void setLastError(@Nullable String error) {
         sLastError = TextUtils.isEmpty(error) ? null : error;
         if (TextUtils.isEmpty(sLastError)) {
             sVisibleErrorNotice = null;
-            sConnectionRefusedNoticeCount = 0;
-            sConnectionRefusedNoticeStartedAtMs = 0L;
+            sTransientErrorNoticeCount = 0;
+            sTransientErrorNoticeStartedAtMs = 0L;
             return;
         }
-        if (isConnectionRefusedError(sLastError)) {
+        if (isTransientNoticeCandidateError(sLastError)) {
             long now = SystemClock.elapsedRealtime();
-            if (sConnectionRefusedNoticeStartedAtMs <= 0L
-                    || now - sConnectionRefusedNoticeStartedAtMs > CONNECTION_REFUSED_NOTICE_WINDOW_MS) {
-                sConnectionRefusedNoticeStartedAtMs = now;
-                sConnectionRefusedNoticeCount = 1;
+            if (sTransientErrorNoticeStartedAtMs <= 0L
+                    || now - sTransientErrorNoticeStartedAtMs > TRANSIENT_ERROR_NOTICE_WINDOW_MS) {
+                sTransientErrorNoticeStartedAtMs = now;
+                sTransientErrorNoticeCount = 1;
             } else {
-                sConnectionRefusedNoticeCount++;
+                sTransientErrorNoticeCount++;
             }
-            if (sConnectionRefusedNoticeCount >= CONNECTION_REFUSED_NOTICE_THRESHOLD) {
+            if (sTransientErrorNoticeCount >= TRANSIENT_ERROR_NOTICE_THRESHOLD
+                    && !hasRecentConnectivityProbeSuccess()) {
                 sVisibleErrorNotice = sLastError;
+            } else {
+                sVisibleErrorNotice = null;
             }
             return;
         }
-        sConnectionRefusedNoticeCount = 0;
-        sConnectionRefusedNoticeStartedAtMs = 0L;
+        sTransientErrorNoticeCount = 0;
+        sTransientErrorNoticeStartedAtMs = 0L;
         sVisibleErrorNotice = sLastError;
     }
 
-    private static boolean isConnectionRefusedError(@Nullable String error) {
+    private static boolean isTransientNoticeCandidateError(@Nullable String error) {
         if (TextUtils.isEmpty(error)) {
             return false;
         }
         String lower = error.toLowerCase(Locale.US);
         return lower.contains("connection refused")
-                || lower.contains("err_connection_refused");
+                || lower.contains("err_connection_refused")
+                || lower.contains("timeout")
+                || lower.contains("timed out")
+                || lower.contains("deadline exceeded")
+                || lower.contains("connection reset")
+                || lower.contains("broken pipe")
+                || lower.contains("network is unreachable")
+                || lower.contains("no route to host")
+                || lower.contains("temporary failure")
+                || lower.contains("no such host")
+                || lower.contains("eof");
+    }
+
+    private static boolean hasRecentConnectivityProbeSuccess() {
+        long successAt = sLastConnectivityProbeSuccessAtElapsedMs;
+        long ttl = sConnectivityProbeSuccessTtlMs;
+        return successAt > 0L
+                && ttl > 0L
+                && SystemClock.elapsedRealtime() - successAt <= ttl;
     }
 
     private File getRootProxyPidFile() {
@@ -1503,21 +1658,37 @@ public class ProxyTunnelService extends Service {
         final String pendingCaptchaPrefix = "CAPTCHA_PENDING:";
         if (line.startsWith(captchaPrefix)) {
             clearPendingCaptchaPrompt(getApplicationContext());
-            String url = line.substring(captchaPrefix.length()).trim();
-            if (TextUtils.isEmpty(url)) {
+            CaptchaPrompt prompt = parseCaptchaPrompt(
+                    line.substring(captchaPrefix.length()).trim(),
+                    CaptchaPromptSource.PRIMARY
+            );
+            if (prompt == null) {
                 return;
             }
-            appendRuntimeLogLine("VK captcha requested");
-            openCaptchaBrowser(url, true);
+            boolean transientExternalFlow = AppPrefs.isExternalActionTransientLaunchPending(
+                    getApplicationContext()
+            );
+            appendRuntimeLogLine(prompt.source == CaptchaPromptSource.POOL
+                    ? "VK captcha requested for additional TURN session"
+                    : "VK captcha requested for primary TURN session");
+            if (transientExternalFlow && prompt.source == CaptchaPromptSource.PRIMARY) {
+                showCaptchaNotification(prompt.url, prompt.source, true, false);
+            }
+            openCaptchaBrowser(prompt.url, prompt.source);
             return;
         }
         if (line.startsWith(pendingCaptchaPrefix)) {
-            String url = line.substring(pendingCaptchaPrefix.length()).trim();
-            if (TextUtils.isEmpty(url)) {
+            CaptchaPrompt prompt = parseCaptchaPrompt(
+                    line.substring(pendingCaptchaPrefix.length()).trim(),
+                    CaptchaPromptSource.POOL
+            );
+            if (prompt == null) {
                 return;
             }
-            appendRuntimeLogLine("Background VK captcha deferred to notification");
-            showPendingCaptchaNotification(url);
+            appendRuntimeLogLine(prompt.source == CaptchaPromptSource.POOL
+                    ? "Background VK captcha deferred for additional TURN session"
+                    : "Background VK captcha deferred");
+            showCaptchaNotification(prompt.url, prompt.source, false, true);
             return;
         }
         if ("CAPTCHA_SOLVED".equals(line)
@@ -1527,7 +1698,37 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    private void openCaptchaBrowser(String url, boolean stopConnectionOnCancel) {
+    private @Nullable CaptchaPrompt parseCaptchaPrompt(String payload,
+                                                       CaptchaPromptSource defaultSource) {
+        if (TextUtils.isEmpty(payload)) {
+            return null;
+        }
+        String url = null;
+        CaptchaPromptSource source = defaultSource;
+        String[] parts = payload.trim().split("\\s+");
+        for (String part : parts) {
+            if (TextUtils.isEmpty(part)) {
+                continue;
+            }
+            if (part.startsWith("source=")) {
+                source = CaptchaPromptSource.fromWireValue(part.substring("source=".length()));
+                continue;
+            }
+            if (part.startsWith("url=")) {
+                url = part.substring("url=".length()).trim();
+                continue;
+            }
+            if (url == null) {
+                url = part.trim();
+            }
+        }
+        if (TextUtils.isEmpty(url)) {
+            return null;
+        }
+        return new CaptchaPrompt(url, source);
+    }
+
+    private void openCaptchaBrowser(String url, CaptchaPromptSource source) {
         try {
             boolean transientExternalFlow = AppPrefs.isExternalActionTransientLaunchPending(
                     getApplicationContext()
@@ -1536,7 +1737,8 @@ public class ProxyTunnelService extends Service {
                     getApplicationContext(),
                     url,
                     transientExternalFlow,
-                    stopConnectionOnCancel
+                    source,
+                    source.stopsConnectionOnCancel()
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                     | Intent.FLAG_ACTIVITY_SINGLE_TOP
                     | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -1546,24 +1748,33 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    private void showPendingCaptchaNotification(String url) {
+    private void showCaptchaNotification(String url,
+                                         CaptchaPromptSource source,
+                                         boolean transientExternalFlow,
+                                         boolean allowCooldown) {
         if (TextUtils.isEmpty(url)) {
             return;
         }
         sPendingCaptchaUrl = url;
+        sPendingCaptchaSource = source;
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         if (notificationManager == null) {
             return;
         }
         long nowElapsed = SystemClock.elapsedRealtime();
-        boolean inCooldown = sLastCaptchaNotificationAtElapsedMs > 0
+        boolean inCooldown = allowCooldown
+                && sLastCaptchaNotificationAtElapsedMs > 0
                 && nowElapsed - sLastCaptchaNotificationAtElapsedMs < CAPTCHA_NOTIFICATION_COOLDOWN_MS;
+        if (inCooldown) {
+            return;
+        }
 
         Intent openIntent = CaptchaBrowserActivity.createIntent(
                 this,
                 url,
-                false,
-                false
+                transientExternalFlow,
+                source,
+                source.stopsConnectionOnCancel()
         ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                 | Intent.FLAG_ACTIVITY_SINGLE_TOP
                 | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -1577,19 +1788,22 @@ public class ProxyTunnelService extends Service {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CAPTCHA_NOTIFICATION_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_power)
                 .setContentTitle(getString(R.string.captcha_notification_title))
-                .setContentText(getString(R.string.captcha_notification_text))
+                .setContentText(getString(source == CaptchaPromptSource.POOL
+                        ? R.string.captcha_notification_text_pool
+                        : R.string.captcha_notification_text))
                 .setStyle(new NotificationCompat.BigTextStyle()
-                        .bigText(getString(R.string.captcha_notification_text)))
+                        .bigText(getString(source == CaptchaPromptSource.POOL
+                                ? R.string.captcha_notification_text_pool
+                                : R.string.captcha_notification_text)))
                 .setAutoCancel(true)
                 .setContentIntent(openPendingIntent)
                 .addAction(0, getString(R.string.captcha_notification_open), openPendingIntent)
                 .setOnlyAlertOnce(false)
-                .setSilent(inCooldown);
+                .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE)
+                .setPriority(NotificationCompat.PRIORITY_HIGH);
         try {
             notificationManager.notify(CAPTCHA_NOTIFICATION_ID, builder.build());
-            if (!inCooldown) {
-                sLastCaptchaNotificationAtElapsedMs = nowElapsed;
-            }
+            sLastCaptchaNotificationAtElapsedMs = nowElapsed;
         } catch (Exception ignored) {
         }
     }
@@ -1598,12 +1812,11 @@ public class ProxyTunnelService extends Service {
         Thread waitThread = new Thread(() -> {
             try {
                 int exitCode = monitoredProcess.waitFor();
-                if (!stopping && exitCode != 0) {
-                    if (TextUtils.isEmpty(sLastError)) {
-                        setLastError("Proxy завершился с кодом " + exitCode);
-                    }
-                    setServiceState(ServiceState.STOPPED);
-                    stopWork(true);
+                if (!stopping) {
+                    scheduleRuntimeReconnect(
+                            "vk-turn-proxy exited unexpectedly with code " + exitCode,
+                            RUNTIME_RECONNECT_DELAY_MS
+                    );
                 }
             } catch (Exception ignored) {
             } finally {
@@ -2685,7 +2898,8 @@ public class ProxyTunnelService extends Service {
             return false;
         }
         boolean isPhysicalTransport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
         if (!isPhysicalTransport) {
             return false;
         }
@@ -2717,6 +2931,10 @@ public class ProxyTunnelService extends Service {
 
     private void startPolling() {
         sampleStatisticsNow();
+        syncTunnelNetworkLocks();
+        lastUnderlyingNetworkFingerprint = captureUnderlyingNetworkFingerprint();
+        lastUnderlyingNetworkUsable = !TextUtils.isEmpty(lastUnderlyingNetworkFingerprint);
+        requestConnectivityProbe(true);
         statsExecutor = Executors.newSingleThreadScheduledExecutor();
         statsExecutor.scheduleAtFixedRate(() -> {
             if (!sRunning) {
@@ -2724,6 +2942,13 @@ public class ProxyTunnelService extends Service {
             }
             sampleStatisticsNow();
         }, 1L, 1L, TimeUnit.SECONDS);
+
+        statsExecutor.scheduleAtFixedRate(() -> {
+            if (!sRunning) {
+                return;
+            }
+            syncTunnelNetworkLocks();
+        }, 2L, 5L, TimeUnit.SECONDS);
 
         statsExecutor.scheduleAtFixedRate(() -> {
             if (!sRunning) {
@@ -2738,6 +2963,20 @@ public class ProxyTunnelService extends Service {
             }
             requestRootTetherRoutingSync(null);
         }, 2L, ROOT_TETHER_SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
+        statsExecutor.scheduleAtFixedRate(() -> {
+            if (!sRunning) {
+                return;
+            }
+            requestConnectivityProbe(false);
+        }, 4L, CONNECTIVITY_PROBE_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
+        statsExecutor.scheduleAtFixedRate(() -> {
+            if (!sRunning) {
+                return;
+            }
+            runRuntimeSupervisorTick();
+        }, 5L, RUNTIME_SUPERVISOR_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
     private void sampleStatisticsNow() {
@@ -2752,13 +2991,11 @@ public class ProxyTunnelService extends Service {
             applyTrafficStatsSnapshot(snapshot.rxBytes, snapshot.txBytes);
             return;
         }
-        if (backend == null || currentTunnel == null) {
+        if (activeBackendType == BackendType.AMNEZIAWG) {
+            sampleAwgStatisticsNow();
             return;
         }
-        try {
-            applyStatisticsSnapshot(backend.getStatistics(currentTunnel));
-        } catch (Exception ignored) {
-        }
+        sampleWireGuardStatisticsNow();
     }
 
     private void applyStatisticsSnapshot(@Nullable Statistics statistics) {
@@ -2766,6 +3003,66 @@ public class ProxyTunnelService extends Service {
             return;
         }
         applyTrafficStatsSnapshot(statistics.totalRx(), statistics.totalTx());
+    }
+
+    private void applyAwgStatisticsSnapshot(@Nullable org.amnezia.awg.backend.Statistics statistics) {
+        if (statistics == null) {
+            return;
+        }
+        applyTrafficStatsSnapshot(statistics.totalRx(), statistics.totalTx());
+    }
+
+    private void sampleWireGuardStatisticsNow() {
+        synchronized (vpnBackendLock) {
+            if (backend == null || currentTunnel == null) {
+                return;
+            }
+            try {
+                applyStatisticsSnapshot(backend.getStatistics(currentTunnel));
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void sampleAwgStatisticsNow() {
+        synchronized (vpnBackendLock) {
+            if (awgBackend == null || awgTunnel == null) {
+                return;
+            }
+            try {
+                applyAwgStatisticsSnapshot(awgBackend.getStatistics(awgTunnel));
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void shutdownVpnBackendsLocked() {
+        synchronized (vpnBackendLock) {
+            if (awgBackend != null && awgTunnel != null && awgConfig != null) {
+                try {
+                    awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.DOWN, awgConfig);
+                } catch (Exception ignored) {
+                }
+            }
+            if (backend != null && currentTunnel != null && currentConfig != null) {
+                try {
+                    backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
+                } catch (Exception ignored) {
+                }
+            }
+            clearVpnBackendReferences();
+        }
+    }
+
+    private void clearVpnBackendReferences() {
+        synchronized (vpnBackendLock) {
+            currentConfig = null;
+            currentTunnel = null;
+            backend = null;
+            awgConfig = null;
+            awgTunnel = null;
+            awgBackend = null;
+        }
     }
 
     private void applyTrafficStatsSnapshot(long rxTotal, long txTotal) {
@@ -2968,6 +3265,174 @@ public class ProxyTunnelService extends Service {
         sPublicIpRefreshInProgress = false;
     }
 
+    private void requestConnectivityProbe(boolean force) {
+        if (stopping || sServiceState != ServiceState.RUNNING) {
+            return;
+        }
+        if (!force && hasRecentConnectivityProbeSuccess()) {
+            return;
+        }
+        if (!connectivityProbeInProgress.compareAndSet(false, true)) {
+            return;
+        }
+        Thread probeThread = new Thread(() -> {
+            try {
+                if (runConnectivityProbeNow()) {
+                    recordConnectivityProbeSuccess();
+                }
+            } finally {
+                connectivityProbeInProgress.set(false);
+            }
+        }, "wingsv-connectivity-probe");
+        probeThread.setDaemon(true);
+        probeThread.start();
+    }
+
+    private boolean runConnectivityProbeNow() {
+        return runConnectivityProbeNow(CONNECTIVITY_PROBE_TIMEOUT_MS);
+    }
+
+    private boolean runConnectivityProbeNow(long timeoutMs) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(CONNECTIVITY_PROBE_URL).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setInstanceFollowRedirects(false);
+            connection.setUseCaches(false);
+            int timeout = (int) Math.max(500L, timeoutMs);
+            connection.setConnectTimeout(timeout);
+            connection.setReadTimeout(timeout);
+            connection.setRequestProperty("Connection", "close");
+            int responseCode = connection.getResponseCode();
+            return responseCode > 0;
+        } catch (Exception ignored) {
+            return false;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void recordConnectivityProbeSuccess() {
+        sLastConnectivityProbeSuccessAtElapsedMs = SystemClock.elapsedRealtime();
+        sConnectivityProbeSuccessTtlMs = ThreadLocalRandom.current().nextLong(
+                CONNECTIVITY_PROBE_SUCCESS_TTL_MIN_MS,
+                CONNECTIVITY_PROBE_SUCCESS_TTL_MAX_MS + 1L
+        );
+        if (isTransientNoticeCandidateError(sVisibleErrorNotice)) {
+            sVisibleErrorNotice = null;
+            sTransientErrorNoticeCount = 0;
+            sTransientErrorNoticeStartedAtMs = 0L;
+        }
+    }
+
+    private void runRuntimeSupervisorTick() {
+        if (stopping || sServiceState != ServiceState.RUNNING) {
+            return;
+        }
+        syncTunnelNetworkLocks();
+        String currentUnderlyingFingerprint = captureUnderlyingNetworkFingerprint();
+        lastUnderlyingNetworkUsable = !TextUtils.isEmpty(currentUnderlyingFingerprint);
+        if (!TextUtils.isEmpty(lastUnderlyingNetworkFingerprint)
+                && !TextUtils.isEmpty(currentUnderlyingFingerprint)
+                && !TextUtils.equals(lastUnderlyingNetworkFingerprint, currentUnderlyingFingerprint)) {
+            scheduleRuntimeReconnect(
+                    "Underlying network changed from "
+                            + lastUnderlyingNetworkFingerprint
+                            + " to "
+                            + currentUnderlyingFingerprint,
+                    RUNTIME_RECONNECT_DELAY_MS
+            );
+            lastUnderlyingNetworkFingerprint = currentUnderlyingFingerprint;
+            return;
+        }
+        if (!TextUtils.isEmpty(currentUnderlyingFingerprint)) {
+            lastUnderlyingNetworkFingerprint = currentUnderlyingFingerprint;
+        }
+        if (activeBackendType == BackendType.XRAY) {
+            if (!XrayBridge.isRunning()) {
+                scheduleRuntimeReconnect("Xray core stopped unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
+                return;
+            }
+            if (!XrayVpnService.hasActiveTunnel()) {
+                scheduleRuntimeReconnect("Xray VPN service lost active tunnel", RUNTIME_RECONNECT_DELAY_MS);
+                return;
+            }
+            if (!XrayVpnService.isHeartbeatFresh(XRAY_HEARTBEAT_TIMEOUT_MS)) {
+                scheduleRuntimeReconnect("Xray VPN heartbeat timed out", RUNTIME_RECONNECT_DELAY_MS);
+            }
+            return;
+        }
+
+        if (rootModeActive) {
+            long proxyPid = readRootProxyPid();
+            if (proxyPid <= 0L || !isExpectedRootProxyProcess(proxyPid)) {
+                scheduleRuntimeReconnect("Root vk-turn-proxy process disappeared", RUNTIME_RECONNECT_DELAY_MS);
+                return;
+            }
+        } else if (proxyProcess == null || !proxyProcess.isAlive()) {
+            scheduleRuntimeReconnect("vk-turn-proxy process disappeared", RUNTIME_RECONNECT_DELAY_MS);
+            return;
+        }
+
+        if (activeBackendType == BackendType.AMNEZIAWG) {
+            if (awgBackend == null || awgTunnel == null || awgConfig == null) {
+                scheduleRuntimeReconnect("AmneziaWG runtime lost tunnel state", RUNTIME_RECONNECT_DELAY_MS);
+            }
+            return;
+        }
+
+        if (backend == null || currentTunnel == null) {
+            scheduleRuntimeReconnect("WireGuard runtime lost tunnel state", RUNTIME_RECONNECT_DELAY_MS);
+        }
+    }
+
+    private void scheduleRuntimeReconnect(String reason, long delayMs) {
+        final int scheduledGeneration = runtimeGeneration.get();
+        if (sServiceState == ServiceState.STOPPED || !runtimeReconnectQueued.compareAndSet(false, true)) {
+            return;
+        }
+        appendRuntimeLogLine("Scheduling runtime reconnect: " + firstNonEmpty(reason, "unknown reason"));
+        workExecutor.execute(() -> {
+            try {
+                if (delayMs > 0L) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+                if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+                    return;
+                }
+                resetRuntimeSnapshot();
+                clearLastError();
+                setServiceState(ServiceState.CONNECTING);
+                try {
+                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+                } catch (Exception ignored) {
+                }
+                stopWorkInternalForReconnect();
+                if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+                    return;
+                }
+                stopping = false;
+                beginErrorNoticeSession();
+                clearLastError();
+                setServiceState(ServiceState.CONNECTING);
+                try {
+                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+                } catch (Exception ignored) {
+                }
+                startWork();
+            } finally {
+                runtimeReconnectQueued.set(false);
+            }
+        });
+    }
+
     private NotificationCompat.Builder baseNotificationBuilder() {
         Intent launchIntent = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -3005,7 +3470,362 @@ public class ProxyTunnelService extends Service {
         if (state != ServiceState.RUNNING) {
             sRunning = false;
         }
+        syncTunnelWakeLock(state != ServiceState.STOPPED);
+        syncTunnelNetworkObservers(state != ServiceState.STOPPED);
+        syncTunnelNetworkLocks();
         updateNotification();
+        QuickSettingsTiles.requestRefresh(getApplicationContext());
+    }
+
+    private void syncTunnelNetworkObservers(boolean shouldHold) {
+        if (shouldHold) {
+            registerPhysicalNetworkCallbackIfNeeded();
+            registerScreenStateReceiverIfNeeded();
+        } else {
+            unregisterPhysicalNetworkCallback();
+            unregisterScreenStateReceiver();
+        }
+    }
+
+    private void syncTunnelWakeLock(boolean shouldHold) {
+        if (shouldHold) {
+            acquireTunnelWakeLock();
+        } else {
+            releaseTunnelWakeLock();
+        }
+    }
+
+    private void acquireTunnelWakeLock() {
+        if (tunnelPowerLock != null && tunnelPowerLock.isHeld()) {
+            return;
+        }
+        PowerManager powerManager = getSystemService(PowerManager.class);
+        if (powerManager == null) {
+            return;
+        }
+        if (tunnelPowerLock == null) {
+            tunnelPowerLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "wingsv:tunnel:power");
+            tunnelPowerLock.setReferenceCounted(false);
+        }
+        try {
+            tunnelPowerLock.acquire();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void releaseTunnelWakeLock() {
+        if (tunnelPowerLock == null || !tunnelPowerLock.isHeld()) {
+            return;
+        }
+        try {
+            tunnelPowerLock.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void syncTunnelNetworkLocks() {
+        if (sServiceState == ServiceState.STOPPED) {
+            releaseTunnelWifiLock();
+            return;
+        }
+        if (isWifiTransportActive()) {
+            acquireTunnelWifiLock();
+        } else {
+            releaseTunnelWifiLock();
+        }
+    }
+
+    private void acquireTunnelWifiLock() {
+        if (tunnelWifiLock != null && tunnelWifiLock.isHeld()) {
+            return;
+        }
+        WifiManager wifiManager = getSystemService(WifiManager.class);
+        if (wifiManager == null) {
+            return;
+        }
+        if (tunnelWifiLock == null) {
+            tunnelWifiLock = wifiManager.createWifiLock(
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                    "wingsv:tunnel:wifi"
+            );
+            tunnelWifiLock.setReferenceCounted(false);
+        }
+        try {
+            tunnelWifiLock.acquire();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void releaseTunnelWifiLock() {
+        if (tunnelWifiLock == null || !tunnelWifiLock.isHeld()) {
+            return;
+        }
+        try {
+            tunnelWifiLock.release();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private boolean isWifiTransportActive() {
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return false;
+        }
+        try {
+            Network[] networks = connectivityManager.getAllNetworks();
+            if (networks == null) {
+                return false;
+            }
+            for (Network network : networks) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (capabilities == null
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                        || !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                    continue;
+                }
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private void registerPhysicalNetworkCallbackIfNeeded() {
+        if (physicalNetworkCallbackRegistered) {
+            return;
+        }
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return;
+        }
+        try {
+            NetworkRequest request = new NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build();
+            connectivityManager.registerNetworkCallback(request, physicalNetworkCallback);
+            physicalNetworkCallbackRegistered = true;
+        } catch (Exception error) {
+            appendRuntimeLogLine("Failed to register physical network callback: " + error.getMessage());
+        }
+    }
+
+    private void unregisterPhysicalNetworkCallback() {
+        if (!physicalNetworkCallbackRegistered) {
+            return;
+        }
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            physicalNetworkCallbackRegistered = false;
+            return;
+        }
+        try {
+            connectivityManager.unregisterNetworkCallback(physicalNetworkCallback);
+        } catch (Exception ignored) {
+        } finally {
+            physicalNetworkCallbackRegistered = false;
+        }
+    }
+
+    private void registerScreenStateReceiverIfNeeded() {
+        if (screenStateReceiverRegistered) {
+            return;
+        }
+        IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_ON);
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screenStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(screenStateReceiver, filter);
+            }
+            screenStateReceiverRegistered = true;
+        } catch (Exception error) {
+            appendRuntimeLogLine("Failed to register wake fast-path receiver: " + error.getMessage());
+        }
+    }
+
+    private void unregisterScreenStateReceiver() {
+        if (!screenStateReceiverRegistered) {
+            return;
+        }
+        try {
+            unregisterReceiver(screenStateReceiver);
+        } catch (Exception ignored) {
+        } finally {
+            screenStateReceiverRegistered = false;
+            wakeFastPathCheckQueued.set(false);
+        }
+    }
+
+    private void handleWakeFastPathEvent(@Nullable String action) {
+        if (stopping || sServiceState != ServiceState.RUNNING) {
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastWakeFastPathAtElapsedMs < WAKE_FAST_PATH_EVENT_COOLDOWN_MS) {
+            return;
+        }
+        lastWakeFastPathAtElapsedMs = now;
+        syncTunnelNetworkLocks();
+        requestConnectivityProbe(true);
+        if (statsExecutor == null || !wakeFastPathCheckQueued.compareAndSet(false, true)) {
+            return;
+        }
+        final int scheduledGeneration = runtimeGeneration.get();
+        final String trigger = firstNonEmpty(action, "wake");
+        appendRuntimeLogLine("Wake fast-path probe armed by " + trigger);
+        statsExecutor.schedule(
+                () -> runWakeFastPathHealthCheck(trigger, scheduledGeneration),
+                WAKE_FAST_PATH_INITIAL_DELAY_MS,
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    private void runWakeFastPathHealthCheck(@Nullable String trigger, int scheduledGeneration) {
+        try {
+            if (scheduledGeneration != runtimeGeneration.get() || stopping || sServiceState != ServiceState.RUNNING) {
+                return;
+            }
+            String safeTrigger = firstNonEmpty(trigger, "wake");
+            if (runConnectivityProbeNow(WAKE_FAST_PATH_PROBE_TIMEOUT_MS)) {
+                appendRuntimeLogLine("Wake fast-path probe succeeded after " + safeTrigger);
+                recordConnectivityProbeSuccess();
+                return;
+            }
+            appendRuntimeLogLine("Wake fast-path probe failed after " + safeTrigger + ", retrying");
+            try {
+                Thread.sleep(WAKE_FAST_PATH_RETRY_DELAY_MS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (scheduledGeneration != runtimeGeneration.get() || stopping || sServiceState != ServiceState.RUNNING) {
+                return;
+            }
+            if (runConnectivityProbeNow(WAKE_FAST_PATH_PROBE_TIMEOUT_MS)) {
+                appendRuntimeLogLine("Wake fast-path retry probe succeeded after " + safeTrigger);
+                recordConnectivityProbeSuccess();
+                return;
+            }
+            appendRuntimeLogLine("Wake fast-path probe failed twice after " + safeTrigger);
+            String currentUnderlyingFingerprint = captureUnderlyingNetworkFingerprint();
+            lastUnderlyingNetworkUsable = !TextUtils.isEmpty(currentUnderlyingFingerprint);
+            if (!TextUtils.isEmpty(currentUnderlyingFingerprint)) {
+                lastUnderlyingNetworkFingerprint = currentUnderlyingFingerprint;
+            }
+            scheduleRuntimeReconnect(
+                    "Wake fast-path health probe failed after " + safeTrigger,
+                    0L
+            );
+        } finally {
+            wakeFastPathCheckQueued.set(false);
+        }
+    }
+
+    private void handleUnderlyingNetworkEvent(@Nullable String event, @Nullable Network network) {
+        String safeEvent = firstNonEmpty(event, "changed");
+        workExecutor.execute(() -> processUnderlyingNetworkEvent(safeEvent, network));
+    }
+
+    private void processUnderlyingNetworkEvent(@Nullable String event, @Nullable Network network) {
+        if (sServiceState == ServiceState.STOPPED) {
+            return;
+        }
+        syncTunnelNetworkLocks();
+        String previousFingerprint = lastUnderlyingNetworkFingerprint;
+        Boolean previousUsable = lastUnderlyingNetworkUsable;
+        String currentFingerprint = captureUnderlyingNetworkFingerprint();
+        boolean currentUsable = !TextUtils.isEmpty(currentFingerprint);
+        lastUnderlyingNetworkUsable = currentUsable;
+
+        if (TextUtils.isEmpty(previousFingerprint)) {
+            lastUnderlyingNetworkFingerprint = currentFingerprint;
+            return;
+        }
+        if (sServiceState != ServiceState.RUNNING) {
+            if (!TextUtils.isEmpty(currentFingerprint)) {
+                lastUnderlyingNetworkFingerprint = currentFingerprint;
+            }
+            return;
+        }
+
+        String eventTag = firstNonEmpty(event, "changed");
+        String networkTag = network != null ? network.toString() : "unknown";
+        if (!TextUtils.isEmpty(currentFingerprint)
+                && !TextUtils.equals(previousFingerprint, currentFingerprint)) {
+            appendRuntimeLogLine(
+                    "Underlying network changed on " + eventTag
+                            + " (" + networkTag + "): "
+                            + previousFingerprint + " -> " + currentFingerprint
+            );
+            lastUnderlyingNetworkFingerprint = currentFingerprint;
+            scheduleRuntimeReconnect(
+                    "Underlying network changed from "
+                            + previousFingerprint
+                            + " to "
+                            + currentFingerprint,
+                    UNDERLYING_NETWORK_RECONNECT_DELAY_MS
+            );
+            return;
+        }
+
+        if (Boolean.FALSE.equals(previousUsable) && currentUsable) {
+            appendRuntimeLogLine(
+                    "Underlying network became usable again on " + eventTag
+                            + " (" + networkTag + "): "
+                            + currentFingerprint
+            );
+            lastUnderlyingNetworkFingerprint = currentFingerprint;
+            scheduleRuntimeReconnect(
+                    "Underlying network resumed after temporary loss",
+                    UNDERLYING_NETWORK_RECONNECT_DELAY_MS
+            );
+            return;
+        }
+
+        if (!currentUsable && !Boolean.FALSE.equals(previousUsable)) {
+            appendRuntimeLogLine("Underlying physical network became unavailable on " + eventTag + " (" + networkTag + ")");
+            return;
+        }
+
+        if (!TextUtils.isEmpty(currentFingerprint)) {
+            lastUnderlyingNetworkFingerprint = currentFingerprint;
+        }
+    }
+
+    @Nullable
+    private String captureUnderlyingNetworkFingerprint() {
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return null;
+        }
+        try {
+            Network[] networks = connectivityManager.getAllNetworks();
+            if (networks == null) {
+                return null;
+            }
+            for (Network network : networks) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (capabilities == null
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                        || !isUsablePhysicalNetwork(capabilities)) {
+                    continue;
+                }
+                String transport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        ? "wifi"
+                        : capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        ? "cellular"
+                        : capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                        ? "ethernet"
+                        : "other";
+                LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
+                String interfaceName = linkProperties != null ? linkProperties.getInterfaceName() : "";
+                return transport + ":" + firstNonEmpty(interfaceName, "unknown") + "@" + network;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private void updateNotification() {
@@ -3045,9 +3865,11 @@ public class ProxyTunnelService extends Service {
         NotificationChannel captchaChannel = new NotificationChannel(
                 CAPTCHA_NOTIFICATION_CHANNEL_ID,
                 "WINGS V Captcha",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
         );
         captchaChannel.setDescription("Captcha prompts for background TURN identity refresh");
+        captchaChannel.enableVibration(true);
+        captchaChannel.setVibrationPattern(new long[]{0L, 180L, 80L, 220L});
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         if (notificationManager != null) {
             notificationManager.createNotificationChannel(channel);
@@ -3105,6 +3927,23 @@ public class ProxyTunnelService extends Service {
 
         @Override
         public void onStateChange(State newState) {
+        }
+    }
+
+    private static final class LocalAwgTunnel implements org.amnezia.awg.backend.Tunnel {
+        private final String name;
+
+        private LocalAwgTunnel(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public void onStateChange(org.amnezia.awg.backend.Tunnel.State newState) {
         }
     }
 }

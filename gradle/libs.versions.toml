@@ -1,11 +1,11 @@
 [versions]
-agp = "9.0.1"
+agp = "9.1.0"
 jdkCoroutines = "1.10.2"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 kotlin = "2.2.20"
-protobuf = "4.31.1"
+protobuf = "4.34.0"
 librootkotlinx = "1.2.1"
 oneuiDesign = "0.9.4+oneui8"
 wireguardTunnel = "1.0.20260102"
@@ -32,6 +32,8 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.9.1" }
+androidx-collection = { module = "androidx.collection:collection", version = "1.5.0" }
+jsr305 = { module = "com.google.code.findbugs:jsr305", version = "3.0.2" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "jdkCoroutines" }
 librootkotlinx = { module = "be.mygod.librootkotlinx:librootkotlinx", version.ref = "librootkotlinx" }
 oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneuiDesign" }
