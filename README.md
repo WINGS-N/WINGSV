@@ -1,5 +1,5 @@
 # WINGS V
-`vk-turn-proxy` + WireGuard-клиент в интерфейсе Samsung One UI
+Клиент сетевых backend'ов в интерфейсе Samsung One UI
 
 ## Скриншоты
 |                                                                                           |                                                                                           |
@@ -9,58 +9,36 @@
 
 ## Что умеет
 
-- запускать и останавливать `vk-turn-proxy` и WireGuard
+- запускать и останавливать `VK TURN + WireGuard`, `Xray / VLESS` и `AmneziaWG`
 - показывать статус подключения, IP, страну, провайдера и сетевую статистику
 - работать в обычном VPN режиме через `VpnService`
-- работать в root режиме через kernel WireGuard
+- работать в root режиме для `VK TURN + WireGuard`
 - настраивать маршрутизацию по приложениям
 - раздавать VPN через Wi‑Fi, USB, Bluetooth и Ethernet
-- показывать live логи `vk-turn-proxy`
-- импортить/экспортить конфигурации через wingsv:// ссылки
+- показывать отдельные логи `vk-turn-proxy`, `Xray` и runtime приложения
+- импортировать и экспортировать конфигурации через `wingsv://`
+- импортировать `vless://` и raw `awg-quick` конфиги
+- работать с `Xray` профилями и подписками
+- переключаться через launcher actions, внешние intents и Quick Settings tiles
 
 ## `wingsv://` ссылки
-- Основной вариант - `wingsv://{base64(deflate(protobuf_data))}`, т.е. protobuf сжатый через deflate, засунутый в base64
-- json-вариант `wingsv://` ссылки представляет собой json, закодированный в base64, идущий после `://`
-- Схема JSON ниже:
+- Основной формат: `wingsv://{base64(deflate(protobuf_data))}`
+- Основной импорт работает через protobuf+deflate
+- Внутри могут храниться:
+  - `VK TURN + WireGuard` настройки
+  - `Xray` профили и подписки
+  - `AmneziaWG` конфиг
+- Старый JSON вариант - legacy
 
-```json
-  {
-  "ver": 1,
-  "type": "vk",
-  "turn": {
-    "endpoint": "turn-proxy-server-ip:56000",
-    "link": "https://vk.com/call/join/.......",
-    "threads": 4,
-    "use_udp": true,
-    "no_obfuscation": false,
-    "local_endpoint": "127.0.0.1:9000",
-    "host": "",
-    "port": ""
-  },
-  "wg": {
-    "if": {
-      "private_key": "wireguard private key",
-      "addrs": "10.0.0.2/32 [[ WireGuard allowed IPs ]]",
-      "dns": "1.1.1.1, 1.0.0.1",
-      "mtu": 1280
-    },
-    "peer": {
-      "public_key": "WireGuard peer public key",
-      "preshared_key": "WireGuard peer preshared key",
-      "allowed_ips": "0.0.0.0/0, ::/0"
-    }
-  }
-}
-
-```
-
-## кратко, что и откуда используется
+## Что используется
 
 - Java для основного приложения
 - OneUI / SESL 8 для интерфейса
 - `com.wireguard.android:tunnel` для WireGuard
-- `external/vk-turn-proxy` источник vk-turn-proxy native binary
-- `external/VPNHotspot` источник root tethering runtime
+- `external/vk-turn-proxy` для native `VK TURN` клиента
+- `external/libXray` + `external/Xray-core` для `Xray`
+- `external/amneziawg-android` для `AmneziaWG`
+- `external/VPNHotspot` для root раздачи
 
 ## Сборка
 
@@ -69,7 +47,16 @@
 - `seslUser`
 - `seslToken`
 
-Локально:
+```bash
+# Сразу склонить с submodules
+git clone --recurse-submodules https://github.com/WINGS-N/WINGSV.git
+
+# Или после простого clone
+# Инициализация submodules
+git submodule update --init --recursive
+```
+
+Локальная сборка:
 
 ```bash
 # debug сборка
@@ -79,6 +66,14 @@
 ./gradlew :app:assembleRelease
 ```
 
+Для локальной сборки также нужны:
+
+- Android SDK
+- Android NDK
+- `protoc`
+- `go`
+- `gomobile`
+
 ## Release
 
 GitHub Actions собирают:
@@ -86,4 +81,12 @@ GitHub Actions собирают:
 - CI debug build на `main`
 - release APK по тегам `v*`
 
+## Special thanks to
 
+- [XTLS](https://github.com/XTLS)
+- [cacggghp](https://github.com/cacggghp)
+- [Samsung](https://samsung.com)
+- [tribalfs](https://github.com/tribalfs)
+- [Mygod](https://github.com/Mygod)
+- [zx2c4](https://github.com/zx2c4)
+- [Amnezia VPN](https://github.com/amnezia-vpn)
