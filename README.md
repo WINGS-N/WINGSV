@@ -21,6 +21,9 @@
 - работать с `Xray` профилями и подписками
 - переключаться через launcher actions, внешние intents и Quick Settings tiles
 
+## Панель 3x-ui с встроенным vk-turn-proxy
+В качестве сервера, вы можете использовать эту [панель 3x-ui](https://github.com/WINGS-N/3x-ui), в которой уже вшит vk-turn-proxy как inbound
+
 ## `wingsv://` ссылки
 - Основной формат: `wingsv://{base64(deflate(protobuf_data))}`
 - Основной импорт работает через protobuf+deflate
