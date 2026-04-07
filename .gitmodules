@@ -9,10 +9,10 @@
 	url = https://github.com/WINGS-N/libXray.git
 [submodule "external/Xray-core"]
 	path = external/Xray-core
-	url = https://github.com/XTLS/Xray-core.git
+	url = https://github.com/WINGS-N/Xray-core.git
 [submodule "external/amneziawg-android"]
 	path = external/amneziawg-android
 	url = https://github.com/WINGS-N/amneziawg-android.git
 [submodule "external/byedpi"]
 	path = external/byedpi
-	url = https://github.com/hufrea/byedpi.git
+	url = https://github.com/WINGS-N/byedpi.git
