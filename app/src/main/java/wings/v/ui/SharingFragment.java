@@ -37,6 +37,7 @@ import kotlin.Unit;
 import wings.v.R;
 import wings.v.SharingTargetSettingsActivity;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
@@ -71,7 +72,8 @@ public class SharingFragment extends Fragment {
                         || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)
                         || AppPrefs.KEY_SHARING_UPSTREAM_INTERFACE.equals(key)
                         || AppPrefs.KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE.equals(key)
-                        || AppPrefs.KEY_ROOT_MODE.equals(key)) {
+                        || AppPrefs.KEY_ROOT_MODE.equals(key)
+                        || AppPrefs.KEY_KERNEL_WIREGUARD.equals(key)) {
                     mainHandler.post(this::refreshUi);
                 }
             };
@@ -132,8 +134,11 @@ public class SharingFragment extends Fragment {
                         AppPrefs::setSharingFallbackUpstreamInterface
                 )
         );
-        configureActionRow(binding.rowMasqueradeMode, R.string.sharing_masquerade_title, null, v ->
-                showSingleChoiceDialog(
+        configureActionRow(
+                binding.rowMasqueradeMode,
+                R.string.sharing_masquerade_title,
+                null,
+                v -> showSingleChoiceDialog(
                         R.string.sharing_masquerade_title,
                         R.array.sharing_masquerade_entries,
                         R.array.sharing_masquerade_values,
@@ -463,7 +468,7 @@ public class SharingFragment extends Fragment {
         if (!TextUtils.isEmpty(configured)) {
             return configured;
         }
-        if (XrayStore.getBackendType(context) == wings.v.core.BackendType.XRAY) {
+        if (shouldUseVpnServiceUpstream(context)) {
             return getString(R.string.sharing_value_vpn_service);
         }
         if (AppPrefs.isRootModeEnabled(context)) {
@@ -473,6 +478,16 @@ public class SharingFragment extends Fragment {
             }
         }
         return detectActiveInterfaceName();
+    }
+
+    private boolean shouldUseVpnServiceUpstream(Context context) {
+        BackendType backendType = XrayStore.getBackendType(context);
+        if (backendType == BackendType.XRAY || backendType == BackendType.AMNEZIAWG) {
+            return true;
+        }
+        return backendType == BackendType.VK_TURN_WIREGUARD
+                && AppPrefs.isRootModeEnabled(context)
+                && !AppPrefs.isKernelWireGuardEnabled(context);
     }
 
     private boolean isInterfacePresent(@Nullable String interfaceName) {

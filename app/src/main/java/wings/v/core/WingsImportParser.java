@@ -198,6 +198,7 @@ public final class WingsImportParser {
         if (directProfile != null) {
             ImportedConfig directImport = new ImportedConfig();
             directImport.backendType = BackendType.XRAY;
+            directImport.xrayMergeOnly = true;
             directImport.xrayProfiles.add(directProfile);
             directImport.activeXrayProfileId = directProfile.id;
             directImport.xraySettings = defaultXraySettings();

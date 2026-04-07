@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.format.Formatter;
@@ -46,6 +47,8 @@ public class AboutAppActivity extends AppCompatActivity {
     private static final String GITHUB_AMNEZIA_VPN = "amnezia-vpn";
     private static final String GITHUB_MOROKA8 = "Moroka8";
     private static final String SAMSUNG_URL = "https://www.samsung.com/";
+    private static final int FIRST_LAUNCH_TRIGGER_TAPS = 5;
+    private static final long FIRST_LAUNCH_TRIGGER_WINDOW_MS = 2_000L;
 
     private ActivityAboutAppBinding binding;
     private GithubAvatarLoader githubAvatarLoader;
@@ -53,6 +56,8 @@ public class AboutAppActivity extends AppCompatActivity {
     private ConnectivityManager.NetworkCallback networkCallback;
     private AppUpdateManager appUpdateManager;
     private String pendingInstallFilePath = "";
+    private int firstLaunchTriggerTapCount;
+    private long firstLaunchTriggerStartedAtMs;
 
     private final AppUpdateManager.Listener updateStateListener = this::renderUpdateState;
     private final ActivityResultLauncher<Intent> unknownSourcesLauncher =
@@ -122,6 +127,23 @@ public class AboutAppActivity extends AppCompatActivity {
         binding.imageAppIcon.setImageDrawable(loadAppIcon());
         binding.textAppName.setText(R.string.app_name);
         binding.textAppVersion.setText(getString(R.string.about_version_label, loadVersionName()));
+        binding.cardAppHeader.setOnClickListener(view -> handleFirstLaunchTriggerTap(view));
+    }
+
+    private void handleFirstLaunchTriggerTap(View view) {
+        long now = SystemClock.elapsedRealtime();
+        if (now - firstLaunchTriggerStartedAtMs > FIRST_LAUNCH_TRIGGER_WINDOW_MS) {
+            firstLaunchTriggerStartedAtMs = now;
+            firstLaunchTriggerTapCount = 0;
+        }
+        firstLaunchTriggerTapCount++;
+        Haptics.softSelection(view);
+        if (firstLaunchTriggerTapCount < FIRST_LAUNCH_TRIGGER_TAPS) {
+            return;
+        }
+        firstLaunchTriggerTapCount = 0;
+        firstLaunchTriggerStartedAtMs = 0L;
+        startActivity(FirstLaunchActivity.createIntent(this));
     }
 
     private Drawable loadAppIcon() {
@@ -490,6 +512,9 @@ public class AboutAppActivity extends AppCompatActivity {
         refreshGithubAvatar(binding.cardSpecialYanndroid, GITHUB_YANNDROID);
         refreshGithubAvatar(binding.cardSpecialZx2c4, GITHUB_ZX2C4);
         refreshGithubAvatar(binding.cardSpecialCacggghp, GITHUB_CACGGGHP);
+        refreshGithubAvatar(binding.cardSpecialXtls, GITHUB_XTLS);
+        refreshGithubAvatar(binding.cardSpecialAmnezia, GITHUB_AMNEZIA_VPN);
+        refreshGithubAvatar(binding.cardSpecialMoroka8, GITHUB_MOROKA8);
     }
 
     private void refreshGithubAvatar(CardItemView cardItemView, String username) {

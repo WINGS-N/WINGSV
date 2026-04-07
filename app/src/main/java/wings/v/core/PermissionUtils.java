@@ -41,19 +41,19 @@ public final class PermissionUtils {
 
     public static boolean areCorePermissionsGranted(Context context) {
         BackendType backendType = XrayStore.getBackendType(context);
-        if (backendType == BackendType.XRAY) {
-            boolean granted = areBasePermissionsGranted(context)
+        boolean rootModeEnabled = AppPrefs.isRootModeEnabled(context);
+        boolean kernelWireGuardEnabled = AppPrefs.isKernelWireGuardEnabled(context);
+        if (!rootModeEnabled) {
+            return areBasePermissionsGranted(context)
                     && isVpnPermissionGranted(context);
-            if (AppPrefs.isRootModeEnabled(context)) {
-                granted = granted && isRootPermissionGranted(context);
-            }
-            return granted;
         }
-        if (AppPrefs.isRootModeEnabled(context)) {
+
+        if (backendType == BackendType.VK_TURN_WIREGUARD && kernelWireGuardEnabled) {
             return areBasePermissionsGranted(context)
                     && isRootPermissionGranted(context);
         }
         return areBasePermissionsGranted(context)
+                && isRootPermissionGranted(context)
                 && isVpnPermissionGranted(context);
     }
 

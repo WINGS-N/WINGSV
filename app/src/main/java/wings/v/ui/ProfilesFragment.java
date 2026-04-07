@@ -18,8 +18,10 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.AppCompatCheckBox;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
@@ -40,8 +42,10 @@ import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
 import dev.oneuiproject.oneui.widget.Separator;
 import wings.v.MainActivity;
 import wings.v.R;
+import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayProfile;
 import wings.v.core.XrayStore;
@@ -57,6 +61,7 @@ public class ProfilesFragment extends Fragment {
     private static final int PING_WARNING_THRESHOLD_MS = 350;
     private static final int PAGE_SIZE = 5;
     private static final int LOAD_MORE_THRESHOLD_DP = 320;
+    private static final long TRAFFIC_REFRESH_INTERVAL_MS = 1_000L;
     private static final String FILTER_ALL = "__all__";
     private static final String FILTER_NO_SUBSCRIPTION = "__manual__";
 
@@ -66,8 +71,20 @@ public class ProfilesFragment extends Fragment {
     private final LinkedHashMap<String, FilterSpec> filterSpecs = new LinkedHashMap<>();
     private final LinkedHashMap<String, ProfileRowViews> rowViews = new LinkedHashMap<>();
     private final LinkedHashMap<String, PingState> pingStates = new LinkedHashMap<>();
+    private final LinkedHashMap<String, XrayStore.ProfileTrafficStats> profileTrafficStats = new LinkedHashMap<>();
     private final LinkedHashSet<String> selectedProfileIds = new LinkedHashSet<>();
     private final ArrayList<DisplayItem> currentDisplayItems = new ArrayList<>();
+    private final Runnable trafficRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (binding == null || !isAdded()) {
+                return;
+            }
+            refreshVisibleProfileTrafficStats(true);
+            binding.getRoot().removeCallbacks(this);
+            binding.getRoot().postDelayed(this, TRAFFIC_REFRESH_INTERVAL_MS);
+        }
+    };
 
     private FragmentProfilesBinding binding;
     private List<XrayProfile> currentProfiles = new ArrayList<>();
@@ -118,23 +135,32 @@ public class ProfilesFragment extends Fragment {
             Haptics.softSelection(v);
             runTcpingForCurrentFilter();
         });
-        binding.bottomTabProfileSelection.inflateMenu(R.menu.menu_selection_actions, null);
+        binding.buttonProfileSelectAll.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            selectAllProfilesInCurrentFilter();
+        });
+        binding.buttonProfileShare.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            showShareFormatMenu(v);
+        });
+        binding.buttonScrollToTop.setOnClickListener(v -> {
+            binding.scrollProfilesContent.smoothScrollTo(0, 0);
+            Haptics.softSliderStep(v);
+        });
+        binding.bottomTabProfileSelection.inflateMenu(R.menu.menu_profile_selection_compact_actions, null);
         binding.bottomTabProfileSelection.setOnMenuItemClickListener(item -> {
-            if (item.getItemId() == R.id.menu_selection_share) {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_profile_selection_reset_stats) {
                 Haptics.softSelection(binding.bottomTabProfileSelection);
-                shareSelectedProfiles();
+                resetSelectedProfileStats();
                 return true;
             }
-            if (item.getItemId() == R.id.menu_selection_delete) {
+            if (itemId == R.id.menu_profile_selection_delete) {
                 Haptics.softSelection(binding.bottomTabProfileSelection);
                 deleteSelectedProfiles();
                 return true;
             }
             return false;
-        });
-        binding.buttonScrollToTop.setOnClickListener(v -> {
-            binding.scrollProfilesContent.smoothScrollTo(0, 0);
-            Haptics.softSliderStep(v);
         });
         binding.scrollProfilesContent.setOnScrollChangeListener(
                 (NestedScrollView scrollView, int scrollX, int scrollY, int oldScrollX, int oldScrollY) -> {
@@ -148,10 +174,12 @@ public class ProfilesFragment extends Fragment {
     public void onResume() {
         super.onResume();
         refreshUi();
+        scheduleTrafficRefresh();
     }
 
     @Override
     public void onPause() {
+        stopTrafficRefresh();
         clearSelectionMode();
         super.onPause();
     }
@@ -161,6 +189,8 @@ public class ProfilesFragment extends Fragment {
         updateBottomNavigationSuppression(false);
         rowViews.clear();
         currentDisplayItems.clear();
+        profileTrafficStats.clear();
+        stopTrafficRefresh();
         binding = null;
         super.onDestroyView();
     }
@@ -178,6 +208,10 @@ public class ProfilesFragment extends Fragment {
             return;
         }
         Context appContext = requireContext().getApplicationContext();
+        String pendingFilterId = AppPrefs.consumePendingProfilesFilterId(appContext);
+        if (!TextUtils.isEmpty(pendingFilterId)) {
+            activeFilterId = pendingFilterId;
+        }
         final int generation = ++renderGeneration;
         final String requestedFilterId = activeFilterId;
         renderExecutor.execute(() -> {
@@ -222,8 +256,10 @@ public class ProfilesFragment extends Fragment {
         activeFilterId = uiModel.activeFilterId;
         filterSpecs.clear();
         filterSpecs.putAll(uiModel.filters);
+        profileTrafficStats.clear();
+        profileTrafficStats.putAll(XrayStore.getProfileTrafficStatsMap(requireContext()));
         pruneSelection(uiModel.profiles);
-        prunePingStates(uiModel.profiles);
+        syncPingStates(uiModel.profiles);
         updateHeaderSummary(uiModel.lastRefreshAt, uiModel.lastError);
         renderFilterChips();
         if (contentChanged) {
@@ -235,6 +271,7 @@ public class ProfilesFragment extends Fragment {
         updateActionRows();
         updateSelectionUi();
         updateAllRowStates(currentActiveProfileId);
+        refreshVisibleProfileTrafficStats(false);
         binding.scrollProfilesContent.post(() -> {
             updateScrollToTopButton();
             maybeAppendMoreItems();
@@ -325,6 +362,7 @@ public class ProfilesFragment extends Fragment {
         }
         pageAppendRunning = false;
         updateAllRowStates(currentActiveProfileId);
+        refreshVisibleProfileTrafficStats(false);
         updatePageLoader();
         binding.scrollProfilesContent.post(this::maybeAppendMoreItems);
     }
@@ -473,6 +511,7 @@ public class ProfilesFragment extends Fragment {
         currentActiveProfileId = profile.id;
         XrayStore.setActiveProfileId(requireContext(), profile.id);
         updateAllRowStates(currentActiveProfileId);
+        refreshVisibleProfileTrafficStats(true);
         if (XrayStore.getBackendType(requireContext()) == BackendType.XRAY
                 && ProxyTunnelService.isActive()) {
             try {
@@ -549,7 +588,19 @@ public class ProfilesFragment extends Fragment {
         binding.textProfileSelectionCount.setText(
                 getString(R.string.xray_profiles_selected_count, selectedProfileIds.size())
         );
+        updateSelectionToggleButton();
         updateBottomNavigationSuppression(visible);
+    }
+
+    private void updateSelectionToggleButton() {
+        if (binding == null) {
+            return;
+        }
+        binding.buttonProfileSelectAll.setText(
+                areAllProfilesInCurrentFilterSelected()
+                        ? R.string.xray_profiles_deselect_all_action
+                        : R.string.xray_profiles_select_all_action
+        );
     }
 
     private void updateBottomNavigationSuppression(boolean suppressed) {
@@ -576,7 +627,25 @@ public class ProfilesFragment extends Fragment {
         views.activeIcon.setVisibility(selectionMode
                 ? View.GONE
                 : (active ? View.VISIBLE : View.INVISIBLE));
+        applyTrafficState(views, profileTrafficStats.get(views.profile.id));
         applyPingState(views, pingStates.get(views.pingKey));
+    }
+
+    private void applyTrafficState(ProfileRowViews views, @Nullable XrayStore.ProfileTrafficStats trafficStats) {
+        if (views == null) {
+            return;
+        }
+        XrayStore.ProfileTrafficStats stats = trafficStats != null
+                ? trafficStats
+                : XrayStore.ProfileTrafficStats.ZERO;
+        boolean visible = stats.rxBytes > 0L || stats.txBytes > 0L;
+        views.trafficRow.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) {
+            return;
+        }
+        Context context = views.root.getContext();
+        views.rxText.setText(UiFormatter.formatBytes(context, stats.rxBytes));
+        views.txText.setText(UiFormatter.formatBytes(context, stats.txBytes));
     }
 
     private void applyPingState(ProfileRowViews views, @Nullable PingState pingState) {
@@ -687,6 +756,12 @@ public class ProfilesFragment extends Fragment {
                         return;
                     }
                     pingStates.put(pingStateKey(profile), result);
+                    XrayStore.putProfilePingResult(
+                            requireContext(),
+                            pingStateKey(profile),
+                            result.state == PingDisplayState.SUCCESS,
+                            result.latencyMs
+                    );
                     ProfileRowViews row = rowViews.get(profile.id);
                     if (row != null) {
                         applyRowState(row, TextUtils.equals(currentActiveProfileId, profile.id));
@@ -737,7 +812,25 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private void shareSelectedProfiles() {
+    private void showShareFormatMenu(View anchor) {
+        if (!isAdded() || selectedProfileIds.isEmpty()) {
+            return;
+        }
+        PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
+        popupMenu.inflate(R.menu.menu_profile_share_formats);
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_profile_share_format_wingsv
+                    || itemId == R.id.menu_profile_share_format_vless) {
+                shareSelectedProfiles(itemId);
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
+    private void shareSelectedProfiles(int formatMenuId) {
         if (!isAdded() || selectedProfileIds.isEmpty()) {
             return;
         }
@@ -747,19 +840,121 @@ public class ProfilesFragment extends Fragment {
             return;
         }
         try {
-            String activeProfileId = currentActiveProfileId;
-            if (TextUtils.isEmpty(activeProfileId) || !selectedProfileIds.contains(activeProfileId)) {
-                activeProfileId = selectedProfiles.get(0).id;
+            String sharedText;
+            if (formatMenuId == R.id.menu_profile_share_format_vless) {
+                sharedText = buildVlessShareText(selectedProfiles);
+            } else {
+                String activeProfileId = currentActiveProfileId;
+                if (TextUtils.isEmpty(activeProfileId) || !selectedProfileIds.contains(activeProfileId)) {
+                    activeProfileId = selectedProfiles.get(0).id;
+                }
+                sharedText = WingsImportParser.buildXrayProfilesLink(context, selectedProfiles, activeProfileId);
             }
-            String link = WingsImportParser.buildXrayProfilesLink(context, selectedProfiles, activeProfileId);
             Intent sendIntent = new Intent(Intent.ACTION_SEND)
                     .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, link);
-            startActivity(Intent.createChooser(sendIntent, getString(R.string.xray_profiles_share_chooser)));
+                    .putExtra(Intent.EXTRA_TEXT, sharedText);
+            Intent chooserIntent = Intent.createChooser(
+                    sendIntent,
+                    getString(R.string.xray_profiles_share_chooser)
+            );
+            if (chooserIntent.resolveActivity(context.getPackageManager()) == null) {
+                throw new IllegalStateException("No share targets");
+            }
+            startActivity(chooserIntent);
             clearSelectionMode();
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.xray_profiles_share_failed, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private String buildVlessShareText(List<XrayProfile> selectedProfiles) {
+        LinkedHashMap<String, String> deduped = new LinkedHashMap<>();
+        for (XrayProfile profile : selectedProfiles) {
+            if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
+                continue;
+            }
+            deduped.put(profile.stableDedupKey(), profile.rawLink.trim());
+        }
+        if (deduped.isEmpty()) {
+            throw new IllegalArgumentException("No VLESS profiles to export");
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String rawLink : deduped.values()) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(rawLink);
+        }
+        return builder.toString();
+    }
+
+    private void selectAllProfilesInCurrentFilter() {
+        List<XrayProfile> filteredProfiles = filterProfiles(currentProfiles, activeFilterId);
+        if (filteredProfiles.isEmpty()) {
+            return;
+        }
+        if (areAllProfilesInCurrentFilterSelected()) {
+            for (XrayProfile profile : filteredProfiles) {
+                if (profile != null) {
+                    selectedProfileIds.remove(profile.id);
+                }
+            }
+            if (selectedProfileIds.isEmpty()) {
+                clearSelectionMode();
+            } else {
+                updateSelectionUi();
+                updateAllRowStates(currentActiveProfileId);
+                updateScrollToTopButton();
+            }
+            return;
+        }
+        if (!selectionMode) {
+            selectionMode = true;
+            selectionBackCallback.setEnabled(true);
+        }
+        for (XrayProfile profile : filteredProfiles) {
+            if (profile == null || TextUtils.isEmpty(profile.id)) {
+                continue;
+            }
+            selectedProfileIds.add(profile.id);
+        }
+        updateSelectionUi();
+        updateAllRowStates(currentActiveProfileId);
+        updateScrollToTopButton();
+    }
+
+    private boolean areAllProfilesInCurrentFilterSelected() {
+        List<XrayProfile> filteredProfiles = filterProfiles(currentProfiles, activeFilterId);
+        if (filteredProfiles.isEmpty()) {
+            return false;
+        }
+        for (XrayProfile profile : filteredProfiles) {
+            if (profile == null || TextUtils.isEmpty(profile.id)) {
+                continue;
+            }
+            if (!selectedProfileIds.contains(profile.id)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void resetSelectedProfileStats() {
+        if (!isAdded() || selectedProfileIds.isEmpty()) {
+            return;
+        }
+        ArrayList<String> profileIds = new ArrayList<>(selectedProfileIds);
+        XrayStore.resetProfileTrafficStats(requireContext(), profileIds);
+        for (String profileId : profileIds) {
+            profileTrafficStats.remove(profileId);
+        }
+        updateAllRowStates(currentActiveProfileId);
+        clearSelectionMode();
+        Toast.makeText(
+                requireContext(),
+                getString(R.string.xray_profiles_reset_stats_done, profileIds.size()),
+                Toast.LENGTH_SHORT
+        ).show();
     }
 
     private void deleteSelectedProfiles() {
@@ -778,6 +973,7 @@ public class ProfilesFragment extends Fragment {
             }
         }
         XrayStore.setProfiles(context, profiles);
+        XrayStore.removeProfilePingResults(context, collectSelectedProfilePingKeys());
         if (selectedProfileIds.contains(currentActiveProfileId)) {
             currentActiveProfileId = profiles.isEmpty() ? "" : profiles.get(0).id;
             XrayStore.setActiveProfileId(context, currentActiveProfileId);
@@ -801,14 +997,42 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private void prunePingStates(List<XrayProfile> profiles) {
+    private void syncPingStates(List<XrayProfile> profiles) {
         LinkedHashSet<String> activeKeys = new LinkedHashSet<>();
         for (XrayProfile profile : profiles) {
-            if (profile != null) {
-                activeKeys.add(pingStateKey(profile));
+            String profilePingKey = pingStateKey(profile);
+            if (!TextUtils.isEmpty(profilePingKey)) {
+                activeKeys.add(profilePingKey);
             }
         }
-        pingStates.keySet().retainAll(activeKeys);
+
+        LinkedHashMap<String, PingState> merged = new LinkedHashMap<>();
+        Map<String, XrayStore.ProfilePingResult> stored = XrayStore.getProfilePingResultsMap(requireContext());
+        for (String activeKey : activeKeys) {
+            XrayStore.ProfilePingResult storedResult = stored.get(activeKey);
+            if (storedResult == null) {
+                continue;
+            }
+            merged.put(
+                    activeKey,
+                    storedResult.success
+                            ? PingState.success(storedResult.latencyMs)
+                            : PingState.failed()
+            );
+        }
+
+        for (Map.Entry<String, PingState> entry : pingStates.entrySet()) {
+            if (!activeKeys.contains(entry.getKey())) {
+                continue;
+            }
+            PingState value = entry.getValue();
+            if (value != null && value.state == PingDisplayState.LOADING) {
+                merged.put(entry.getKey(), value);
+            }
+        }
+
+        pingStates.clear();
+        pingStates.putAll(merged);
     }
 
     private List<XrayProfile> selectedProfiles() {
@@ -917,11 +1141,21 @@ public class ProfilesFragment extends Fragment {
     }
 
     private String pingStateKey(XrayProfile profile) {
-        if (profile == null) {
-            return "";
+        return XrayStore.getProfilePingKey(profile);
+    }
+
+    private List<String> collectSelectedProfilePingKeys() {
+        ArrayList<String> result = new ArrayList<>();
+        for (XrayProfile profile : currentProfiles) {
+            if (profile == null || !selectedProfileIds.contains(profile.id)) {
+                continue;
+            }
+            String key = pingStateKey(profile);
+            if (!TextUtils.isEmpty(key)) {
+                result.add(key);
+            }
         }
-        String subscriptionId = TextUtils.isEmpty(profile.subscriptionId) ? "__manual__" : profile.subscriptionId;
-        return subscriptionId + "|" + profile.stableDedupKey();
+        return result;
     }
 
     private String profileTitle(XrayProfile profile) {
@@ -957,6 +1191,45 @@ public class ProfilesFragment extends Fragment {
             binding.buttonScrollToTop.setScaleY(1f);
         } else {
             binding.buttonScrollToTop.setVisibility(View.GONE);
+        }
+    }
+
+    private void scheduleTrafficRefresh() {
+        if (binding == null) {
+            return;
+        }
+        binding.getRoot().removeCallbacks(trafficRefreshRunnable);
+        binding.getRoot().postDelayed(trafficRefreshRunnable, TRAFFIC_REFRESH_INTERVAL_MS);
+    }
+
+    private void stopTrafficRefresh() {
+        if (binding != null) {
+            binding.getRoot().removeCallbacks(trafficRefreshRunnable);
+        }
+    }
+
+    private void refreshVisibleProfileTrafficStats(boolean activeOnly) {
+        if (binding == null || !isAdded()) {
+            return;
+        }
+        Context context = requireContext();
+        if (activeOnly) {
+            if (TextUtils.isEmpty(currentActiveProfileId)) {
+                return;
+            }
+            XrayStore.ProfileTrafficStats stats =
+                    XrayStore.getProfileTrafficStats(context, currentActiveProfileId);
+            profileTrafficStats.put(currentActiveProfileId, stats);
+            ProfileRowViews row = rowViews.get(currentActiveProfileId);
+            if (row != null) {
+                applyTrafficState(row, stats);
+            }
+            return;
+        }
+        profileTrafficStats.clear();
+        profileTrafficStats.putAll(XrayStore.getProfileTrafficStatsMap(context));
+        for (ProfileRowViews row : rowViews.values()) {
+            applyTrafficState(row, profileTrafficStats.get(row.profile.id));
         }
     }
 
@@ -1015,6 +1288,9 @@ public class ProfilesFragment extends Fragment {
         final View activeIcon;
         final ProgressBar progress;
         final TextView pingBadge;
+        final View trafficRow;
+        final TextView rxText;
+        final TextView txText;
 
         ProfileRowViews(XrayProfile profile, ItemProfileEntryBinding binding, String pingKey) {
             this.profile = profile;
@@ -1024,6 +1300,9 @@ public class ProfilesFragment extends Fragment {
             this.activeIcon = binding.imageProfileActive;
             this.progress = binding.progressProfilePing;
             this.pingBadge = binding.textProfilePing;
+            this.trafficRow = binding.layoutProfileTraffic;
+            this.rxText = binding.textProfileRx;
+            this.txText = binding.textProfileTx;
         }
     }
 

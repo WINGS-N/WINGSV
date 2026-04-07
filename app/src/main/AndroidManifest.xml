@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -55,7 +55,7 @@
         </provider>
 
         <activity
-            android:name=".PermissionOnboardingActivity"
+            android:name=".FirstLaunchActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
 
@@ -91,7 +91,42 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".SubscriptionHwidSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".XraySettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".ActiveProbingSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".AutoSearchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".ByeDpiSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".ByeDpiTargetsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".ByeDpiStrategyTestActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".ActiveProbingTargetsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
 
@@ -151,7 +186,11 @@
         <service
             android:name=".service.ProxyTunnelService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn_runtime_controller" />
+        </service>
 
         <service
             android:name=".service.XrayVpnService"
@@ -197,6 +236,11 @@
 
         <receiver
             android:name=".receiver.AppUpdateCheckReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".receiver.ActiveProbingReceiver"
             android:enabled="true"
             android:exported="false" />
 

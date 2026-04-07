@@ -6,13 +6,12 @@
         android:key="pref_category_backend"
         android:title="@string/settings_backend_category" />
 
-    <ListPreference
+    <androidx.preference.DropDownPreference
         android:key="pref_backend_type"
         android:title="@string/settings_backend_title"
         android:defaultValue="vk_turn_wireguard"
         android:entries="@array/backend_entries"
-        android:entryValues="@array/backend_values"
-        app:useSimpleSummaryProvider="true" />
+        android:entryValues="@array/backend_values" />
 
     <Preference
         android:key="pref_open_subscriptions"
@@ -23,6 +22,21 @@
         android:key="pref_open_xray_settings"
         android:title="@string/drawer_xray_settings_title"
         android:summary="@string/drawer_xray_settings_summary" />
+
+    <Preference
+        android:key="pref_open_bydpi_settings"
+        android:title="@string/byedpi_title"
+        android:summary="@string/byedpi_open_summary" />
+
+    <Preference
+        android:key="pref_open_active_probing_settings"
+        android:title="@string/active_probing_title"
+        android:summary="@string/active_probing_open_summary" />
+
+    <Preference
+        android:key="pref_open_auto_search_settings"
+        android:title="@string/auto_search_title"
+        android:summary="@string/auto_search_open_summary" />
 
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
         android:key="pref_inset_after_backend" />
@@ -70,13 +84,12 @@
         android:title="Без обфускации"
         android:defaultValue="false" />
 
-    <ListPreference
+    <androidx.preference.DropDownPreference
         android:key="pref_turn_session_mode"
         android:title="@string/turn_session_mode_title"
         android:defaultValue="auto"
         android:entries="@array/turn_session_mode_entries"
-        android:entryValues="@array/turn_session_mode_values"
-        app:useSimpleSummaryProvider="true" />
+        android:entryValues="@array/turn_session_mode_values" />
 
     <EditTextPreference
         android:key="pref_local_endpoint"
@@ -152,6 +165,12 @@
         android:key="pref_root_mode"
         android:title="@string/root_mode_title"
         android:summary="@string/root_mode_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_kernel_wireguard"
+        android:title="@string/kernel_wireguard_title"
+        android:summary="@string/kernel_wireguard_summary"
         android:defaultValue="false" />
 
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory

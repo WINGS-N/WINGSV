@@ -1,39 +1,54 @@
 package wings.v;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import wings.v.databinding.ActivityProxyLogsBinding;
+import wings.v.databinding.ItemLogLineBinding;
 import wings.v.service.ProxyTunnelService;
 
 public class ProxyLogsActivity extends AppCompatActivity {
     private static final long REFRESH_INTERVAL_MS = 500L;
     private static final String EXTRA_LOG_MODE = "wings.v.extra.LOG_MODE";
+    private static final String STATE_AUTO_SCROLL = "state.auto_scroll";
     private static final String MODE_PROXY = "proxy";
     private static final String MODE_XRAY = "xray";
     private static final String MODE_RUNTIME = "runtime";
     private static final long XRAY_LOG_TAIL_BYTES = 128 * 1024L;
     private static final int XRAY_LOG_TAIL_LINES = 100;
+    private static final int MAX_DISPLAY_LINES = 5_000;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService fileReadExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger xrayReadGeneration = new AtomicInteger();
+    private final ArrayList<String> displayedLines = new ArrayList<>();
     private final Runnable refreshRunnable = new Runnable() {
         @Override
         public void run() {
@@ -43,8 +58,11 @@ public class ProxyLogsActivity extends AppCompatActivity {
     };
 
     private ActivityProxyLogsBinding binding;
+    private LogsAdapter logsAdapter;
+    private LinearLayoutManager layoutManager;
     private long lastRenderedLogVersion = -1L;
     private String logMode = MODE_PROXY;
+    private boolean autoScrollEnabled;
 
     public static Intent createProxyIntent(Context context) {
         return new Intent(context, ProxyLogsActivity.class).putExtra(EXTRA_LOG_MODE, MODE_PROXY);
@@ -63,17 +81,40 @@ public class ProxyLogsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityProxyLogsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        autoScrollEnabled = savedInstanceState != null
+                && savedInstanceState.getBoolean(STATE_AUTO_SCROLL, false);
 
         String requestedMode = getIntent().getStringExtra(EXTRA_LOG_MODE);
         if (!TextUtils.isEmpty(requestedMode)) {
             logMode = requestedMode;
         }
+
+        logsAdapter = new LogsAdapter(displayedLines);
+        layoutManager = new LinearLayoutManager(this);
+        binding.recyclerProxyLogs.setLayoutManager(layoutManager);
+        binding.recyclerProxyLogs.setAdapter(logsAdapter);
+
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         binding.toolbarLayout.setTitle(resolveTitle());
         binding.textLogsHeadline.setText(resolveTitle());
         binding.textLogsSubtitle.setText(resolveSubtitle());
         binding.textLogsOutputTitle.setText(resolveOutputTitle());
+        binding.textProxyLogsEmpty.setText(resolveEmptyText());
+        binding.switchLogsAutoScroll.setChecked(autoScrollEnabled);
+        binding.switchLogsAutoScroll.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            autoScrollEnabled = isChecked;
+            if (autoScrollEnabled) {
+                scrollToBottom();
+            }
+        });
+        binding.buttonCopyLogs.setOnClickListener(view -> copyCurrentLogText());
         refreshLogs();
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        outState.putBoolean(STATE_AUTO_SCROLL, autoScrollEnabled);
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -100,21 +141,17 @@ public class ProxyLogsActivity extends AppCompatActivity {
         if (binding == null) {
             return;
         }
-
         updateStatusChip();
-
         long currentVersion = resolveLogVersion();
         if (currentVersion == lastRenderedLogVersion) {
             return;
         }
+        boolean shouldStickToBottom = autoScrollEnabled && isNearBottom();
         if (MODE_XRAY.equals(logMode)) {
-            refreshXrayLogsAsync(currentVersion);
+            refreshXrayLogsAsync(currentVersion, shouldStickToBottom);
             return;
         }
-
-        boolean shouldStickToBottom = isNearBottom();
-        String snapshot = resolveSnapshot();
-        applySnapshot(snapshot, currentVersion, shouldStickToBottom);
+        applySnapshot(resolveSnapshot(), currentVersion, shouldStickToBottom);
     }
 
     private void updateStatusChip() {
@@ -150,8 +187,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
         return ProxyTunnelService.getProxyLogSnapshot();
     }
 
-    private void refreshXrayLogsAsync(long currentVersion) {
-        boolean shouldStickToBottom = isNearBottom();
+    private void refreshXrayLogsAsync(long currentVersion, boolean shouldStickToBottom) {
         int generation = xrayReadGeneration.incrementAndGet();
         fileReadExecutor.execute(() -> {
             String snapshot = buildXraySnapshot();
@@ -168,13 +204,106 @@ public class ProxyLogsActivity extends AppCompatActivity {
         if (binding == null) {
             return;
         }
-        binding.textProxyLogs.setText(TextUtils.isEmpty(snapshot)
-                ? resolveEmptyText()
-                : snapshot);
-        lastRenderedLogVersion = currentVersion;
-        if (shouldStickToBottom || MODE_XRAY.equals(logMode)) {
-            binding.logsScrollView.post(() -> binding.logsScrollView.fullScroll(View.FOCUS_DOWN));
+        List<String> newLines = splitLines(snapshot);
+        if (newLines.isEmpty()) {
+            displayedLines.clear();
+            logsAdapter.notifyDataSetChanged();
+            binding.textProxyLogsEmpty.setVisibility(View.VISIBLE);
+        } else {
+            binding.textProxyLogsEmpty.setVisibility(View.GONE);
+            mergeSnapshotLines(newLines);
         }
+        lastRenderedLogVersion = currentVersion;
+        if (autoScrollEnabled && shouldStickToBottom) {
+            scrollToBottom();
+        }
+    }
+
+    private void mergeSnapshotLines(List<String> newLines) {
+        if (displayedLines.isEmpty()) {
+            displayedLines.addAll(newLines);
+            trimDisplayedLines();
+            logsAdapter.notifyDataSetChanged();
+            return;
+        }
+        if (displayedLines.equals(newLines)) {
+            return;
+        }
+        int overlap = findOverlap(displayedLines, newLines);
+        if (overlap <= 0) {
+            displayedLines.clear();
+            displayedLines.addAll(newLines);
+            trimDisplayedLines();
+            logsAdapter.notifyDataSetChanged();
+            return;
+        }
+        if (overlap >= newLines.size()) {
+            return;
+        }
+        int insertStart = displayedLines.size();
+        for (int index = overlap; index < newLines.size(); index++) {
+            displayedLines.add(newLines.get(index));
+        }
+        int removed = trimDisplayedLines();
+        if (removed > 0) {
+            logsAdapter.notifyDataSetChanged();
+            return;
+        }
+        logsAdapter.notifyItemRangeInserted(insertStart, newLines.size() - overlap);
+    }
+
+    private int trimDisplayedLines() {
+        int removed = 0;
+        while (displayedLines.size() > MAX_DISPLAY_LINES) {
+            displayedLines.remove(0);
+            removed++;
+        }
+        return removed;
+    }
+
+    private int findOverlap(List<String> existingLines, List<String> newLines) {
+        int max = Math.min(existingLines.size(), newLines.size());
+        for (int overlap = max; overlap > 0; overlap--) {
+            boolean matches = true;
+            int existingStart = existingLines.size() - overlap;
+            for (int index = 0; index < overlap; index++) {
+                if (!TextUtils.equals(existingLines.get(existingStart + index), newLines.get(index))) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return overlap;
+            }
+        }
+        return 0;
+    }
+
+    private List<String> splitLines(String snapshot) {
+        ArrayList<String> lines = new ArrayList<>();
+        if (TextUtils.isEmpty(snapshot)) {
+            return lines;
+        }
+        String[] rawLines = snapshot.split("\\r?\\n", -1);
+        for (String line : rawLines) {
+            lines.add(line);
+        }
+        return lines;
+    }
+
+    private void copyCurrentLogText() {
+        ClipboardManager clipboardManager = getSystemService(ClipboardManager.class);
+        if (clipboardManager == null) {
+            Toast.makeText(this, R.string.proxy_logs_copy_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String text = TextUtils.join("\n", displayedLines);
+        if (TextUtils.isEmpty(text)) {
+            Toast.makeText(this, R.string.proxy_logs_copy_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        clipboardManager.setPrimaryClip(ClipData.newPlainText(resolveTitle(), text));
+        Toast.makeText(this, R.string.proxy_logs_copy_done, Toast.LENGTH_SHORT).show();
     }
 
     private String buildXraySnapshot() {
@@ -281,16 +410,58 @@ public class ProxyLogsActivity extends AppCompatActivity {
     }
 
     private boolean isNearBottom() {
-        if (binding == null) {
+        if (layoutManager == null || logsAdapter == null) {
             return true;
         }
-        View content = binding.logsScrollView.getChildAt(0);
-        if (content == null) {
+        int itemCount = logsAdapter.getItemCount();
+        if (itemCount <= 0) {
             return true;
         }
-        int thresholdPx = Math.round(32f * getResources().getDisplayMetrics().density);
-        int diff = content.getBottom()
-                - (binding.logsScrollView.getHeight() + binding.logsScrollView.getScrollY());
-        return diff <= thresholdPx;
+        return layoutManager.findLastVisibleItemPosition() >= itemCount - 3;
+    }
+
+    private void scrollToBottom() {
+        if (binding == null || logsAdapter == null) {
+            return;
+        }
+        int itemCount = logsAdapter.getItemCount();
+        if (itemCount <= 0) {
+            return;
+        }
+        binding.recyclerProxyLogs.post(() -> binding.recyclerProxyLogs.scrollToPosition(itemCount - 1));
+    }
+
+    private static final class LogsAdapter extends RecyclerView.Adapter<LogsAdapter.LogLineViewHolder> {
+        private final List<String> lines;
+
+        LogsAdapter(List<String> lines) {
+            this.lines = lines;
+        }
+
+        @NonNull
+        @Override
+        public LogLineViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+            return new LogLineViewHolder(ItemLogLineBinding.inflate(inflater, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull LogLineViewHolder holder, int position) {
+            holder.textView.setText(lines.get(position));
+        }
+
+        @Override
+        public int getItemCount() {
+            return lines.size();
+        }
+
+        static final class LogLineViewHolder extends RecyclerView.ViewHolder {
+            final TextView textView;
+
+            LogLineViewHolder(ItemLogLineBinding binding) {
+                super(binding.getRoot());
+                this.textView = binding.textLogLine;
+            }
+        }
     }
 }

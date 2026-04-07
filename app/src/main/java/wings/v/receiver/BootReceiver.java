@@ -6,6 +6,7 @@ import android.content.Intent;
 
 import androidx.core.content.ContextCompat;
 
+import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateBackgroundScheduler;
 import wings.v.core.BackendType;
@@ -26,6 +27,7 @@ public class BootReceiver extends BroadcastReceiver {
             return;
         }
         AppUpdateBackgroundScheduler.schedule(context);
+        ActiveProbingBackgroundScheduler.refresh(context);
         boolean autoStartConnection = AppPrefs.isAutoStartOnBootEnabled(context);
         boolean autoStartSharing = AppPrefs.isSharingAutoStartOnBootEnabled(context)
                 && AppPrefs.isRootModeEnabled(context);
@@ -40,9 +42,15 @@ public class BootReceiver extends BroadcastReceiver {
             return;
         }
         BackendType backendType = XrayStore.getBackendType(context);
-        if (AppPrefs.isRootModeEnabled(context)
-                && !RootUtils.isRootModeSupported(context, backendType, false)) {
-            return;
+        if (AppPrefs.isRootModeEnabled(context)) {
+            if (!RootUtils.isRootModeSupported(context, backendType, false)) {
+                return;
+            }
+            if (backendType == BackendType.VK_TURN_WIREGUARD
+                    && AppPrefs.isKernelWireGuardEnabled(context)
+                    && !RootUtils.isKernelWireGuardSupported(context, backendType, false)) {
+                return;
+            }
         }
         try {
             ContextCompat.startForegroundService(

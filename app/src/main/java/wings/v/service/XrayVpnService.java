@@ -92,6 +92,24 @@ public class XrayVpnService extends VpnService implements DialerController {
         }
     }
 
+    public static void forceStopService(Context context) {
+        if (context == null) {
+            return;
+        }
+        try {
+            XrayVpnService service = getServiceNow();
+            if (service != null) {
+                service.shuttingDown = true;
+                service.shutdownTunnel();
+                service.stopSelf();
+            }
+            resetServiceFuture();
+            context.stopService(new Intent(context, XrayVpnService.class));
+            updateHeartbeat(false);
+        } catch (Exception ignored) {
+        }
+    }
+
     private static XrayVpnService awaitService(long timeoutMs) {
         try {
             return serviceFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
@@ -110,6 +128,7 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        serviceFuture.complete(this);
         updateHeartbeat(tunnelFd != null);
         return START_STICKY;
     }

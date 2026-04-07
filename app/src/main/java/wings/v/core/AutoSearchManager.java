@@ -1,0 +1,1420 @@
+package wings.v.core;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
+import androidx.preference.PreferenceManager;
+
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import wings.v.R;
+import wings.v.byedpi.ByeDpiLocalRunner;
+import wings.v.service.ProxyTunnelService;
+import wings.v.service.XrayVpnService;
+import wings.v.xray.XrayAutoSearchConfigFactory;
+import wings.v.xray.XrayBridge;
+
+public final class AutoSearchManager {
+    public static final String KEY_OPEN_SETTINGS = "pref_open_auto_search_settings";
+    public static final String AUTOSEARCH_SUBSCRIPTION_ID = "__autosearch__";
+    public static final String AUTOSEARCH_FILTER_ID = "sub:" + AUTOSEARCH_SUBSCRIPTION_ID;
+    public static final String KEY_TARGET_COUNT = "pref_auto_search_target_count";
+    public static final String KEY_TCPING_TIMEOUT_MS = "pref_auto_search_tcping_timeout_ms";
+    public static final String KEY_DOWNLOAD_SIZE_MB = "pref_auto_search_download_size_mb";
+    public static final String KEY_DOWNLOAD_TIMEOUT_SECONDS = "pref_auto_search_download_timeout_seconds";
+    public static final String KEY_DOWNLOAD_ATTEMPTS = "pref_auto_search_download_attempts";
+
+    private static final String AUTOSEARCH_SUBSCRIPTION_TITLE = "Автопоиск";
+    private static final String DOWNLOAD_TEST_URL_PREFIX = "https://speed.cloudflare.com/__down?bytes=";
+    private static final String[] TRAFFIC_PROBE_URLS = new String[]{
+            "https://cp.cloudflare.com/generate_204",
+            "https://cloudflare.com/cdn-cgi/trace",
+            "https://1.1.1.1/cdn-cgi/trace"
+    };
+    private static final int DEFAULT_TCPING_TIMEOUT_MS = 1_000;
+    private static final int TCPING_PARALLELISM = 5;
+    private static final int TRAFFIC_PROBE_CONNECT_TIMEOUT_MS = 3_000;
+    private static final int TRAFFIC_PROBE_READ_TIMEOUT_MS = 5_000;
+    private static final int TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS = 8_000;
+    private static final int TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS = 12_000;
+    private static final int TRAFFIC_PROBE_MAX_BYTES = 4 * 1024;
+    private static final int DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 20;
+    private static final int DEFAULT_DOWNLOAD_ATTEMPTS = 3;
+    private static final int DEFAULT_TARGET_COUNT = 5;
+    private static final int DEFAULT_DOWNLOAD_SIZE_MB = 5;
+    private static final long INTER_ATTEMPT_DELAY_MS = 3_000L;
+    private static final long SERVICE_STOP_TIMEOUT_MS = 8_000L;
+    private static final long SERVICE_STOP_POLL_MS = 200L;
+    private static final long VPN_RELEASE_GRACE_MS = 1_000L;
+    private static final long XRAY_PROXY_START_TIMEOUT_MS = 4_000L;
+    private static final long XRAY_PROXY_START_POLL_MS = 100L;
+    private static final long XRAY_PROXY_WARMUP_MS = 700L;
+    private static final long BYEDPI_START_TIMEOUT_MS = 4_000L;
+    private static final int BYEDPI_WARMUP_ATTEMPTS = 3;
+    private static final long BYEDPI_WARMUP_DELAY_MS = 500L;
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+
+    private static volatile AutoSearchManager instance;
+
+    private final Context appContext;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Set<Listener> listeners = new CopyOnWriteArraySet<>();
+
+    private volatile State state = State.idle();
+    private volatile boolean running;
+    private volatile long pendingActionToken;
+    private PendingResult pendingResult;
+    private PreparedSearch preparedSearch;
+
+    private AutoSearchManager(Context context) {
+        this.appContext = context.getApplicationContext();
+    }
+
+    public static AutoSearchManager getInstance(Context context) {
+        if (instance == null) {
+            synchronized (AutoSearchManager.class) {
+                if (instance == null) {
+                    instance = new AutoSearchManager(context);
+                }
+            }
+        }
+        return instance;
+    }
+
+    public void registerListener(@NonNull Listener listener) {
+        listeners.add(listener);
+        notifyListener(listener, state);
+    }
+
+    public void unregisterListener(@Nullable Listener listener) {
+        if (listener != null) {
+            listeners.remove(listener);
+        }
+    }
+
+    @NonNull
+    public State getState() {
+        return state;
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    public static int getTargetProfileCount(@NonNull Context context) {
+        return clamp(settings(context).getInt(KEY_TARGET_COUNT, DEFAULT_TARGET_COUNT), 1, 20);
+    }
+
+    public static void setTargetProfileCount(@NonNull Context context, int value) {
+        settings(context).edit().putInt(KEY_TARGET_COUNT, clamp(value, 1, 20)).apply();
+    }
+
+    public static int getTcpingTimeoutMs(@NonNull Context context) {
+        return clamp(settings(context).getInt(KEY_TCPING_TIMEOUT_MS, DEFAULT_TCPING_TIMEOUT_MS), 300, 10_000);
+    }
+
+    public static void setTcpingTimeoutMs(@NonNull Context context, int value) {
+        settings(context).edit().putInt(KEY_TCPING_TIMEOUT_MS, clamp(value, 300, 10_000)).apply();
+    }
+
+    public static int getDownloadSizeMb(@NonNull Context context) {
+        return clamp(settings(context).getInt(KEY_DOWNLOAD_SIZE_MB, DEFAULT_DOWNLOAD_SIZE_MB), 1, 100);
+    }
+
+    public static void setDownloadSizeMb(@NonNull Context context, int value) {
+        settings(context).edit().putInt(KEY_DOWNLOAD_SIZE_MB, clamp(value, 1, 100)).apply();
+    }
+
+    public static int getDownloadTimeoutSeconds(@NonNull Context context) {
+        return clamp(
+                settings(context).getInt(KEY_DOWNLOAD_TIMEOUT_SECONDS, DEFAULT_DOWNLOAD_TIMEOUT_SECONDS),
+                3,
+                120
+        );
+    }
+
+    public static void setDownloadTimeoutSeconds(@NonNull Context context, int value) {
+        settings(context).edit().putInt(KEY_DOWNLOAD_TIMEOUT_SECONDS, clamp(value, 3, 120)).apply();
+    }
+
+    public static int getDownloadAttempts(@NonNull Context context) {
+        return clamp(settings(context).getInt(KEY_DOWNLOAD_ATTEMPTS, DEFAULT_DOWNLOAD_ATTEMPTS), 1, 10);
+    }
+
+    public static void setDownloadAttempts(@NonNull Context context, int value) {
+        settings(context).edit().putInt(KEY_DOWNLOAD_ATTEMPTS, clamp(value, 1, 10)).apply();
+    }
+
+    private static SharedPreferences settings(@NonNull Context context) {
+        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static long getDownloadSizeBytes(@NonNull Context context) {
+        return getDownloadSizeMb(context) * 1024L * 1024L;
+    }
+
+    public void startSearch() {
+        if (running) {
+            return;
+        }
+        preparedSearch = null;
+        pendingResult = null;
+        pendingActionToken = 0L;
+        running = true;
+        updateState(State.running(
+                null,
+                appContext.getString(R.string.auto_search_step_prepare),
+                appContext.getString(R.string.auto_search_prepare_summary),
+                true,
+                0,
+                0,
+                "",
+                "",
+                0L,
+                0,
+                0
+        ));
+        executor.execute(this::prepareSearch);
+    }
+
+    public void continueSearch(@NonNull Mode mode) {
+        PreparedSearch pending = preparedSearch;
+        if (!running || pending == null) {
+            return;
+        }
+        preparedSearch = null;
+        updateState(State.running(
+                mode,
+                appContext.getString(R.string.auto_search_step_prepare_mode),
+                appContext.getString(
+                        mode == Mode.WHITELIST
+                                ? R.string.auto_search_mode_whitelist_summary
+                                : R.string.auto_search_mode_standard_summary
+                ),
+                true,
+                0,
+                0,
+                "",
+                "",
+                0L,
+                0,
+                0
+        ));
+        executor.execute(() -> continuePreparedSearch(pending, mode));
+    }
+
+    public void cancelPendingModeSelection() {
+        PreparedSearch pending = preparedSearch;
+        preparedSearch = null;
+        pendingActionToken = 0L;
+        if (!running || pending == null) {
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                restoreOriginalConfiguration(pending.session);
+                updateState(State.completed(
+                        null,
+                        appContext.getString(R.string.auto_search_cancelled),
+                        0,
+                        ""
+                ));
+            } catch (Exception error) {
+                updateState(State.failed(
+                        null,
+                        appContext.getString(
+                                R.string.auto_search_failed_detail,
+                                firstNonEmpty(error.getMessage(), "unknown error")
+                        )
+                ));
+            } finally {
+                running = false;
+            }
+        });
+    }
+
+    public void applyPendingConfiguration(boolean apply) {
+        PendingResult result = pendingResult;
+        pendingResult = null;
+        preparedSearch = null;
+        pendingActionToken = 0L;
+        if (result == null) {
+            return;
+        }
+        try {
+            updateState(State.running(
+                    result.mode,
+                    appContext.getString(R.string.auto_search_step_apply),
+                    apply
+                            ? appContext.getString(R.string.auto_search_apply_summary)
+                            : appContext.getString(R.string.auto_search_restore_summary),
+                    true,
+                    0,
+                    0,
+                    "",
+                    "",
+                    0L,
+                    result.foundProfiles.size(),
+                    0
+            ));
+            applyOrRestoreConfiguration(result, apply);
+            String message = apply
+                    ? appContext.getString(
+                    R.string.auto_search_complete_applied,
+                    result.bestProfile != null ? safeProfileTitle(result.bestProfile.profile) : ""
+            )
+                    : appContext.getString(R.string.auto_search_complete_not_applied);
+            updateState(State.completed(
+                    result.mode,
+                    message,
+                    result.foundProfiles.size(),
+                    result.bestProfile != null ? safeProfileTitle(result.bestProfile.profile) : ""
+            ));
+        } catch (Exception error) {
+            updateState(State.failed(
+                    result.mode,
+                    appContext.getString(
+                            R.string.auto_search_failed_detail,
+                            firstNonEmpty(error.getMessage(), "unknown error")
+                    )
+            ));
+        } finally {
+            running = false;
+        }
+    }
+
+    private void prepareSearch() {
+        SearchSession session = new SearchSession();
+        session.originalBackend = XrayStore.getBackendType(appContext);
+        XrayProfile originalActiveProfile = XrayStore.getActiveProfile(appContext);
+        session.originalActiveProfileId = originalActiveProfile != null ? originalActiveProfile.id : "";
+        session.originalByeDpiAutoStart = ByeDpiStore.getSettings(appContext).launchOnXrayStart;
+        session.serviceWasActive = ProxyTunnelService.isActive();
+        session.originalProfiles = new ArrayList<>(XrayStore.getProfiles(appContext));
+        try {
+            stopCurrentRuntime(session);
+            XrayStore.setBackendType(appContext, BackendType.XRAY);
+            XrayStore.ensureDefaultSubscriptionPresent(appContext);
+
+            updateState(State.running(
+                    null,
+                    appContext.getString(R.string.auto_search_step_refresh),
+                    appContext.getString(R.string.auto_search_refresh_summary),
+                    true,
+                    0,
+                    0,
+                    "",
+                    "",
+                    0L,
+                    0,
+                    0
+            ));
+            XraySubscriptionUpdater.RefreshResult refreshResult = XraySubscriptionUpdater.refreshAll(appContext);
+            List<XrayProfile> availableProfiles = new ArrayList<>(XrayStore.getProfiles(appContext));
+            if (availableProfiles.isEmpty()) {
+                availableProfiles = new ArrayList<>(session.originalProfiles);
+            }
+            if (availableProfiles.isEmpty()) {
+                throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_profiles));
+            }
+
+            preparedSearch = new PreparedSearch(
+                    session,
+                    availableProfiles,
+                    XrayStore.getXraySettings(appContext),
+                    ByeDpiStore.getSettings(appContext)
+            );
+            pendingActionToken = SystemClock.elapsedRealtime();
+            preparedSearch.token = pendingActionToken;
+            updateState(State.awaitingModeSelection(
+                    appContext.getString(R.string.auto_search_mode_prompt_message),
+                    availableProfiles.size(),
+                    pendingActionToken
+            ));
+        } catch (Exception error) {
+            preparedSearch = null;
+            try {
+                restoreOriginalConfiguration(session);
+            } catch (Exception ignored) {
+            }
+            updateState(State.failed(
+                    null,
+                    appContext.getString(
+                            R.string.auto_search_failed_detail,
+                            firstNonEmpty(error.getMessage(), "unknown error")
+                    )
+            ));
+            running = false;
+        }
+    }
+
+    private void continuePreparedSearch(@NonNull PreparedSearch prepared, @NonNull Mode mode) {
+        SearchSession session = prepared.session;
+        session.mode = mode;
+        ByeDpiLocalRunner byeDpiRunner = null;
+        try {
+            if (mode == Mode.WHITELIST) {
+                updateState(State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_bydpi),
+                        appContext.getString(R.string.auto_search_bydpi_summary),
+                        true,
+                        0,
+                        0,
+                        "",
+                        "",
+                        0L,
+                        0,
+                        0
+                ));
+                byeDpiRunner = startTemporaryByeDpi(prepared.byeDpiSettings);
+                warmUpTemporaryByeDpi(mode, byeDpiRunner);
+            }
+
+            List<CandidateResult> pingCandidates = runPingPhase(
+                    mode,
+                    prepared.availableProfiles
+            );
+
+            List<CandidateResult> rankedCandidates = runDownloadPhase(
+                    mode,
+                    pingCandidates,
+                    prepared.xraySettings,
+                    prepared.byeDpiSettings
+            );
+            if (rankedCandidates.isEmpty()) {
+                throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_stable));
+            }
+
+            int targetCount = getTargetProfileCount(appContext);
+            List<CandidateResult> selectedCandidates = rankedCandidates.size() > targetCount
+                    ? new ArrayList<>(rankedCandidates.subList(0, targetCount))
+                    : rankedCandidates;
+            CandidateResult bestCandidate = chooseBestCandidate(selectedCandidates);
+            if (bestCandidate == null) {
+                throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_stable));
+            }
+
+            persistAutoSearchProfiles(selectedCandidates, prepared.availableProfiles);
+            PendingResult pending = buildPendingResult(session, selectedCandidates, bestCandidate);
+            if (!pending.configurationChanged) {
+                pendingResult = pending;
+                applyPendingConfiguration(true);
+                return;
+            }
+            pendingActionToken = SystemClock.elapsedRealtime();
+            pending.token = pendingActionToken;
+            pendingResult = pending;
+            updateState(State.awaitingApply(
+                    mode,
+                    appContext.getString(
+                            R.string.auto_search_apply_prompt_message,
+                            safeProfileTitle(bestCandidate.profile)
+                    ),
+                    selectedCandidates.size(),
+                    safeProfileTitle(bestCandidate.profile),
+                    pendingActionToken
+            ));
+        } catch (Exception error) {
+            preparedSearch = null;
+            try {
+                restoreOriginalConfiguration(session);
+            } catch (Exception ignored) {
+            }
+            updateState(State.failed(
+                    mode,
+                    appContext.getString(
+                            R.string.auto_search_failed_detail,
+                            firstNonEmpty(error.getMessage(), "unknown error")
+                    )
+            ));
+            running = false;
+        } finally {
+            stopTemporaryByeDpi(byeDpiRunner);
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void stopCurrentRuntime(SearchSession session) throws Exception {
+        updateState(State.running(
+                session.mode,
+                appContext.getString(R.string.auto_search_step_stop),
+                appContext.getString(R.string.auto_search_stop_summary),
+                true,
+                0,
+                0,
+                "",
+                "",
+                0L,
+                0,
+                0
+        ));
+        ProxyTunnelService.requestStop(appContext);
+        XrayVpnService.stopService(appContext);
+        try {
+            XrayBridge.stop();
+        } catch (Exception ignored) {
+        }
+        long deadline = SystemClock.elapsedRealtime() + SERVICE_STOP_TIMEOUT_MS;
+        while (isRuntimeStillStopping() && SystemClock.elapsedRealtime() < deadline) {
+            SystemClock.sleep(SERVICE_STOP_POLL_MS);
+        }
+        if (isRuntimeStillStopping()) {
+            forceStopXrayRuntime();
+            long forceDeadline = SystemClock.elapsedRealtime() + 2_500L;
+            while (isRuntimeStillStopping() && SystemClock.elapsedRealtime() < forceDeadline) {
+                SystemClock.sleep(SERVICE_STOP_POLL_MS);
+            }
+        }
+        if (isRuntimeStillStopping()) {
+            throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_stop_runtime));
+        }
+        SystemClock.sleep(VPN_RELEASE_GRACE_MS);
+    }
+
+    private boolean isRuntimeStillStopping() {
+        boolean xrayRunning = false;
+        try {
+            xrayRunning = XrayBridge.isRunning();
+        } catch (Exception ignored) {
+        }
+        return ProxyTunnelService.isActive()
+                || XrayVpnService.hasActiveTunnel()
+                || XrayVpnService.getServiceNow() != null
+                || xrayRunning;
+    }
+
+    private void forceStopXrayRuntime() {
+        try {
+            XrayBridge.stop();
+        } catch (Exception ignored) {
+        }
+        try {
+            XrayVpnService.forceStopService(appContext);
+        } catch (Exception ignored) {
+        }
+        try {
+            ProxyTunnelService.requestStop(appContext);
+        } catch (Exception ignored) {
+        }
+    }
+
+    @NonNull
+    private List<CandidateResult> runPingPhase(Mode mode,
+                                               List<XrayProfile> profiles) throws Exception {
+        ArrayList<CandidateResult> candidates = new ArrayList<>();
+        int total = profiles.size();
+        ExecutorService tcpingExecutor = Executors.newFixedThreadPool(TCPING_PARALLELISM);
+        ExecutorCompletionService<CandidateResult> completionService =
+                new ExecutorCompletionService<>(tcpingExecutor);
+        for (XrayProfile profile : profiles) {
+            completionService.submit(() -> tcpingCandidate(profile));
+        }
+        int completed = 0;
+        try {
+            while (completed < total) {
+                Future<CandidateResult> future = completionService.take();
+                CandidateResult candidate;
+                try {
+                    candidate = future.get();
+                } catch (Exception ignored) {
+                    candidate = new CandidateResult(null);
+                }
+                completed++;
+                if (candidate.profile != null) {
+                    XrayStore.putProfilePingResult(
+                            appContext,
+                            XrayStore.getProfilePingKey(candidate.profile),
+                            candidate.pingResponsive,
+                            candidate.latencyMs
+                    );
+                    if (candidate.pingResponsive) {
+                        candidates.add(candidate);
+                    }
+                }
+                updateState(State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_ping),
+                        appContext.getString(R.string.auto_search_ping_summary),
+                        false,
+                        completed,
+                        total,
+                        safeProfileTitle(candidate.profile),
+                        candidate.pingResponsive
+                                ? appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs)
+                                : appContext.getString(R.string.auto_search_ping_failed_metric),
+                        0L,
+                        0,
+                        candidate.latencyMs
+                ));
+            }
+        } finally {
+            tcpingExecutor.shutdownNow();
+        }
+        candidates.sort((left, right) -> {
+            int compareLatency = Integer.compare(left.latencyMs, right.latencyMs);
+            if (compareLatency != 0) {
+                return compareLatency;
+            }
+            return safeProfileTitle(left.profile).compareToIgnoreCase(safeProfileTitle(right.profile));
+        });
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_ping));
+        }
+        return candidates;
+    }
+
+    @NonNull
+    private CandidateResult tcpingCandidate(@Nullable XrayProfile profile) {
+        CandidateResult candidate = new CandidateResult(profile);
+        if (profile == null || TextUtils.isEmpty(profile.address) || profile.port <= 0) {
+            return candidate;
+        }
+        long start = System.nanoTime();
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(profile.address, profile.port), getTcpingTimeoutMs(appContext));
+            int elapsedMs = (int) ((System.nanoTime() - start) / 1_000_000L);
+            candidate.latencyMs = Math.max(elapsedMs, 1);
+            candidate.pingResponsive = true;
+            candidate.live = true;
+        } catch (Exception ignored) {
+            candidate.latencyMs = 0;
+            candidate.pingResponsive = false;
+        }
+        return candidate;
+    }
+
+    @NonNull
+    private List<CandidateResult> runDownloadPhase(Mode mode,
+                                                   List<CandidateResult> pingSuccess,
+                                                   XraySettings xraySettings,
+                                                   ByeDpiSettings byeDpiSettings) throws Exception {
+        ArrayList<CandidateResult> stable = new ArrayList<>();
+        ArrayList<CandidateResult> live = new ArrayList<>();
+        int total = pingSuccess.size();
+        int index = 0;
+        for (CandidateResult candidate : pingSuccess) {
+            index++;
+            updateState(State.running(
+                    mode,
+                    appContext.getString(R.string.auto_search_step_download),
+                    appContext.getString(R.string.auto_search_download_summary),
+                    false,
+                    index - 1,
+                    total,
+                    safeProfileTitle(candidate.profile),
+                    appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
+                    0L,
+                    stable.size(),
+                    candidate.latencyMs
+            ));
+            runCandidateDownloadTest(mode, candidate, xraySettings, byeDpiSettings, stable.size());
+            if (candidate.live) {
+                live.add(candidate);
+            } else {
+                updateState(State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_download),
+                        appContext.getString(R.string.auto_search_download_summary),
+                        false,
+                        index,
+                        total,
+                        safeProfileTitle(candidate.profile),
+                        appContext.getString(R.string.auto_search_download_failed_metric),
+                        0L,
+                        stable.size(),
+                        candidate.latencyMs
+                ));
+            }
+            if (candidate.stable) {
+                stable.add(candidate);
+            }
+            if (stable.size() >= getTargetProfileCount(appContext)) {
+                break;
+            }
+        }
+        List<CandidateResult> result = !stable.isEmpty() ? stable : live;
+        result.sort((left, right) -> {
+            int compareBytes = Long.compare(right.downloadedBytes, left.downloadedBytes);
+            if (compareBytes != 0) {
+                return compareBytes;
+            }
+            int compareAttempts = Integer.compare(right.successfulAttempts, left.successfulAttempts);
+            if (compareAttempts != 0) {
+                return compareAttempts;
+            }
+            return Integer.compare(left.latencyMs, right.latencyMs);
+        });
+        return result;
+    }
+
+    private void runCandidateDownloadTest(Mode mode,
+                                          CandidateResult candidate,
+                                          XraySettings xraySettings,
+                                          ByeDpiSettings byeDpiSettings,
+                                          int stableFoundCount) throws Exception {
+        int localPort = findAvailableTcpPort();
+        String configJson = XrayAutoSearchConfigFactory.buildConfigJson(
+                appContext,
+                candidate.profile,
+                xraySettings,
+                localPort,
+                byeDpiSettings,
+                mode == Mode.WHITELIST
+        );
+        int failedAttempts = 0;
+        try {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {
+            }
+            XrayBridge.prepareRuntimeDirect(
+                    xraySettings != null ? xraySettings.remoteDns : null,
+                    xraySettings != null ? xraySettings.directDns : null
+            );
+            XrayBridge.runFromJson(appContext, configJson, 0);
+            waitForLocalProxy(localPort);
+            SystemClock.sleep(XRAY_PROXY_WARMUP_MS);
+            if (candidate.pingResponsive) {
+                candidate.live = true;
+                updateState(State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_preflight),
+                        appContext.getString(R.string.auto_search_preflight_summary),
+                        false,
+                        1,
+                        1,
+                        safeProfileTitle(candidate.profile),
+                        appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
+                        0L,
+                        stableFoundCount,
+                        candidate.latencyMs
+                ));
+            } else {
+                ProbeResult probeResult = ensureTrafficUp(mode, candidate, localPort, stableFoundCount);
+                candidate.live = probeResult.success;
+                if (!probeResult.success) {
+                    return;
+                }
+            }
+            int downloadAttempts = getDownloadAttempts(appContext);
+            long downloadSizeBytes = getDownloadSizeBytes(appContext);
+            long stableBytes = downloadSizeBytes + downloadSizeBytes / 2L;
+            for (int attempt = 1; attempt <= downloadAttempts; attempt++) {
+                if (failedAttempts >= 2) {
+                    break;
+                }
+                DownloadResult result = downloadThroughProxy(mode, candidate, localPort, stableFoundCount);
+                candidate.downloadedBytes += result.bytesRead;
+                candidate.successfulAttempts += result.success ? 1 : 0;
+                candidate.live = candidate.live || result.bytesRead > 0L;
+                candidate.stable = candidate.downloadedBytes >= stableBytes
+                        && candidate.successfulAttempts > 0;
+                if (!result.success) {
+                    failedAttempts++;
+                }
+                if (candidate.stable) {
+                    break;
+                }
+                if (attempt < downloadAttempts) {
+                    SystemClock.sleep(INTER_ATTEMPT_DELAY_MS);
+                }
+            }
+        } finally {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    @NonNull
+    private ProbeResult ensureTrafficUp(Mode mode,
+                                        CandidateResult candidate,
+                                        int localPort,
+                                        int stableFoundCount) {
+        for (String url : TRAFFIC_PROBE_URLS) {
+            updateState(State.running(
+                    mode,
+                    appContext.getString(R.string.auto_search_step_preflight),
+                    appContext.getString(R.string.auto_search_preflight_summary),
+                    false,
+                    0,
+                    TRAFFIC_PROBE_URLS.length,
+                    safeProfileTitle(candidate.profile),
+                    appContext.getString(R.string.auto_search_preflight_checking_metric, url),
+                    0L,
+                    stableFoundCount,
+                    candidate.latencyMs
+            ));
+            ProbeResult result = probeTrafficThroughProxy(localPort, url, candidate.pingResponsive);
+            if (result.success) {
+                updateState(State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_preflight),
+                        appContext.getString(R.string.auto_search_preflight_summary),
+                        false,
+                        1,
+                        1,
+                        safeProfileTitle(candidate.profile),
+                        appContext.getString(R.string.auto_search_preflight_ok_metric, result.responseCode),
+                        0L,
+                        stableFoundCount,
+                        candidate.latencyMs
+                ));
+                return result;
+            }
+        }
+        updateState(State.running(
+                mode,
+                appContext.getString(R.string.auto_search_step_preflight),
+                appContext.getString(R.string.auto_search_preflight_summary),
+                false,
+                1,
+                1,
+                safeProfileTitle(candidate.profile),
+                appContext.getString(R.string.auto_search_preflight_failed_metric),
+                0L,
+                stableFoundCount,
+                candidate.latencyMs
+        ));
+        return ProbeResult.failed();
+    }
+
+    @NonNull
+    private ProbeResult probeTrafficThroughProxy(int localPort,
+                                                 @NonNull String url,
+                                                 boolean responsiveCandidate) {
+        return probeTrafficThroughSocks(
+                "127.0.0.1",
+                localPort,
+                url,
+                responsiveCandidate
+        );
+    }
+
+    @NonNull
+    private ProbeResult probeTrafficThroughSocks(@NonNull String host,
+                                                 int port,
+                                                 @NonNull String url,
+                                                 boolean responsiveCandidate) {
+        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(url).openConnection(proxy);
+            connection.setConnectTimeout(responsiveCandidate
+                    ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS
+                    : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(responsiveCandidate
+                    ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS
+                    : TRAFFIC_PROBE_READ_TIMEOUT_MS);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
+            connection.connect();
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 400) {
+                return ProbeResult.failed();
+            }
+            long bytesRead = 0L;
+            try (java.io.InputStream inputStream = connection.getInputStream()) {
+                byte[] buffer = new byte[1024];
+                while (bytesRead < TRAFFIC_PROBE_MAX_BYTES) {
+                    int remaining = (int) Math.min(buffer.length, TRAFFIC_PROBE_MAX_BYTES - bytesRead);
+                    int read = inputStream.read(buffer, 0, remaining);
+                    if (read == -1) {
+                        break;
+                    }
+                    bytesRead += read;
+                }
+            } catch (Exception ignored) {
+                // 204/empty responses are still valid for traffic-up probing.
+            }
+            return new ProbeResult(true, responseCode, bytesRead);
+        } catch (Exception ignored) {
+            return ProbeResult.failed();
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    @NonNull
+    private DownloadResult downloadThroughProxy(Mode mode,
+                                                CandidateResult candidate,
+                                                int localPort,
+                                                int stableFoundCount) {
+        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", localPort));
+        HttpURLConnection connection = null;
+        long totalBytes = candidate.downloadedBytes;
+        long startedAtMs = SystemClock.elapsedRealtime();
+        long singleSuccessBytes = getDownloadSizeBytes(appContext);
+        long targetBytes = singleSuccessBytes + singleSuccessBytes / 2L;
+        try {
+            connection = (HttpURLConnection) new URL(DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes)
+                    .openConnection(proxy);
+            int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
+            connection.setConnectTimeout(timeoutMs);
+            connection.setReadTimeout(timeoutMs);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
+            connection.connect();
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 400) {
+                return new DownloadResult(false, 0L);
+            }
+            byte[] buffer = new byte[16 * 1024];
+            long attemptBytes = 0L;
+            try (java.io.InputStream inputStream = connection.getInputStream()) {
+                int read;
+                while ((read = inputStream.read(buffer)) != -1) {
+                    attemptBytes += read;
+                    totalBytes += read;
+                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
+                    long speed = attemptBytes * 1000L / elapsedMs;
+                    updateState(State.running(
+                            mode,
+                            appContext.getString(R.string.auto_search_step_download),
+                            appContext.getString(R.string.auto_search_download_summary),
+                            false,
+                            candidate.successfulAttempts,
+                            getDownloadAttempts(appContext),
+                            safeProfileTitle(candidate.profile),
+                            appContext.getString(
+                                    R.string.auto_search_download_metric,
+                                    UiFormatter.formatBytesPerSecond(appContext, speed),
+                                    UiFormatter.formatBytes(appContext, totalBytes)
+                            ),
+                            speed,
+                            stableFoundCount,
+                            candidate.latencyMs
+                    ));
+                    if (totalBytes >= targetBytes) {
+                        return new DownloadResult(true, attemptBytes);
+                    }
+                }
+            }
+            return new DownloadResult(attemptBytes >= singleSuccessBytes, attemptBytes);
+        } catch (Exception ignored) {
+            return new DownloadResult(false, 0L);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void persistAutoSearchProfiles(List<CandidateResult> foundCandidates,
+                                           List<XrayProfile> allProfiles) {
+        ArrayList<XrayProfile> updatedProfiles = new ArrayList<>();
+        LinkedHashMap<String, CandidateResult> candidateByKey = new LinkedHashMap<>();
+        for (CandidateResult candidate : foundCandidates) {
+            candidateByKey.put(candidate.profile.stableDedupKey(), candidate);
+        }
+        for (XrayProfile profile : allProfiles) {
+            String stableKey = profile.stableDedupKey();
+            CandidateResult candidate = candidateByKey.get(stableKey);
+            if (candidate != null) {
+                XrayProfile tagged = new XrayProfile(
+                        profile.id,
+                        profile.title,
+                        profile.rawLink,
+                        AUTOSEARCH_SUBSCRIPTION_ID,
+                        AUTOSEARCH_SUBSCRIPTION_TITLE,
+                        profile.address,
+                        profile.port
+                );
+                updatedProfiles.add(tagged);
+                XrayStore.putProfilePingResult(
+                        appContext,
+                        XrayStore.getProfilePingKey(tagged),
+                        true,
+                        candidate.latencyMs
+                );
+                candidate.profile = tagged;
+            } else {
+                updatedProfiles.add(profile);
+            }
+        }
+        XrayStore.setProfiles(appContext, updatedProfiles);
+    }
+
+    private PendingResult buildPendingResult(SearchSession session,
+                                             List<CandidateResult> foundCandidates,
+                                             CandidateResult bestCandidate) {
+        PendingResult result = new PendingResult();
+        result.mode = session.mode;
+        result.serviceWasActive = session.serviceWasActive;
+        result.originalBackend = session.originalBackend;
+        result.originalActiveProfileId = session.originalActiveProfileId;
+        result.originalByeDpiAutoStart = session.originalByeDpiAutoStart;
+        result.bestProfile = bestCandidate;
+        result.foundProfiles = new ArrayList<>(foundCandidates);
+        result.targetBackend = BackendType.XRAY;
+        result.targetActiveProfileId = bestCandidate.profile.id;
+        result.targetByeDpiAutoStart = session.mode == Mode.WHITELIST;
+        result.configurationChanged = session.originalBackend != result.targetBackend
+                || !TextUtils.equals(session.originalActiveProfileId, result.targetActiveProfileId)
+                || session.originalByeDpiAutoStart != result.targetByeDpiAutoStart;
+        return result;
+    }
+
+    private void applyOrRestoreConfiguration(PendingResult result, boolean apply) {
+        BackendType backendType = apply ? result.targetBackend : result.originalBackend;
+        String activeProfileId = apply ? result.targetActiveProfileId : result.originalActiveProfileId;
+        boolean byeDpiEnabled = apply ? result.targetByeDpiAutoStart : result.originalByeDpiAutoStart;
+
+        XrayStore.setBackendType(appContext, backendType);
+        if (!TextUtils.isEmpty(activeProfileId)) {
+            XrayStore.setActiveProfileId(appContext, activeProfileId);
+        }
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(appContext);
+        preferences.edit()
+                .putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, byeDpiEnabled)
+                .apply();
+
+        if (result.serviceWasActive) {
+            startProxyTunnelService();
+        }
+    }
+
+    private void restoreOriginalConfiguration(SearchSession session) {
+        XrayStore.setBackendType(appContext, session.originalBackend);
+        if (!TextUtils.isEmpty(session.originalActiveProfileId)) {
+            XrayStore.setActiveProfileId(appContext, session.originalActiveProfileId);
+        }
+        PreferenceManager.getDefaultSharedPreferences(appContext)
+                .edit()
+                .putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, session.originalByeDpiAutoStart)
+                .apply();
+        if (session.serviceWasActive) {
+            startProxyTunnelService();
+        }
+    }
+
+    private void startProxyTunnelService() {
+        try {
+            ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
+        } catch (Exception ignored) {
+            try {
+                appContext.startService(ProxyTunnelService.createStartIntent(appContext));
+            } catch (Exception ignoredAgain) {
+            }
+        }
+    }
+
+    private ByeDpiLocalRunner startTemporaryByeDpi(ByeDpiSettings settings) throws Exception {
+        ByeDpiLocalRunner runner = new ByeDpiLocalRunner();
+        try {
+            runner.start(settings, null, BYEDPI_START_TIMEOUT_MS);
+            return runner;
+        } catch (Exception error) {
+            runner.close();
+            throw new IllegalStateException(
+                    appContext.getString(R.string.auto_search_failed_bydpi),
+                    error
+            );
+        }
+    }
+
+    private void warmUpTemporaryByeDpi(Mode mode,
+                                       @Nullable ByeDpiLocalRunner runner) throws Exception {
+        if (runner == null || !runner.isRunning()) {
+            throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_bydpi));
+        }
+        String host = runner.getDialHost();
+        int port = runner.getDialPort();
+        for (int attempt = 1; attempt <= BYEDPI_WARMUP_ATTEMPTS; attempt++) {
+            updateState(State.running(
+                    mode,
+                    appContext.getString(R.string.auto_search_step_bydpi),
+                    appContext.getString(R.string.auto_search_bydpi_summary),
+                    false,
+                    attempt - 1,
+                    BYEDPI_WARMUP_ATTEMPTS,
+                    "",
+                    appContext.getString(R.string.auto_search_preflight_checking_metric, host + ":" + port),
+                    0L,
+                    0,
+                    0
+            ));
+            if (isLocalTcpPortReady(host, port)) {
+                return;
+            }
+            if (attempt < BYEDPI_WARMUP_ATTEMPTS) {
+                SystemClock.sleep(BYEDPI_WARMUP_DELAY_MS);
+            }
+        }
+        throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_bydpi));
+    }
+
+    private void stopTemporaryByeDpi(@Nullable ByeDpiLocalRunner runner) {
+        if (runner == null) {
+            return;
+        }
+        try {
+            runner.close();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void waitForLocalProxy(int port) throws Exception {
+        long deadline = SystemClock.elapsedRealtime() + XRAY_PROXY_START_TIMEOUT_MS;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (isLocalTcpPortReady("127.0.0.1", port)) {
+                return;
+            }
+            SystemClock.sleep(XRAY_PROXY_START_POLL_MS);
+        }
+        throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_local_proxy));
+    }
+
+    private boolean isLocalTcpPortReady(String host, int port) {
+        if (TextUtils.isEmpty(host) || port <= 0) {
+            return false;
+        }
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), 300);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private int findAvailableTcpPort() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            socket.setReuseAddress(true);
+            return socket.getLocalPort();
+        }
+    }
+
+    private CandidateResult chooseBestCandidate(List<CandidateResult> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        return Collections.max(candidates, (left, right) -> {
+            int compareBytes = Long.compare(left.downloadedBytes, right.downloadedBytes);
+            if (compareBytes != 0) {
+                return compareBytes;
+            }
+            int compareAttempts = Integer.compare(left.successfulAttempts, right.successfulAttempts);
+            if (compareAttempts != 0) {
+                return compareAttempts;
+            }
+            return Integer.compare(right.latencyMs, left.latencyMs);
+        });
+    }
+
+    private void updateState(@NonNull State newState) {
+        state = newState;
+        for (Listener listener : listeners) {
+            notifyListener(listener, newState);
+        }
+    }
+
+    private void notifyListener(@NonNull Listener listener, @NonNull State currentState) {
+        MAIN_HANDLER.post(() -> listener.onStateChanged(currentState));
+    }
+
+    @NonNull
+    private static String safeProfileTitle(@Nullable XrayProfile profile) {
+        if (profile == null || TextUtils.isEmpty(profile.title)) {
+            return "";
+        }
+        return profile.title;
+    }
+
+    @NonNull
+    private static String firstNonEmpty(@Nullable String value, @NonNull String fallback) {
+        String normalized = value == null ? "" : value.trim();
+        return normalized.isEmpty() ? fallback : normalized;
+    }
+
+    public interface Listener {
+        void onStateChanged(@NonNull State state);
+    }
+
+    public enum Mode {
+        STANDARD,
+        WHITELIST
+    }
+
+    public enum Status {
+        IDLE,
+        RUNNING,
+        AWAITING_MODE_SELECTION,
+        AWAITING_APPLY,
+        COMPLETED,
+        FAILED
+    }
+
+    public static final class State {
+        public final Status status;
+        public final Mode mode;
+        public final String stepTitle;
+        public final String stepSummary;
+        public final boolean indeterminate;
+        public final int progressCurrent;
+        public final int progressMax;
+        public final String currentProfileTitle;
+        public final String currentMetric;
+        public final long currentSpeedBytesPerSecond;
+        public final int foundProfilesCount;
+        public final int currentLatencyMs;
+        public final long token;
+
+        private State(Status status,
+                      Mode mode,
+                      String stepTitle,
+                      String stepSummary,
+                      boolean indeterminate,
+                      int progressCurrent,
+                      int progressMax,
+                      String currentProfileTitle,
+                      String currentMetric,
+                      long currentSpeedBytesPerSecond,
+                      int foundProfilesCount,
+                      int currentLatencyMs,
+                      long token) {
+            this.status = status;
+            this.mode = mode;
+            this.stepTitle = stepTitle;
+            this.stepSummary = stepSummary;
+            this.indeterminate = indeterminate;
+            this.progressCurrent = progressCurrent;
+            this.progressMax = progressMax;
+            this.currentProfileTitle = currentProfileTitle;
+            this.currentMetric = currentMetric;
+            this.currentSpeedBytesPerSecond = currentSpeedBytesPerSecond;
+            this.foundProfilesCount = foundProfilesCount;
+            this.currentLatencyMs = currentLatencyMs;
+            this.token = token;
+        }
+
+        static State idle() {
+            return new State(Status.IDLE, Mode.STANDARD, "", "", true, 0, 0, "", "", 0L, 0, 0, 0L);
+        }
+
+        static State running(Mode mode,
+                             String stepTitle,
+                             String stepSummary,
+                             boolean indeterminate,
+                             int progressCurrent,
+                             int progressMax,
+                             String currentProfileTitle,
+                             String currentMetric,
+                             long currentSpeedBytesPerSecond,
+                             int foundProfilesCount,
+                             int currentLatencyMs) {
+            return new State(
+                    Status.RUNNING,
+                    mode,
+                    stepTitle,
+                    stepSummary,
+                    indeterminate,
+                    progressCurrent,
+                    progressMax,
+                    currentProfileTitle,
+                    currentMetric,
+                    currentSpeedBytesPerSecond,
+                    foundProfilesCount,
+                    currentLatencyMs,
+                    0L
+            );
+        }
+
+        static State awaitingApply(Mode mode,
+                                   String message,
+                                   int foundProfilesCount,
+                                   String currentProfileTitle,
+                                   long token) {
+            return new State(
+                    Status.AWAITING_APPLY,
+                    mode,
+                    "",
+                    message,
+                    true,
+                    0,
+                    0,
+                    currentProfileTitle,
+                    "",
+                    0L,
+                    foundProfilesCount,
+                    0,
+                    token
+            );
+        }
+
+        static State awaitingModeSelection(String message,
+                                           int foundProfilesCount,
+                                           long token) {
+            return new State(
+                    Status.AWAITING_MODE_SELECTION,
+                    null,
+                    "",
+                    message,
+                    true,
+                    0,
+                    0,
+                    "",
+                    "",
+                    0L,
+                    foundProfilesCount,
+                    0,
+                    token
+            );
+        }
+
+        static State completed(Mode mode,
+                               String message,
+                               int foundProfilesCount,
+                               String currentProfileTitle) {
+            return new State(
+                    Status.COMPLETED,
+                    mode,
+                    "",
+                    message,
+                    true,
+                    0,
+                    0,
+                    currentProfileTitle,
+                    "",
+                    0L,
+                    foundProfilesCount,
+                    0,
+                    0L
+            );
+        }
+
+        static State failed(Mode mode, String message) {
+            return new State(
+                    Status.FAILED,
+                    mode,
+                    "",
+                    message,
+                    true,
+                    0,
+                    0,
+                    "",
+                    "",
+                    0L,
+                    0,
+                    0,
+                    0L
+            );
+        }
+    }
+
+    private static final class SearchSession {
+        Mode mode;
+        BackendType originalBackend;
+        String originalActiveProfileId;
+        boolean originalByeDpiAutoStart;
+        boolean serviceWasActive;
+        List<XrayProfile> originalProfiles = Collections.emptyList();
+    }
+
+    private static final class PreparedSearch {
+        final SearchSession session;
+        final List<XrayProfile> availableProfiles;
+        final XraySettings xraySettings;
+        final ByeDpiSettings byeDpiSettings;
+        long token;
+
+        PreparedSearch(SearchSession session,
+                       List<XrayProfile> availableProfiles,
+                       XraySettings xraySettings,
+                       ByeDpiSettings byeDpiSettings) {
+            this.session = session;
+            this.availableProfiles = availableProfiles != null
+                    ? new ArrayList<>(availableProfiles)
+                    : Collections.emptyList();
+            this.xraySettings = xraySettings != null ? xraySettings : new XraySettings();
+            this.byeDpiSettings = byeDpiSettings != null ? byeDpiSettings : new ByeDpiSettings();
+        }
+    }
+
+    private static final class PendingResult {
+        Mode mode;
+        boolean serviceWasActive;
+        BackendType originalBackend;
+        String originalActiveProfileId;
+        boolean originalByeDpiAutoStart;
+        BackendType targetBackend;
+        String targetActiveProfileId;
+        boolean targetByeDpiAutoStart;
+        boolean configurationChanged;
+        CandidateResult bestProfile;
+        List<CandidateResult> foundProfiles = Collections.emptyList();
+        long token;
+    }
+
+    private static final class CandidateResult {
+        XrayProfile profile;
+        int latencyMs;
+        boolean pingResponsive;
+        long downloadedBytes;
+        int successfulAttempts;
+        boolean live;
+        boolean stable;
+
+        CandidateResult(XrayProfile profile) {
+            this.profile = profile;
+        }
+    }
+
+    private static final class DownloadResult {
+        final boolean success;
+        final long bytesRead;
+
+        DownloadResult(boolean success, long bytesRead) {
+            this.success = success;
+            this.bytesRead = Math.max(0L, bytesRead);
+        }
+    }
+
+    private static final class ProbeResult {
+        final boolean success;
+        final int responseCode;
+        final long bytesRead;
+
+        ProbeResult(boolean success, int responseCode, long bytesRead) {
+            this.success = success;
+            this.responseCode = responseCode;
+            this.bytesRead = Math.max(0L, bytesRead);
+        }
+
+        static ProbeResult failed() {
+            return new ProbeResult(false, 0, 0L);
+        }
+    }
+}

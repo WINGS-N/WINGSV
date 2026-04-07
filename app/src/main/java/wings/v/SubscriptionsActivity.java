@@ -17,6 +17,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatCheckBox;
+import androidx.preference.PreferenceManager;
 
 import java.text.DateFormat;
 import java.util.ArrayList;
@@ -27,6 +28,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import wings.v.core.Haptics;
+import wings.v.core.AppPrefs;
+import wings.v.core.SubscriptionHwidStore;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XraySubscription;
 import wings.v.core.XraySubscriptionUpdater;
@@ -67,6 +70,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         binding.rowAddSubscription.setTitle(getString(R.string.xray_subscriptions_add_title));
         binding.rowAddSubscription.setSummary(getString(R.string.xray_subscriptions_add_summary));
         binding.rowSubscriptionRefreshInterval.setTitle(getString(R.string.xray_subscriptions_refresh_interval_title));
+        binding.rowSubscriptionHwid.setTitle(getString(R.string.subscription_hwid_title));
         binding.rowRefreshSubscriptionsNow.setTitle(getString(R.string.xray_subscriptions_refresh_now_title));
         binding.rowRefreshSubscriptionsNow.setSummary(getString(R.string.xray_subscriptions_refresh_now_summary));
 
@@ -77,6 +81,10 @@ public class SubscriptionsActivity extends AppCompatActivity {
         binding.rowSubscriptionRefreshInterval.setOnClickListener(view -> {
             Haptics.softSelection(view);
             showRefreshIntervalDialog();
+        });
+        binding.rowSubscriptionHwid.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            startActivity(SubscriptionHwidSettingsActivity.createIntent(this));
         });
         binding.rowRefreshSubscriptionsNow.setOnClickListener(view -> {
             Haptics.softSelection(view);
@@ -117,6 +125,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
     }
 
     private void refreshUi() {
+        refreshSubscriptionHwidRow();
         int refreshIntervalHours = XrayStore.getRefreshIntervalHours(this);
         binding.rowSubscriptionRefreshInterval.setSummary(
                 getString(R.string.xray_subscriptions_refresh_interval_summary, refreshIntervalHours)
@@ -187,6 +196,21 @@ public class SubscriptionsActivity extends AppCompatActivity {
         updateRefreshStateUi();
         updateSelectionUi();
         updateAllRowStates();
+    }
+
+    private void refreshSubscriptionHwidRow() {
+        SubscriptionHwidStore.SettingsModel settings = SubscriptionHwidStore.getSettings(this);
+        binding.rowSubscriptionHwid.setSummary(SubscriptionHwidStore.getSubscriptionsRowSummary(this));
+        binding.switchSubscriptionHwid.setOnCheckedChangeListener(null);
+        binding.switchSubscriptionHwid.setChecked(settings.enabled);
+        binding.switchSubscriptionHwid.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Haptics.softSliderStep(buttonView);
+            PreferenceManager.getDefaultSharedPreferences(this)
+                    .edit()
+                    .putBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, isChecked)
+                    .apply();
+            refreshSubscriptionHwidRow();
+        });
     }
 
     private void showSubscriptionDialog(@Nullable XraySubscription existing) {

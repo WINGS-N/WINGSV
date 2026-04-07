@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="@string/subscription_hwid_category" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_subscription_hwid_enabled"
+        android:title="@string/subscription_hwid_enabled_title"
+        android:summary="@string/subscription_hwid_enabled_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_subscription_hwid_manual_enabled"
+        android:title="@string/subscription_hwid_manual_title"
+        android:summary="@string/subscription_hwid_manual_summary"
+        android:defaultValue="false" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/subscription_hwid_values_category" />
+
+    <EditTextPreference
+        android:key="pref_subscription_hwid_value"
+        android:title="HWID"
+        app:useSimpleSummaryProvider="false" />
+
+    <EditTextPreference
+        android:key="pref_subscription_hwid_device_os"
+        android:title="DEVICE OS"
+        app:useSimpleSummaryProvider="false" />
+
+    <EditTextPreference
+        android:key="pref_subscription_hwid_ver_os"
+        android:title="VER OS"
+        app:useSimpleSummaryProvider="false" />
+
+    <EditTextPreference
+        android:key="pref_subscription_hwid_device_model"
+        android:title="DEVICE MODEL"
+        app:useSimpleSummaryProvider="false" />
+
+</PreferenceScreen>

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
 import wings.v.core.XraySettings;
@@ -20,6 +21,8 @@ public final class XrayConfigFactory {
     private static final String TUN_TAG = "tun-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String PROXY_TAG = "proxy";
+    private static final String BYEDPI_FRONT_TAG = "byedpi-front";
+    private static final String DNS_TAG = "dns-internal";
     private static final String DNS_OUT_TAG = "dns-out";
     private static final String DIRECT_TAG = "direct";
     private static final String BLOCK_TAG = "block";
@@ -53,7 +56,12 @@ public final class XrayConfigFactory {
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
         root.put("inbounds", buildInbounds(xraySettings));
-        root.put("outbounds", buildOutbounds(proxyOutbound));
+        root.put("outbounds", buildOutbounds(
+                proxyOutbound,
+                xraySettings,
+                settings.activeXrayProfile,
+                settings.byeDpiSettings
+        ));
         root.put("routing", buildRouting(xraySettings));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
@@ -104,8 +112,11 @@ public final class XrayConfigFactory {
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();
             }
+            if (file.exists() && !file.delete()) {
+                // fall through to overwrite if delete is blocked
+            }
             try (FileOutputStream ignored = new FileOutputStream(file, false)) {
-                // truncate on each startup to keep xray logs session-scoped
+                // recreate on each startup to keep xray logs session-scoped
             }
         } catch (Exception ignored) {
         }
@@ -113,6 +124,7 @@ public final class XrayConfigFactory {
 
     private static JSONObject buildDns(XraySettings settings) throws Exception {
         JSONObject dns = new JSONObject();
+        dns.put("tag", DNS_TAG);
         JSONArray servers = new JSONArray();
         addDnsServer(servers, settings.remoteDns);
         addDnsServer(servers, settings.directDns);
@@ -187,8 +199,21 @@ public final class XrayConfigFactory {
         return inbounds;
     }
 
-    private static JSONArray buildOutbounds(JSONObject proxyOutbound) throws Exception {
+    private static JSONArray buildOutbounds(JSONObject proxyOutbound,
+                                            XraySettings xraySettings,
+                                            XrayProfile activeProfile,
+                                            ByeDpiSettings byeDpiSettings) throws Exception {
         JSONArray outbounds = new JSONArray();
+        boolean useByeDpiFrontProxy = byeDpiSettings != null
+                && byeDpiSettings.launchOnXrayStart;
+        if (useByeDpiFrontProxy) {
+            proxyOutbound.put(
+                    "proxySettings",
+                    new JSONObject()
+                            .put("tag", BYEDPI_FRONT_TAG)
+                            .put("transportLayer", true)
+            );
+        }
         outbounds.put(proxyOutbound);
 
         JSONObject dnsOutbound = new JSONObject();
@@ -208,6 +233,21 @@ public final class XrayConfigFactory {
         block.put("tag", BLOCK_TAG);
         block.put("protocol", "blackhole");
         outbounds.put(block);
+
+        if (useByeDpiFrontProxy) {
+            JSONObject byeDpiFrontOutbound = new JSONObject();
+            byeDpiFrontOutbound.put("tag", BYEDPI_FRONT_TAG);
+            byeDpiFrontOutbound.put("protocol", "socks");
+            JSONObject settings = new JSONObject();
+            JSONArray servers = new JSONArray();
+            JSONObject server = new JSONObject();
+            server.put("address", byeDpiSettings.resolveRuntimeDialHost());
+            server.put("port", byeDpiSettings.resolveRuntimeListenPort());
+            servers.put(server);
+            settings.put("servers", servers);
+            byeDpiFrontOutbound.put("settings", settings);
+            outbounds.put(byeDpiFrontOutbound);
+        }
         return outbounds;
     }
 
@@ -228,6 +268,12 @@ public final class XrayConfigFactory {
         dnsRule.put("port", "53");
         dnsRule.put("outboundTag", DNS_OUT_TAG);
         rules.put(dnsRule);
+
+        JSONObject internalDnsRule = new JSONObject();
+        internalDnsRule.put("type", "field");
+        internalDnsRule.put("inboundTag", new JSONArray().put(DNS_TAG));
+        internalDnsRule.put("outboundTag", DIRECT_TAG);
+        rules.put(internalDnsRule);
 
         JSONObject trafficRule = new JSONObject();
         trafficRule.put("type", "field");
@@ -257,7 +303,7 @@ public final class XrayConfigFactory {
         return sniffing;
     }
 
-    private static void applySecurityOverrides(JSONObject outbound, XraySettings settings) throws Exception {
+    static void applySecurityOverrides(JSONObject outbound, XraySettings settings) throws Exception {
         if (!settings.allowInsecure) {
             return;
         }
@@ -271,7 +317,7 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static void sanitizeOutbound(JSONObject outbound, XrayProfile activeProfile) throws Exception {
+    static void sanitizeOutbound(JSONObject outbound, XrayProfile activeProfile) throws Exception {
         pruneJsonObject(outbound);
         JSONObject streamSettings = outbound.optJSONObject("streamSettings");
         if (streamSettings == null) {
@@ -335,7 +381,7 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static String resolveFallbackServerName(JSONObject outbound, XrayProfile activeProfile) {
+    static String resolveFallbackServerName(JSONObject outbound, XrayProfile activeProfile) {
         if (activeProfile != null && !TextUtils.isEmpty(trim(activeProfile.address))) {
             return trim(activeProfile.address);
         }
@@ -360,7 +406,7 @@ public final class XrayConfigFactory {
         return "";
     }
 
-    private static void pruneJsonObject(JSONObject object) throws Exception {
+    static void pruneJsonObject(JSONObject object) throws Exception {
         List<String> keys = new ArrayList<>();
         Iterator<String> iterator = object.keys();
         while (iterator.hasNext()) {
@@ -394,7 +440,7 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static void pruneJsonArray(JSONArray array) throws Exception {
+    static void pruneJsonArray(JSONArray array) throws Exception {
         for (int index = array.length() - 1; index >= 0; index--) {
             Object value = array.opt(index);
             if (value == null || value == JSONObject.NULL) {
@@ -423,13 +469,13 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static void removeKeys(JSONObject object, String... keys) {
+    static void removeKeys(JSONObject object, String... keys) {
         for (String key : keys) {
             object.remove(key);
         }
     }
 
-    private static String trim(String value) {
+    static String trim(String value) {
         return value == null ? "" : value.trim();
     }
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_profile_share_format_wingsv"
+        android:title="@string/xray_profiles_share_format_wingsv" />
+
+    <item
+        android:id="@+id/menu_profile_share_format_vless"
+        android:title="@string/xray_profiles_share_format_vless" />
+
+</menu>

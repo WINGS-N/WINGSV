@@ -24,6 +24,7 @@
             android:paddingTop="10dp">
 
             <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:id="@+id/card_app_header"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="?android:colorBackground"
