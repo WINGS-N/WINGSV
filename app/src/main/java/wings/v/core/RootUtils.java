@@ -47,8 +47,7 @@ public final class RootUtils {
     public static boolean isRootModeSupported(Context context,
                                               BackendType backendType,
                                               boolean refreshAccess) {
-        boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
-        return rootGranted && isBackendRootCapable(backendType);
+        return refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
     }
 
     public static String getRootModeUnavailableReason(Context context) {
@@ -66,20 +65,29 @@ public final class RootUtils {
         if (!rootGranted) {
             return "Root-доступ не подтверждён";
         }
-        if (!isBackendRootCapable(backendType)) {
-            return "Kernel WireGuard недоступен на этом устройстве";
-        }
         return null;
     }
 
-    private static boolean isBackendRootCapable(BackendType backendType) {
-        if (backendType == BackendType.XRAY) {
-            return true;
+    public static boolean isKernelWireGuardSupported(Context context,
+                                                     BackendType backendType,
+                                                     boolean refreshAccess) {
+        return TextUtils.isEmpty(getKernelWireGuardUnavailableReason(context, backendType, refreshAccess));
+    }
+
+    public static String getKernelWireGuardUnavailableReason(Context context,
+                                                             BackendType backendType,
+                                                             boolean refreshAccess) {
+        boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
+        if (!rootGranted) {
+            return "Root-доступ не подтверждён";
         }
-        if (backendType == BackendType.AMNEZIAWG) {
-            return false;
+        if (backendType != BackendType.VK_TURN_WIREGUARD) {
+            return "Доступно только для VK TURN + WireGuard";
         }
-        return WgQuickBackend.hasKernelSupport();
+        if (!WgQuickBackend.hasKernelSupport()) {
+            return "Kernel WireGuard недоступен на этом устройстве";
+        }
+        return null;
     }
 
     public static boolean isRootInterfaceAlive(Context context, String interfaceName) {

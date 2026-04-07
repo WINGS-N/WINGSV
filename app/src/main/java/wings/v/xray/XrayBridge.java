@@ -11,11 +11,19 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import libXray.DialerController;
 import libXray.LibXray;
 import wings.v.service.XrayVpnService;
 
 public final class XrayBridge {
     private static final AtomicBoolean LOADED = new AtomicBoolean();
+    private static final Object JNI_LOCK = new Object();
+    private static final DialerController DIRECT_NETWORK_CONTROLLER = new DialerController() {
+        @Override
+        public boolean protectFd(long fd) {
+            return true;
+        }
+    };
 
     private XrayBridge() {
     }
@@ -24,57 +32,104 @@ public final class XrayBridge {
                                                    String remoteDns,
                                                    String directDns) {
         ensureLoaded();
-        if (vpnService == null) {
-            throw new IllegalStateException("Xray VpnService не готов");
+        synchronized (JNI_LOCK) {
+            if (vpnService == null) {
+                throw new IllegalStateException("Xray VpnService не готов");
+            }
+            LibXray.registerDialerController(vpnService);
+            LibXray.registerListenerController(vpnService);
+            String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
+            if (!TextUtils.isEmpty(runtimeDns)) {
+                LibXray.initDns(vpnService, runtimeDns);
+            } else {
+                LibXray.resetDns();
+            }
         }
-        LibXray.registerDialerController(vpnService);
-        LibXray.registerListenerController(vpnService);
-        String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
-        if (!TextUtils.isEmpty(runtimeDns)) {
-            LibXray.initDns(vpnService, runtimeDns);
-        } else {
-            LibXray.resetDns();
+    }
+
+    public static synchronized void prepareRuntimeDirect(String remoteDns, String directDns) {
+        ensureLoaded();
+        synchronized (JNI_LOCK) {
+            LibXray.registerDialerController(DIRECT_NETWORK_CONTROLLER);
+            LibXray.registerListenerController(DIRECT_NETWORK_CONTROLLER);
+            String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
+            if (!TextUtils.isEmpty(runtimeDns)) {
+                LibXray.initDns(DIRECT_NETWORK_CONTROLLER, runtimeDns);
+            } else {
+                LibXray.resetDns();
+            }
         }
     }
 
     public static String convertShareLinkToOutboundJson(String rawLink) throws Exception {
         ensureLoaded();
-        String request = Base64.encodeToString(
-                rawLink.getBytes(StandardCharsets.UTF_8),
-                Base64.NO_WRAP
-        );
-        JSONObject response = decodeResponse(LibXray.convertShareLinksToXrayJson(request));
-        Object data = response.opt("data");
-        if (data instanceof JSONObject) {
-            return ((JSONObject) data).toString();
+        synchronized (JNI_LOCK) {
+            String request = Base64.encodeToString(
+                    rawLink.getBytes(StandardCharsets.UTF_8),
+                    Base64.NO_WRAP
+            );
+            JSONObject response = decodeResponse(LibXray.convertShareLinksToXrayJson(request));
+            Object data = response.opt("data");
+            if (data instanceof JSONObject) {
+                return ((JSONObject) data).toString();
+            }
+            if (data != null) {
+                return String.valueOf(data);
+            }
+            throw new IllegalStateException("libXray вернул пустой outbound config");
         }
-        if (data != null) {
-            return String.valueOf(data);
-        }
-        throw new IllegalStateException("libXray вернул пустой outbound config");
     }
 
     public static void runFromJson(Context context, String configJson, int tunFd) throws Exception {
         ensureLoaded();
-        File datDir = ensureDatDir(context);
-        String request = LibXray.newXrayRunFromJSONRequest(
-                datDir.getAbsolutePath(),
-                "",
-                configJson,
-                tunFd
-        );
-        decodeResponse(LibXray.runXrayFromJSON(request));
+        synchronized (JNI_LOCK) {
+            File datDir = ensureDatDir(context);
+            String request = LibXray.newXrayRunFromJSONRequest(
+                    datDir.getAbsolutePath(),
+                    "",
+                    configJson,
+                    tunFd
+            );
+            decodeResponse(LibXray.runXrayFromJSON(request));
+        }
+    }
+
+    public static long pingConfig(Context context,
+                                  File configFile,
+                                  int timeoutSeconds,
+                                  String url,
+                                  String proxy) throws Exception {
+        ensureLoaded();
+        synchronized (JNI_LOCK) {
+            File datDir = ensureDatDir(context);
+            JSONObject request = new JSONObject();
+            request.put("datDir", datDir.getAbsolutePath());
+            request.put("configPath", configFile.getAbsolutePath());
+            request.put("timeout", timeoutSeconds);
+            request.put("url", url);
+            request.put("proxy", proxy);
+            String encodedRequest = Base64.encodeToString(
+                    request.toString().getBytes(StandardCharsets.UTF_8),
+                    Base64.NO_WRAP
+            );
+            JSONObject response = decodeResponse(LibXray.ping(encodedRequest));
+            return response.optLong("data", 0L);
+        }
     }
 
     public static void stop() throws Exception {
         ensureLoaded();
-        decodeResponse(LibXray.stopXray());
-        LibXray.resetDns();
+        synchronized (JNI_LOCK) {
+            decodeResponse(LibXray.stopXray());
+            LibXray.resetDns();
+        }
     }
 
     public static boolean isRunning() {
         ensureLoaded();
-        return LibXray.getXrayState();
+        synchronized (JNI_LOCK) {
+            return LibXray.getXrayState();
+        }
     }
 
     private static File ensureDatDir(Context context) {

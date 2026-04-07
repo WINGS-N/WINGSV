@@ -23,6 +23,51 @@
         <item>xray</item>
     </string-array>
 
+    <string-array name="active_probing_fallback_backend_entries">
+        <item>@string/backend_vk_turn_wireguard_title</item>
+        <item>@string/backend_amneziawg_title</item>
+    </string-array>
+
+    <string-array name="active_probing_fallback_backend_values">
+        <item>vk_turn_wireguard</item>
+        <item>amneziawg</item>
+    </string-array>
+
+    <string-array name="active_probing_default_urls">
+        <item>https://1.1.1.1</item>
+        <item>https://github.com</item>
+    </string-array>
+
+    <string-array name="byedpi_hosts_mode_entries">
+        <item>@string/byedpi_hosts_mode_disable</item>
+        <item>@string/byedpi_hosts_mode_blacklist</item>
+        <item>@string/byedpi_hosts_mode_whitelist</item>
+    </string-array>
+
+    <string-array name="byedpi_hosts_mode_values">
+        <item>disable</item>
+        <item>blacklist</item>
+        <item>whitelist</item>
+    </string-array>
+
+    <string-array name="byedpi_desync_method_entries">
+        <item>@string/byedpi_desync_method_none</item>
+        <item>@string/byedpi_desync_method_split</item>
+        <item>@string/byedpi_desync_method_disorder</item>
+        <item>@string/byedpi_desync_method_fake</item>
+        <item>@string/byedpi_desync_method_oob</item>
+        <item>@string/byedpi_desync_method_disoob</item>
+    </string-array>
+
+    <string-array name="byedpi_desync_method_values">
+        <item>none</item>
+        <item>split</item>
+        <item>disorder</item>
+        <item>fake</item>
+        <item>oob</item>
+        <item>disoob</item>
+    </string-array>
+
     <string-array name="sharing_masquerade_entries">
         <item>@string/sharing_masquerade_none</item>
         <item>@string/sharing_masquerade_simple</item>

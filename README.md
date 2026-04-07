@@ -9,7 +9,7 @@
 
 ## Что умеет
 
-- запускать и останавливать `VK TURN + WireGuard`, `Xray / VLESS` и `AmneziaWG`
+- запускать и останавливать `VK TURN + WireGuard`, `Xray / VLESS` и `VK TURN + AmneziaWG`
 - показывать статус подключения, IP, страну, провайдера и сетевую статистику
 - работать в обычном VPN режиме через `VpnService`
 - работать в root режиме для `VK TURN + WireGuard`
@@ -30,7 +30,7 @@
 - Внутри могут храниться:
   - `VK TURN + WireGuard` настройки
   - `Xray` профили и подписки
-  - `AmneziaWG` конфиг
+  - `VK TURN + AmneziaWG` конфиг
 - Старый JSON вариант - legacy
 
 ## Что используется
@@ -40,7 +40,7 @@
 - `com.wireguard.android:tunnel` для WireGuard
 - `external/vk-turn-proxy` для native `VK TURN` клиента
 - `external/libXray` + `external/Xray-core` для `Xray`
-- `external/amneziawg-android` для `AmneziaWG`
+- `external/amneziawg-android` для `VK TURN + AmneziaWG`
 - `external/VPNHotspot` для root раздачи
 
 ## Сборка

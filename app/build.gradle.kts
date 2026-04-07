@@ -23,6 +23,10 @@ val vkTurnProtoSourceDir = vkTurnRepoDir.resolve("proto")
 val vkTurnGeneratedProtoGo = vkTurnRepoDir.resolve("sessionproto/session.pb.go")
 val generatedVkTurnJniLibsDir = layout.buildDirectory.dir("generated/vkturn/jniLibs")
 val generatedVkTurnBinary = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
+val byeDpiRepoDir = rootProject.file("external/byedpi")
+val byeDpiNativeSourceDir = project.file("src/main/byedpi")
+val generatedByeDpiJniLibsDir = layout.buildDirectory.dir("generated/byedpi/jniLibs")
+val generatedByeDpiBinary = generatedByeDpiJniLibsDir.map { File(it.asFile, "arm64-v8a/libbyedpi.so") }
 val libXrayRepoDir = rootProject.file("external/libXray")
 val generatedLibXrayDir = layout.buildDirectory.dir("generated/xray")
 val generatedLibXrayWorkDir = generatedLibXrayDir.map { File(it.asFile, "work") }
@@ -129,6 +133,40 @@ val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
             "-o",
             outputFile.absolutePath,
             "./client"
+        )
+    }
+}
+
+val buildByeDpiArm64 by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Builds libbyedpi.so from external/byedpi for Android arm64 via ndk-build."
+
+    inputs.files(fileTree(byeDpiRepoDir) {
+        exclude(".git/**")
+        exclude("**/build/**")
+    })
+    inputs.files(fileTree(byeDpiNativeSourceDir) {
+        exclude("**/build/**")
+    })
+    outputs.file(generatedByeDpiBinary)
+
+    doFirst {
+        check(byeDpiRepoDir.isDirectory) {
+            "ByeDPI submodule not found at ${byeDpiRepoDir.absolutePath}. Run git submodule update --init --recursive."
+        }
+        check(byeDpiNativeSourceDir.isDirectory) {
+            "ByeDPI native sources not found at ${byeDpiNativeSourceDir.absolutePath}."
+        }
+
+        val outputDir = generatedByeDpiJniLibsDir.get().asFile
+        outputDir.mkdirs()
+        workingDir = projectDir
+        commandLine(
+            resolveAndroidNdkDir().resolve("ndk-build").absolutePath,
+            "NDK_PROJECT_PATH=${layout.buildDirectory.dir("intermediates/ndkBuildByeDpi").get().asFile.absolutePath}",
+            "NDK_LIBS_OUT=${outputDir.absolutePath}",
+            "APP_BUILD_SCRIPT=${byeDpiNativeSourceDir.resolve("Android.mk").absolutePath}",
+            "NDK_APPLICATION_MK=${byeDpiNativeSourceDir.resolve("Application.mk").absolutePath}"
         )
     }
 }
@@ -288,8 +326,8 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 211
-        versionName = "2.1.1"
+        versionCode = 300
+        versionName = "3.0.0"
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -315,7 +353,10 @@ android {
     }
 
     sourceSets.getByName("main") {
-        jniLibs.setSrcDirs(listOf(generatedVkTurnJniLibsDir.get().asFile))
+        jniLibs.setSrcDirs(listOf(
+            generatedVkTurnJniLibsDir.get().asFile,
+            generatedByeDpiJniLibsDir.get().asFile
+        ))
         java.setSrcDirs(listOf("src/main/java", generatedProtoJavaDir.get().asFile))
     }
 
@@ -343,7 +384,13 @@ android {
 }
 
 tasks.named("preBuild") {
-    dependsOn(generateVkTurnProxyProtoGo, buildVkTurnProxyArm64, generateWingsProtoJava, buildLibXrayAndroidAar)
+    dependsOn(
+        generateVkTurnProxyProtoGo,
+        buildVkTurnProxyArm64,
+        buildByeDpiArm64,
+        generateWingsProtoJava,
+        buildLibXrayAndroidAar
+    )
 }
 
 dependencies {

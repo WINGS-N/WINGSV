@@ -10,7 +10,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -132,6 +134,27 @@ public final class XrayStore {
                 .apply();
     }
 
+    public static void ensureDefaultSubscriptionPresent(Context context) {
+        if (context == null) {
+            return;
+        }
+        List<XraySubscription> subscriptions = getSubscriptions(context);
+        if (hasSubscriptionWithUrl(subscriptions, DEFAULT_SUBSCRIPTION_URL)) {
+            return;
+        }
+        ArrayList<XraySubscription> updated = new ArrayList<>(subscriptions);
+        updated.add(new XraySubscription(
+                null,
+                DEFAULT_SUBSCRIPTION_TITLE,
+                DEFAULT_SUBSCRIPTION_URL,
+                "auto",
+                getRefreshIntervalHours(context),
+                true,
+                0L
+        ));
+        setSubscriptions(context, updated);
+    }
+
     public static List<XrayProfile> getProfiles(Context context) {
         ArrayList<XrayProfile> result = new ArrayList<>();
         JSONArray array = parseArray(prefs(context).getString(AppPrefs.KEY_XRAY_PROFILES_JSON, "[]"));
@@ -165,6 +188,139 @@ public final class XrayStore {
             }
         }
         prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILES_JSON, array.toString()).apply();
+        pruneProfileTrafficStats(context, collectProfileIds(deduped.values()));
+        pruneProfilePingResults(context, collectProfilePingKeys(deduped.values()));
+    }
+
+    public static String getProfilePingKey(XrayProfile profile) {
+        if (profile == null) {
+            return "";
+        }
+        String subscriptionId = TextUtils.isEmpty(profile.subscriptionId) ? "__manual__" : trim(profile.subscriptionId);
+        return subscriptionId + "|" + profile.stableDedupKey();
+    }
+
+    public static Map<String, ProfileTrafficStats> getProfileTrafficStatsMap(Context context) {
+        LinkedHashMap<String, ProfileTrafficStats> result = new LinkedHashMap<>();
+        JSONObject object = parseObject(prefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, "{}"));
+        if (object == null) {
+            return result;
+        }
+        JSONArray names = object.names();
+        if (names == null) {
+            return result;
+        }
+        for (int index = 0; index < names.length(); index++) {
+            String profileId = trim(names.optString(index));
+            if (TextUtils.isEmpty(profileId)) {
+                continue;
+            }
+            JSONObject entry = object.optJSONObject(profileId);
+            if (entry == null) {
+                continue;
+            }
+            result.put(profileId, new ProfileTrafficStats(
+                    Math.max(0L, entry.optLong("rx", 0L)),
+                    Math.max(0L, entry.optLong("tx", 0L))
+            ));
+        }
+        return result;
+    }
+
+    public static ProfileTrafficStats getProfileTrafficStats(Context context, String profileId) {
+        if (TextUtils.isEmpty(trim(profileId))) {
+            return ProfileTrafficStats.ZERO;
+        }
+        ProfileTrafficStats stats = getProfileTrafficStatsMap(context).get(trim(profileId));
+        return stats != null ? stats : ProfileTrafficStats.ZERO;
+    }
+
+    public static void addProfileTrafficDelta(Context context, String profileId, long rxDelta, long txDelta) {
+        String normalizedProfileId = trim(profileId);
+        long safeRxDelta = Math.max(0L, rxDelta);
+        long safeTxDelta = Math.max(0L, txDelta);
+        if (TextUtils.isEmpty(normalizedProfileId) || (safeRxDelta == 0L && safeTxDelta == 0L)) {
+            return;
+        }
+        Map<String, ProfileTrafficStats> current = getProfileTrafficStatsMap(context);
+        ProfileTrafficStats previous = current.get(normalizedProfileId);
+        long nextRx = safeRxDelta + (previous != null ? previous.rxBytes : 0L);
+        long nextTx = safeTxDelta + (previous != null ? previous.txBytes : 0L);
+        current.put(normalizedProfileId, new ProfileTrafficStats(nextRx, nextTx));
+        writeProfileTrafficStats(context, current);
+    }
+
+    public static void resetProfileTrafficStats(Context context, Collection<String> profileIds) {
+        if (profileIds == null || profileIds.isEmpty()) {
+            return;
+        }
+        Map<String, ProfileTrafficStats> current = getProfileTrafficStatsMap(context);
+        boolean changed = false;
+        for (String profileId : profileIds) {
+            String normalizedProfileId = trim(profileId);
+            if (TextUtils.isEmpty(normalizedProfileId)) {
+                continue;
+            }
+            changed |= current.remove(normalizedProfileId) != null;
+        }
+        if (changed) {
+            writeProfileTrafficStats(context, current);
+        }
+    }
+
+    public static Map<String, ProfilePingResult> getProfilePingResultsMap(Context context) {
+        LinkedHashMap<String, ProfilePingResult> result = new LinkedHashMap<>();
+        JSONObject object = parseObject(prefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, "{}"));
+        if (object == null) {
+            return result;
+        }
+        JSONArray names = object.names();
+        if (names == null) {
+            return result;
+        }
+        for (int index = 0; index < names.length(); index++) {
+            String profilePingKey = trim(names.optString(index));
+            if (TextUtils.isEmpty(profilePingKey)) {
+                continue;
+            }
+            JSONObject entry = object.optJSONObject(profilePingKey);
+            if (entry == null) {
+                continue;
+            }
+            result.put(profilePingKey, new ProfilePingResult(
+                    entry.optBoolean("success", false),
+                    Math.max(0, entry.optInt("latency_ms", 0))
+            ));
+        }
+        return result;
+    }
+
+    public static void putProfilePingResult(Context context, String profilePingKey, boolean success, int latencyMs) {
+        String normalizedKey = trim(profilePingKey);
+        if (TextUtils.isEmpty(normalizedKey)) {
+            return;
+        }
+        Map<String, ProfilePingResult> current = getProfilePingResultsMap(context);
+        current.put(normalizedKey, new ProfilePingResult(success, Math.max(0, latencyMs)));
+        writeProfilePingResults(context, current);
+    }
+
+    public static void removeProfilePingResults(Context context, Collection<String> profilePingKeys) {
+        if (profilePingKeys == null || profilePingKeys.isEmpty()) {
+            return;
+        }
+        Map<String, ProfilePingResult> current = getProfilePingResultsMap(context);
+        boolean changed = false;
+        for (String profilePingKey : profilePingKeys) {
+            String normalizedKey = trim(profilePingKey);
+            if (TextUtils.isEmpty(normalizedKey)) {
+                continue;
+            }
+            changed |= current.remove(normalizedKey) != null;
+        }
+        if (changed) {
+            writeProfilePingResults(context, current);
+        }
     }
 
     public static String getActiveProfileId(Context context) {
@@ -234,9 +390,39 @@ public final class XrayStore {
                 .apply();
     }
 
+    public static final class ProfileTrafficStats {
+        public static final ProfileTrafficStats ZERO = new ProfileTrafficStats(0L, 0L);
+
+        public final long rxBytes;
+        public final long txBytes;
+
+        public ProfileTrafficStats(long rxBytes, long txBytes) {
+            this.rxBytes = Math.max(0L, rxBytes);
+            this.txBytes = Math.max(0L, txBytes);
+        }
+    }
+
+    public static final class ProfilePingResult {
+        public final boolean success;
+        public final int latencyMs;
+
+        public ProfilePingResult(boolean success, int latencyMs) {
+            this.success = success;
+            this.latencyMs = Math.max(0, latencyMs);
+        }
+    }
+
     private static JSONArray parseArray(String rawValue) {
         try {
             return new JSONArray(TextUtils.isEmpty(rawValue) ? "[]" : rawValue);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static JSONObject parseObject(String rawValue) {
+        try {
+            return new JSONObject(TextUtils.isEmpty(rawValue) ? "{}" : rawValue);
         } catch (Exception ignored) {
             return null;
         }
@@ -267,6 +453,111 @@ public final class XrayStore {
             }
         }
         return false;
+    }
+
+    private static void writeProfileTrafficStats(Context context, Map<String, ProfileTrafficStats> profileTrafficStats) {
+        JSONObject object = new JSONObject();
+        if (profileTrafficStats != null) {
+            for (Map.Entry<String, ProfileTrafficStats> entry : profileTrafficStats.entrySet()) {
+                String profileId = trim(entry.getKey());
+                if (TextUtils.isEmpty(profileId) || entry.getValue() == null) {
+                    continue;
+                }
+                try {
+                    JSONObject item = new JSONObject();
+                    item.put("rx", Math.max(0L, entry.getValue().rxBytes));
+                    item.put("tx", Math.max(0L, entry.getValue().txBytes));
+                    object.put(profileId, item);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        prefs(context).edit()
+                .putString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, object.toString())
+                .apply();
+    }
+
+    private static void pruneProfileTrafficStats(Context context, Collection<String> activeProfileIds) {
+        LinkedHashSet<String> allowedIds = new LinkedHashSet<>();
+        if (activeProfileIds != null) {
+            for (String profileId : activeProfileIds) {
+                String normalizedProfileId = trim(profileId);
+                if (!TextUtils.isEmpty(normalizedProfileId)) {
+                    allowedIds.add(normalizedProfileId);
+                }
+            }
+        }
+        Map<String, ProfileTrafficStats> current = getProfileTrafficStatsMap(context);
+        if (current.isEmpty()) {
+            return;
+        }
+        current.keySet().retainAll(allowedIds);
+        writeProfileTrafficStats(context, current);
+    }
+
+    private static void writeProfilePingResults(Context context, Map<String, ProfilePingResult> profilePingResults) {
+        JSONObject object = new JSONObject();
+        if (profilePingResults != null) {
+            for (Map.Entry<String, ProfilePingResult> entry : profilePingResults.entrySet()) {
+                String profilePingKey = trim(entry.getKey());
+                if (TextUtils.isEmpty(profilePingKey) || entry.getValue() == null) {
+                    continue;
+                }
+                try {
+                    JSONObject item = new JSONObject();
+                    item.put("success", entry.getValue().success);
+                    item.put("latency_ms", Math.max(0, entry.getValue().latencyMs));
+                    object.put(profilePingKey, item);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        prefs(context).edit()
+                .putString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, object.toString())
+                .apply();
+    }
+
+    private static void pruneProfilePingResults(Context context, Collection<String> activeProfilePingKeys) {
+        LinkedHashSet<String> allowedKeys = new LinkedHashSet<>();
+        if (activeProfilePingKeys != null) {
+            for (String profilePingKey : activeProfilePingKeys) {
+                String normalizedKey = trim(profilePingKey);
+                if (!TextUtils.isEmpty(normalizedKey)) {
+                    allowedKeys.add(normalizedKey);
+                }
+            }
+        }
+        Map<String, ProfilePingResult> current = getProfilePingResultsMap(context);
+        if (current.isEmpty()) {
+            return;
+        }
+        current.keySet().retainAll(allowedKeys);
+        writeProfilePingResults(context, current);
+    }
+
+    private static Collection<String> collectProfileIds(Collection<XrayProfile> profiles) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (profiles != null) {
+            for (XrayProfile profile : profiles) {
+                if (profile != null && !TextUtils.isEmpty(trim(profile.id))) {
+                    result.add(trim(profile.id));
+                }
+            }
+        }
+        return result;
+    }
+
+    private static Collection<String> collectProfilePingKeys(Collection<XrayProfile> profiles) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (profiles != null) {
+            for (XrayProfile profile : profiles) {
+                String profilePingKey = getProfilePingKey(profile);
+                if (!TextUtils.isEmpty(profilePingKey)) {
+                    result.add(profilePingKey);
+                }
+            }
+        }
+        return result;
     }
 
     private static String trim(String value) {

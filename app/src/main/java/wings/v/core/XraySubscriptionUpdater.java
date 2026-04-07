@@ -27,17 +27,27 @@ public final class XraySubscriptionUpdater {
     public static RefreshResult refreshAll(Context context, ProgressListener listener) throws Exception {
         List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context);
         LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
+        LinkedHashMap<String, List<XrayProfile>> existingProfilesBySubscription = new LinkedHashMap<>();
         for (XrayProfile existingProfile : XrayStore.getProfiles(context)) {
             if (existingProfile == null || TextUtils.isEmpty(existingProfile.rawLink)) {
                 continue;
             }
             if (TextUtils.isEmpty(existingProfile.subscriptionId)) {
                 profiles.put(existingProfile.stableDedupKey(), existingProfile);
+            } else {
+                List<XrayProfile> subscriptionProfiles =
+                        existingProfilesBySubscription.get(existingProfile.subscriptionId);
+                if (subscriptionProfiles == null) {
+                    subscriptionProfiles = new ArrayList<>();
+                    existingProfilesBySubscription.put(existingProfile.subscriptionId, subscriptionProfiles);
+                }
+                subscriptionProfiles.add(existingProfile);
             }
         }
         List<XraySubscription> updatedSubscriptions = new ArrayList<>();
         long now = System.currentTimeMillis();
         String firstError = null;
+        boolean anySubscriptionUpdated = false;
 
         for (XraySubscription subscription : subscriptions) {
             if (subscription == null || TextUtils.isEmpty(subscription.url)) {
@@ -47,7 +57,7 @@ public final class XraySubscriptionUpdater {
                 listener.onSubscriptionStarted(subscription);
             }
             try {
-                String body = fetch(subscription.url);
+                String body = fetch(context, subscription.url);
                 for (String link : XraySubscriptionParser.parseLinks(body)) {
                     XrayProfile profile = VlessLinkParser.parseProfile(
                             link,
@@ -67,6 +77,7 @@ public final class XraySubscriptionUpdater {
                         subscription.autoUpdate,
                         now
                 ));
+                anySubscriptionUpdated = true;
                 if (listener != null) {
                     listener.onSubscriptionFinished(subscription, null);
                 }
@@ -75,6 +86,15 @@ public final class XraySubscriptionUpdater {
                     firstError = error.getMessage();
                 }
                 updatedSubscriptions.add(subscription);
+                List<XrayProfile> existingSubscriptionProfiles =
+                        existingProfilesBySubscription.get(subscription.id);
+                if (existingSubscriptionProfiles != null) {
+                    for (XrayProfile existingProfile : existingSubscriptionProfiles) {
+                        if (existingProfile != null && !TextUtils.isEmpty(existingProfile.rawLink)) {
+                            profiles.put(existingProfile.stableDedupKey(), existingProfile);
+                        }
+                    }
+                }
                 if (listener != null) {
                     listener.onSubscriptionFinished(subscription, error.getMessage());
                 }
@@ -83,7 +103,9 @@ public final class XraySubscriptionUpdater {
 
         XrayStore.setSubscriptions(context, updatedSubscriptions);
         XrayStore.setProfiles(context, new ArrayList<>(profiles.values()));
-        XrayStore.setLastSubscriptionsRefreshAt(context, now);
+        if (anySubscriptionUpdated) {
+            XrayStore.setLastSubscriptionsRefreshAt(context, now);
+        }
         XrayStore.setLastSubscriptionsError(context, firstError);
 
         XrayProfile activeProfile = XrayStore.getActiveProfile(context);
@@ -116,12 +138,27 @@ public final class XraySubscriptionUpdater {
         return grouped;
     }
 
-    private static String fetch(String urlString) throws Exception {
+    private static String fetch(Context context, String urlString) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty("User-Agent", "WINGSV/1.7");
+        SubscriptionHwidStore.Payload hwidPayload = SubscriptionHwidStore.getEffectivePayload(context);
+        if (hwidPayload != null) {
+            if (!TextUtils.isEmpty(hwidPayload.hwid)) {
+                connection.setRequestProperty("x-hwid", hwidPayload.hwid);
+            }
+            if (!TextUtils.isEmpty(hwidPayload.deviceOs)) {
+                connection.setRequestProperty("x-device-os", hwidPayload.deviceOs);
+            }
+            if (!TextUtils.isEmpty(hwidPayload.verOs)) {
+                connection.setRequestProperty("x-ver-os", hwidPayload.verOs);
+            }
+            if (!TextUtils.isEmpty(hwidPayload.deviceModel)) {
+                connection.setRequestProperty("x-device-model", hwidPayload.deviceModel);
+            }
+        }
         connection.connect();
         int responseCode = connection.getResponseCode();
         InputStream stream = responseCode >= 200 && responseCode < 400

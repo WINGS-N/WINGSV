@@ -63,6 +63,46 @@
                 android:maxLines="1"
                 android:textAppearance="?android:attr/textAppearanceSmall"
                 android:textColor="?android:textColorSecondary" />
+
+            <LinearLayout
+                android:id="@+id/layout_profile_traffic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:contentDescription="@string/traffic_rx"
+                    android:src="@drawable/ic_arrow_down"
+                    android:tint="?android:textColorSecondary" />
+
+                <TextView
+                    android:id="@+id/text_profile_rx"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+
+                <ImageView
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginStart="12dp"
+                    android:contentDescription="@string/traffic_tx"
+                    android:src="@drawable/ic_arrow_up"
+                    android:tint="?android:textColorSecondary" />
+
+                <TextView
+                    android:id="@+id/text_profile_tx"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+            </LinearLayout>
         </LinearLayout>
 
         <FrameLayout

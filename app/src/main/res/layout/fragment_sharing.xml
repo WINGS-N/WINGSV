@@ -195,7 +195,6 @@
                 android:id="@+id/item_disable_ipv6"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:separateSwitch="true"
                 app:showTopDivider="false" />
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 

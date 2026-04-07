@@ -113,6 +113,10 @@ public final class AmneziaStore {
         return "";
     }
 
+    public static String getConfiguredDns(Context context) {
+        return trim(prefs(context).getString(KEY_INTERFACE_DNS, ""));
+    }
+
     public static boolean isStructuredPreferenceKey(String key) {
         return KEY_INTERFACE_PRIVATE_KEY.equals(key)
                 || KEY_INTERFACE_ADDRESSES.equals(key)

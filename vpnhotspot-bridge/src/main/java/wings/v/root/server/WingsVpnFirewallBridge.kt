@@ -12,11 +12,6 @@ import kotlinx.coroutines.runBlocking
 
 object WingsVpnFirewallBridge {
     private const val UIDS_ALLOWED_ON_RESTRICTED_NETWORKS = "uids_allowed_on_restricted_networks"
-    private const val DUMP_COMMAND = "dumpsys netd trafficcontroller"
-
-    private val firewallMatcher by lazy {
-        "^\\s*${Process.myUid()}\\D* IIF_MATCH ".toRegex(RegexOption.MULTILINE)
-    }
 
     @JvmStatic
     fun mayBeAffected(context: Context): Boolean {
@@ -61,11 +56,19 @@ object WingsVpnFirewallBridge {
         if (Build.VERSION.SDK_INT >= 33) {
             removeUidInterfaceRules(context, uid)
         } else {
-            val dump = RootServerBridge.runQuiet(context, DUMP_COMMAND)
-            if (dump.exitCode == 0 && firewallMatcher.containsMatchIn(dump.stdout)) {
+            if (hasFirewallRule(context, uid)) {
                 removeUidInterfaceRules(context, uid)
             }
         }
+    }
+
+    @Throws(Exception::class)
+    private fun hasFirewallRule(context: Context, uid: Int): Boolean {
+        val escapedPattern = "^\\s*$uid\\D* IIF_MATCH "
+        val command = "dumpsys netd trafficcontroller 2>/dev/null " +
+            "| grep -m 1 -E '$escapedPattern' >/dev/null && echo 1 || true"
+        val result = RootServerBridge.runQuiet(context, command)
+        return result.exitCode == 0 && result.stdout.trim() == "1"
     }
 
     private fun isBpfSupported(): Boolean {

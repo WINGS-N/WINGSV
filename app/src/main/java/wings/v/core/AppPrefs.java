@@ -42,14 +42,26 @@ public final class AppPrefs {
     public static final String KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED =
             "pref_xray_universal_subscription_migrated";
     public static final String KEY_XRAY_PROFILES_JSON = "pref_xray_profiles_json";
+    public static final String KEY_XRAY_PROFILE_TRAFFIC_JSON = "pref_xray_profile_traffic_json";
+    public static final String KEY_XRAY_PROFILE_TCPING_JSON = "pref_xray_profile_tcping_json";
     public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT = "pref_xray_subscriptions_last_refresh_at";
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR = "pref_xray_subscriptions_last_error";
     public static final String KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON = "pref_xray_imported_subscription_json";
+    public static final String KEY_SUBSCRIPTION_HWID_ENABLED = "pref_subscription_hwid_enabled";
+    public static final String KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED =
+            "pref_subscription_hwid_manual_enabled";
+    public static final String KEY_SUBSCRIPTION_HWID_VALUE = "pref_subscription_hwid_value";
+    public static final String KEY_SUBSCRIPTION_HWID_DEVICE_OS =
+            "pref_subscription_hwid_device_os";
+    public static final String KEY_SUBSCRIPTION_HWID_VER_OS = "pref_subscription_hwid_ver_os";
+    public static final String KEY_SUBSCRIPTION_HWID_DEVICE_MODEL =
+            "pref_subscription_hwid_device_model";
     public static final String KEY_APP_ROUTING_BYPASS = "pref_app_routing_bypass";
     public static final String KEY_APP_ROUTING_PACKAGES = "pref_app_routing_packages";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
+    public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
     public static final String KEY_ROOT_ACCESS_GRANTED = "pref_root_access_granted";
     public static final String KEY_ROOT_ACCESS_CHECKED_AT = "pref_root_access_checked_at";
     public static final String KEY_ROOT_RUNTIME_ACTIVE = "pref_root_runtime_active";
@@ -70,8 +82,14 @@ public final class AppPrefs {
     public static final String KEY_SHARING_TEMP_HOTSPOT_USE_SYSTEM = "pref_sharing_temp_hotspot_use_system";
     public static final String KEY_SHARING_IP_MONITOR_MODE = "pref_sharing_ip_monitor_mode";
     public static final String KEY_ONBOARDING_SEEN = "pref_onboarding_seen";
+    public static final String KEY_FIRST_LAUNCH_EXPERIENCE_SEEN =
+            "pref_first_launch_experience_seen";
+    public static final String KEY_FIRST_LAUNCH_EXPERIENCE_RESET_300 =
+            "pref_first_launch_experience_reset_300";
     public static final String KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH =
             "pref_external_action_transient_launch";
+    public static final String KEY_PENDING_PROFILES_FILTER_ID =
+            "pref_pending_profiles_filter_id";
     public static final String KEY_UPDATES_LAST_NOTIFIED_TAG =
             "pref_updates_last_notified_tag";
     public static final String SHARING_MASQUERADE_NONE = "none";
@@ -92,10 +110,30 @@ public final class AppPrefs {
     public static void ensureDefaults(Context context) {
         PreferenceManager.setDefaultValues(context, R.xml.proxy_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.amnezia_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.active_probing_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.byedpi_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.subscription_hwid_preferences, false);
+        migrateFirstLaunchExperienceReset300(context);
+    }
+
+    private static void migrateFirstLaunchExperienceReset300(Context context) {
+        SharedPreferences preferences = prefs(context);
+        if (preferences.getBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_RESET_300, false)) {
+            return;
+        }
+        preferences.edit()
+                .putBoolean(KEY_ONBOARDING_SEEN, false)
+                .putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, false)
+                .putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_RESET_300, true)
+                .apply();
     }
 
     public static boolean isOnboardingSeen(Context context) {
         return prefs(context).getBoolean(KEY_ONBOARDING_SEEN, false);
+    }
+
+    public static boolean isFirstLaunchExperienceSeen(Context context) {
+        return prefs(context).getBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, false);
     }
 
     public static boolean isExternalActionTransientLaunchPending(Context context) {
@@ -106,6 +144,21 @@ public final class AppPrefs {
         prefs(context).edit()
                 .putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending)
                 .apply();
+    }
+
+    public static void setPendingProfilesFilterId(Context context, String filterId) {
+        prefs(context).edit()
+                .putString(KEY_PENDING_PROFILES_FILTER_ID, trim(filterId))
+                .apply();
+    }
+
+    public static String consumePendingProfilesFilterId(Context context) {
+        SharedPreferences preferences = prefs(context);
+        String filterId = trim(preferences.getString(KEY_PENDING_PROFILES_FILTER_ID, ""));
+        if (!TextUtils.isEmpty(filterId)) {
+            preferences.edit().remove(KEY_PENDING_PROFILES_FILTER_ID).apply();
+        }
+        return filterId;
     }
 
     public static String getLastUpdateNotifiedTag(Context context) {
@@ -124,6 +177,18 @@ public final class AppPrefs {
 
     public static void setRootModeEnabled(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_ROOT_MODE, enabled).apply();
+    }
+
+    public static boolean isKernelWireGuardEnabled(Context context) {
+        SharedPreferences preferences = prefs(context);
+        if (preferences.contains(KEY_KERNEL_WIREGUARD)) {
+            return preferences.getBoolean(KEY_KERNEL_WIREGUARD, false);
+        }
+        return preferences.getBoolean(KEY_ROOT_MODE, false);
+    }
+
+    public static void setKernelWireGuardEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_KERNEL_WIREGUARD, enabled).apply();
     }
 
     public static boolean isRootAccessGranted(Context context) {
@@ -330,6 +395,10 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_ONBOARDING_SEEN, true).apply();
     }
 
+    public static void markFirstLaunchExperienceSeen(Context context) {
+        prefs(context).edit().putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, true).apply();
+    }
+
     public static boolean isAppRoutingBypassEnabled(Context context) {
         return prefs(context).getBoolean(KEY_APP_ROUTING_BYPASS, true);
     }
@@ -381,8 +450,10 @@ public final class AppPrefs {
         settings.wgAllowedIps = trim(prefs.getString(KEY_WG_ALLOWED_IPS, "0.0.0.0/0, ::/0"));
         settings.awgQuickConfig = AmneziaStore.getEffectiveQuickConfig(context);
         settings.rootModeEnabled = prefs.getBoolean(KEY_ROOT_MODE, false);
+        settings.kernelWireguardEnabled = isKernelWireGuardEnabled(context);
         settings.activeXrayProfile = XrayStore.getActiveProfile(context);
         settings.xraySettings = XrayStore.getXraySettings(context);
+        settings.byeDpiSettings = ByeDpiStore.getSettings(context);
         return settings;
     }
 
@@ -395,6 +466,7 @@ public final class AppPrefs {
                 : BackendType.VK_TURN_WIREGUARD;
         if (backendType == BackendType.XRAY && importedConfig.xrayMergeOnly) {
             mergeImportedXrayPayload(context, importedConfig);
+            XrayStore.setBackendType(context, BackendType.XRAY);
             return;
         }
         SharedPreferences.Editor editor = prefs(context).edit();
@@ -444,6 +516,37 @@ public final class AppPrefs {
             XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
             XrayStore.setLastSubscriptionsError(context, "");
         }
+    }
+
+    public static void applyVkTurnSettings(Context context, ProxySettings settings) {
+        if (settings == null) {
+            return;
+        }
+        prefs(context).edit()
+                .putString(KEY_ENDPOINT, trim(settings.endpoint))
+                .putString(KEY_VK_LINK, trim(settings.vkLink))
+                .putString(KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 8))
+                .putBoolean(KEY_USE_UDP, settings.useUdp)
+                .putBoolean(KEY_NO_OBFUSCATION, settings.noObfuscation)
+                .putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(settings.turnSessionMode))
+                .putString(KEY_LOCAL_ENDPOINT, TextUtils.isEmpty(trim(settings.localEndpoint))
+                        ? "127.0.0.1:9000"
+                        : trim(settings.localEndpoint))
+                .putString(KEY_TURN_HOST, trim(settings.turnHost))
+                .putString(KEY_TURN_PORT, trim(settings.turnPort))
+                .putString(KEY_WG_PRIVATE_KEY, trim(settings.wgPrivateKey))
+                .putString(KEY_WG_ADDRESSES, trim(settings.wgAddresses))
+                .putString(KEY_WG_DNS, TextUtils.isEmpty(trim(settings.wgDns))
+                        ? "1.1.1.1, 1.0.0.1"
+                        : trim(settings.wgDns))
+                .putString(KEY_WG_MTU, String.valueOf(settings.wgMtu > 0 ? settings.wgMtu : 1280))
+                .putString(KEY_WG_PUBLIC_KEY, trim(settings.wgPublicKey))
+                .putString(KEY_WG_PRESHARED_KEY, trim(settings.wgPresharedKey))
+                .putString(KEY_WG_ALLOWED_IPS, TextUtils.isEmpty(trim(settings.wgAllowedIps))
+                        ? "0.0.0.0/0, ::/0"
+                        : trim(settings.wgAllowedIps))
+                .apply();
+        XrayStore.setBackendType(context, BackendType.VK_TURN_WIREGUARD);
     }
 
     private static void mergeImportedXrayPayload(Context context, WingsImportParser.ImportedConfig importedConfig) {
@@ -544,11 +647,15 @@ public final class AppPrefs {
         }
 
         XrayStore.setProfiles(context, new java.util.ArrayList<>(profilesByKey.values()));
-        String currentActiveProfileId = XrayStore.getActiveProfileId(context);
-        if (TextUtils.isEmpty(currentActiveProfileId) && !TextUtils.isEmpty(importedConfig.activeXrayProfileId)) {
-            String mergedActiveProfileId = importedProfileIdsToMergedIds.get(importedConfig.activeXrayProfileId);
-            if (!TextUtils.isEmpty(mergedActiveProfileId)) {
-                XrayStore.setActiveProfileId(context, mergedActiveProfileId);
+        String mergedActiveProfileId = TextUtils.isEmpty(importedConfig.activeXrayProfileId)
+                ? ""
+                : importedProfileIdsToMergedIds.get(importedConfig.activeXrayProfileId);
+        if (!TextUtils.isEmpty(mergedActiveProfileId)) {
+            XrayStore.setActiveProfileId(context, mergedActiveProfileId);
+        } else {
+            String currentActiveProfileId = XrayStore.getActiveProfileId(context);
+            if (TextUtils.isEmpty(currentActiveProfileId) && !TextUtils.isEmpty(importedConfig.activeXrayProfileId)) {
+                XrayStore.setActiveProfileId(context, importedConfig.activeXrayProfileId);
             }
         }
         XrayStore.setLastSubscriptionsError(context, "");

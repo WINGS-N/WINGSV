@@ -2,6 +2,7 @@ package wings.v;
 
 import android.app.Application;
 
+import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateBackgroundScheduler;
 
@@ -11,5 +12,6 @@ public class WingsApplication extends Application {
         super.onCreate();
         AppPrefs.ensureDefaults(this);
         AppUpdateBackgroundScheduler.schedule(this);
+        ActiveProbingBackgroundScheduler.refresh(this);
     }
 }

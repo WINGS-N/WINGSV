@@ -122,6 +122,12 @@ public class OpenSourceLicensesActivity extends AppCompatActivity {
                 Color.parseColor("#1B8B73"),
                 "https://github.com/amnezia-vpn/amneziawg-android"
         );
+        configureComponentCard(
+                binding.cardLicenseByedpi,
+                "BD",
+                Color.parseColor("#D16E2A"),
+                "https://github.com/hufrea/byedpi"
+        );
     }
 
     private void configureComponentCard(CardItemView cardItemView,

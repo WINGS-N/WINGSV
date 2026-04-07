@@ -9,6 +9,6 @@
     <item
         android:id="@+id/menu_selection_delete"
         android:icon="@drawable/sesl_ic_close"
-        android:title="@string/xray_profiles_delete_action" />
+        android:title="@string/action_delete" />
 
 </menu>

@@ -140,18 +140,44 @@
         android:visibility="gone"
         app:roundedCorners="all">
 
-        <TextView
-            android:id="@+id/text_profile_selection_count"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:paddingStart="18dp"
             android:paddingTop="14dp"
-            android:paddingEnd="18dp"
-            android:paddingBottom="8dp"
-            android:text=""
-            android:textAppearance="?android:attr/textAppearanceSmall"
-            android:textColor="?android:textColorSecondary"
-            android:textStyle="bold" />
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:id="@+id/text_profile_selection_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text=""
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_profile_select_all"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/xray_profiles_select_all_action"
+                android:textAllCaps="false" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_profile_share"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/xray_profiles_share_action"
+                android:textAllCaps="false" />
+        </LinearLayout>
 
         <dev.oneuiproject.oneui.widget.BottomTabLayout
             android:id="@+id/bottom_tab_profile_selection"

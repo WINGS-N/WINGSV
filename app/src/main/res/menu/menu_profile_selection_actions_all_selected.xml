@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_profile_selection_select_all"
+        android:icon="@drawable/ic_close_circle"
+        android:title="@string/xray_profiles_deselect_all_action" />
+
+    <item
+        android:id="@+id/menu_profile_selection_share"
+        android:icon="@drawable/ic_share"
+        android:title="@string/xray_profiles_share_action" />
+
+    <item
+        android:id="@+id/menu_profile_selection_reset_stats"
+        android:icon="@drawable/ic_refresh"
+        android:title="@string/xray_profiles_reset_stats_action" />
+
+    <item
+        android:id="@+id/menu_profile_selection_delete"
+        android:icon="@drawable/ic_delete"
+        android:title="@string/action_delete" />
+
+</menu>

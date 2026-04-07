@@ -27,8 +27,10 @@ public class ProxySettings {
     public String wgAllowedIps;
     public String awgQuickConfig;
     public boolean rootModeEnabled;
+    public boolean kernelWireguardEnabled;
     public XrayProfile activeXrayProfile;
     public XraySettings xraySettings;
+    public ByeDpiSettings byeDpiSettings;
 
     public String validate() {
         if (backendType == BackendType.XRAY) {

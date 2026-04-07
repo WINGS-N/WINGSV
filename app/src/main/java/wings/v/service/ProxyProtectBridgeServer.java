@@ -75,6 +75,9 @@ final class ProxyProtectBridgeServer implements Closeable {
                         }
                     }
                 }
+                if (!protectedOk) {
+                    Log.w(TAG, "protect request rejected");
+                }
                 outputStream.write(protectedOk ? 1 : 0);
                 outputStream.flush();
             }

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <wings.v.widget.ParallaxGradientBackgroundView
+        android:id="@+id/background_first_launch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <wings.v.widget.AspectFillVideoView
+        android:id="@+id/video_first_launch_intro"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:alpha="0"
+        android:visibility="gone" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="320dp"
+        android:background="@drawable/bg_first_launch_top_scrim" />
+
+    <FrameLayout
+        android:id="@+id/content_first_launch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/first_launch_pager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+    </FrameLayout>
+
+</FrameLayout>

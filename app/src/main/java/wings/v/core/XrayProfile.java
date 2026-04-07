@@ -40,6 +40,20 @@ public final class XrayProfile {
         return (address + ":" + port + ":" + title).trim().toLowerCase();
     }
 
+    public boolean usesXtlsVisionFlow() {
+        if (TextUtils.isEmpty(rawLink)) {
+            return false;
+        }
+        return rawLink.trim().toLowerCase().contains("flow=xtls-rprx-vision");
+    }
+
+    public boolean usesRealitySecurity() {
+        if (TextUtils.isEmpty(rawLink)) {
+            return false;
+        }
+        return rawLink.trim().toLowerCase().contains("security=reality");
+    }
+
     public JSONObject toJson() throws JSONException {
         JSONObject object = new JSONObject();
         object.put("id", id);

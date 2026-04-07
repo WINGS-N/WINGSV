@@ -88,7 +88,8 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
                         || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)
                         || AppPrefs.KEY_SHARING_UPSTREAM_INTERFACE.equals(key)
                         || AppPrefs.KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE.equals(key)
-                        || AppPrefs.KEY_ROOT_MODE.equals(key)) {
+                        || AppPrefs.KEY_ROOT_MODE.equals(key)
+                        || AppPrefs.KEY_KERNEL_WIREGUARD.equals(key)) {
                     mainHandler.post(this::refreshUi);
                 }
             };
@@ -415,7 +416,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         if (!TextUtils.isEmpty(configured)) {
             return configured;
         }
-        if (XrayStore.getBackendType(this) == BackendType.XRAY) {
+        if (shouldUseVpnServiceUpstream()) {
             return getString(R.string.sharing_value_vpn_service);
         }
         if (AppPrefs.isRootModeEnabled(this)) {
@@ -425,6 +426,16 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
             }
         }
         return detectActiveInterfaceName();
+    }
+
+    private boolean shouldUseVpnServiceUpstream() {
+        BackendType backendType = XrayStore.getBackendType(this);
+        if (backendType == BackendType.XRAY || backendType == BackendType.AMNEZIAWG) {
+            return true;
+        }
+        return backendType == BackendType.VK_TURN_WIREGUARD
+                && AppPrefs.isRootModeEnabled(this)
+                && !AppPrefs.isKernelWireGuardEnabled(this);
     }
 
     private boolean isInterfacePresent(@Nullable String interfaceName) {

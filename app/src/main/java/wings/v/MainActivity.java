@@ -4,10 +4,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -35,6 +37,7 @@ import wings.v.service.ProxyTunnelService;
 
 public class MainActivity extends AppCompatActivity {
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
+    private static final long BACK_EXIT_WINDOW_MS = 2_000L;
 
     private ActivityMainBinding binding;
     private MainPagerAdapter pagerAdapter;
@@ -47,9 +50,10 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService rootStateExecutor = Executors.newSingleThreadExecutor();
     private volatile int rootStateRefreshGeneration;
     private AppUpdateManager appUpdateManager;
+    private long lastBackPressedAtMs;
     private final AppUpdateManager.Listener updateStateListener = this::applyUpdateBadgeState;
 
-    private final ActivityResultLauncher<Intent> onboardingLauncher =
+    private final ActivityResultLauncher<Intent> firstLaunchLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
                     result -> {
@@ -69,11 +73,12 @@ public class MainActivity extends AppCompatActivity {
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
         hasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
-        hasSharingTab = AppPrefs.isRootAccessGranted(this) || AppPrefs.hasRootRuntimeState(this);
+        hasSharingTab = AppPrefs.isRootModeEnabled(this);
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         configureToolbar();
+        configureBackHandling();
         inflateBottomTabMenu();
         pagerAdapter = new MainPagerAdapter(this, hasProfilesTab, hasSharingTab);
         binding.mainPager.setAdapter(pagerAdapter);
@@ -127,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
         pageSelectionReady = true;
 
         handleImportIntent(getIntent());
-        maybeShowOnboardingOnFirstLaunch();
+        maybeLaunchStartupOnboarding();
         maybeRecoverRuntimeState();
     }
 
@@ -173,6 +178,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        applyForcedTab(intent);
         handleImportIntent(intent);
     }
 
@@ -196,12 +202,32 @@ public class MainActivity extends AppCompatActivity {
                 ).show();
                 return;
             }
+            if (XrayStore.getBackendType(this) == BackendType.VK_TURN_WIREGUARD
+                    && AppPrefs.isKernelWireGuardEnabled(this)) {
+                String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
+                        this,
+                        BackendType.VK_TURN_WIREGUARD,
+                        false
+                );
+                if (!TextUtils.isEmpty(kernelUnavailableReason)) {
+                    Toast.makeText(
+                            this,
+                            getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason),
+                            Toast.LENGTH_SHORT
+                    ).show();
+                    return;
+                }
+            }
         }
 
         if (!PermissionUtils.areCorePermissionsGranted(this)) {
             pendingStartAfterOnboarding = true;
             Toast.makeText(this, R.string.permissions_required, Toast.LENGTH_SHORT).show();
-            onboardingLauncher.launch(PermissionOnboardingActivity.createIntent(this, true));
+            if (!AppPrefs.isFirstLaunchExperienceSeen(this)) {
+                firstLaunchLauncher.launch(FirstLaunchActivity.createIntent(this));
+            } else {
+                firstLaunchLauncher.launch(FirstLaunchActivity.createPermissionsIntent(this));
+            }
             return;
         }
 
@@ -265,8 +291,60 @@ public class MainActivity extends AppCompatActivity {
         return R.id.menu_home;
     }
 
+    private void applyForcedTab(@Nullable Intent intent) {
+        if (intent == null || binding == null || pagerAdapter == null) {
+            return;
+        }
+        int forcedTabId = intent.getIntExtra(EXTRA_FORCE_CURRENT_TAB_ID, 0);
+        if (forcedTabId == 0) {
+            return;
+        }
+        if (!hasProfilesTab && forcedTabId == R.id.menu_profiles) {
+            currentTabId = forcedTabId;
+            return;
+        }
+        if (!hasSharingTab && forcedTabId == R.id.menu_sharing) {
+            forcedTabId = R.id.menu_home;
+        }
+        intent.removeExtra(EXTRA_FORCE_CURRENT_TAB_ID);
+        currentTabId = forcedTabId;
+        binding.mainPager.setCurrentItem(positionForTabId(forcedTabId), false);
+        binding.bottomTab.setSelectedItem(forcedTabId);
+        updateTitle(forcedTabId);
+    }
+
     private void configureToolbar() {
         binding.toolbarLayout.setShowNavigationButton(false);
+    }
+
+    private void configureBackHandling() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                handleMainBackPressed();
+            }
+        });
+    }
+
+    private void handleMainBackPressed() {
+        if (binding == null || pagerAdapter == null) {
+            finish();
+            return;
+        }
+        if (currentTabId != R.id.menu_home) {
+            currentTabId = R.id.menu_home;
+            binding.mainPager.setCurrentItem(positionForTabId(R.id.menu_home), false);
+            binding.bottomTab.setSelectedItem(R.id.menu_home);
+            updateTitle(R.id.menu_home);
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastBackPressedAtMs < BACK_EXIT_WINDOW_MS) {
+            finish();
+            return;
+        }
+        lastBackPressedAtMs = now;
+        Toast.makeText(this, R.string.first_launch_back_to_exit, Toast.LENGTH_SHORT).show();
     }
 
     private void inflateBottomTabMenu() {
@@ -301,11 +379,17 @@ public class MainActivity extends AppCompatActivity {
         binding.bottomTab.setVisibility(suppressed ? View.GONE : View.VISIBLE);
     }
 
-    private void maybeShowOnboardingOnFirstLaunch() {
+    private void maybeLaunchStartupOnboarding() {
+        if (!AppPrefs.isFirstLaunchExperienceSeen(this)) {
+            if (AppPrefs.isOnboardingSeen(this)) {
+                AppPrefs.markFirstLaunchExperienceSeen(this);
+                return;
+            }
+            firstLaunchLauncher.launch(FirstLaunchActivity.createIntent(this));
+            return;
+        }
         if (PermissionUtils.shouldShowOnboarding(this)) {
-            onboardingLauncher.launch(PermissionOnboardingActivity.createIntent(this, false));
-        } else if (!AppPrefs.isOnboardingSeen(this)) {
-            AppPrefs.markOnboardingSeen(this);
+            firstLaunchLauncher.launch(FirstLaunchActivity.createPermissionsIntent(this));
         }
     }
 
@@ -337,8 +421,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void syncNavigationState() {
         boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
-        boolean nextHasSharingTab = AppPrefs.isRootAccessGranted(this)
-                || AppPrefs.hasRootRuntimeState(this);
+        boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
             restartPreservingTab(currentTabId);
         }
@@ -371,8 +454,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
             intent.setData(null);
             boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
-            boolean nextHasSharingTab = AppPrefs.isRootAccessGranted(this)
-                    || AppPrefs.hasRootRuntimeState(this);
+            boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
             if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
                 restartPreservingTab(currentTabId);
             }
@@ -388,6 +470,7 @@ public class MainActivity extends AppCompatActivity {
         }
         preferencesChangeListener = (sharedPreferences, key) -> {
             if (AppPrefs.KEY_BACKEND_TYPE.equals(key)
+                    || AppPrefs.KEY_ROOT_MODE.equals(key)
                     || AppPrefs.KEY_ROOT_ACCESS_GRANTED.equals(key)
                     || AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key)
                     || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)) {
