@@ -326,11 +326,17 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 301
-        versionName = "3.0.1"
+        versionCode = 310
+        versionName = "3.1.0"
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            }
+        }
     }
 
     signingConfigs {
@@ -350,6 +356,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        prefab = true
     }
 
     sourceSets.getByName("main") {
@@ -363,6 +370,12 @@ android {
     packaging {
         resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         jniLibs.useLegacyPackaging = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
     }
 
     buildTypes {
@@ -398,9 +411,11 @@ dependencies {
     implementation(libs.oneui.design)
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
+    implementation("dev.rikka.ndk.thirdparty:xhook:1.2.0")
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))
+    compileOnly(files("libs/xposed-api-82.jar"))
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

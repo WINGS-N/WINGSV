@@ -25,6 +25,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
+        bindSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE);
         bindSummary(AppPrefs.KEY_XRAY_REMOTE_DNS);
         bindSummary(AppPrefs.KEY_XRAY_DIRECT_DNS);
         bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME);
@@ -88,6 +89,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, settings.localProxyAuthEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED, settings.ipv6);
         syncSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, settings.sniffingEnabled);
+        syncSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, settings.restartOnNetworkChange);
         refreshLocalProxyVisibility(settings);
     }
 

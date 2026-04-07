@@ -67,6 +67,7 @@ public final class XrayStore {
         settings.directDns = trim(prefs.getString(AppPrefs.KEY_XRAY_DIRECT_DNS, DEFAULT_DIRECT_DNS));
         settings.ipv6 = prefs.getBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, true);
         settings.sniffingEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, true);
+        settings.restartOnNetworkChange = prefs.getBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, false);
         return settings;
     }
 
@@ -88,10 +89,15 @@ public final class XrayStore {
                         TextUtils.isEmpty(trim(value.directDns)) ? DEFAULT_DIRECT_DNS : trim(value.directDns))
                 .putBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, value.ipv6)
                 .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
+                .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
                 .apply();
     }
 
     public static List<XraySubscription> getSubscriptions(Context context) {
+        return getSubscriptions(context, true);
+    }
+
+    public static List<XraySubscription> getSubscriptions(Context context, boolean allowUniversalSeed) {
         SharedPreferences prefs = prefs(context);
         ArrayList<XraySubscription> result = new ArrayList<>();
         JSONArray array = parseArray(prefs.getString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, "[]"));
@@ -104,7 +110,7 @@ public final class XrayStore {
                 result.add(subscription);
             }
         }
-        if (!prefs.getBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, false)) {
+        if (allowUniversalSeed && !prefs.getBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, false)) {
             if (!hasSubscriptionWithUrl(result, DEFAULT_SUBSCRIPTION_URL)) {
                 result.add(new XraySubscription(
                         null,
@@ -144,6 +150,7 @@ public final class XrayStore {
         prefs(context).edit()
                 .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, array.toString())
                 .putBoolean(AppPrefs.KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED, true)
+                .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
                 .apply();
     }
 

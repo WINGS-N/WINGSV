@@ -65,7 +65,7 @@ public final class GithubAvatarLoader {
         File tempFile = new File(cacheDirectory, username + ".tmp");
         try {
             URL url = new URL("https://github.com/" + username + ".png?size=128");
-            connection = (HttpURLConnection) url.openConnection();
+            connection = DirectNetworkConnection.openHttpConnection(appContext, url);
             connection.setConnectTimeout(3500);
             connection.setReadTimeout(4500);
             connection.setInstanceFollowRedirects(true);

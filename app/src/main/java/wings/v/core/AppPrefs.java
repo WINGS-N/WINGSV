@@ -41,6 +41,8 @@ public final class AppPrefs {
     public static final String KEY_XRAY_DIRECT_DNS = "pref_xray_direct_dns";
     public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
+    public static final String KEY_XRAY_RESTART_ON_NETWORK_CHANGE =
+            "pref_xray_restart_on_network_change";
     public static final String KEY_XRAY_SUBSCRIPTIONS_JSON = "pref_xray_subscriptions_json";
     public static final String KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED = "pref_xray_default_subscription_seeded";
     public static final String KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED =
@@ -118,6 +120,7 @@ public final class AppPrefs {
         PreferenceManager.setDefaultValues(context, R.xml.active_probing_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.byedpi_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.subscription_hwid_preferences, false);
+        XposedModulePrefs.ensureDefaults(context);
         migrateFirstLaunchExperienceReset300(context);
     }
 

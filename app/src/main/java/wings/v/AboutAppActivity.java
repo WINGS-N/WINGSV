@@ -15,7 +15,6 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.TextUtils;
-import android.text.format.Formatter;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
@@ -33,6 +32,7 @@ import wings.v.core.AppUpdateManager;
 import wings.v.core.BrowserLauncher;
 import wings.v.core.GithubAvatarLoader;
 import wings.v.core.Haptics;
+import wings.v.core.UiFormatter;
 import wings.v.databinding.ActivityAboutAppBinding;
 
 public class AboutAppActivity extends AppCompatActivity {
@@ -374,12 +374,12 @@ public class AboutAppActivity extends AppCompatActivity {
             binding.textUpdateProgressSize.setText(totalBytes > 0L
                     ? getString(
                     R.string.about_updates_download_size,
-                    Formatter.formatShortFileSize(this, downloadedBytes),
-                    Formatter.formatShortFileSize(this, totalBytes)
+                    UiFormatter.formatBytes(this, downloadedBytes),
+                    UiFormatter.formatBytes(this, totalBytes)
             )
                     : getString(
                     R.string.about_updates_download_size_unknown,
-                    Formatter.formatShortFileSize(this, downloadedBytes)
+                    UiFormatter.formatBytes(this, downloadedBytes)
             ));
             if (state.status == AppUpdateManager.Status.DOWNLOADED) {
                 binding.textUpdateProgressSpeed.setText(R.string.about_updates_download_ready);
@@ -394,12 +394,12 @@ public class AboutAppActivity extends AppCompatActivity {
             } else {
                 binding.textUpdateProgressSpeed.setText(getString(
                         R.string.about_updates_download_speed,
-                        Formatter.formatShortFileSize(this, Math.max(0L, state.speedBytesPerSecond))
+                        UiFormatter.formatBytesPerSecond(this, Math.max(0L, state.speedBytesPerSecond))
                 ));
                 binding.textUpdateProgressRemaining.setText(state.remainingBytes > 0L
                         ? getString(
                         R.string.about_updates_download_remaining,
-                        Formatter.formatShortFileSize(this, state.remainingBytes)
+                        UiFormatter.formatBytes(this, state.remainingBytes)
                 )
                         : getString(R.string.about_updates_download_remaining_unknown));
                 binding.progressUpdateDownload.setIndeterminate(totalBytes <= 0L);

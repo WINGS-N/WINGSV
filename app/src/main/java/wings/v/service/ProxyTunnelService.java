@@ -53,6 +53,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,6 +93,7 @@ import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
+import wings.v.core.UiFormatter;
 import wings.v.core.WireGuardConfigFactory;
 import wings.v.core.XrayProfile;
 import wings.v.core.XrayStore;
@@ -122,6 +124,12 @@ public class ProxyTunnelService extends Service {
     private static final long PROXY_RETRY_DELAY_MS = 1_000L;
     private static final long RUNTIME_RECONNECT_DELAY_MS = 1_500L;
     private static final long RUNTIME_SUPERVISOR_INTERVAL_MS = 5_000L;
+    private static final long STATS_SAMPLE_FAST_INTERVAL_MS = 100L;
+    private static final long STATS_SAMPLE_BACKGROUND_INTERVAL_MS = 500L;
+    private static final long STATS_SPEED_WINDOW_MS = 1_200L;
+    private static final double STATS_SPEED_RISE_ALPHA = 0.72d;
+    private static final double STATS_SPEED_FALL_ALPHA = 0.18d;
+    private static final long STATS_SPEED_IDLE_DECAY_HOLD_MS = 900L;
     private static final long UNDERLYING_NETWORK_RECONNECT_DELAY_MS = 750L;
     private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 7_500L;
     private static final long WAKE_FAST_PATH_EVENT_COOLDOWN_MS = 2_000L;
@@ -168,6 +176,7 @@ public class ProxyTunnelService extends Service {
     private enum ServiceState {
         STOPPED,
         CONNECTING,
+        STOPPING,
         RUNNING
     }
 
@@ -191,6 +200,8 @@ public class ProxyTunnelService extends Service {
     private static volatile boolean sPublicIpRefreshInProgress;
     private static volatile long sProxyLogVersion;
     private static volatile long sRuntimeLogVersion;
+    private static volatile boolean sFastTrafficStatsRequested;
+    private static volatile WeakReference<ProxyTunnelService> sServiceRef = new WeakReference<>(null);
     private static volatile String sPendingCaptchaUrl;
     private static volatile CaptchaPromptSource sPendingCaptchaSource = CaptchaPromptSource.PRIMARY;
     private static volatile long sLastCaptchaNotificationAtElapsedMs;
@@ -218,6 +229,8 @@ public class ProxyTunnelService extends Service {
         }
     };
     private ScheduledExecutorService statsExecutor;
+    private Future<?> statsSamplingTask;
+    private long activeStatsSampleIntervalMs = -1L;
     private volatile Future<?> activeWorkTask;
     private volatile Future<?> byeDpiWorkTask;
     private final AtomicBoolean runtimeReconnectQueued = new AtomicBoolean();
@@ -252,6 +265,12 @@ public class ProxyTunnelService extends Service {
     private volatile Set<String> activeTetheredInterfaces = Collections.emptySet();
     private long lastRxSample = -1L;
     private long lastTxSample = -1L;
+    private long lastTrafficSampleAtElapsedMs = -1L;
+    private long lastRxTrafficAtElapsedMs = -1L;
+    private long lastTxTrafficAtElapsedMs = -1L;
+    private double smoothedRxBytesPerSecond;
+    private double smoothedTxBytesPerSecond;
+    private final ArrayDeque<TrafficSpeedSample> trafficSpeedSamples = new ArrayDeque<>();
     private WifiManager.WifiLock tunnelWifiLock;
     private WifiManager.WifiLock sharingWifiLock;
     private PowerManager.WakeLock tunnelPowerLock;
@@ -266,6 +285,7 @@ public class ProxyTunnelService extends Service {
     private long lastUnderlyingConnectivityEventAtElapsedMs;
     private long lastWakeFastPathAtElapsedMs;
     private long lastActiveTunnelProbeAtElapsedMs;
+    private long lastNotificationTrafficUpdateAtElapsedMs;
     private boolean physicalNetworkCallbackRegistered;
     private boolean screenStateReceiverRegistered;
     private volatile boolean proxyWarmupTurnReady;
@@ -424,8 +444,20 @@ public class ProxyTunnelService extends Service {
         return sServiceState == ServiceState.CONNECTING;
     }
 
+    public static boolean isStopping() {
+        return sServiceState == ServiceState.STOPPING;
+    }
+
     public static boolean isActive() {
         return sServiceState != ServiceState.STOPPED;
+    }
+
+    public static void setFastTrafficStatsRequested(boolean requested) {
+        sFastTrafficStatsRequested = requested;
+        ProxyTunnelService service = sServiceRef.get();
+        if (service != null) {
+            service.refreshStatsSamplingSchedule();
+        }
     }
 
     public static long getRxBytes() {
@@ -571,6 +603,7 @@ public class ProxyTunnelService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
     }
 
@@ -671,6 +704,7 @@ public class ProxyTunnelService extends Service {
     @Override
     public void onDestroy() {
         stopWork(false);
+        sServiceRef = new WeakReference<>(null);
         super.onDestroy();
     }
 
@@ -811,7 +845,7 @@ public class ProxyTunnelService extends Service {
         invalidateRuntimeOperations();
         stopping = true;
         sRunning = false;
-        setServiceState(ServiceState.STOPPED);
+        setServiceState(ServiceState.STOPPING);
         if (removeNotification) {
             try {
                 stopForeground(STOP_FOREGROUND_REMOVE);
@@ -830,7 +864,7 @@ public class ProxyTunnelService extends Service {
         invalidateRuntimeOperations();
         stopping = true;
         sRunning = false;
-        setServiceState(ServiceState.STOPPED);
+        setServiceState(ServiceState.STOPPING);
         if (removeNotification) {
             try {
                 stopForeground(STOP_FOREGROUND_REMOVE);
@@ -1075,7 +1109,7 @@ public class ProxyTunnelService extends Service {
     private void stopWorkInternal() {
         stopping = true;
         runtimeReconnectQueued.set(false);
-        setServiceState(ServiceState.STOPPED);
+        setServiceState(ServiceState.STOPPING);
         sRunning = false;
         resetRuntimeSnapshot();
         sPublicIpRefreshInProgress = false;
@@ -1084,10 +1118,7 @@ public class ProxyTunnelService extends Service {
 
         cancelPublicIpRefresh();
 
-        if (statsExecutor != null) {
-            statsExecutor.shutdownNow();
-            statsExecutor = null;
-        }
+        shutdownStatsExecutor();
 
         stopByeDpiFrontProxy();
 
@@ -1140,20 +1171,19 @@ public class ProxyTunnelService extends Service {
         }
         toolsInstaller = null;
         clearPersistedRootRuntimeState();
+        setServiceState(ServiceState.STOPPED);
     }
 
     private void stopWorkInternalForReconnect() {
         stopping = true;
         runtimeReconnectQueued.set(false);
         sRunning = false;
+        setServiceState(ServiceState.STOPPING);
         cancelPublicIpRefresh();
         sPublicIpRefreshInProgress = false;
         clearPendingCaptchaPrompt(getApplicationContext());
 
-        if (statsExecutor != null) {
-            statsExecutor.shutdownNow();
-            statsExecutor = null;
-        }
+        shutdownStatsExecutor();
 
         stopByeDpiFrontProxy();
 
@@ -1227,10 +1257,7 @@ public class ProxyTunnelService extends Service {
         sPublicIpRefreshInProgress = false;
         cancelPublicIpRefresh();
         clearPendingCaptchaPrompt(getApplicationContext());
-        if (statsExecutor != null) {
-            statsExecutor.shutdownNow();
-            statsExecutor = null;
-        }
+        shutdownStatsExecutor();
         stopByeDpiFrontProxy();
         unregisterTetherReceiver();
         unregisterTetherEventCallback();
@@ -1484,6 +1511,12 @@ public class ProxyTunnelService extends Service {
         sPublicIsp = null;
         lastRxSample = -1L;
         lastTxSample = -1L;
+        lastTrafficSampleAtElapsedMs = -1L;
+        lastRxTrafficAtElapsedMs = -1L;
+        lastTxTrafficAtElapsedMs = -1L;
+        smoothedRxBytesPerSecond = 0d;
+        smoothedTxBytesPerSecond = 0d;
+        trafficSpeedSamples.clear();
         xrayTrafficBaseRx = -1L;
         xrayTrafficBaseTx = -1L;
         userspaceTrafficBaseRx = -1L;
@@ -1492,6 +1525,7 @@ public class ProxyTunnelService extends Service {
         lastUnderlyingNetworkUsable = null;
         lastUnderlyingConnectivityEventAtElapsedMs = 0L;
         lastActiveTunnelProbeAtElapsedMs = 0L;
+        lastNotificationTrafficUpdateAtElapsedMs = 0L;
         activeTunnelProbingInProgress.set(false);
         resetProxyWarmupState();
     }
@@ -3246,12 +3280,7 @@ public class ProxyTunnelService extends Service {
         lastUnderlyingNetworkUsable = !TextUtils.isEmpty(lastUnderlyingNetworkFingerprint);
         requestConnectivityProbe(true);
         statsExecutor = Executors.newSingleThreadScheduledExecutor();
-        statsExecutor.scheduleAtFixedRate(() -> {
-            if (!sRunning) {
-                return;
-            }
-            sampleStatisticsNow();
-        }, 1L, 1L, TimeUnit.SECONDS);
+        refreshStatsSamplingSchedule();
 
         statsExecutor.scheduleAtFixedRate(() -> {
             if (!sRunning) {
@@ -3296,6 +3325,44 @@ public class ProxyTunnelService extends Service {
         }, 5L, RUNTIME_SUPERVISOR_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
+    private void refreshStatsSamplingSchedule() {
+        ScheduledExecutorService executor = statsExecutor;
+        if (executor == null || executor.isShutdown()) {
+            return;
+        }
+        long targetIntervalMs = sFastTrafficStatsRequested
+                ? STATS_SAMPLE_FAST_INTERVAL_MS
+                : STATS_SAMPLE_BACKGROUND_INTERVAL_MS;
+        if (activeStatsSampleIntervalMs == targetIntervalMs && statsSamplingTask != null && !statsSamplingTask.isDone()) {
+            return;
+        }
+        Future<?> previousTask = statsSamplingTask;
+        if (previousTask != null) {
+            previousTask.cancel(false);
+        }
+        activeStatsSampleIntervalMs = targetIntervalMs;
+        statsSamplingTask = executor.scheduleAtFixedRate(() -> {
+            if (!sRunning) {
+                return;
+            }
+            sampleStatisticsNowSafe();
+        }, targetIntervalMs, targetIntervalMs, TimeUnit.MILLISECONDS);
+        appendRuntimeLogLine("Traffic stats sampling interval: " + targetIntervalMs + "ms");
+    }
+
+    private void shutdownStatsExecutor() {
+        Future<?> samplingTask = statsSamplingTask;
+        if (samplingTask != null) {
+            samplingTask.cancel(false);
+            statsSamplingTask = null;
+        }
+        activeStatsSampleIntervalMs = -1L;
+        if (statsExecutor != null) {
+            statsExecutor.shutdownNow();
+            statsExecutor = null;
+        }
+    }
+
     private void sampleStatisticsNow() {
         if (!sRunning) {
             return;
@@ -3317,6 +3384,17 @@ public class ProxyTunnelService extends Service {
             return;
         }
         sampleWireGuardStatisticsNow();
+    }
+
+    private void sampleStatisticsNowSafe() {
+        try {
+            sampleStatisticsNow();
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                    "Traffic stats sample failed: "
+                            + firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
+            );
+        }
     }
 
     private void requestActiveTunnelProbingIfNeeded() {
@@ -3569,6 +3647,8 @@ public class ProxyTunnelService extends Service {
         }
         long previousRx = lastRxSample;
         long previousTx = lastTxSample;
+        long now = SystemClock.elapsedRealtime();
+        long previousSampleAt = lastTrafficSampleAtElapsedMs;
         if (activeBackendType == BackendType.XRAY) {
             if (xrayTrafficBaseRx < 0L || xrayTrafficBaseTx < 0L) {
                 xrayTrafficBaseRx = rxTotal;
@@ -3579,16 +3659,34 @@ public class ProxyTunnelService extends Service {
         }
         long rxDelta = previousRx >= 0L ? Math.max(0L, rxTotal - previousRx) : 0L;
         long txDelta = previousTx >= 0L ? Math.max(0L, txTotal - previousTx) : 0L;
-        if (previousRx >= 0L) {
-            sRxBytesPerSecond = rxDelta;
-        } else {
-            sRxBytesPerSecond = 0L;
+        if ((previousRx >= 0L && rxTotal < previousRx) || (previousTx >= 0L && txTotal < previousTx)) {
+            trafficSpeedSamples.clear();
+            smoothedRxBytesPerSecond = 0d;
+            smoothedTxBytesPerSecond = 0d;
         }
-        if (previousTx >= 0L) {
-            sTxBytesPerSecond = txDelta;
-        } else {
-            sTxBytesPerSecond = 0L;
+        TrafficSpeedSnapshot speedSnapshot = calculateTrafficSpeedSnapshot(rxTotal, txTotal, now);
+        long rawRxBytesPerSecond = speedSnapshot.rxBytesPerSecond;
+        long rawTxBytesPerSecond = speedSnapshot.txBytesPerSecond;
+        if (rxDelta > 0L) {
+            lastRxTrafficAtElapsedMs = now;
         }
+        if (txDelta > 0L) {
+            lastTxTrafficAtElapsedMs = now;
+        }
+        smoothedRxBytesPerSecond = smoothSpeed(
+                smoothedRxBytesPerSecond,
+                rawRxBytesPerSecond,
+                now,
+                lastRxTrafficAtElapsedMs
+        );
+        smoothedTxBytesPerSecond = smoothSpeed(
+                smoothedTxBytesPerSecond,
+                rawTxBytesPerSecond,
+                now,
+                lastTxTrafficAtElapsedMs
+        );
+        sRxBytesPerSecond = Math.max(0L, Math.round(smoothedRxBytesPerSecond));
+        sTxBytesPerSecond = Math.max(0L, Math.round(smoothedTxBytesPerSecond));
 
         if (activeBackendType == BackendType.XRAY && (rxDelta > 0L || txDelta > 0L)) {
             String activeProfileId = XrayStore.getActiveProfileId(getApplicationContext());
@@ -3599,8 +3697,57 @@ public class ProxyTunnelService extends Service {
 
         lastRxSample = rxTotal;
         lastTxSample = txTotal;
+        lastTrafficSampleAtElapsedMs = now;
         sRxBytes = rxTotal;
         sTxBytes = txTotal;
+        maybeRefreshTrafficNotification(now);
+    }
+
+    private TrafficSpeedSnapshot calculateTrafficSpeedSnapshot(long rxTotal, long txTotal, long nowElapsedMs) {
+        trafficSpeedSamples.addLast(new TrafficSpeedSample(nowElapsedMs, rxTotal, txTotal));
+        while (trafficSpeedSamples.size() > 2
+                && nowElapsedMs - trafficSpeedSamples.peekFirst().elapsedMs > STATS_SPEED_WINDOW_MS) {
+            trafficSpeedSamples.removeFirst();
+        }
+        TrafficSpeedSample first = trafficSpeedSamples.peekFirst();
+        TrafficSpeedSample last = trafficSpeedSamples.peekLast();
+        if (first == null || last == null || first == last) {
+            return TrafficSpeedSnapshot.ZERO;
+        }
+        long elapsedMs = Math.max(1L, last.elapsedMs - first.elapsedMs);
+        long rxDelta = Math.max(0L, last.rxBytes - first.rxBytes);
+        long txDelta = Math.max(0L, last.txBytes - first.txBytes);
+        return new TrafficSpeedSnapshot(
+                rxDelta * 1000L / elapsedMs,
+                txDelta * 1000L / elapsedMs
+        );
+    }
+
+    private double smoothSpeed(double previousSpeed,
+                               long rawSpeed,
+                               long nowElapsedMs,
+                               long lastTrafficAtElapsedMs) {
+        if (rawSpeed > 0L) {
+            double alpha = rawSpeed >= previousSpeed ? STATS_SPEED_RISE_ALPHA : STATS_SPEED_FALL_ALPHA;
+            return previousSpeed + (rawSpeed - previousSpeed) * alpha;
+        }
+        if (lastTrafficAtElapsedMs > 0L
+                && nowElapsedMs - lastTrafficAtElapsedMs < STATS_SPEED_IDLE_DECAY_HOLD_MS) {
+            return previousSpeed;
+        }
+        return previousSpeed * (1d - STATS_SPEED_FALL_ALPHA);
+    }
+
+    private void maybeRefreshTrafficNotification(long nowElapsedMs) {
+        if (sServiceState != ServiceState.RUNNING) {
+            return;
+        }
+        if (lastNotificationTrafficUpdateAtElapsedMs > 0L
+                && nowElapsedMs - lastNotificationTrafficUpdateAtElapsedMs < 1_000L) {
+            return;
+        }
+        lastNotificationTrafficUpdateAtElapsedMs = nowElapsedMs;
+        updateNotification();
     }
 
     private InterfaceTrafficSnapshot readActiveVpnTrafficSnapshot() {
@@ -3845,13 +3992,22 @@ public class ProxyTunnelService extends Service {
         if (!TextUtils.isEmpty(lastUnderlyingNetworkFingerprint)
                 && !TextUtils.isEmpty(currentUnderlyingFingerprint)
                 && !TextUtils.equals(lastUnderlyingNetworkFingerprint, currentUnderlyingFingerprint)) {
-            scheduleRuntimeReconnect(
-                    "Underlying network changed from "
-                            + lastUnderlyingNetworkFingerprint
-                            + " to "
-                            + currentUnderlyingFingerprint,
-                    RUNTIME_RECONNECT_DELAY_MS
-            );
+            if (shouldReconnectOnUnderlyingNetworkChange()) {
+                scheduleRuntimeReconnect(
+                        "Underlying network changed from "
+                                + lastUnderlyingNetworkFingerprint
+                                + " to "
+                                + currentUnderlyingFingerprint,
+                        RUNTIME_RECONNECT_DELAY_MS
+                );
+            } else {
+                appendRuntimeLogLine(
+                        "Underlying network changed without Xray restart: "
+                                + lastUnderlyingNetworkFingerprint
+                                + " -> "
+                                + currentUnderlyingFingerprint
+                );
+            }
             lastUnderlyingNetworkFingerprint = currentUnderlyingFingerprint;
             return;
         }
@@ -3952,6 +4108,21 @@ public class ProxyTunnelService extends Service {
         });
     }
 
+    private boolean shouldReconnectOnUnderlyingNetworkChange() {
+        if (activeBackendType != BackendType.XRAY) {
+            return true;
+        }
+        try {
+            return XrayStore.getXraySettings(getApplicationContext()).restartOnNetworkChange;
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                    "Failed to read Xray network-change restart preference: "
+                            + firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
+            );
+            return false;
+        }
+    }
+
     private NotificationCompat.Builder baseNotificationBuilder() {
         Intent launchIntent = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -3972,12 +4143,28 @@ public class ProxyTunnelService extends Service {
 
         return new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(getString(R.string.app_name))
-                .setContentText(getString(getNotificationStatusRes()))
+                .setContentText(buildNotificationContentText())
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(buildNotificationContentText()))
                 .setSmallIcon(R.drawable.ic_power)
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
-                .addAction(0, getString(R.string.service_off), stopPendingIntent)
+                .addAction(0, getString(R.string.service_disconnect_action), stopPendingIntent)
                 .setOnlyAlertOnce(true);
+    }
+
+    private String buildNotificationContentText() {
+        String status = getString(getNotificationStatusRes());
+        if (sServiceState != ServiceState.RUNNING) {
+            return status;
+        }
+        long totalSpeed = Math.max(0L, sRxBytesPerSecond) + Math.max(0L, sTxBytesPerSecond);
+        long totalTraffic = Math.max(0L, sRxBytes) + Math.max(0L, sTxBytes);
+        return getString(
+                R.string.service_notification_traffic_summary,
+                status,
+                UiFormatter.formatBytesPerSecond(this, totalSpeed),
+                UiFormatter.formatBytes(this, totalTraffic)
+        );
     }
 
     private android.app.Notification buildNotification() {
@@ -4284,13 +4471,17 @@ public class ProxyTunnelService extends Service {
                             + previousFingerprint + " -> " + currentFingerprint
             );
             lastUnderlyingNetworkFingerprint = currentFingerprint;
-            scheduleRuntimeReconnect(
-                    "Underlying network changed from "
-                            + previousFingerprint
-                            + " to "
-                            + currentFingerprint,
-                    UNDERLYING_NETWORK_RECONNECT_DELAY_MS
-            );
+            if (shouldReconnectOnUnderlyingNetworkChange()) {
+                scheduleRuntimeReconnect(
+                        "Underlying network changed from "
+                                + previousFingerprint
+                                + " to "
+                                + currentFingerprint,
+                        UNDERLYING_NETWORK_RECONNECT_DELAY_MS
+                );
+            } else {
+                appendRuntimeLogLine("Xray restart on network change is disabled; keeping runtime alive");
+            }
             return;
         }
 
@@ -4302,10 +4493,14 @@ public class ProxyTunnelService extends Service {
                             + currentFingerprint
             );
             lastUnderlyingNetworkFingerprint = currentFingerprint;
-            scheduleRuntimeReconnect(
-                    "Underlying network resumed after temporary loss",
-                    UNDERLYING_NETWORK_RECONNECT_DELAY_MS
-            );
+            if (shouldReconnectOnUnderlyingNetworkChange()) {
+                scheduleRuntimeReconnect(
+                        "Underlying network resumed after temporary loss",
+                        UNDERLYING_NETWORK_RECONNECT_DELAY_MS
+                );
+            } else {
+                appendRuntimeLogLine("Xray restart on network resume is disabled; keeping runtime alive");
+            }
             return;
         }
 
@@ -4373,6 +4568,11 @@ public class ProxyTunnelService extends Service {
         if (sServiceState == ServiceState.CONNECTING) {
             return R.string.service_connecting;
         }
+        if (sServiceState == ServiceState.STOPPING) {
+            return activeBackendType == BackendType.XRAY
+                    ? R.string.service_stopping_xray
+                    : R.string.service_stopping_vk_turn;
+        }
         if (sServiceState == ServiceState.RUNNING) {
             return R.string.service_on;
         }
@@ -4436,6 +4636,30 @@ public class ProxyTunnelService extends Service {
 
         private boolean isZero() {
             return rxBytes <= 0L && txBytes <= 0L;
+        }
+    }
+
+    private static final class TrafficSpeedSample {
+        private final long elapsedMs;
+        private final long rxBytes;
+        private final long txBytes;
+
+        private TrafficSpeedSample(long elapsedMs, long rxBytes, long txBytes) {
+            this.elapsedMs = elapsedMs;
+            this.rxBytes = Math.max(0L, rxBytes);
+            this.txBytes = Math.max(0L, txBytes);
+        }
+    }
+
+    private static final class TrafficSpeedSnapshot {
+        private static final TrafficSpeedSnapshot ZERO = new TrafficSpeedSnapshot(0L, 0L);
+
+        private final long rxBytesPerSecond;
+        private final long txBytesPerSecond;
+
+        private TrafficSpeedSnapshot(long rxBytesPerSecond, long txBytesPerSecond) {
+            this.rxBytesPerSecond = Math.max(0L, rxBytesPerSecond);
+            this.txBytesPerSecond = Math.max(0L, txBytesPerSecond);
         }
     }
 

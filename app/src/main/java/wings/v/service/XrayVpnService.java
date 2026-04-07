@@ -181,6 +181,7 @@ public class XrayVpnService extends VpnService implements DialerController {
                     .setMtu(DEFAULT_MTU)
                     .addAddress(VPN_ADDRESS_V4, VPN_PREFIX_V4)
                     .addRoute("0.0.0.0", 0);
+            builder.allowBypass();
 
             if (value.xraySettings == null || value.xraySettings.ipv6) {
                 builder.addAddress(VPN_ADDRESS_V6, VPN_PREFIX_V6);

@@ -241,7 +241,7 @@ public final class AppUpdateManager {
     }
 
     private HttpURLConnection openConnection(String urlString) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, new URL(urlString));
         connection.setInstanceFollowRedirects(true);
         connection.setUseCaches(false);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);

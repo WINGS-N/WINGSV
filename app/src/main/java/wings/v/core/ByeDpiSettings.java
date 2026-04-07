@@ -12,6 +12,7 @@ import java.util.Locale;
 public final class ByeDpiSettings {
     public static final String DEFAULT_COMMAND_ARGS =
             "-o1 -d1 -a1 -At,r,s -s1 -d1 -s5+s -s10+s -s15+s -s20+s -r1+s -S -a1 -As -s1 -d1 -s5+s -s10+s -s15+s -s20+s -S -a1";
+    private static final String DEFAULT_CONNECT_BIND_IP = "0.0.0.0";
 
     public enum DesyncMethod {
         NONE("none"),
@@ -167,6 +168,7 @@ public final class ByeDpiSettings {
         List<String> splitArgs = ByeDpiShellUtils.shellSplit(trim(rawCommandArgs));
         CommandAddress commandAddress = parseCommandAddress(rawCommandArgs);
         boolean hasProtectPath = hasProtectPathArgument(splitArgs);
+        boolean hasConnIp = hasConnIpArgument(splitArgs);
         boolean hasSocksUser = hasArgument(splitArgs, "--socks-user");
         boolean hasSocksPass = hasArgument(splitArgs, "--socks-pass");
         if (TextUtils.isEmpty(commandAddress.ip)) {
@@ -176,6 +178,10 @@ public final class ByeDpiSettings {
         if (commandAddress.port <= 0) {
             result.add("--port");
             result.add(String.valueOf(resolveRuntimeListenPort()));
+        }
+        if (!hasConnIp) {
+            result.add("--conn-ip");
+            result.add(DEFAULT_CONNECT_BIND_IP);
         }
         for (String token : splitArgs) {
             if (TextUtils.isEmpty(token)
@@ -210,6 +216,7 @@ public final class ByeDpiSettings {
         result.add("ciadpi");
         result.add("-i" + resolveRuntimeListenIp());
         result.add("-p" + resolveRuntimeListenPort());
+        result.add("-I" + DEFAULT_CONNECT_BIND_IP);
 
         if (maxConnections > 0) {
             result.add("-c" + maxConnections);
@@ -350,6 +357,19 @@ public final class ByeDpiSettings {
             if (TextUtils.equals(normalized, "--protect-path")
                     || TextUtils.equals(normalized, "-P")
                     || normalized.startsWith("-P")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasConnIpArgument(@NonNull List<String> args) {
+        for (String token : args) {
+            String normalized = trim(token);
+            if (TextUtils.equals(normalized, "--conn-ip")
+                    || normalized.startsWith("--conn-ip=")
+                    || TextUtils.equals(normalized, "-I")
+                    || (normalized.startsWith("-I") && normalized.length() > 2)) {
                 return true;
             }
         }

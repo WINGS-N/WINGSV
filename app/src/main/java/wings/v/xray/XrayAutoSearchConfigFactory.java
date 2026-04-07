@@ -52,12 +52,7 @@ public final class XrayAutoSearchConfigFactory {
         XrayConfigFactory.sanitizeOutbound(proxyOutbound, profile);
         XrayConfigFactory.applySecurityOverrides(proxyOutbound, settings);
         if (useByeDpi && byeDpiSettings != null) {
-            proxyOutbound.put(
-                    "proxySettings",
-                    new JSONObject()
-                            .put("tag", BYEDPI_FRONT_TAG)
-                            .put("transportLayer", true)
-            );
+            XrayConfigFactory.enableByeDpiFrontProxy(proxyOutbound, settings);
         }
 
         JSONObject root = new JSONObject();

@@ -26,11 +26,9 @@ public final class SocksProxyAuthenticator {
         if (TextUtils.isEmpty(normalizedUsername) || TextUtils.isEmpty(normalizedPassword) || port <= 0) {
             return request.run();
         }
-        String normalizedHost = trim(host);
         synchronized (LOCK) {
             installAuthenticator();
             activeCredentials = new ActiveCredentials(
-                    normalizedHost,
                     port,
                     normalizedUsername,
                     normalizedPassword
@@ -56,12 +54,6 @@ public final class SocksProxyAuthenticator {
                         || getRequestingPort() != credentials.port) {
                     return null;
                 }
-                String requestingHost = trim(getRequestingHost());
-                if (!TextUtils.isEmpty(credentials.host)
-                        && !TextUtils.isEmpty(requestingHost)
-                        && !TextUtils.equals(credentials.host, requestingHost)) {
-                    return null;
-                }
                 return new PasswordAuthentication(
                         credentials.username,
                         credentials.password.toCharArray()
@@ -81,16 +73,13 @@ public final class SocksProxyAuthenticator {
     }
 
     private static final class ActiveCredentials {
-        final String host;
         final int port;
         final String username;
         final String password;
 
-        ActiveCredentials(@NonNull String host,
-                          int port,
+        ActiveCredentials(int port,
                           @NonNull String username,
                           @NonNull String password) {
-            this.host = host;
             this.port = port;
             this.username = username;
             this.password = password;
