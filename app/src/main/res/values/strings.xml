@@ -471,7 +471,13 @@
     <string name="xray_settings_sniffing_summary">Определение destination по traffic sniffing для прозрачного режима</string>
     <string name="xray_settings_remote_dns_title">Удалённый DNS</string>
     <string name="xray_settings_direct_dns_title">Внутренний DNS</string>
+    <string name="xray_settings_local_proxy_enabled_title">Локальный SOCKS proxy</string>
+    <string name="xray_settings_local_proxy_enabled_summary">Поднимать локальный SOCKS inbound Xray</string>
     <string name="xray_settings_local_proxy_port_title">Порт локального прокси</string>
+    <string name="xray_settings_local_proxy_auth_title">Аутентификация SOCKS</string>
+    <string name="xray_settings_local_proxy_auth_summary">Требовать логин и пароль для локального SOCKS proxy</string>
+    <string name="socks_auth_username_title">SOCKS логин</string>
+    <string name="socks_auth_password_title">SOCKS пароль</string>
     <string name="captcha_browser_title">Решение капчи VK</string>
     <string name="captcha_browser_headline">Подтвердите, что вы не робот</string>
     <string name="captcha_browser_headline_pool">Подтвердите дополнительную TURN-сессию</string>
@@ -484,6 +490,8 @@
     <string name="captcha_browser_status_failed">Не удалось загрузить страницу проверки</string>
     <string name="captcha_browser_more">Подробнее</string>
     <string name="captcha_browser_less">Скрыть</string>
+    <string name="captcha_browser_collapse">Свернуть блок проверки</string>
+    <string name="captcha_browser_expand">Развернуть блок проверки</string>
     <string name="captcha_browser_cancel">Отмена</string>
     <string name="captcha_notification_title">Нужно пройти капчу VK</string>
     <string name="captcha_notification_text">Фоновое обновление TURN соединений ждёт решение капчи. Нажмите, чтобы открыть одноразовое окно проверки</string>
@@ -573,6 +581,8 @@
     <string name="byedpi_proxy_category">Локальный прокси</string>
     <string name="byedpi_proxy_ip_title">Прослушиваемый IP</string>
     <string name="byedpi_proxy_port_title">Порт</string>
+    <string name="byedpi_proxy_auth_title">Аутентификация SOCKS</string>
+    <string name="byedpi_proxy_auth_summary">Требовать логин и пароль для SOCKS proxy ByeDPI</string>
     <string name="byedpi_ui_editor_title">UI редактор</string>
     <string name="byedpi_command_editor_title">Редактор командной строки</string>
     <string name="byedpi_command_args_title">Аргументы командной строки</string>

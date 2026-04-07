@@ -28,7 +28,7 @@
             android:id="@+id/permission_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:fontFamily="@font/samsungsharpsans"
+            android:fontFamily="@font/samsungone"
             android:textAppearance="?android:attr/textAppearanceListItem"
             android:textColor="#FF14314A"
             android:textStyle="bold" />
@@ -38,7 +38,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:fontFamily="@font/samsungsharpsans"
+            android:fontFamily="@font/samsungone"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="#C2143048" />
     </LinearLayout>

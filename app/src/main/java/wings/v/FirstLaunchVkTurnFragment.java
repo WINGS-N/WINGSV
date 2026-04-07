@@ -176,7 +176,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         label.setText(labelRes);
         label.setTextColor(0xF7FFFFFF);
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        label.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         label.setIncludeFontPadding(false);
         row.addView(label, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -202,6 +202,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         editText.setTextColor(0xFFFFFFFF);
         editText.setHintTextColor(0x99FFFFFF);
         editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        editText.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         editText.setBackgroundColor(0x00000000);
         editText.setPadding(0, dp(9), 0, 0);
         row.addView(editText, new LinearLayout.LayoutParams(
@@ -263,7 +264,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         label.setGravity(Gravity.CENTER_VERTICAL);
         label.setIncludeFontPadding(false);
-        label.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
         labelParams.setMarginStart(dp(8));
         row.addView(label, labelParams);
@@ -284,7 +285,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         label.setText(labelRes);
         label.setTextColor(0xDFFFFFFF);
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        label.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         label.setIncludeFontPadding(false);
         label.setPadding(dp(4), dp(18), dp(4), dp(8));
         container.addView(label, new LinearLayout.LayoutParams(

@@ -66,6 +66,9 @@ public final class ByeDpiSettings {
     public boolean useCommandLineSettings;
     public String proxyIp = "127.0.0.1";
     public int proxyPort = 1080;
+    public boolean proxyAuthEnabled = true;
+    public String proxyUsername = "";
+    public String proxyPassword = "";
     public int maxConnections = 512;
     public int bufferSize = 16384;
     public int defaultTtl;
@@ -139,6 +142,24 @@ public final class ByeDpiSettings {
     }
 
     @NonNull
+    public String resolveRuntimeProxyUsername() {
+        CommandProxyAuth commandProxyAuth = parseCommandProxyAuth(rawCommandArgs);
+        if (useCommandLineSettings && !TextUtils.isEmpty(commandProxyAuth.username)) {
+            return commandProxyAuth.username;
+        }
+        return trim(proxyUsername);
+    }
+
+    @NonNull
+    public String resolveRuntimeProxyPassword() {
+        CommandProxyAuth commandProxyAuth = parseCommandProxyAuth(rawCommandArgs);
+        if (useCommandLineSettings && !TextUtils.isEmpty(commandProxyAuth.password)) {
+            return commandProxyAuth.password;
+        }
+        return trim(proxyPassword);
+    }
+
+    @NonNull
     private List<String> buildCommandArguments(@Nullable String protectPath) {
         ArrayList<String> result = new ArrayList<>();
         result.add("ciadpi");
@@ -146,6 +167,8 @@ public final class ByeDpiSettings {
         List<String> splitArgs = ByeDpiShellUtils.shellSplit(trim(rawCommandArgs));
         CommandAddress commandAddress = parseCommandAddress(rawCommandArgs);
         boolean hasProtectPath = hasProtectPathArgument(splitArgs);
+        boolean hasSocksUser = hasArgument(splitArgs, "--socks-user");
+        boolean hasSocksPass = hasArgument(splitArgs, "--socks-pass");
         if (TextUtils.isEmpty(commandAddress.ip)) {
             result.add("--ip");
             result.add(resolveRuntimeListenIp());
@@ -167,6 +190,16 @@ public final class ByeDpiSettings {
         if (!TextUtils.isEmpty(protectPath) && !hasProtectPath) {
             result.add("--protect-path");
             result.add(protectPath);
+        }
+        if (proxyAuthEnabled) {
+            if (!hasSocksUser && !TextUtils.isEmpty(resolveRuntimeProxyUsername())) {
+                result.add("--socks-user");
+                result.add(resolveRuntimeProxyUsername());
+            }
+            if (!hasSocksPass && !TextUtils.isEmpty(resolveRuntimeProxyPassword())) {
+                result.add("--socks-pass");
+                result.add(resolveRuntimeProxyPassword());
+            }
         }
         return result;
     }
@@ -298,6 +331,16 @@ public final class ByeDpiSettings {
             result.add("--protect-path");
             result.add(protectPath);
         }
+        if (proxyAuthEnabled) {
+            if (!TextUtils.isEmpty(resolveRuntimeProxyUsername())) {
+                result.add("--socks-user");
+                result.add(resolveRuntimeProxyUsername());
+            }
+            if (!TextUtils.isEmpty(resolveRuntimeProxyPassword())) {
+                result.add("--socks-pass");
+                result.add(resolveRuntimeProxyPassword());
+            }
+        }
         return result;
     }
 
@@ -307,6 +350,17 @@ public final class ByeDpiSettings {
             if (TextUtils.equals(normalized, "--protect-path")
                     || TextUtils.equals(normalized, "-P")
                     || normalized.startsWith("-P")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasArgument(@NonNull List<String> args, @NonNull String longName) {
+        for (String token : args) {
+            String normalized = trim(token);
+            if (TextUtils.equals(normalized, longName)
+                    || normalized.startsWith(longName + "=")) {
                 return true;
             }
         }
@@ -341,6 +395,34 @@ public final class ByeDpiSettings {
         return new CommandAddress(commandIp, commandPort);
     }
 
+    @NonNull
+    private CommandProxyAuth parseCommandProxyAuth(@Nullable String rawArgs) {
+        List<String> split = ByeDpiShellUtils.shellSplit(trim(rawArgs));
+        String username = "";
+        String password = "";
+        for (int index = 0; index < split.size(); index++) {
+            String token = trim(split.get(index));
+            if (token.startsWith("--socks-user=")) {
+                username = trim(token.substring("--socks-user=".length()));
+                continue;
+            }
+            if (TextUtils.equals(token, "--socks-user") && index + 1 < split.size()) {
+                username = trim(split.get(index + 1));
+                index++;
+                continue;
+            }
+            if (token.startsWith("--socks-pass=")) {
+                password = trim(token.substring("--socks-pass=".length()));
+                continue;
+            }
+            if (TextUtils.equals(token, "--socks-pass") && index + 1 < split.size()) {
+                password = trim(split.get(index + 1));
+                index++;
+            }
+        }
+        return new CommandProxyAuth(username, password);
+    }
+
     private static int parseInt(@Nullable String value, int defaultValue) {
         try {
             return Integer.parseInt(trim(value));
@@ -361,6 +443,16 @@ public final class ByeDpiSettings {
         CommandAddress(String ip, int port) {
             this.ip = trim(ip);
             this.port = Math.max(0, port);
+        }
+    }
+
+    private static final class CommandProxyAuth {
+        final String username;
+        final String password;
+
+        CommandProxyAuth(String username, String password) {
+            this.username = trim(username);
+            this.password = trim(password);
         }
     }
 }

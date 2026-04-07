@@ -47,6 +47,7 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     private CaptchaPromptSource captchaSource = CaptchaPromptSource.PRIMARY;
     private boolean stopConnectionOnCancel = true;
     private boolean subtitleExpanded;
+    private boolean detailsCollapsed;
 
     public static Intent createIntent(Context context, String url) {
         return new Intent(context, CaptchaBrowserActivity.class)
@@ -85,9 +86,11 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         binding.buttonCaptchaCancel.setOnClickListener(v -> cancelCaptchaAndFinish());
         binding.textCaptchaExpand.setOnClickListener(v -> toggleSubtitleExpanded());
+        binding.textCaptchaCollapse.setOnClickListener(v -> toggleDetailsCollapsed());
         configureBackHandling();
         configureWebView();
         syncSubtitleExpansionUi();
+        syncDetailsCollapseUi();
         loadIntent(getIntent(), true);
     }
 
@@ -206,6 +209,7 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         captchaUrl = url;
         browserBaseUrl = buildBrowserBaseUrl(url);
         completed = false;
+        detailsCollapsed = false;
         binding.textCaptchaTitle.setText(captchaSource == CaptchaPromptSource.POOL
                 ? R.string.captcha_browser_headline_pool
                 : R.string.captcha_browser_headline);
@@ -213,6 +217,7 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
                 ? R.string.captcha_browser_subtitle_pool
                 : R.string.captcha_browser_subtitle);
         binding.textCaptchaStatus.setText(R.string.captcha_browser_status_loading);
+        syncDetailsCollapseUi();
         binding.webviewCaptcha.loadUrl(url);
     }
 
@@ -265,6 +270,11 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         syncSubtitleExpansionUi();
     }
 
+    private void toggleDetailsCollapsed() {
+        detailsCollapsed = !detailsCollapsed;
+        syncDetailsCollapseUi();
+    }
+
     private void syncSubtitleExpansionUi() {
         if (binding == null) {
             return;
@@ -274,6 +284,19 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         binding.textCaptchaExpand.setText(
                 subtitleExpanded ? R.string.captcha_browser_less : R.string.captcha_browser_more
         );
+    }
+
+    private void syncDetailsCollapseUi() {
+        if (binding == null) {
+            return;
+        }
+        binding.layoutCaptchaDetails.setVisibility(detailsCollapsed ? View.GONE : View.VISIBLE);
+        binding.textCaptchaCollapse.setImageResource(detailsCollapsed
+                ? R.drawable.ic_sesl_arrow_enabled_down
+                : R.drawable.ic_sesl_arrow_enabled_up);
+        binding.textCaptchaCollapse.setContentDescription(getString(detailsCollapsed
+                ? R.string.captcha_browser_expand
+                : R.string.captcha_browser_collapse));
     }
 
     private void cancelCaptchaAndFinish() {
