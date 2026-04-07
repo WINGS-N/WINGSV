@@ -10,10 +10,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -40,7 +42,7 @@ public final class ByeDpiDomainListStore {
             return result;
         }
         try {
-            String rawJson = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            String rawJson = readUtf8(file);
             JSONArray array = new JSONArray(rawJson);
             for (int index = 0; index < array.length(); index++) {
                 JSONObject object = array.optJSONObject(index);
@@ -110,7 +112,7 @@ public final class ByeDpiDomainListStore {
             }
         }
         try {
-            Files.writeString(listsFile(context).toPath(), array.toString(), StandardCharsets.UTF_8);
+            writeUtf8(listsFile(context), array.toString());
         } catch (Exception ignored) {
         }
     }
@@ -295,6 +297,29 @@ public final class ByeDpiDomainListStore {
     @NonNull
     private static File listsFile(@NonNull Context context) {
         return new File(context.getFilesDir(), FILE_NAME);
+    }
+
+    @NonNull
+    private static String readUtf8(@NonNull File file) throws java.io.IOException {
+        try (FileInputStream input = new FileInputStream(file);
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) >= 0) {
+                output.write(buffer, 0, read);
+            }
+            return output.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    private static void writeUtf8(@NonNull File file, @NonNull String value) throws java.io.IOException {
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        try (FileOutputStream output = new FileOutputStream(file, false)) {
+            output.write(value.getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     @NonNull
