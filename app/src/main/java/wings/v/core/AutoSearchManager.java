@@ -720,7 +720,7 @@ public final class AutoSearchManager {
                         candidate.latencyMs
                 ));
             } else {
-                ProbeResult probeResult = ensureTrafficUp(mode, candidate, localPort, stableFoundCount);
+                ProbeResult probeResult = ensureTrafficUp(mode, candidate, xraySettings, localPort, stableFoundCount);
                 candidate.live = probeResult.success;
                 if (!probeResult.success) {
                     return;
@@ -733,7 +733,7 @@ public final class AutoSearchManager {
                 if (failedAttempts >= 2) {
                     break;
                 }
-                DownloadResult result = downloadThroughProxy(mode, candidate, localPort, stableFoundCount);
+                DownloadResult result = downloadThroughProxy(mode, candidate, xraySettings, localPort, stableFoundCount);
                 candidate.downloadedBytes += result.bytesRead;
                 candidate.successfulAttempts += result.success ? 1 : 0;
                 candidate.live = candidate.live || result.bytesRead > 0L;
@@ -760,6 +760,7 @@ public final class AutoSearchManager {
     @NonNull
     private ProbeResult ensureTrafficUp(Mode mode,
                                         CandidateResult candidate,
+                                        XraySettings xraySettings,
                                         int localPort,
                                         int stableFoundCount) {
         for (String url : TRAFFIC_PROBE_URLS) {
@@ -776,7 +777,12 @@ public final class AutoSearchManager {
                     stableFoundCount,
                     candidate.latencyMs
             ));
-            ProbeResult result = probeTrafficThroughProxy(localPort, url, candidate.pingResponsive);
+            ProbeResult result = probeTrafficThroughProxy(
+                    xraySettings,
+                    localPort,
+                    url,
+                    candidate.pingResponsive
+            );
             if (result.success) {
                 updateState(State.running(
                         mode,
@@ -811,10 +817,12 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private ProbeResult probeTrafficThroughProxy(int localPort,
+    private ProbeResult probeTrafficThroughProxy(XraySettings xraySettings,
+                                                 int localPort,
                                                  @NonNull String url,
                                                  boolean responsiveCandidate) {
         return probeTrafficThroughSocks(
+                xraySettings,
                 "127.0.0.1",
                 localPort,
                 url,
@@ -823,114 +831,153 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private ProbeResult probeTrafficThroughSocks(@NonNull String host,
+    private ProbeResult probeTrafficThroughSocks(XraySettings xraySettings,
+                                                 @NonNull String host,
                                                  int port,
                                                  @NonNull String url,
                                                  boolean responsiveCandidate) {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
-        HttpURLConnection connection = null;
         try {
-            connection = (HttpURLConnection) new URL(url).openConnection(proxy);
-            connection.setConnectTimeout(responsiveCandidate
-                    ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS
-                    : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(responsiveCandidate
-                    ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS
-                    : TRAFFIC_PROBE_READ_TIMEOUT_MS);
-            connection.setUseCaches(false);
-            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
-            connection.connect();
-            int responseCode = connection.getResponseCode();
-            if (responseCode < 200 || responseCode >= 400) {
-                return ProbeResult.failed();
-            }
-            long bytesRead = 0L;
-            try (java.io.InputStream inputStream = connection.getInputStream()) {
-                byte[] buffer = new byte[1024];
-                while (bytesRead < TRAFFIC_PROBE_MAX_BYTES) {
-                    int remaining = (int) Math.min(buffer.length, TRAFFIC_PROBE_MAX_BYTES - bytesRead);
-                    int read = inputStream.read(buffer, 0, remaining);
-                    if (read == -1) {
-                        break;
+            return SocksProxyAuthenticator.run(
+                    host,
+                    port,
+                    resolveLocalSocksUsername(xraySettings),
+                    resolveLocalSocksPassword(xraySettings),
+                    () -> {
+                        HttpURLConnection connection = null;
+                        try {
+                            connection = (HttpURLConnection) new URL(url).openConnection(proxy);
+                            connection.setConnectTimeout(responsiveCandidate
+                                    ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS
+                                    : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS);
+                            connection.setReadTimeout(responsiveCandidate
+                                    ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS
+                                    : TRAFFIC_PROBE_READ_TIMEOUT_MS);
+                            connection.setUseCaches(false);
+                            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
+                            connection.connect();
+                            int responseCode = connection.getResponseCode();
+                            if (responseCode < 200 || responseCode >= 400) {
+                                return ProbeResult.failed();
+                            }
+                            long bytesRead = 0L;
+                            try (java.io.InputStream inputStream = connection.getInputStream()) {
+                                byte[] buffer = new byte[1024];
+                                while (bytesRead < TRAFFIC_PROBE_MAX_BYTES) {
+                                    int remaining = (int) Math.min(buffer.length, TRAFFIC_PROBE_MAX_BYTES - bytesRead);
+                                    int read = inputStream.read(buffer, 0, remaining);
+                                    if (read == -1) {
+                                        break;
+                                    }
+                                    bytesRead += read;
+                                }
+                            } catch (Exception ignored) {
+                                // 204/empty responses are still valid for traffic-up probing.
+                            }
+                            return new ProbeResult(true, responseCode, bytesRead);
+                        } finally {
+                            if (connection != null) {
+                                connection.disconnect();
+                            }
+                        }
                     }
-                    bytesRead += read;
-                }
-            } catch (Exception ignored) {
-                // 204/empty responses are still valid for traffic-up probing.
-            }
-            return new ProbeResult(true, responseCode, bytesRead);
+            );
         } catch (Exception ignored) {
             return ProbeResult.failed();
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
         }
     }
 
     @NonNull
     private DownloadResult downloadThroughProxy(Mode mode,
                                                 CandidateResult candidate,
+                                                XraySettings xraySettings,
                                                 int localPort,
                                                 int stableFoundCount) {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", localPort));
-        HttpURLConnection connection = null;
-        long totalBytes = candidate.downloadedBytes;
-        long startedAtMs = SystemClock.elapsedRealtime();
-        long singleSuccessBytes = getDownloadSizeBytes(appContext);
-        long targetBytes = singleSuccessBytes + singleSuccessBytes / 2L;
+        final long baseTotalBytes = candidate.downloadedBytes;
+        final long startedAtMs = SystemClock.elapsedRealtime();
+        final long singleSuccessBytes = getDownloadSizeBytes(appContext);
+        final long targetBytes = singleSuccessBytes + singleSuccessBytes / 2L;
         try {
-            connection = (HttpURLConnection) new URL(DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes)
-                    .openConnection(proxy);
-            int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
-            connection.setConnectTimeout(timeoutMs);
-            connection.setReadTimeout(timeoutMs);
-            connection.setUseCaches(false);
-            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
-            connection.connect();
-            int responseCode = connection.getResponseCode();
-            if (responseCode < 200 || responseCode >= 400) {
-                return new DownloadResult(false, 0L);
-            }
-            byte[] buffer = new byte[16 * 1024];
-            long attemptBytes = 0L;
-            try (java.io.InputStream inputStream = connection.getInputStream()) {
-                int read;
-                while ((read = inputStream.read(buffer)) != -1) {
-                    attemptBytes += read;
-                    totalBytes += read;
-                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
-                    long speed = attemptBytes * 1000L / elapsedMs;
-                    updateState(State.running(
-                            mode,
-                            appContext.getString(R.string.auto_search_step_download),
-                            appContext.getString(R.string.auto_search_download_summary),
-                            false,
-                            candidate.successfulAttempts,
-                            getDownloadAttempts(appContext),
-                            safeProfileTitle(candidate.profile),
-                            appContext.getString(
-                                    R.string.auto_search_download_metric,
-                                    UiFormatter.formatBytesPerSecond(appContext, speed),
-                                    UiFormatter.formatBytes(appContext, totalBytes)
-                            ),
-                            speed,
-                            stableFoundCount,
-                            candidate.latencyMs
-                    ));
-                    if (totalBytes >= targetBytes) {
-                        return new DownloadResult(true, attemptBytes);
+            return SocksProxyAuthenticator.run(
+                    "127.0.0.1",
+                    localPort,
+                    resolveLocalSocksUsername(xraySettings),
+                    resolveLocalSocksPassword(xraySettings),
+                    () -> {
+                        HttpURLConnection connection = null;
+                        try {
+                            connection = (HttpURLConnection) new URL(DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes)
+                                    .openConnection(proxy);
+                            int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
+                            connection.setConnectTimeout(timeoutMs);
+                            connection.setReadTimeout(timeoutMs);
+                            connection.setUseCaches(false);
+                            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
+                            connection.connect();
+                            int responseCode = connection.getResponseCode();
+                            if (responseCode < 200 || responseCode >= 400) {
+                                return new DownloadResult(false, 0L);
+                            }
+                            byte[] buffer = new byte[16 * 1024];
+                            long attemptBytes = 0L;
+                            long totalBytes = baseTotalBytes;
+                            try (java.io.InputStream inputStream = connection.getInputStream()) {
+                                int read;
+                                while ((read = inputStream.read(buffer)) != -1) {
+                                    attemptBytes += read;
+                                    totalBytes += read;
+                                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
+                                    long speed = attemptBytes * 1000L / elapsedMs;
+                                    updateState(State.running(
+                                            mode,
+                                            appContext.getString(R.string.auto_search_step_download),
+                                            appContext.getString(R.string.auto_search_download_summary),
+                                            false,
+                                            candidate.successfulAttempts,
+                                            getDownloadAttempts(appContext),
+                                            safeProfileTitle(candidate.profile),
+                                            appContext.getString(
+                                                    R.string.auto_search_download_metric,
+                                                    UiFormatter.formatBytesPerSecond(appContext, speed),
+                                                    UiFormatter.formatBytes(appContext, totalBytes)
+                                            ),
+                                            speed,
+                                            stableFoundCount,
+                                            candidate.latencyMs
+                                    ));
+                                    if (totalBytes >= targetBytes) {
+                                        return new DownloadResult(true, attemptBytes);
+                                    }
+                                }
+                            }
+                            return new DownloadResult(attemptBytes >= singleSuccessBytes, attemptBytes);
+                        } finally {
+                            if (connection != null) {
+                                connection.disconnect();
+                            }
+                        }
                     }
-                }
-            }
-            return new DownloadResult(attemptBytes >= singleSuccessBytes, attemptBytes);
+            );
         } catch (Exception ignored) {
             return new DownloadResult(false, 0L);
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
         }
+    }
+
+    @NonNull
+    private String resolveLocalSocksUsername(@Nullable XraySettings settings) {
+        if (settings == null || !settings.localProxyAuthEnabled) {
+            return "";
+        }
+        return TextUtils.isEmpty(settings.localProxyUsername) ? "" : settings.localProxyUsername;
+    }
+
+    @NonNull
+    private String resolveLocalSocksPassword(@Nullable XraySettings settings) {
+        if (settings == null || !settings.localProxyAuthEnabled) {
+            return "";
+        }
+        return TextUtils.isEmpty(settings.localProxyPassword) ? "" : settings.localProxyPassword;
     }
 
     private void persistAutoSearchProfiles(List<CandidateResult> foundCandidates,

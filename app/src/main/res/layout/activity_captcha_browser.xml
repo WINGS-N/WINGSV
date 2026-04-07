@@ -27,81 +27,108 @@
             android:paddingVertical="14dp"
             app:roundedCorners="all">
 
-            <TextView
-                android:id="@+id/text_captcha_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/captcha_browser_headline"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="?android:textColorPrimary"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/text_captcha_subtitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:text="@string/captcha_browser_subtitle"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="?android:textColorSecondary" />
-
-            <TextView
-                android:id="@+id/text_captcha_expand"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:text="@string/captcha_browser_more"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="?colorPrimary"
-                android:textStyle="bold" />
-
             <LinearLayout
+                android:id="@+id/layout_captcha_header"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:gravity="center_vertical|start"
-                android:orientation="horizontal"
-                android:weightSum="1">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:id="@+id/layout_captcha_status"
-                    android:layout_width="wrap_content"
+                <TextView
+                    android:id="@+id/text_captcha_title"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:background="@drawable/bg_surface_card"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="7dp">
+                    android:text="@string/captcha_browser_headline"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorPrimary"
+                    android:textStyle="bold" />
 
-                    <TextView
-                        android:id="@+id/text_captcha_status"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/captcha_browser_status_loading"
-                        android:textColor="?android:textColorPrimary"
-                        android:textStyle="bold" />
+                <ImageButton
+                    android:id="@+id/text_captcha_collapse"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:contentDescription="@string/captcha_browser_collapse"
+                    android:focusable="true"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_sesl_arrow_enabled_up" />
+            </LinearLayout>
 
-                    <ProgressBar
-                        android:id="@+id/progress_captcha_status"
-                        style="?android:attr/progressBarStyleSmall"
-                        android:layout_width="16dp"
-                        android:layout_height="16dp"
-                        android:layout_marginStart="8dp"
-                        android:indeterminate="true" />
-                </LinearLayout>
+            <LinearLayout
+                android:id="@+id/layout_captcha_details"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
 
-                <Button
-                    android:id="@+id/button_captcha_cancel"
+                <TextView
+                    android:id="@+id/text_captcha_subtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:text="@string/captcha_browser_subtitle"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+
+                <TextView
+                    android:id="@+id/text_captcha_expand"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:minWidth="0dp"
-                    android:text="@string/captcha_browser_cancel" />
+                    android:layout_marginTop="4dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:text="@string/captcha_browser_more"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?colorPrimary"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical|start"
+                    android:orientation="horizontal"
+                    android:weightSum="1">
+
+                    <LinearLayout
+                        android:id="@+id/layout_captcha_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_surface_card"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="7dp">
+
+                        <TextView
+                            android:id="@+id/text_captcha_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/captcha_browser_status_loading"
+                            android:textColor="?android:textColorPrimary"
+                            android:textStyle="bold" />
+
+                        <ProgressBar
+                            android:id="@+id/progress_captcha_status"
+                            style="?android:attr/progressBarStyleSmall"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:layout_marginStart="8dp"
+                            android:indeterminate="true" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/button_captcha_cancel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:minWidth="0dp"
+                        android:text="@string/captcha_browser_cancel" />
+                </LinearLayout>
             </LinearLayout>
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 

@@ -32,6 +32,10 @@ public final class AppPrefs {
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
     public static final String KEY_XRAY_ALLOW_LAN = "pref_xray_allow_lan";
     public static final String KEY_XRAY_ALLOW_INSECURE = "pref_xray_allow_insecure";
+    public static final String KEY_XRAY_LOCAL_PROXY_ENABLED = "pref_xray_local_proxy_enabled";
+    public static final String KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED = "pref_xray_local_proxy_auth_enabled";
+    public static final String KEY_XRAY_LOCAL_PROXY_USERNAME = "pref_xray_local_proxy_username";
+    public static final String KEY_XRAY_LOCAL_PROXY_PASSWORD = "pref_xray_local_proxy_password";
     public static final String KEY_XRAY_LOCAL_PROXY_PORT = "pref_xray_local_proxy_port";
     public static final String KEY_XRAY_REMOTE_DNS = "pref_xray_remote_dns";
     public static final String KEY_XRAY_DIRECT_DNS = "pref_xray_direct_dns";
@@ -109,6 +113,7 @@ public final class AppPrefs {
 
     public static void ensureDefaults(Context context) {
         PreferenceManager.setDefaultValues(context, R.xml.proxy_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.xray_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.amnezia_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.active_probing_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.byedpi_preferences, false);

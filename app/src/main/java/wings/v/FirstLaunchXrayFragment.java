@@ -121,7 +121,7 @@ public class FirstLaunchXrayFragment extends Fragment {
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         label.setGravity(Gravity.CENTER_VERTICAL);
         label.setIncludeFontPadding(false);
-        label.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
         labelParams.setMarginStart(dp(8));
         row.addView(label, labelParams);

@@ -21,10 +21,14 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         setPreferencesFromResource(R.xml.xray_preferences, rootKey);
         bindSwitch(AppPrefs.KEY_XRAY_ALLOW_LAN);
         bindSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE);
+        bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED);
+        bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         bindSummary(AppPrefs.KEY_XRAY_REMOTE_DNS);
         bindSummary(AppPrefs.KEY_XRAY_DIRECT_DNS);
+        bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME);
+        bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD);
         bindNumeric(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT);
         syncFromStore();
     }
@@ -42,6 +46,10 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         }
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
+            if (TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED)
+                    || TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED)) {
+                requireView().post(this::syncFromStore);
+            }
             return true;
         });
     }
@@ -72,10 +80,15 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         syncEditText(AppPrefs.KEY_XRAY_REMOTE_DNS, settings.remoteDns);
         syncEditText(AppPrefs.KEY_XRAY_DIRECT_DNS, settings.directDns);
         syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(settings.localProxyPort));
+        syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, settings.localProxyUsername);
+        syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, settings.localProxyPassword);
         syncSwitch(AppPrefs.KEY_XRAY_ALLOW_LAN, settings.allowLan);
         syncSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE, settings.allowInsecure);
+        syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, settings.localProxyEnabled);
+        syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, settings.localProxyAuthEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED, settings.ipv6);
         syncSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, settings.sniffingEnabled);
+        refreshLocalProxyVisibility(settings);
     }
 
     private void syncEditText(String key, String value) {
@@ -93,6 +106,22 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         SwitchPreferenceCompat preference = findPreference(key);
         if (preference != null && preference.isChecked() != value) {
             preference.setChecked(value);
+        }
+    }
+
+    private void refreshLocalProxyVisibility(XraySettings settings) {
+        boolean proxyEnabled = settings.localProxyEnabled;
+        boolean authEnabled = proxyEnabled && settings.localProxyAuthEnabled;
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, proxyEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, proxyEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, authEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, authEnabled);
+    }
+
+    private void setPreferenceEnabled(String key, boolean enabled) {
+        androidx.preference.Preference preference = findPreference(key);
+        if (preference != null) {
+            preference.setEnabled(enabled);
         }
     }
 }

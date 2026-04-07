@@ -47,9 +47,18 @@ public final class XrayStore {
 
     public static XraySettings getXraySettings(Context context) {
         SharedPreferences prefs = prefs(context);
+        SocksAuthCredentials.Pair credentials = SocksAuthCredentials.ensure(
+                prefs,
+                AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME,
+                AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD
+        );
         XraySettings settings = new XraySettings();
         settings.allowLan = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, false);
         settings.allowInsecure = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, false);
+        settings.localProxyEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, false);
+        settings.localProxyAuthEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, true);
+        settings.localProxyUsername = credentials.username;
+        settings.localProxyPassword = credentials.password;
         settings.localProxyPort = parseInt(
                 prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(DEFAULT_LOCAL_PROXY_PORT)),
                 DEFAULT_LOCAL_PROXY_PORT
@@ -66,6 +75,10 @@ public final class XrayStore {
         prefs(context).edit()
                 .putBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, value.allowLan)
                 .putBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, value.allowInsecure)
+                .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, value.localProxyEnabled)
+                .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, value.localProxyAuthEnabled)
+                .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, trim(value.localProxyUsername))
+                .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, trim(value.localProxyPassword))
                 .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(
                         value.localProxyPort > 0 ? value.localProxyPort : DEFAULT_LOCAL_PROXY_PORT
                 ))

@@ -13,6 +13,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import wings.v.core.SocksProxyAuthenticator;
+
 public final class ByeDpiSiteChecker {
     private ByeDpiSiteChecker() {
     }
@@ -22,7 +24,31 @@ public final class ByeDpiSiteChecker {
                                               int timeoutSeconds,
                                               int concurrencyLimit,
                                               @NonNull String proxyHost,
-                                              int proxyPort) throws Exception {
+                                              int proxyPort,
+                                              @NonNull String proxyUsername,
+                                              @NonNull String proxyPassword) throws Exception {
+        return SocksProxyAuthenticator.run(
+                proxyHost,
+                proxyPort,
+                proxyUsername,
+                proxyPassword,
+                () -> countSuccessfulRequestsInternal(
+                        sites,
+                        requestsCount,
+                        timeoutSeconds,
+                        concurrencyLimit,
+                        proxyHost,
+                        proxyPort
+                )
+        );
+    }
+
+    private static int countSuccessfulRequestsInternal(@NonNull List<String> sites,
+                                                       int requestsCount,
+                                                       int timeoutSeconds,
+                                                       int concurrencyLimit,
+                                                       @NonNull String proxyHost,
+                                                       int proxyPort) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, concurrencyLimit));
         try {
             ArrayList<Future<Integer>> futures = new ArrayList<>();

@@ -123,7 +123,13 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                             Math.max(1, strategySettings.proxyTestTimeoutSeconds),
                             Math.max(1, strategySettings.proxyTestConcurrencyLimit),
                             runner.getDialHost(),
-                            runner.getDialPort()
+                            runner.getDialPort(),
+                            strategySettings.proxyAuthEnabled
+                                    ? strategySettings.resolveRuntimeProxyUsername()
+                                    : "",
+                            strategySettings.proxyAuthEnabled
+                                    ? strategySettings.resolveRuntimeProxyPassword()
+                                    : ""
                     );
                     result.successCount = successCount;
                 } catch (Exception error) {

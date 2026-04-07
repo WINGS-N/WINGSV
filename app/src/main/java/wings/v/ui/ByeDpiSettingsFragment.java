@@ -64,6 +64,9 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_USE_COMMAND_SETTINGS);
         RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_PROXY_IP);
         RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_PROXY_PORT);
+        RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_PROXY_AUTH_ENABLED);
+        RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_PROXY_USERNAME);
+        RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_PROXY_PASSWORD);
         RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_MAX_CONNECTIONS);
         RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_BUFFER_SIZE);
         RUNTIME_AFFECTING_KEYS.add(ByeDpiStore.KEY_NO_DOMAIN);
@@ -120,6 +123,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
     private void configurePreferences() {
         bindSwitch(ByeDpiStore.KEY_AUTO_START_WITH_XRAY);
         bindSwitch(ByeDpiStore.KEY_USE_COMMAND_SETTINGS);
+        bindSwitch(ByeDpiStore.KEY_PROXY_AUTH_ENABLED);
         bindSwitch(ByeDpiStore.KEY_NO_DOMAIN);
         bindSwitch(ByeDpiStore.KEY_TCP_FAST_OPEN);
         bindSwitch(ByeDpiStore.KEY_SPLIT_AT_HOST);
@@ -149,6 +153,8 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         bindNumeric(ByeDpiStore.KEY_PROXYTEST_TIMEOUT, false, R.string.proxytest_timeout_desc);
 
         bindSummary(ByeDpiStore.KEY_PROXY_IP, false);
+        bindSummary(ByeDpiStore.KEY_PROXY_USERNAME, false);
+        bindSummary(ByeDpiStore.KEY_PROXY_PASSWORD, false);
         bindSummary(ByeDpiStore.KEY_HOSTS_BLACKLIST, true);
         bindSummary(ByeDpiStore.KEY_HOSTS_WHITELIST, true);
         bindSummary(ByeDpiStore.KEY_FAKE_SNI, false);
@@ -306,6 +312,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         ByeDpiSettings settings = ByeDpiStore.getSettings(requireContext());
         syncSwitch(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, settings.launchOnXrayStart);
         syncSwitch(ByeDpiStore.KEY_USE_COMMAND_SETTINGS, settings.useCommandLineSettings);
+        syncSwitch(ByeDpiStore.KEY_PROXY_AUTH_ENABLED, settings.proxyAuthEnabled);
         syncSwitch(ByeDpiStore.KEY_NO_DOMAIN, settings.noDomain);
         syncSwitch(ByeDpiStore.KEY_TCP_FAST_OPEN, settings.tcpFastOpen);
         syncSwitch(ByeDpiStore.KEY_SPLIT_AT_HOST, settings.splitAtHost);
@@ -322,6 +329,8 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
 
         syncEditText(ByeDpiStore.KEY_PROXY_IP, settings.proxyIp);
         syncEditText(ByeDpiStore.KEY_PROXY_PORT, String.valueOf(settings.proxyPort));
+        syncEditText(ByeDpiStore.KEY_PROXY_USERNAME, settings.proxyUsername);
+        syncEditText(ByeDpiStore.KEY_PROXY_PASSWORD, settings.proxyPassword);
         syncEditText(ByeDpiStore.KEY_MAX_CONNECTIONS, String.valueOf(settings.maxConnections));
         syncEditText(ByeDpiStore.KEY_BUFFER_SIZE, String.valueOf(settings.bufferSize));
         syncEditText(ByeDpiStore.KEY_DEFAULT_TTL, String.valueOf(settings.defaultTtl));
@@ -377,6 +386,8 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         EditTextPreference tlsrecPosition = findPreference(ByeDpiStore.KEY_TLSREC_POSITION);
         SwitchPreferenceCompat tlsrecAtSni = findPreference(ByeDpiStore.KEY_TLSREC_AT_SNI);
         EditTextPreference customStrategies = findPreference(ByeDpiStore.KEY_PROXYTEST_CUSTOM_STRATEGIES);
+        EditTextPreference proxyUsername = findPreference(ByeDpiStore.KEY_PROXY_USERNAME);
+        EditTextPreference proxyPassword = findPreference(ByeDpiStore.KEY_PROXY_PASSWORD);
         Preference openRunner = findPreference(ByeDpiStore.KEY_PROXYTEST_OPEN_RUNNER);
 
         if (uiCategory != null) {
@@ -384,6 +395,12 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         }
         if (uiProxyCategory != null) {
             uiProxyCategory.setVisible(true);
+        }
+        if (proxyUsername != null) {
+            proxyUsername.setEnabled(settings.proxyAuthEnabled);
+        }
+        if (proxyPassword != null) {
+            proxyPassword.setEnabled(settings.proxyAuthEnabled);
         }
         if (commandCategory != null) {
             commandCategory.setVisible(useCommandSettings);

@@ -1,5 +1,8 @@
 <resources>
-    <style name="Theme.WINGSV" parent="OneUITheme" />
+    <style name="Theme.WINGSV" parent="OneUITheme">
+        <item name="android:fontFamily">@font/samsungone</item>
+        <item name="fontFamily">@font/samsungone</item>
+    </style>
     <style name="Theme.WINGSV.NoDisplay" parent="@android:style/Theme.NoDisplay" />
 
     <style name="Theme.AppCompat.PickerDialog" parent="Theme.AppCompat.Dialog.Alert" />

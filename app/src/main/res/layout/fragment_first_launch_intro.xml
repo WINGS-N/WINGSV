@@ -19,7 +19,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_first_launch_badge"
-            android:fontFamily="@font/samsungsharpsans"
+            android:fontFamily="@font/samsungone"
             android:paddingStart="14dp"
             android:paddingTop="8dp"
             android:paddingEnd="14dp"
@@ -61,7 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="72dp"
-            android:fontFamily="@font/samsungsharpsans"
+            android:fontFamily="@font/samsungone"
             android:gravity="center"
             android:includeFontPadding="false"
             android:lineSpacingExtra="5dp"
@@ -70,7 +70,8 @@
             android:shadowDy="6"
             android:shadowRadius="12"
             android:textColor="#EAF9FBFF"
-            android:textSize="18sp" />
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/button_first_launch_action"

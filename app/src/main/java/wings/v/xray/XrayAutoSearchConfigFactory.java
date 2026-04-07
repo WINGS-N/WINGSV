@@ -145,10 +145,7 @@ public final class XrayAutoSearchConfigFactory {
         socksInbound.put("protocol", "socks");
         socksInbound.put("listen", settings.allowLan ? "0.0.0.0" : "127.0.0.1");
         socksInbound.put("port", localProxyPort);
-        JSONObject socksSettings = new JSONObject();
-        socksSettings.put("auth", "noauth");
-        socksSettings.put("udp", true);
-        socksInbound.put("settings", socksSettings);
+        socksInbound.put("settings", XrayConfigFactory.buildSocksInboundSettings(settings));
         socksInbound.put("sniffing", buildSniffing(settings));
         inbounds.put(socksInbound);
         return inbounds;
@@ -185,6 +182,7 @@ public final class XrayAutoSearchConfigFactory {
             JSONObject server = new JSONObject();
             server.put("address", byeDpiSettings.resolveRuntimeDialHost());
             server.put("port", byeDpiSettings.resolveRuntimeListenPort());
+            XrayConfigFactory.addByeDpiSocksAuth(server, byeDpiSettings);
             servers.put(server);
             settings.put("servers", servers);
             byeDpiFrontOutbound.put("settings", settings);

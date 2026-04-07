@@ -23,6 +23,9 @@ public final class ByeDpiStore {
     public static final String KEY_USE_COMMAND_SETTINGS = "pref_bydpi_use_command_settings";
     public static final String KEY_PROXY_IP = "pref_bydpi_proxy_ip";
     public static final String KEY_PROXY_PORT = "pref_bydpi_proxy_port";
+    public static final String KEY_PROXY_AUTH_ENABLED = "pref_bydpi_proxy_auth_enabled";
+    public static final String KEY_PROXY_USERNAME = "pref_bydpi_proxy_username";
+    public static final String KEY_PROXY_PASSWORD = "pref_bydpi_proxy_password";
     public static final String KEY_MAX_CONNECTIONS = "pref_bydpi_max_connections";
     public static final String KEY_BUFFER_SIZE = "pref_bydpi_buffer_size";
     public static final String KEY_NO_DOMAIN = "pref_bydpi_no_domain";
@@ -73,10 +76,18 @@ public final class ByeDpiStore {
             return settings;
         }
         SharedPreferences prefs = prefs(context);
+        SocksAuthCredentials.Pair credentials = SocksAuthCredentials.ensure(
+                prefs,
+                KEY_PROXY_USERNAME,
+                KEY_PROXY_PASSWORD
+        );
         settings.launchOnXrayStart = prefs.getBoolean(KEY_AUTO_START_WITH_XRAY, false);
         settings.useCommandLineSettings = prefs.getBoolean(KEY_USE_COMMAND_SETTINGS, false);
         settings.proxyIp = trim(prefs.getString(KEY_PROXY_IP, "127.0.0.1"));
         settings.proxyPort = parseInt(prefs.getString(KEY_PROXY_PORT, "1080"), 1080);
+        settings.proxyAuthEnabled = prefs.getBoolean(KEY_PROXY_AUTH_ENABLED, true);
+        settings.proxyUsername = credentials.username;
+        settings.proxyPassword = credentials.password;
         settings.maxConnections = parseInt(prefs.getString(KEY_MAX_CONNECTIONS, "512"), 512);
         settings.bufferSize = parseInt(prefs.getString(KEY_BUFFER_SIZE, "16384"), 16384);
         settings.noDomain = prefs.getBoolean(KEY_NO_DOMAIN, false);

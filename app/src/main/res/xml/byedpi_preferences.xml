@@ -35,6 +35,22 @@
         android:defaultValue="1080"
         app:useSimpleSummaryProvider="true" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_proxy_auth_enabled"
+        android:title="@string/byedpi_proxy_auth_title"
+        android:summary="@string/byedpi_proxy_auth_summary"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxy_username"
+        android:title="@string/socks_auth_username_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxy_password"
+        android:title="@string/socks_auth_password_title"
+        app:useSimpleSummaryProvider="true" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
 
     <PreferenceCategory

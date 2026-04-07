@@ -100,7 +100,7 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
         label.setText(labelRes);
         label.setTextColor(0xF7FFFFFF);
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        label.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         label.setIncludeFontPadding(false);
         row.addView(label, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -117,6 +117,7 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
         editText.setTextColor(0xFFFFFFFF);
         editText.setHintTextColor(0x99FFFFFF);
         editText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        editText.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         editText.setBackgroundColor(0x00000000);
         editText.setPadding(0, dp(9), 0, 0);
         row.addView(editText, new LinearLayout.LayoutParams(

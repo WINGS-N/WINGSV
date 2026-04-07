@@ -183,16 +183,13 @@ public final class XrayConfigFactory {
         tunInbound.put("sniffing", buildSniffing(settings));
         inbounds.put(tunInbound);
 
-        if (settings.localProxyPort > 0) {
+        if (isLocalProxyEnabled(settings)) {
             JSONObject socksInbound = new JSONObject();
             socksInbound.put("tag", SOCKS_TAG);
             socksInbound.put("protocol", "socks");
             socksInbound.put("listen", settings.allowLan ? "0.0.0.0" : "127.0.0.1");
             socksInbound.put("port", settings.localProxyPort);
-            JSONObject socksSettings = new JSONObject();
-            socksSettings.put("auth", "noauth");
-            socksSettings.put("udp", true);
-            socksInbound.put("settings", socksSettings);
+            socksInbound.put("settings", buildSocksInboundSettings(settings));
             socksInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(socksInbound);
         }
@@ -243,6 +240,7 @@ public final class XrayConfigFactory {
             JSONObject server = new JSONObject();
             server.put("address", byeDpiSettings.resolveRuntimeDialHost());
             server.put("port", byeDpiSettings.resolveRuntimeListenPort());
+            addByeDpiSocksAuth(server, byeDpiSettings);
             servers.put(server);
             settings.put("servers", servers);
             byeDpiFrontOutbound.put("settings", settings);
@@ -260,7 +258,7 @@ public final class XrayConfigFactory {
         dnsRule.put("type", "field");
         JSONArray dnsInboundTags = new JSONArray();
         dnsInboundTags.put(TUN_TAG);
-        if (settings.localProxyPort > 0) {
+        if (isLocalProxyEnabled(settings)) {
             dnsInboundTags.put(SOCKS_TAG);
         }
         dnsRule.put("inboundTag", dnsInboundTags);
@@ -279,7 +277,7 @@ public final class XrayConfigFactory {
         trafficRule.put("type", "field");
         JSONArray inboundTags = new JSONArray();
         inboundTags.put(TUN_TAG);
-        if (settings.localProxyPort > 0) {
+        if (isLocalProxyEnabled(settings)) {
             inboundTags.put(SOCKS_TAG);
         }
         trafficRule.put("inboundTag", inboundTags);
@@ -301,6 +299,41 @@ public final class XrayConfigFactory {
         sniffing.put("enabled", settings.sniffingEnabled);
         sniffing.put("destOverride", new JSONArray().put("http").put("tls").put("quic"));
         return sniffing;
+    }
+
+    static boolean isLocalProxyEnabled(XraySettings settings) {
+        return settings != null && settings.localProxyEnabled && settings.localProxyPort > 0;
+    }
+
+    static JSONObject buildSocksInboundSettings(XraySettings settings) throws Exception {
+        JSONObject socksSettings = new JSONObject();
+        if (settings != null
+                && settings.localProxyAuthEnabled
+                && !TextUtils.isEmpty(trim(settings.localProxyUsername))
+                && !TextUtils.isEmpty(trim(settings.localProxyPassword))) {
+            socksSettings.put("auth", "password");
+            socksSettings.put("accounts", new JSONArray().put(new JSONObject()
+                    .put("user", trim(settings.localProxyUsername))
+                    .put("pass", trim(settings.localProxyPassword))));
+        } else {
+            socksSettings.put("auth", "noauth");
+        }
+        socksSettings.put("udp", true);
+        return socksSettings;
+    }
+
+    static void addByeDpiSocksAuth(JSONObject server, ByeDpiSettings byeDpiSettings) throws Exception {
+        if (server == null || byeDpiSettings == null || !byeDpiSettings.proxyAuthEnabled) {
+            return;
+        }
+        String username = trim(byeDpiSettings.resolveRuntimeProxyUsername());
+        String password = trim(byeDpiSettings.resolveRuntimeProxyPassword());
+        if (TextUtils.isEmpty(username) || TextUtils.isEmpty(password)) {
+            return;
+        }
+        server.put("users", new JSONArray().put(new JSONObject()
+                .put("user", username)
+                .put("pass", password)));
     }
 
     static void applySecurityOverrides(JSONObject outbound, XraySettings settings) throws Exception {

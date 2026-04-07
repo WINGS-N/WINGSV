@@ -51,9 +51,31 @@
     <PreferenceCategory
         android:title="@string/xray_settings_proxy_category" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_xray_local_proxy_enabled"
+        android:title="@string/xray_settings_local_proxy_enabled_title"
+        android:summary="@string/xray_settings_local_proxy_enabled_summary"
+        android:defaultValue="false" />
+
     <EditTextPreference
         android:key="pref_xray_local_proxy_port"
         android:title="@string/xray_settings_local_proxy_port_title"
         android:defaultValue="10808" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_local_proxy_auth_enabled"
+        android:title="@string/xray_settings_local_proxy_auth_title"
+        android:summary="@string/xray_settings_local_proxy_auth_summary"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_local_proxy_username"
+        android:title="@string/socks_auth_username_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_local_proxy_password"
+        android:title="@string/socks_auth_password_title"
+        app:useSimpleSummaryProvider="true" />
 
 </PreferenceScreen>
