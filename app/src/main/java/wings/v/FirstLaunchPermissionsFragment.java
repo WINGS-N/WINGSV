@@ -14,6 +14,7 @@ import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -60,7 +61,12 @@ public class FirstLaunchPermissionsFragment extends Fragment {
     private final ActivityResultLauncher<Intent> vpnPermissionLauncher =
             registerForActivityResult(
                     new ActivityResultContracts.StartActivityForResult(),
-                    result -> refreshRows()
+                    result -> {
+                        refreshRows();
+                        if (isAdded() && !PermissionUtils.isVpnPermissionGranted(requireContext())) {
+                            openVpnSettingsForAlwaysOn();
+                        }
+                    }
             );
 
     public static FirstLaunchPermissionsFragment create(int buttonRes) {
@@ -207,12 +213,35 @@ public class FirstLaunchPermissionsFragment extends Fragment {
     }
 
     private void requestVpnPermission() {
-        Intent intent = VpnService.prepare(requireContext());
+        Intent intent;
+        try {
+            intent = VpnService.prepare(requireContext());
+        } catch (RuntimeException e) {
+            openVpnSettingsForAlwaysOn();
+            return;
+        }
         if (intent == null) {
             refreshRows();
             return;
         }
-        vpnPermissionLauncher.launch(intent);
+        try {
+            vpnPermissionLauncher.launch(intent);
+        } catch (RuntimeException e) {
+            openVpnSettingsForAlwaysOn();
+        }
+    }
+
+    private void openVpnSettingsForAlwaysOn() {
+        if (!isAdded()) {
+            return;
+        }
+        Toast.makeText(requireContext(), R.string.permission_vpn_always_on_hint, Toast.LENGTH_LONG).show();
+        Intent intent = new Intent(Settings.ACTION_VPN_SETTINGS);
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+        }
     }
 
     private void requestRootPermission() {

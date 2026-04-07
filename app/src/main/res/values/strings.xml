@@ -14,6 +14,7 @@
     <string name="permission_battery_summary">Отключите оптимизацию, чтобы соединение не засыпало в фоне</string>
     <string name="permission_vpn">VPN-подключение</string>
     <string name="permission_vpn_summary">Системное разрешение на создание VPN туннеля</string>
+    <string name="permission_vpn_always_on_hint">Если включён Always-On VPN, отключите его в системных настройках VPN и повторите выдачу разрешения</string>
     <string name="permission_root">Root-доступ</string>
     <string name="permission_root_summary">Необязательно. Нужен для root функций, kernel WireGuard и раздачи с VPN</string>
     <string name="grant">Выдать</string>
