@@ -3,6 +3,8 @@ package wings.v.core;
 import android.content.Context;
 import android.text.TextUtils;
 
+import androidx.annotation.NonNull;
+
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -25,7 +27,13 @@ public final class XraySubscriptionUpdater {
     }
 
     public static RefreshResult refreshAll(Context context, ProgressListener listener) throws Exception {
-        List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context);
+        return refreshAll(context, listener, true);
+    }
+
+    public static RefreshResult refreshAll(Context context,
+                                           ProgressListener listener,
+                                           boolean allowUniversalSeed) throws Exception {
+        List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context, allowUniversalSeed);
         LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
         LinkedHashMap<String, List<XrayProfile>> existingProfilesBySubscription = new LinkedHashMap<>();
         for (XrayProfile existingProfile : XrayStore.getProfiles(context)) {
@@ -139,11 +147,11 @@ public final class XraySubscriptionUpdater {
     }
 
     private static String fetch(Context context, String urlString) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, new URL(urlString));
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
-        connection.setRequestProperty("User-Agent", "WINGSV/1.7");
+        connection.setRequestProperty("User-Agent", resolveUserAgent(context));
         SubscriptionHwidStore.Payload hwidPayload = SubscriptionHwidStore.getEffectivePayload(context);
         if (hwidPayload != null) {
             if (!TextUtils.isEmpty(hwidPayload.hwid)) {
@@ -176,10 +184,25 @@ public final class XraySubscriptionUpdater {
             if (responseCode < 200 || responseCode >= 400) {
                 throw new IllegalStateException("Subscription HTTP " + responseCode);
             }
-            return output.toString(StandardCharsets.UTF_8.name());
+            return output.toString(StandardCharsets.UTF_8);
         } finally {
             connection.disconnect();
         }
+    }
+
+    @NonNull
+    private static String resolveUserAgent(Context context) {
+        try {
+            Context appContext = context.getApplicationContext();
+            String versionName = appContext.getPackageManager()
+                    .getPackageInfo(appContext.getPackageName(), 0)
+                    .versionName;
+            if (!TextUtils.isEmpty(versionName)) {
+                return "WINGSV/" + versionName;
+            }
+        } catch (Exception ignored) {
+        }
+        return "WINGSV";
     }
 
     public static final class RefreshResult {

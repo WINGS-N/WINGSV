@@ -12,12 +12,15 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
-import java.net.HttpURLConnection;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -28,6 +31,11 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 import wings.v.R;
 import wings.v.byedpi.ByeDpiLocalRunner;
@@ -123,6 +131,20 @@ public final class AutoSearchManager {
         return running;
     }
 
+    public void resetFinishedState() {
+        if (running) {
+            return;
+        }
+        Status status = state.status;
+        if (status != Status.COMPLETED && status != Status.FAILED) {
+            return;
+        }
+        preparedSearch = null;
+        pendingResult = null;
+        pendingActionToken = 0L;
+        updateState(State.idle());
+    }
+
     public static int getTargetProfileCount(@NonNull Context context) {
         return clamp(settings(context).getInt(KEY_TARGET_COUNT, DEFAULT_TARGET_COUNT), 1, 20);
     }
@@ -180,6 +202,10 @@ public final class AutoSearchManager {
     }
 
     public void startSearch() {
+        startSearch(true);
+    }
+
+    public void startSearch(boolean useBuiltInSubscription) {
         if (running) {
             return;
         }
@@ -200,7 +226,7 @@ public final class AutoSearchManager {
                 0,
                 0
         ));
-        executor.execute(this::prepareSearch);
+        executor.execute(() -> prepareSearch(useBuiltInSubscription));
     }
 
     public void continueSearch(@NonNull Mode mode) {
@@ -309,7 +335,7 @@ public final class AutoSearchManager {
         }
     }
 
-    private void prepareSearch() {
+    private void prepareSearch(boolean useBuiltInSubscription) {
         SearchSession session = new SearchSession();
         session.originalBackend = XrayStore.getBackendType(appContext);
         XrayProfile originalActiveProfile = XrayStore.getActiveProfile(appContext);
@@ -320,7 +346,9 @@ public final class AutoSearchManager {
         try {
             stopCurrentRuntime(session);
             XrayStore.setBackendType(appContext, BackendType.XRAY);
-            XrayStore.ensureDefaultSubscriptionPresent(appContext);
+            if (useBuiltInSubscription) {
+                XrayStore.ensureDefaultSubscriptionPresent(appContext);
+            }
 
             updateState(State.running(
                     null,
@@ -335,7 +363,7 @@ public final class AutoSearchManager {
                     0,
                     0
             ));
-            XraySubscriptionUpdater.RefreshResult refreshResult = XraySubscriptionUpdater.refreshAll(appContext);
+            XraySubscriptionUpdater.refreshAll(appContext, null, useBuiltInSubscription);
             List<XrayProfile> availableProfiles = new ArrayList<>(XrayStore.getProfiles(appContext));
             if (availableProfiles.isEmpty()) {
                 availableProfiles = new ArrayList<>(session.originalProfiles);
@@ -421,7 +449,7 @@ public final class AutoSearchManager {
                 throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_stable));
             }
 
-            persistAutoSearchProfiles(selectedCandidates, prepared.availableProfiles);
+            persistAutoSearchProfiles(selectedCandidates, prepared.availableProfiles, session.originalProfiles);
             PendingResult pending = buildPendingResult(session, selectedCandidates, bestCandidate);
             if (!pending.configurationChanged) {
                 pendingResult = pending;
@@ -485,32 +513,35 @@ public final class AutoSearchManager {
         } catch (Exception ignored) {
         }
         long deadline = SystemClock.elapsedRealtime() + SERVICE_STOP_TIMEOUT_MS;
-        while (isRuntimeStillStopping() && SystemClock.elapsedRealtime() < deadline) {
+        while (isRuntimeStillStopping(true) && SystemClock.elapsedRealtime() < deadline) {
             SystemClock.sleep(SERVICE_STOP_POLL_MS);
         }
-        if (isRuntimeStillStopping()) {
+        if (isRuntimeStillStopping(true)) {
             forceStopXrayRuntime();
             long forceDeadline = SystemClock.elapsedRealtime() + 2_500L;
-            while (isRuntimeStillStopping() && SystemClock.elapsedRealtime() < forceDeadline) {
+            while (isRuntimeStillStopping(false) && SystemClock.elapsedRealtime() < forceDeadline) {
                 SystemClock.sleep(SERVICE_STOP_POLL_MS);
             }
         }
-        if (isRuntimeStillStopping()) {
+        if (isRuntimeStillStopping(false)) {
             throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_stop_runtime));
         }
         SystemClock.sleep(VPN_RELEASE_GRACE_MS);
     }
 
-    private boolean isRuntimeStillStopping() {
+    private boolean isRuntimeStillStopping(boolean includeProxyServiceState) {
         boolean xrayRunning = false;
         try {
             xrayRunning = XrayBridge.isRunning();
         } catch (Exception ignored) {
         }
-        return ProxyTunnelService.isActive()
-                || XrayVpnService.hasActiveTunnel()
+        boolean realRuntimeActive = XrayVpnService.hasActiveTunnel()
                 || XrayVpnService.getServiceNow() != null
                 || xrayRunning;
+        if (realRuntimeActive) {
+            return true;
+        }
+        return includeProxyServiceState && ProxyTunnelService.isRunning();
     }
 
     private void forceStopXrayRuntime() {
@@ -733,7 +764,16 @@ public final class AutoSearchManager {
                 if (failedAttempts >= 2) {
                     break;
                 }
-                DownloadResult result = downloadThroughProxy(mode, candidate, xraySettings, localPort, stableFoundCount);
+                DownloadResult result = downloadThroughProxy(
+                        mode,
+                        candidate,
+                        xraySettings,
+                        localPort,
+                        stableFoundCount,
+                        attempt,
+                        downloadAttempts,
+                        stableBytes
+                );
                 candidate.downloadedBytes += result.bytesRead;
                 candidate.successfulAttempts += result.success ? 1 : 0;
                 candidate.live = candidate.live || result.bytesRead > 0L;
@@ -836,55 +876,25 @@ public final class AutoSearchManager {
                                                  int port,
                                                  @NonNull String url,
                                                  boolean responsiveCandidate) {
-        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
-        try {
-            return SocksProxyAuthenticator.run(
-                    host,
-                    port,
-                    resolveLocalSocksUsername(xraySettings),
-                    resolveLocalSocksPassword(xraySettings),
-                    () -> {
-                        HttpURLConnection connection = null;
-                        try {
-                            connection = (HttpURLConnection) new URL(url).openConnection(proxy);
-                            connection.setConnectTimeout(responsiveCandidate
-                                    ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS
-                                    : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS);
-                            connection.setReadTimeout(responsiveCandidate
-                                    ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS
-                                    : TRAFFIC_PROBE_READ_TIMEOUT_MS);
-                            connection.setUseCaches(false);
-                            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
-                            connection.connect();
-                            int responseCode = connection.getResponseCode();
-                            if (responseCode < 200 || responseCode >= 400) {
-                                return ProbeResult.failed();
-                            }
-                            long bytesRead = 0L;
-                            try (java.io.InputStream inputStream = connection.getInputStream()) {
-                                byte[] buffer = new byte[1024];
-                                while (bytesRead < TRAFFIC_PROBE_MAX_BYTES) {
-                                    int remaining = (int) Math.min(buffer.length, TRAFFIC_PROBE_MAX_BYTES - bytesRead);
-                                    int read = inputStream.read(buffer, 0, remaining);
-                                    if (read == -1) {
-                                        break;
-                                    }
-                                    bytesRead += read;
-                                }
-                            } catch (Exception ignored) {
-                                // 204/empty responses are still valid for traffic-up probing.
-                            }
-                            return new ProbeResult(true, responseCode, bytesRead);
-                        } finally {
-                            if (connection != null) {
-                                connection.disconnect();
-                            }
-                        }
-                    }
-            );
-        } catch (Exception ignored) {
+        SocksHttpResult result = requestHttpViaSocks(
+                host,
+                port,
+                resolveLocalSocksUsername(xraySettings),
+                resolveLocalSocksPassword(xraySettings),
+                url,
+                responsiveCandidate
+                        ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS
+                        : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS,
+                responsiveCandidate
+                        ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS
+                        : TRAFFIC_PROBE_READ_TIMEOUT_MS,
+                TRAFFIC_PROBE_MAX_BYTES,
+                null
+        );
+        if (!result.success || result.responseCode < 200 || result.responseCode >= 400) {
             return ProbeResult.failed();
         }
+        return new ProbeResult(true, result.responseCode, result.bytesRead);
     }
 
     @NonNull
@@ -892,75 +902,344 @@ public final class AutoSearchManager {
                                                 CandidateResult candidate,
                                                 XraySettings xraySettings,
                                                 int localPort,
-                                                int stableFoundCount) {
-        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", localPort));
+                                                int stableFoundCount,
+                                                int attempt,
+                                                int attemptCount,
+                                                long targetBytes) {
         final long baseTotalBytes = candidate.downloadedBytes;
         final long startedAtMs = SystemClock.elapsedRealtime();
         final long singleSuccessBytes = getDownloadSizeBytes(appContext);
-        final long targetBytes = singleSuccessBytes + singleSuccessBytes / 2L;
+        updateState(State.running(
+                mode,
+                appContext.getString(R.string.auto_search_step_download),
+                appContext.getString(R.string.auto_search_download_summary),
+                false,
+                attempt - 1,
+                attemptCount,
+                safeProfileTitle(candidate.profile),
+                appContext.getString(
+                        R.string.auto_search_download_connecting_metric,
+                        attempt,
+                        attemptCount
+                ),
+                -1L,
+                stableFoundCount,
+                candidate.latencyMs
+        ));
+        int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
+        long readLimitBytes = Math.min(singleSuccessBytes, Math.max(1L, targetBytes - baseTotalBytes));
+        SocksHttpResult result = requestHttpViaSocks(
+                "127.0.0.1",
+                localPort,
+                resolveLocalSocksUsername(xraySettings),
+                resolveLocalSocksPassword(xraySettings),
+                DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes,
+                timeoutMs,
+                timeoutMs,
+                readLimitBytes,
+                (attemptBytes, totalAttemptLimitIgnored) -> {
+                    long totalBytes = baseTotalBytes + attemptBytes;
+                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
+                    long speed = attemptBytes * 1000L / elapsedMs;
+                    updateState(State.running(
+                            mode,
+                            appContext.getString(R.string.auto_search_step_download),
+                            appContext.getString(R.string.auto_search_download_summary),
+                            false,
+                            candidate.successfulAttempts,
+                            getDownloadAttempts(appContext),
+                            safeProfileTitle(candidate.profile),
+                            appContext.getString(
+                                    R.string.auto_search_download_metric,
+                                    attempt,
+                                    attemptCount,
+                                    UiFormatter.formatBytes(appContext, totalBytes),
+                                    UiFormatter.formatBytes(appContext, targetBytes),
+                                    UiFormatter.formatBytesPerSecond(appContext, speed)
+                            ),
+                            speed,
+                            stableFoundCount,
+                            candidate.latencyMs
+                    ));
+                }
+        );
+        boolean success = result.success
+                && result.responseCode >= 200
+                && result.responseCode < 400
+                && result.bytesRead >= readLimitBytes;
+        return new DownloadResult(success, result.bytesRead);
+    }
+
+    @NonNull
+    private SocksHttpResult requestHttpViaSocks(@NonNull String proxyHost,
+                                                int proxyPort,
+                                                @Nullable String username,
+                                                @Nullable String password,
+                                                @NonNull String urlValue,
+                                                int connectTimeoutMs,
+                                                int readTimeoutMs,
+                                                long maxBodyBytes,
+                                                @Nullable DownloadProgress progress) {
+        Socket socket = null;
         try {
-            return SocksProxyAuthenticator.run(
-                    "127.0.0.1",
-                    localPort,
-                    resolveLocalSocksUsername(xraySettings),
-                    resolveLocalSocksPassword(xraySettings),
-                    () -> {
-                        HttpURLConnection connection = null;
-                        try {
-                            connection = (HttpURLConnection) new URL(DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes)
-                                    .openConnection(proxy);
-                            int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
-                            connection.setConnectTimeout(timeoutMs);
-                            connection.setReadTimeout(timeoutMs);
-                            connection.setUseCaches(false);
-                            connection.setRequestProperty("User-Agent", "WINGSV/AutoSearch");
-                            connection.connect();
-                            int responseCode = connection.getResponseCode();
-                            if (responseCode < 200 || responseCode >= 400) {
-                                return new DownloadResult(false, 0L);
-                            }
-                            byte[] buffer = new byte[16 * 1024];
-                            long attemptBytes = 0L;
-                            long totalBytes = baseTotalBytes;
-                            try (java.io.InputStream inputStream = connection.getInputStream()) {
-                                int read;
-                                while ((read = inputStream.read(buffer)) != -1) {
-                                    attemptBytes += read;
-                                    totalBytes += read;
-                                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
-                                    long speed = attemptBytes * 1000L / elapsedMs;
-                                    updateState(State.running(
-                                            mode,
-                                            appContext.getString(R.string.auto_search_step_download),
-                                            appContext.getString(R.string.auto_search_download_summary),
-                                            false,
-                                            candidate.successfulAttempts,
-                                            getDownloadAttempts(appContext),
-                                            safeProfileTitle(candidate.profile),
-                                            appContext.getString(
-                                                    R.string.auto_search_download_metric,
-                                                    UiFormatter.formatBytesPerSecond(appContext, speed),
-                                                    UiFormatter.formatBytes(appContext, totalBytes)
-                                            ),
-                                            speed,
-                                            stableFoundCount,
-                                            candidate.latencyMs
-                                    ));
-                                    if (totalBytes >= targetBytes) {
-                                        return new DownloadResult(true, attemptBytes);
-                                    }
-                                }
-                            }
-                            return new DownloadResult(attemptBytes >= singleSuccessBytes, attemptBytes);
-                        } finally {
-                            if (connection != null) {
-                                connection.disconnect();
-                            }
-                        }
-                    }
+            URL url = new URL(urlValue);
+            String scheme = url.getProtocol() == null ? "" : url.getProtocol().toLowerCase();
+            boolean tls = TextUtils.equals(scheme, "https");
+            String targetHost = url.getHost();
+            int targetPort = url.getPort() > 0 ? url.getPort() : (tls ? 443 : 80);
+            String path = TextUtils.isEmpty(url.getFile()) ? "/" : url.getFile();
+            socket = openSocksTunnel(
+                    proxyHost,
+                    proxyPort,
+                    targetHost,
+                    targetPort,
+                    username,
+                    password,
+                    connectTimeoutMs,
+                    readTimeoutMs
             );
+            if (tls) {
+                socket = wrapTlsSocket(socket, targetHost, targetPort);
+                socket.setSoTimeout(readTimeoutMs);
+            }
+
+            BufferedOutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+            BufferedInputStream inputStream = new BufferedInputStream(socket.getInputStream());
+            String request = "GET " + path + " HTTP/1.1\r\n"
+                    + "Host: " + targetHost + "\r\n"
+                    + "User-Agent: " + resolveUserAgent() + "\r\n"
+                    + "Accept: */*\r\n"
+                    + "Accept-Encoding: identity\r\n"
+                    + "Connection: close\r\n"
+                    + "\r\n";
+            outputStream.write(request.getBytes(StandardCharsets.US_ASCII));
+            outputStream.flush();
+
+            String statusLine = readAsciiLine(inputStream, 4096);
+            int responseCode = parseHttpStatusCode(statusLine);
+            if (responseCode <= 0) {
+                return SocksHttpResult.failed();
+            }
+            while (true) {
+                String header = readAsciiLine(inputStream, 16 * 1024);
+                if (header == null || header.length() == 0) {
+                    break;
+                }
+            }
+            if (maxBodyBytes <= 0 || responseCode == 204 || responseCode == 304) {
+                return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, 0L);
+            }
+
+            byte[] buffer = new byte[16 * 1024];
+            long bytesRead = 0L;
+            while (bytesRead < maxBodyBytes) {
+                int limit = (int) Math.min(buffer.length, maxBodyBytes - bytesRead);
+                int read;
+                try {
+                    read = inputStream.read(buffer, 0, limit);
+                } catch (SocketTimeoutException timeout) {
+                    return new SocksHttpResult(false, responseCode, bytesRead);
+                }
+                if (read == -1) {
+                    break;
+                }
+                bytesRead += read;
+                if (progress != null) {
+                    progress.onBytesRead(bytesRead, maxBodyBytes);
+                }
+            }
+            return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, bytesRead);
         } catch (Exception ignored) {
-            return new DownloadResult(false, 0L);
+            return SocksHttpResult.failed();
+        } finally {
+            closeQuietly(socket);
+        }
+    }
+
+    @NonNull
+    private Socket openSocksTunnel(@NonNull String proxyHost,
+                                   int proxyPort,
+                                   @NonNull String targetHost,
+                                   int targetPort,
+                                   @Nullable String username,
+                                   @Nullable String password,
+                                   int connectTimeoutMs,
+                                   int readTimeoutMs) throws Exception {
+        Socket socket = new Socket();
+        socket.connect(new InetSocketAddress(proxyHost, proxyPort), connectTimeoutMs);
+        socket.setSoTimeout(readTimeoutMs);
+        BufferedInputStream inputStream = new BufferedInputStream(socket.getInputStream());
+        BufferedOutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+        byte[] usernameBytes = bytesForSocksAuth(username);
+        byte[] passwordBytes = bytesForSocksAuth(password);
+        boolean auth = usernameBytes.length > 0 && passwordBytes.length > 0;
+
+        outputStream.write(new byte[]{0x05, 0x01, (byte) (auth ? 0x02 : 0x00)});
+        outputStream.flush();
+        int version = readByte(inputStream);
+        int method = readByte(inputStream);
+        if (version != 0x05 || method == 0xff) {
+            throw new IOException("SOCKS5 authentication method rejected");
+        }
+        if (method == 0x02) {
+            outputStream.write(0x01);
+            outputStream.write(usernameBytes.length);
+            outputStream.write(usernameBytes);
+            outputStream.write(passwordBytes.length);
+            outputStream.write(passwordBytes);
+            outputStream.flush();
+            int authVersion = readByte(inputStream);
+            int authStatus = readByte(inputStream);
+            if (authVersion != 0x01 || authStatus != 0x00) {
+                throw new IOException("SOCKS5 username/password rejected");
+            }
+        } else if (method != 0x00) {
+            throw new IOException("Unsupported SOCKS5 method: " + method);
+        }
+
+        byte[] hostBytes = targetHost.getBytes(StandardCharsets.UTF_8);
+        if (hostBytes.length == 0 || hostBytes.length > 255) {
+            throw new IOException("Invalid SOCKS target host");
+        }
+        outputStream.write(new byte[]{0x05, 0x01, 0x00, 0x03, (byte) hostBytes.length});
+        outputStream.write(hostBytes);
+        outputStream.write((targetPort >>> 8) & 0xff);
+        outputStream.write(targetPort & 0xff);
+        outputStream.flush();
+
+        int replyVersion = readByte(inputStream);
+        int replyCode = readByte(inputStream);
+        readByte(inputStream); // RSV
+        int addressType = readByte(inputStream);
+        if (replyVersion != 0x05 || replyCode != 0x00) {
+            throw new IOException("SOCKS5 connect failed: " + replyCode);
+        }
+        int addressBytes;
+        if (addressType == 0x01) {
+            addressBytes = 4;
+        } else if (addressType == 0x04) {
+            addressBytes = 16;
+        } else if (addressType == 0x03) {
+            addressBytes = readByte(inputStream);
+        } else {
+            throw new IOException("Invalid SOCKS5 bind address type: " + addressType);
+        }
+        skipFully(inputStream, addressBytes + 2);
+        return socket;
+    }
+
+    @NonNull
+    private Socket wrapTlsSocket(@NonNull Socket socket,
+                                 @NonNull String host,
+                                 int port) throws Exception {
+        SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        SSLSocket sslSocket = (SSLSocket) factory.createSocket(socket, host, port, true);
+        try {
+            SSLParameters parameters = sslSocket.getSSLParameters();
+            parameters.setEndpointIdentificationAlgorithm("HTTPS");
+            if (!isIpLiteral(host)) {
+                parameters.setServerNames(Collections.singletonList(new SNIHostName(host)));
+            }
+            sslSocket.setSSLParameters(parameters);
+        } catch (Exception ignored) {
+        }
+        sslSocket.startHandshake();
+        return sslSocket;
+    }
+
+    @NonNull
+    private static byte[] bytesForSocksAuth(@Nullable String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) {
+            return new byte[0];
+        }
+        byte[] bytes = normalized.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length <= 255) {
+            return bytes;
+        }
+        byte[] truncated = new byte[255];
+        System.arraycopy(bytes, 0, truncated, 0, truncated.length);
+        return truncated;
+    }
+
+    private static int readByte(@NonNull BufferedInputStream inputStream) throws IOException {
+        int value = inputStream.read();
+        if (value < 0) {
+            throw new IOException("Unexpected EOF");
+        }
+        return value;
+    }
+
+    private static void skipFully(@NonNull BufferedInputStream inputStream, int bytes) throws IOException {
+        int remaining = Math.max(0, bytes);
+        while (remaining > 0) {
+            long skipped = inputStream.skip(remaining);
+            if (skipped <= 0L) {
+                readByte(inputStream);
+                skipped = 1L;
+            }
+            remaining -= (int) skipped;
+        }
+    }
+
+    @Nullable
+    private static String readAsciiLine(@NonNull BufferedInputStream inputStream, int maxBytes) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < maxBytes; index++) {
+            int value = inputStream.read();
+            if (value < 0) {
+                return builder.length() > 0 ? builder.toString() : null;
+            }
+            if (value == '\n') {
+                break;
+            }
+            if (value != '\r') {
+                builder.append((char) value);
+            }
+        }
+        return builder.toString();
+    }
+
+    private static int parseHttpStatusCode(@Nullable String statusLine) {
+        if (statusLine == null || !statusLine.startsWith("HTTP/")) {
+            return -1;
+        }
+        String[] parts = statusLine.split(" ", 3);
+        if (parts.length < 2) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(parts[1]);
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private static boolean isIpLiteral(@NonNull String host) {
+        return host.indexOf(':') >= 0 || host.matches("\\d+(\\.\\d+){3}");
+    }
+
+    @NonNull
+    private String resolveUserAgent() {
+        try {
+            String versionName = appContext.getPackageManager()
+                    .getPackageInfo(appContext.getPackageName(), 0)
+                    .versionName;
+            if (!TextUtils.isEmpty(versionName)) {
+                return "WINGSV/" + versionName;
+            }
+        } catch (Exception ignored) {
+        }
+        return "WINGSV";
+    }
+
+    private static void closeQuietly(@Nullable Socket socket) {
+        if (socket == null) {
+            return;
+        }
+        try {
+            socket.close();
+        } catch (Exception ignored) {
         }
     }
 
@@ -981,13 +1260,15 @@ public final class AutoSearchManager {
     }
 
     private void persistAutoSearchProfiles(List<CandidateResult> foundCandidates,
-                                           List<XrayProfile> allProfiles) {
+                                           List<XrayProfile> allProfiles,
+                                           List<XrayProfile> originalProfiles) {
         ArrayList<XrayProfile> updatedProfiles = new ArrayList<>();
+        ArrayList<XrayProfile> baseProfiles = mergeProfileLists(allProfiles, originalProfiles);
         LinkedHashMap<String, CandidateResult> candidateByKey = new LinkedHashMap<>();
         for (CandidateResult candidate : foundCandidates) {
             candidateByKey.put(candidate.profile.stableDedupKey(), candidate);
         }
-        for (XrayProfile profile : allProfiles) {
+        for (XrayProfile profile : baseProfiles) {
             String stableKey = profile.stableDedupKey();
             CandidateResult candidate = candidateByKey.get(stableKey);
             if (candidate != null) {
@@ -1013,6 +1294,30 @@ public final class AutoSearchManager {
             }
         }
         XrayStore.setProfiles(appContext, updatedProfiles);
+    }
+
+    @NonNull
+    private static ArrayList<XrayProfile> mergeProfileLists(@Nullable List<XrayProfile> primary,
+                                                            @Nullable List<XrayProfile> fallback) {
+        ArrayList<XrayProfile> result = new ArrayList<>();
+        LinkedHashMap<String, XrayProfile> byKey = new LinkedHashMap<>();
+        if (primary != null) {
+            for (XrayProfile profile : primary) {
+                if (profile != null && !TextUtils.isEmpty(profile.rawLink)) {
+                    byKey.put(profile.stableDedupKey(), profile);
+                }
+            }
+        }
+        if (fallback != null) {
+            for (XrayProfile profile : fallback) {
+                if (profile != null && !TextUtils.isEmpty(profile.rawLink)
+                        && !byKey.containsKey(profile.stableDedupKey())) {
+                    byKey.put(profile.stableDedupKey(), profile);
+                }
+            }
+        }
+        result.addAll(byKey.values());
+        return result;
     }
 
     private PendingResult buildPendingResult(SearchSession session,
@@ -1446,6 +1751,26 @@ public final class AutoSearchManager {
         DownloadResult(boolean success, long bytesRead) {
             this.success = success;
             this.bytesRead = Math.max(0L, bytesRead);
+        }
+    }
+
+    private interface DownloadProgress {
+        void onBytesRead(long bytesRead, long targetBytes);
+    }
+
+    private static final class SocksHttpResult {
+        final boolean success;
+        final int responseCode;
+        final long bytesRead;
+
+        SocksHttpResult(boolean success, int responseCode, long bytesRead) {
+            this.success = success;
+            this.responseCode = responseCode;
+            this.bytesRead = Math.max(0L, bytesRead);
+        }
+
+        static SocksHttpResult failed() {
+            return new SocksHttpResult(false, -1, 0L);
         }
     }
 

@@ -50,7 +50,9 @@ public final class QuickSettingsTiles {
                 R.string.qs_tile_tunnel_label,
                 active ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE,
                 active
-                        ? (ProxyTunnelService.isConnecting()
+                        ? (ProxyTunnelService.isStopping()
+                        ? R.string.service_stopping
+                        : ProxyTunnelService.isConnecting()
                         ? R.string.qs_tile_status_connecting
                         : R.string.qs_tile_status_on)
                         : R.string.qs_tile_status_off,

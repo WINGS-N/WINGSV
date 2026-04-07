@@ -181,6 +181,9 @@ public class FirstLaunchXrayFragment extends Fragment {
             AppPrefs.applyImportedConfig(context, importedConfig);
             loadSettings(XrayStore.getXraySettings(context));
             Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+            if (getActivity() instanceof Host) {
+                ((Host) getActivity()).onXraySettingsCompleted();
+            }
         } catch (Exception ignored) {
             Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
         }

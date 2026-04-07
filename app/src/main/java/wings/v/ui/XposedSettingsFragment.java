@@ -1,0 +1,113 @@
+package wings.v.ui;
+
+import android.content.SharedPreferences;
+import android.os.Bundle;
+
+import androidx.annotation.Nullable;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.SwitchPreferenceCompat;
+
+import wings.v.R;
+import wings.v.XposedAppsActivity;
+import wings.v.core.Haptics;
+import wings.v.core.XposedModulePrefs;
+
+public class XposedSettingsFragment extends PreferenceFragmentCompat {
+    private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+
+    @Override
+    public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        getPreferenceManager().setSharedPreferencesName(XposedModulePrefs.PREFS_NAME);
+        XposedModulePrefs.ensureDefaults(requireContext());
+        setPreferencesFromResource(R.xml.xposed_preferences, rootKey);
+        configurePreferences();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        registerPreferencesListener();
+        updatePackageSummaries();
+        XposedModulePrefs.export(requireContext());
+    }
+
+    @Override
+    public void onPause() {
+        unregisterPreferencesListener();
+        XposedModulePrefs.export(requireContext());
+        super.onPause();
+    }
+
+    private void configurePreferences() {
+        bindSwitchHaptics(XposedModulePrefs.KEY_ENABLED);
+        bindSwitchHaptics(XposedModulePrefs.KEY_ALL_APPS);
+        bindSwitchHaptics(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED);
+        bindSwitchHaptics(XposedModulePrefs.KEY_HIDE_VPN_APPS);
+        bindPackagePicker(
+                XposedModulePrefs.KEY_TARGET_PACKAGES,
+                XposedAppsActivity.MODE_TARGET_APPS
+        );
+        bindPackagePicker(
+                XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES,
+                XposedAppsActivity.MODE_HIDDEN_VPN_APPS
+        );
+        updatePackageSummaries();
+    }
+
+    private void bindSwitchHaptics(String key) {
+        SwitchPreferenceCompat preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
+            return true;
+        });
+    }
+
+    private void bindPackagePicker(String key, String mode) {
+        Preference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceClickListener(clickedPreference -> {
+            Haptics.softSelection(getListView() != null ? getListView() : requireView());
+            startActivity(XposedAppsActivity.createIntent(requireContext(), mode));
+            return true;
+        });
+    }
+
+    private void updatePackageSummaries() {
+        updatePackageSummary(XposedModulePrefs.KEY_TARGET_PACKAGES);
+        updatePackageSummary(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES);
+    }
+
+    private void updatePackageSummary(String key) {
+        Preference preference = findPreference(key);
+        if (preference != null) {
+            preference.setSummary(XposedModulePrefs.buildPackagesSummary(requireContext(), key));
+        }
+    }
+
+    private void registerPreferencesListener() {
+        if (preferencesChangeListener != null) {
+            return;
+        }
+        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+        preferencesChangeListener = (sharedPreferences, key) -> {
+            updatePackageSummaries();
+            XposedModulePrefs.export(requireContext());
+        };
+        preferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+    }
+
+    private void unregisterPreferencesListener() {
+        if (preferencesChangeListener == null) {
+            return;
+        }
+        getPreferenceManager().getSharedPreferences()
+                .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        preferencesChangeListener = null;
+    }
+}

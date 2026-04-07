@@ -907,6 +907,7 @@ public final class WingsImportParser {
         settings.directDns = "https://common.dot.dns.yandex.net/dns-query";
         settings.ipv6 = true;
         settings.sniffingEnabled = true;
+        settings.restartOnNetworkChange = false;
         return settings;
     }
 

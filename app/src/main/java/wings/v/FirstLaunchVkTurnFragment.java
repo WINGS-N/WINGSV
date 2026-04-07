@@ -365,6 +365,9 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             validateSettings(collectSettings(), false);
             updateImportButtonStyle();
             Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+            if (getActivity() instanceof Host) {
+                ((Host) getActivity()).onVkTurnSettingsCompleted();
+            }
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.first_launch_vk_turn_import_invalid, Toast.LENGTH_SHORT).show();
         }

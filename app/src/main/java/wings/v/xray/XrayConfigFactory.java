@@ -204,12 +204,7 @@ public final class XrayConfigFactory {
         boolean useByeDpiFrontProxy = byeDpiSettings != null
                 && byeDpiSettings.launchOnXrayStart;
         if (useByeDpiFrontProxy) {
-            proxyOutbound.put(
-                    "proxySettings",
-                    new JSONObject()
-                            .put("tag", BYEDPI_FRONT_TAG)
-                            .put("transportLayer", true)
-            );
+            enableByeDpiFrontProxy(proxyOutbound, xraySettings);
         }
         outbounds.put(proxyOutbound);
 
@@ -247,6 +242,31 @@ public final class XrayConfigFactory {
             outbounds.put(byeDpiFrontOutbound);
         }
         return outbounds;
+    }
+
+    static void enableByeDpiFrontProxy(JSONObject proxyOutbound,
+                                       XraySettings xraySettings) throws Exception {
+        proxyOutbound.put(
+                "proxySettings",
+                new JSONObject()
+                        .put("tag", BYEDPI_FRONT_TAG)
+                        .put("transportLayer", true)
+        );
+
+        JSONObject streamSettings = proxyOutbound.optJSONObject("streamSettings");
+        if (streamSettings == null) {
+            streamSettings = new JSONObject();
+            proxyOutbound.put("streamSettings", streamSettings);
+        }
+        JSONObject sockopt = streamSettings.optJSONObject("sockopt");
+        if (sockopt == null) {
+            sockopt = new JSONObject();
+            streamSettings.put("sockopt", sockopt);
+        }
+        if (TextUtils.isEmpty(sockopt.optString("domainStrategy", ""))) {
+            boolean ipv6 = xraySettings != null && xraySettings.ipv6;
+            sockopt.put("domainStrategy", ipv6 ? "ForceIP" : "ForceIPv4");
+        }
     }
 
     private static JSONObject buildRouting(XraySettings settings) throws Exception {

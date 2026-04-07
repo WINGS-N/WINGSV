@@ -39,15 +39,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import wings.v.R;
-import wings.v.core.AppPrefs;
+import wings.v.XposedAppsActivity;
 import wings.v.core.Haptics;
+import wings.v.core.XposedModulePrefs;
 import wings.v.databinding.FragmentAppsBinding;
 
-public class AppsFragment extends Fragment {
-    private static final String STATE_SEARCH_QUERY = "apps_search_query";
-    private static final String STATE_SEARCH_VISIBLE = "apps_search_visible";
-    private static final String STATE_SELECTED_ONLY_MODE = "apps_selected_only_mode";
-    private static final String STATE_APP_TYPE_FILTER = "apps_type_filter";
+public class XposedAppsFragment extends Fragment {
+    private static final String ARG_MODE = "mode";
+    private static final String STATE_SEARCH_QUERY = "xposed_apps_search_query";
+    private static final String STATE_SEARCH_VISIBLE = "xposed_apps_search_visible";
+    private static final String STATE_APP_TYPE_FILTER = "xposed_apps_type_filter";
     private static final String FILTER_ALL = "all";
     private static final String FILTER_SYSTEM = "system";
     private static final String FILTER_USER = "user";
@@ -66,21 +67,32 @@ public class AppsFragment extends Fragment {
     };
 
     private FragmentAppsBinding binding;
-    private AppRoutingAdapter adapter;
+    private AppSearchAdapter adapter;
     private AppSearchAdapter searchAdapter;
+    private String mode = XposedAppsActivity.MODE_TARGET_APPS;
     private String searchQuery = "";
     private boolean searchOverlayVisible;
     private boolean searchBarHidden;
-    private boolean selectedOnlyMode;
     private String activeAppTypeFilter = FILTER_ALL;
+
+    public static XposedAppsFragment create(String mode) {
+        XposedAppsFragment fragment = new XposedAppsFragment();
+        Bundle args = new Bundle();
+        args.putString(ARG_MODE, mode);
+        fragment.setArguments(args);
+        return fragment;
+    }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Bundle args = getArguments();
+        if (args != null) {
+            mode = args.getString(ARG_MODE, XposedAppsActivity.MODE_TARGET_APPS);
+        }
         if (savedInstanceState != null) {
             searchQuery = savedInstanceState.getString(STATE_SEARCH_QUERY, "");
             searchOverlayVisible = savedInstanceState.getBoolean(STATE_SEARCH_VISIBLE, false);
-            selectedOnlyMode = savedInstanceState.getBoolean(STATE_SELECTED_ONLY_MODE, false);
             activeAppTypeFilter = savedInstanceState.getString(STATE_APP_TYPE_FILTER, FILTER_ALL);
         }
     }
@@ -101,22 +113,7 @@ public class AppsFragment extends Fragment {
                 searchBackCallback
         );
 
-        adapter = new AppRoutingAdapter(new AppRoutingAdapter.Callback() {
-            @Override
-            public void onPackageToggled(String packageName, boolean enabled, View sourceView) {
-                AppsFragment.this.onPackageToggled(packageName, enabled, sourceView);
-            }
-
-            @Override
-            public void onBypassModeChanged(boolean enabled, View sourceView) {
-                AppsFragment.this.onBypassModeChanged(enabled, sourceView);
-            }
-
-            @Override
-            public void onSelectedAppsRequested(View sourceView) {
-                AppsFragment.this.onSelectedAppsRequested(sourceView);
-            }
-        });
+        adapter = new AppSearchAdapter(this::onPackageToggled);
         searchAdapter = new AppSearchAdapter(this::onPackageToggled);
 
         binding.recyclerApps.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -146,14 +143,10 @@ public class AppsFragment extends Fragment {
                 if (dy != 0) {
                     hideKeyboard();
                 }
-                updateScrollToTopButton();
             }
         });
 
-        binding.searchBarContainer.setOnClickListener(v -> {
-            binding.inputAppSearch.requestFocus();
-            showSearchOverlay(true);
-        });
+        binding.searchBarContainer.setOnClickListener(v -> showSearchOverlay(true));
         binding.inputAppSearch.setOnClickListener(v -> showSearchOverlay(true));
         binding.inputAppSearch.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
@@ -161,12 +154,12 @@ public class AppsFragment extends Fragment {
             }
         });
         binding.inputAppSearch.setOnEditorActionListener((v, actionId, event) -> {
-            boolean isSearchAction = actionId == EditorInfo.IME_ACTION_SEARCH
+            boolean searchAction = actionId == EditorInfo.IME_ACTION_SEARCH
                     || actionId == EditorInfo.IME_ACTION_DONE
                     || (event != null
                     && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                     && event.getAction() == KeyEvent.ACTION_DOWN);
-            if (!isSearchAction) {
+            if (!searchAction) {
                 return false;
             }
             hideKeyboard();
@@ -180,7 +173,8 @@ public class AppsFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                onSearchQueryChanged(s != null ? s.toString() : "");
+                searchQuery = s != null ? s.toString() : "";
+                updateSearchResults();
             }
 
             @Override
@@ -205,13 +199,9 @@ public class AppsFragment extends Fragment {
         binding.inputAppSearch.setSelection(binding.inputAppSearch.length());
         renderAppTypeFilters();
         loadApplications();
-
         if (searchOverlayVisible) {
             binding.inputAppSearch.post(() -> showSearchOverlay(true));
-        } else {
-            updateSearchResults();
         }
-        updateScrollToTopButton();
     }
 
     @Override
@@ -219,27 +209,25 @@ public class AppsFragment extends Fragment {
         super.onSaveInstanceState(outState);
         outState.putString(STATE_SEARCH_QUERY, searchQuery);
         outState.putBoolean(STATE_SEARCH_VISIBLE, searchOverlayVisible);
-        outState.putBoolean(STATE_SELECTED_ONLY_MODE, selectedOnlyMode);
         outState.putString(STATE_APP_TYPE_FILTER, activeAppTypeFilter);
     }
 
     @Override
     public void onDestroyView() {
-        super.onDestroyView();
         binding.recyclerApps.setAdapter(null);
         binding.recyclerSearchResults.setAdapter(null);
         binding = null;
+        super.onDestroyView();
     }
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
         executor.shutdownNow();
+        super.onDestroy();
     }
 
     private void onPackageToggled(String packageName, boolean enabled, View sourceView) {
-        Context context = requireContext();
-        AppPrefs.setAppRoutingPackageEnabled(context, packageName, enabled);
+        XposedModulePrefs.setPackageEnabled(requireContext(), getPrefsKey(), packageName, enabled);
         if (enabled) {
             enabledPackages.add(packageName);
         } else {
@@ -247,42 +235,18 @@ public class AppsFragment extends Fragment {
         }
         adapter.setPackageEnabled(packageName, enabled);
         searchAdapter.setPackageEnabled(packageName, enabled);
-        updateSearchResultsEmptyState();
-        Haptics.softSliderStep(sourceView);
-    }
-
-    private void onBypassModeChanged(boolean enabled, View sourceView) {
-        AppPrefs.setAppRoutingBypassEnabled(requireContext(), enabled);
-        adapter.setBypassEnabled(enabled);
-        Haptics.softSliderStep(sourceView);
-    }
-
-    private void onSearchQueryChanged(String query) {
-        searchQuery = query == null ? "" : query;
-        updateSearchResults();
-        if (!searchOverlayVisible && binding != null && binding.inputAppSearch.hasFocus()) {
-            selectedOnlyMode = false;
-            showSearchOverlay(false);
-        }
-    }
-
-    private void onSelectedAppsRequested(View sourceView) {
-        showSelectedAppsOverlay();
+        updateEmptyStates();
         Haptics.softSliderStep(sourceView);
     }
 
     private void loadApplications() {
-        if (binding == null) {
-            return;
-        }
         Context appContext = requireContext().getApplicationContext();
         binding.progressApps.setVisibility(View.VISIBLE);
         binding.recyclerApps.setVisibility(View.VISIBLE);
         binding.textAppsEmpty.setVisibility(View.GONE);
         executor.execute(() -> {
             List<AppRoutingEntry> entries = queryInstalledApps(appContext);
-            Set<String> storedEnabledPackages = AppPrefs.getAppRoutingPackages(appContext);
-            boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(appContext);
+            Set<String> selected = XposedModulePrefs.getPackageSet(appContext, getPrefsKey());
             mainHandler.post(() -> {
                 if (!isAdded() || binding == null) {
                     return;
@@ -291,25 +255,13 @@ public class AppsFragment extends Fragment {
                 appEntries.clear();
                 appEntries.addAll(entries);
                 enabledPackages.clear();
-                enabledPackages.addAll(storedEnabledPackages);
-                adapter.replaceItems(filterEntries("", false), enabledPackages, bypassEnabled);
-                updateMainEmptyState();
+                enabledPackages.addAll(selected);
+                adapter.replaceItems(filterEntries("", false), enabledPackages);
                 updateSearchResults();
+                updateEmptyStates();
                 updateScrollToTopButton();
             });
         });
-    }
-
-    private void updateMainEmptyState() {
-        if (binding == null || adapter == null || binding.progressApps.getVisibility() == View.VISIBLE) {
-            return;
-        }
-        if (!adapter.hasAnyApps()) {
-            binding.textAppsEmpty.setText(appEntries.isEmpty() ? R.string.apps_empty : R.string.apps_no_results);
-            binding.textAppsEmpty.setVisibility(View.VISIBLE);
-            return;
-        }
-        binding.textAppsEmpty.setVisibility(View.GONE);
     }
 
     private void updateSearchResults() {
@@ -317,47 +269,44 @@ public class AppsFragment extends Fragment {
             return;
         }
         searchAdapter.replaceItems(filterEntries(searchQuery, true), enabledPackages);
-        updateSearchResultsEmptyState();
+        updateEmptyStates();
     }
 
-    private void updateSearchResultsEmptyState() {
+    private void updateEmptyStates() {
         if (binding == null) {
             return;
+        }
+        if (binding.progressApps.getVisibility() == View.VISIBLE) {
+            binding.textAppsEmpty.setVisibility(View.GONE);
+        } else if (filterEntries("", false).isEmpty()) {
+            binding.textAppsEmpty.setText(appEntries.isEmpty() ? R.string.apps_empty : R.string.apps_no_results);
+            binding.textAppsEmpty.setVisibility(View.VISIBLE);
+        } else {
+            binding.textAppsEmpty.setVisibility(View.GONE);
         }
         if (!searchOverlayVisible) {
             binding.textSearchEmpty.setVisibility(View.GONE);
             return;
         }
-        List<AppRoutingEntry> filteredEntries = filterEntries(searchQuery, true);
-        if (selectedOnlyMode && enabledPackages.isEmpty()) {
-            binding.textSearchEmpty.setText(R.string.apps_selected_empty);
+        if (filterEntries(searchQuery, true).isEmpty()) {
+            binding.textSearchEmpty.setText(appEntries.isEmpty()
+                    ? R.string.apps_empty
+                    : R.string.apps_no_results);
             binding.textSearchEmpty.setVisibility(View.VISIBLE);
-            return;
+        } else {
+            binding.textSearchEmpty.setVisibility(View.GONE);
         }
-        if (appEntries.isEmpty()) {
-            binding.textSearchEmpty.setText(R.string.apps_empty);
-            binding.textSearchEmpty.setVisibility(View.VISIBLE);
-            return;
-        }
-        if (filteredEntries.isEmpty()) {
-            binding.textSearchEmpty.setText(R.string.apps_no_results);
-            binding.textSearchEmpty.setVisibility(View.VISIBLE);
-            return;
-        }
-        binding.textSearchEmpty.setVisibility(View.GONE);
     }
 
-    private List<AppRoutingEntry> filterEntries(String query, boolean includeSelectedOnly) {
-        List<AppRoutingEntry> filteredEntries = new ArrayList<>();
+    private List<AppRoutingEntry> filterEntries(String query, boolean includeQuery) {
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.getDefault());
+        List<AppRoutingEntry> filteredEntries = new ArrayList<>();
         for (AppRoutingEntry entry : appEntries) {
-            if (includeSelectedOnly && selectedOnlyMode && !enabledPackages.contains(entry.packageName)) {
-                continue;
-            }
             if (!matchesAppTypeFilter(entry)) {
                 continue;
             }
-            if (normalizedQuery.isEmpty()
+            if (!includeQuery
+                    || normalizedQuery.isEmpty()
                     || entry.label.toLowerCase(Locale.getDefault()).contains(normalizedQuery)
                     || entry.packageName.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
                 filteredEntries.add(entry);
@@ -410,11 +359,10 @@ public class AppsFragment extends Fragment {
                 return;
             }
             activeAppTypeFilter = filterId;
-            selectedOnlyMode = false;
             renderAppTypeFilters();
-            adapter.replaceItems(filterEntries("", false), enabledPackages, AppPrefs.isAppRoutingBypassEnabled(requireContext()));
-            updateMainEmptyState();
+            adapter.replaceItems(filterEntries("", false), enabledPackages);
             updateSearchResults();
+            updateEmptyStates();
             Haptics.softSelection(v);
         });
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -437,33 +385,10 @@ public class AppsFragment extends Fragment {
         binding.buttonSearchClose.setVisibility(View.VISIBLE);
         setSearchBarHidden(false);
         updateSearchResults();
-        updateScrollToTopButton();
         if (requestKeyboard) {
             binding.inputAppSearch.requestFocus();
             showKeyboard();
         }
-    }
-
-    private void showSelectedAppsOverlay() {
-        if (binding == null) {
-            return;
-        }
-        selectedOnlyMode = true;
-        searchQuery = "";
-        if (binding.inputAppSearch.getText() == null
-                || binding.inputAppSearch.getText().length() != 0) {
-            binding.inputAppSearch.setText("");
-        }
-        binding.inputAppSearch.clearFocus();
-        hideKeyboard();
-        searchOverlayVisible = true;
-        searchBackCallback.setEnabled(true);
-        binding.searchOverlayContainer.setVisibility(View.VISIBLE);
-        binding.buttonSearchClose.setVisibility(View.VISIBLE);
-        binding.recyclerSearchResults.scrollToPosition(0);
-        setSearchBarHidden(false);
-        updateSearchResults();
-        updateScrollToTopButton();
     }
 
     private void hideSearchOverlay(boolean clearFocus) {
@@ -471,7 +396,6 @@ public class AppsFragment extends Fragment {
             return;
         }
         searchOverlayVisible = false;
-        selectedOnlyMode = false;
         searchBackCallback.setEnabled(false);
         binding.searchOverlayContainer.setVisibility(View.GONE);
         binding.textSearchEmpty.setVisibility(View.GONE);
@@ -504,21 +428,10 @@ public class AppsFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        boolean shouldShow;
-        if (searchOverlayVisible) {
-            shouldShow = false;
-        } else {
-            shouldShow = searchBarHidden && binding.recyclerApps.canScrollVertically(-1);
-        }
-        binding.buttonScrollToTop.animate().cancel();
-        if (shouldShow) {
-            binding.buttonScrollToTop.setVisibility(View.VISIBLE);
-            binding.buttonScrollToTop.setAlpha(1f);
-            binding.buttonScrollToTop.setScaleX(1f);
-            binding.buttonScrollToTop.setScaleY(1f);
-        } else {
-            binding.buttonScrollToTop.setVisibility(View.GONE);
-        }
+        boolean shouldShow = !searchOverlayVisible
+                && searchBarHidden
+                && binding.recyclerApps.canScrollVertically(-1);
+        binding.buttonScrollToTop.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
     }
 
     private float dpToPx(int value) {
@@ -530,11 +443,8 @@ public class AppsFragment extends Fragment {
     }
 
     private void showKeyboard() {
-        if (binding == null) {
-            return;
-        }
         InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
-        if (inputMethodManager != null) {
+        if (inputMethodManager != null && binding != null) {
             binding.inputAppSearch.post(() ->
                     inputMethodManager.showSoftInput(binding.inputAppSearch, InputMethodManager.SHOW_IMPLICIT)
             );
@@ -542,11 +452,8 @@ public class AppsFragment extends Fragment {
     }
 
     private void hideKeyboard() {
-        if (binding == null) {
-            return;
-        }
         InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
-        if (inputMethodManager != null) {
+        if (inputMethodManager != null && binding != null) {
             inputMethodManager.hideSoftInputFromWindow(binding.inputAppSearch.getWindowToken(), 0);
         }
     }
@@ -561,7 +468,6 @@ public class AppsFragment extends Fragment {
         } else {
             installedApplications = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
         }
-
         List<AppRoutingEntry> entries = new ArrayList<>(installedApplications.size());
         for (ApplicationInfo applicationInfo : installedApplications) {
             String label = applicationInfo.loadLabel(packageManager).toString().trim();
@@ -580,5 +486,11 @@ public class AppsFragment extends Fragment {
                 .comparing((AppRoutingEntry entry) -> entry.label.toLowerCase(Locale.getDefault()))
                 .thenComparing(entry -> entry.packageName));
         return entries;
+    }
+
+    private String getPrefsKey() {
+        return XposedAppsActivity.MODE_HIDDEN_VPN_APPS.equals(mode)
+                ? XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES
+                : XposedModulePrefs.KEY_TARGET_PACKAGES;
     }
 }

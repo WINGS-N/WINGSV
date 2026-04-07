@@ -187,6 +187,9 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
                     + ": "
                     + UiFormatter.formatBytesPerSecond(requireContext(), state.currentSpeedBytesPerSecond));
             binding.textAutoSearchSpeed.setVisibility(View.VISIBLE);
+        } else if (state.currentSpeedBytesPerSecond < 0L) {
+            binding.textAutoSearchSpeed.setText(R.string.auto_search_speed_waiting);
+            binding.textAutoSearchSpeed.setVisibility(View.VISIBLE);
         } else {
             binding.textAutoSearchSpeed.setVisibility(View.GONE);
         }

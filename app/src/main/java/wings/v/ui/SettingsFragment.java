@@ -40,7 +40,9 @@ import wings.v.core.UiFormatter;
 import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XrayStore;
 import wings.v.SubscriptionsActivity;
+import wings.v.XposedSettingsActivity;
 import wings.v.XraySettingsActivity;
+import wings.v.core.XposedModulePrefs;
 
 public class SettingsFragment extends PreferenceFragmentCompat {
     private static final String[] VK_PROXY_PREFERENCE_KEYS = new String[] {
@@ -244,6 +246,18 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
+        if (xposedSettingsPreference != null) {
+            xposedSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                if (!AppPrefs.isRootModeEnabled(requireContext())) {
+                    return true;
+                }
+                startActivity(XposedSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         configureRootPreferences();
         configureXrayPreferences(XrayStore.getBackendType(requireContext()));
         syncPreferenceValuesFromPrefs();
@@ -253,6 +267,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         PreferenceCategory rootCategory = findPreference("pref_category_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
+        Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
         boolean rootGranted = AppPrefs.isRootAccessGranted(requireContext());
         if (rootCategory != null) {
             rootCategory.setVisible(rootGranted);
@@ -263,11 +278,19 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (!rootGranted) {
             rootModePreference.setVisible(false);
             kernelWireGuardPreference.setVisible(false);
+            if (xposedSettingsPreference != null) {
+                xposedSettingsPreference.setVisible(false);
+            }
             return;
         }
 
         rootModePreference.setVisible(true);
         kernelWireGuardPreference.setVisible(true);
+        if (xposedSettingsPreference != null) {
+            boolean rootModeEnabled = AppPrefs.isRootModeEnabled(requireContext());
+            xposedSettingsPreference.setVisible(rootModeEnabled);
+            xposedSettingsPreference.setEnabled(rootModeEnabled);
+        }
         BackendType backendType = XrayStore.getBackendType(requireContext());
         String unavailableReason = RootUtils.getRootModeUnavailableReason(requireContext(), backendType, false);
         boolean supported = TextUtils.isEmpty(unavailableReason);

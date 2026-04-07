@@ -18,6 +18,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="?android:colorBackground"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingHorizontal="24dp"
@@ -36,16 +38,30 @@
                 android:textColor="?android:textColorPrimary"
                 android:textStyle="bold" />
 
-            <ImageButton
-                android:id="@+id/button_toggle"
-                android:layout_width="180dp"
-                android:layout_height="180dp"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/bg_power_button_off"
-                android:contentDescription="@string/home"
-                android:padding="36dp"
-                android:src="@drawable/ic_power"
-                android:tint="@color/wingsv_power_off_text" />
+            <FrameLayout
+                android:layout_width="248dp"
+                android:layout_height="248dp"
+                android:layout_marginTop="0dp"
+                android:clipChildren="false"
+                android:clipToPadding="false">
+
+                <wings.v.widget.PowerButtonGlowView
+                    android:id="@+id/view_power_glow"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:alpha="0" />
+
+                <ImageButton
+                    android:id="@+id/button_toggle"
+                    android:layout_width="180dp"
+                    android:layout_height="180dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_power_button_off"
+                    android:contentDescription="@string/home"
+                    android:padding="36dp"
+                    android:src="@drawable/ic_power"
+                    android:tint="@color/wingsv_power_off_text" />
+            </FrameLayout>
 
             <TextView
                 android:id="@+id/text_service_hint"

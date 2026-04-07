@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 final class ProxyProtectBridgeServer implements Closeable {
     interface VpnServiceProvider {
@@ -43,10 +44,24 @@ final class ProxyProtectBridgeServer implements Closeable {
 
     private void acceptLoop() {
         while (!closed) {
+            LocalSocket client = null;
             try {
-                LocalSocket client = serverSocket.accept();
-                clientExecutor.execute(() -> handleClient(client));
+                client = serverSocket.accept();
+                if (closed || clientExecutor.isShutdown()) {
+                    closeQuietly(client);
+                    return;
+                }
+                LocalSocket acceptedClient = client;
+                client = null;
+                clientExecutor.execute(() -> handleClient(acceptedClient));
+            } catch (RejectedExecutionException error) {
+                closeQuietly(client);
+                if (!closed) {
+                    Log.w(TAG, "protect client rejected after shutdown", error);
+                }
+                return;
             } catch (IOException error) {
+                closeQuietly(client);
                 if (!closed) {
                     Log.w(TAG, "accept failed", error);
                 }
@@ -106,5 +121,15 @@ final class ProxyProtectBridgeServer implements Closeable {
         } catch (IOException ignored) {
         }
         clientExecutor.shutdownNow();
+    }
+
+    private static void closeQuietly(LocalSocket socket) {
+        if (socket == null) {
+            return;
+        }
+        try {
+            socket.close();
+        } catch (IOException ignored) {
+        }
     }
 }

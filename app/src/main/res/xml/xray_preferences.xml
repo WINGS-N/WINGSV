@@ -29,6 +29,12 @@
         android:summary="@string/xray_settings_sniffing_summary"
         android:defaultValue="true" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_xray_restart_on_network_change"
+        android:title="@string/xray_settings_restart_on_network_change_title"
+        android:summary="@string/xray_settings_restart_on_network_change_summary"
+        android:defaultValue="false" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
 
     <PreferenceCategory

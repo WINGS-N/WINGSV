@@ -12,6 +12,7 @@ import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.LinkedHashMap;
@@ -62,6 +63,9 @@ public class AutoSearchActivity extends AppCompatActivity {
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         manager = AutoSearchManager.getInstance(this);
         executionMode = getIntent().getBooleanExtra(EXTRA_EXECUTION_MODE, false);
+        if (executionMode && savedInstanceState == null) {
+            manager.resetFinishedState();
+        }
         executionSearchStarted = savedInstanceState != null
                 && savedInstanceState.getBoolean("execution_search_started", false);
 
@@ -211,16 +215,18 @@ public class AutoSearchActivity extends AppCompatActivity {
                         ? getString(R.string.auto_search_metric_empty)
                         : state.currentMetric
         );
-        binding.textAutoSearchSpeedValue.setText(
-                state.currentSpeedBytesPerSecond > 0L
-                        ? getString(
-                        R.string.auto_search_speed_label
-                ) + ": " + UiFormatter.formatBytesPerSecond(this, state.currentSpeedBytesPerSecond)
-                        : ""
-        );
-        binding.textAutoSearchSpeedValue.setVisibility(
-                state.currentSpeedBytesPerSecond > 0L ? View.VISIBLE : View.GONE
-        );
+        if (state.currentSpeedBytesPerSecond > 0L) {
+            binding.textAutoSearchSpeedValue.setText(getString(R.string.auto_search_speed_label)
+                    + ": "
+                    + UiFormatter.formatBytesPerSecond(this, state.currentSpeedBytesPerSecond));
+            binding.textAutoSearchSpeedValue.setVisibility(View.VISIBLE);
+        } else if (state.currentSpeedBytesPerSecond < 0L) {
+            binding.textAutoSearchSpeedValue.setText(R.string.auto_search_speed_waiting);
+            binding.textAutoSearchSpeedValue.setVisibility(View.VISIBLE);
+        } else {
+            binding.textAutoSearchSpeedValue.setText("");
+            binding.textAutoSearchSpeedValue.setVisibility(View.GONE);
+        }
         binding.textAutoSearchFoundValue.setText(getString(
                 R.string.auto_search_found_value,
                 state.foundProfilesCount,
@@ -253,26 +259,44 @@ public class AutoSearchActivity extends AppCompatActivity {
             return;
         }
         initialModeDialogShown = true;
+        AppCompatCheckBox builtinSubscriptionCheckbox = new AppCompatCheckBox(this);
+        builtinSubscriptionCheckbox.setText(R.string.auto_search_use_builtin_subscription);
+        builtinSubscriptionCheckbox.setChecked(true);
+        int padding = dp(20);
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setPadding(padding, 0, padding, 0);
+        container.addView(builtinSubscriptionCheckbox, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(R.string.auto_search_mode_prompt_title)
                 .setMessage(R.string.auto_search_mode_prompt_message)
+                .setView(container)
                 .setPositiveButton(R.string.auto_search_mode_standard_title, (dialog, which) ->
-                        startExecutionSearch(AutoSearchManager.Mode.STANDARD)
+                        startExecutionSearch(
+                                AutoSearchManager.Mode.STANDARD,
+                                builtinSubscriptionCheckbox.isChecked()
+                        )
                 )
                 .setNegativeButton(R.string.auto_search_mode_whitelist_title, (dialog, which) ->
-                        startExecutionSearch(AutoSearchManager.Mode.WHITELIST)
+                        startExecutionSearch(
+                                AutoSearchManager.Mode.WHITELIST,
+                                builtinSubscriptionCheckbox.isChecked()
+                        )
                 )
                 .setNeutralButton(R.string.auto_search_cancel_action, (dialog, which) -> finish())
                 .setOnCancelListener(dialog -> finish())
                 .show();
     }
 
-    private void startExecutionSearch(@NonNull AutoSearchManager.Mode mode) {
+    private void startExecutionSearch(@NonNull AutoSearchManager.Mode mode, boolean useBuiltInSubscription) {
         requestedMode = mode;
         executionSearchStarted = true;
         profileChainRows.clear();
         binding.containerAutoSearchProfileChain.removeAllViews();
-        manager.startSearch();
+        manager.startSearch(useBuiltInSubscription);
     }
 
     private void renderSettingsRows() {

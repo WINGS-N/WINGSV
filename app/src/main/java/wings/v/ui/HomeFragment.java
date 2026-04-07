@@ -21,6 +21,8 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import java.util.Locale;
+
 import wings.v.MainActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
@@ -36,6 +38,7 @@ import wings.v.databinding.FragmentHomeBinding;
 import wings.v.service.ProxyTunnelService;
 
 public class HomeFragment extends Fragment {
+    private static final long UI_REFRESH_INTERVAL_MS = 250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refreshRunnable = new Runnable() {
         @Override
@@ -44,7 +47,7 @@ public class HomeFragment extends Fragment {
                 return;
             }
             refreshUi();
-            handler.postDelayed(this, 1000L);
+            handler.postDelayed(this, UI_REFRESH_INTERVAL_MS);
         }
     };
 
@@ -92,6 +95,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        ProxyTunnelService.setFastTrafficStatsRequested(true);
         ProxyTunnelService.requestRuntimeSyncIfNeeded(requireContext());
         syncIpRefreshAnimation();
         requestPublicIpIfNeeded();
@@ -101,6 +105,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
+        ProxyTunnelService.setFastTrafficStatsRequested(false);
         handler.removeCallbacks(refreshRunnable);
         stopIpRefreshAnimation();
     }
@@ -121,16 +126,35 @@ public class HomeFragment extends Fragment {
         Context context = requireContext();
         boolean running = ProxyTunnelService.isRunning();
         boolean connecting = ProxyTunnelService.isConnecting();
-        boolean active = running || connecting;
+        boolean stopping = ProxyTunnelService.isStopping();
+        boolean active = running || connecting || stopping;
         ProxySettings settings = AppPrefs.getSettings(context);
 
         if (connecting) {
             binding.textServiceState.setText(R.string.service_connecting);
             binding.textServiceHint.setText(R.string.service_connecting_hint);
+        } else if (stopping) {
+            binding.textServiceState.setText(
+                    settings.backendType == BackendType.XRAY
+                            ? R.string.service_stopping_xray
+                            : R.string.service_stopping_vk_turn
+            );
+            binding.textServiceHint.setText(R.string.service_stopping_hint);
         } else {
             binding.textServiceState.setText(running ? R.string.service_on : R.string.service_off);
             binding.textServiceHint.setText(running ? R.string.tap_to_disconnect : R.string.tap_to_connect);
         }
+        binding.textServiceState.setBackgroundResource(
+                running ? R.drawable.bg_service_state_on : R.drawable.bg_surface_card
+        );
+        binding.textServiceState.setTextColor(
+                running
+                        ? ContextCompat.getColor(context, android.R.color.white)
+                        : resolveThemeColor(
+                                android.R.attr.textColorPrimary,
+                                ContextCompat.getColor(context, R.color.wingsv_text_primary)
+                        )
+        );
 
         int tintColor = ContextCompat.getColor(
                 context,
@@ -144,16 +168,13 @@ public class HomeFragment extends Fragment {
         );
         binding.buttonToggle.setImageTintList(ColorStateList.valueOf(tintColor));
 
-        binding.textDownlink.setText(UiFormatter.formatBytesPerSecond(
-                context,
-                ProxyTunnelService.getRxBytesPerSecond()
-        ));
-        binding.textUplink.setText(UiFormatter.formatBytesPerSecond(
-                context,
-                ProxyTunnelService.getTxBytesPerSecond()
-        ));
+        long rxBytesPerSecond = ProxyTunnelService.getRxBytesPerSecond();
+        long txBytesPerSecond = ProxyTunnelService.getTxBytesPerSecond();
+        binding.textDownlink.setText(UiFormatter.formatBytesPerSecond(context, rxBytesPerSecond));
+        binding.textUplink.setText(UiFormatter.formatBytesPerSecond(context, txBytesPerSecond));
         binding.textRx.setText(UiFormatter.formatBytes(context, ProxyTunnelService.getRxBytes()));
         binding.textTx.setText(UiFormatter.formatBytes(context, ProxyTunnelService.getTxBytes()));
+        binding.viewPowerGlow.setTrafficState(running, rxBytesPerSecond + txBytesPerSecond);
 
         String ip = firstNonEmpty(ProxyTunnelService.getPublicIp(), fallbackIpInfo != null ? fallbackIpInfo.ip : null);
         binding.textIp.setText(TextUtils.isEmpty(ip) ? getString(R.string.ip_loading) : ip);
@@ -162,7 +183,9 @@ public class HomeFragment extends Fragment {
                 ProxyTunnelService.getPublicCountry(),
                 fallbackIpInfo != null ? fallbackIpInfo.country : null
         );
-        binding.textCountry.setText(TextUtils.isEmpty(country) ? getString(R.string.ip_unknown) : country);
+        binding.textCountry.setText(TextUtils.isEmpty(country)
+                ? getString(R.string.ip_unknown)
+                : formatCountryWithFlag(country));
 
         String isp = firstNonEmpty(
                 ProxyTunnelService.getPublicIsp(),
@@ -396,5 +419,87 @@ public class HomeFragment extends Fragment {
 
     private String firstNonEmpty(String primary, String fallback) {
         return !TextUtils.isEmpty(primary) ? primary : fallback;
+    }
+
+    private static String formatCountryWithFlag(String country) {
+        String value = trim(country);
+        if (TextUtils.isEmpty(value) || startsWithFlagEmoji(value)) {
+            return value;
+        }
+        String countryCode = resolveCountryCode(value);
+        if (TextUtils.isEmpty(countryCode)) {
+            return value;
+        }
+        return countryCodeToFlag(countryCode) + " " + value;
+    }
+
+    private static String resolveCountryCode(String country) {
+        String value = trim(country);
+        if (value.length() == 2 && Character.isLetter(value.charAt(0)) && Character.isLetter(value.charAt(1))) {
+            return value.toUpperCase(Locale.US);
+        }
+        String normalized = value.toLowerCase(Locale.ROOT);
+        switch (normalized) {
+            case "россия":
+            case "russia":
+            case "russian federation":
+                return "RU";
+            case "сша":
+            case "соединенные штаты":
+            case "соединённые штаты":
+            case "united states":
+            case "united states of america":
+            case "usa":
+                return "US";
+            case "великобритания":
+            case "united kingdom":
+            case "great britain":
+                return "GB";
+            default:
+                break;
+        }
+        Locale russianLocale = new Locale("ru");
+        for (String isoCode : Locale.getISOCountries()) {
+            Locale locale = new Locale("", isoCode);
+            if (normalized.equals(locale.getDisplayCountry(Locale.ENGLISH).toLowerCase(Locale.ROOT))
+                    || normalized.equals(locale.getDisplayCountry(russianLocale).toLowerCase(Locale.ROOT))
+                    || normalized.equals(locale.getDisplayCountry(Locale.getDefault()).toLowerCase(Locale.ROOT))) {
+                return isoCode;
+            }
+        }
+        return "";
+    }
+
+    private static String countryCodeToFlag(String countryCode) {
+        String code = trim(countryCode).toUpperCase(Locale.US);
+        if (code.length() != 2) {
+            return "";
+        }
+        int first = code.codePointAt(0) - 'A' + 0x1F1E6;
+        int second = code.codePointAt(1) - 'A' + 0x1F1E6;
+        if (first < 0x1F1E6 || first > 0x1F1FF || second < 0x1F1E6 || second > 0x1F1FF) {
+            return "";
+        }
+        return new String(Character.toChars(first)) + new String(Character.toChars(second));
+    }
+
+    private static boolean startsWithFlagEmoji(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return false;
+        }
+        int first = value.codePointAt(0);
+        if (first < 0x1F1E6 || first > 0x1F1FF) {
+            return false;
+        }
+        int offset = Character.charCount(first);
+        if (value.length() <= offset) {
+            return false;
+        }
+        int second = value.codePointAt(offset);
+        return second >= 0x1F1E6 && second <= 0x1F1FF;
+    }
+
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
     }
 }

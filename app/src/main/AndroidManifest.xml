@@ -44,6 +44,18 @@
             android:name="theming-meta-xml"
             android:value="@xml/theming_meta_wingsv" />
 
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+
+        <meta-data
+            android:name="xposeddescription"
+            android:value="@string/xposed_module_description" />
+
+        <meta-data
+            android:name="xposedminversion"
+            android:value="82" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -116,6 +128,16 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".XposedSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".XposedAppsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".ByeDpiTargetsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
@@ -146,6 +168,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
             <intent-filter>

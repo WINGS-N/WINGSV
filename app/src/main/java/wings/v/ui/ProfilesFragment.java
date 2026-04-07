@@ -30,6 +30,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.text.DateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -223,6 +224,7 @@ public class ProfilesFragment extends Fragment {
                     ? requestedFilterId
                     : FILTER_ALL;
             List<XrayProfile> filteredProfiles = filterProfiles(profiles, resolvedFilterId);
+            sortProfilesByStoredTcping(filteredProfiles, XrayStore.getProfilePingResultsMap(appContext));
             Map<String, List<XrayProfile>> groupedProfiles = groupProfilesForDisplay(
                     filteredProfiles,
                     resolvedFilterId,
@@ -691,6 +693,7 @@ public class ProfilesFragment extends Fragment {
                         ? getString(R.string.xray_profiles_refresh_subscriptions_running)
                         : getString(R.string.xray_profiles_refresh_subscriptions_summary)
         );
+        binding.progressRefreshSubscriptions.setVisibility(refreshingSubscriptions ? View.VISIBLE : View.GONE);
 
         binding.rowTcppingActiveProfile.setEnabled(!tcpingRunning && !refreshingSubscriptions);
         binding.rowTcppingActiveProfile.setSummary(
@@ -774,6 +777,7 @@ public class ProfilesFragment extends Fragment {
                         }
                         tcpingRunning = false;
                         updateActionRows();
+                        refreshUi();
                     });
                 }
             });
@@ -1068,6 +1072,44 @@ public class ProfilesFragment extends Fragment {
             }
         }
         return filtered;
+    }
+
+    private void sortProfilesByStoredTcping(List<XrayProfile> profiles,
+                                            Map<String, XrayStore.ProfilePingResult> pingResults) {
+        if (profiles == null || profiles.size() < 2 || pingResults == null || pingResults.isEmpty()) {
+            return;
+        }
+        profiles.sort(Comparator
+                .comparingInt((XrayProfile profile) -> pingSortBucket(pingResults.get(pingStateKey(profile))))
+                .thenComparingInt(profile -> pingSortLatency(pingResults.get(pingStateKey(profile))))
+                .thenComparing(this::profileSortTitle, String.CASE_INSENSITIVE_ORDER));
+    }
+
+    private int pingSortBucket(@Nullable XrayStore.ProfilePingResult result) {
+        if (result == null) {
+            return 2;
+        }
+        return result.success ? 0 : 1;
+    }
+
+    private int pingSortLatency(@Nullable XrayStore.ProfilePingResult result) {
+        if (result == null || !result.success || result.latencyMs <= 0) {
+            return Integer.MAX_VALUE;
+        }
+        return result.latencyMs;
+    }
+
+    private String profileSortTitle(XrayProfile profile) {
+        if (profile == null) {
+            return "";
+        }
+        if (!TextUtils.isEmpty(profile.title)) {
+            return profile.title;
+        }
+        if (!TextUtils.isEmpty(profile.address) && profile.port > 0) {
+            return profile.address + ":" + profile.port;
+        }
+        return "";
     }
 
     private Map<String, List<XrayProfile>> groupProfilesForDisplay(List<XrayProfile> profiles,

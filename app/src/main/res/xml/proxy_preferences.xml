@@ -173,6 +173,11 @@
         android:summary="@string/kernel_wireguard_summary"
         android:defaultValue="false" />
 
+    <Preference
+        android:key="pref_open_xposed_settings"
+        android:title="@string/xposed_settings_title"
+        android:summary="@string/xposed_settings_open_summary" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
         android:key="pref_inset_after_root" />
 
