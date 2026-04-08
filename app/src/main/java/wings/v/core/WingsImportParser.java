@@ -3,10 +3,6 @@ package wings.v.core;
 import android.content.Context;
 import android.text.TextUtils;
 import android.util.Base64;
-
-import org.amnezia.awg.config.Config;
-import org.json.JSONObject;
-
 import java.io.ByteArrayOutputStream;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
@@ -17,10 +13,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
-
+import org.amnezia.awg.config.Config;
+import org.json.JSONObject;
 import wings.v.proto.WingsvProto;
 
+@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.SignatureDeclareThrowsException" })
 public final class WingsImportParser {
+
     private static final Pattern LINK_PATTERN = Pattern.compile("wingsv://[A-Za-z0-9_\\-+/=]+");
     private static final String SCHEME_PREFIX = "wingsv://";
     private static final int CURRENT_VERSION = 1;
@@ -35,8 +34,7 @@ public final class WingsImportParser {
     private static final int DEFAULT_WG_MTU = 1280;
     private static final String DEFAULT_ALLOWED_IPS = "0.0.0.0/0, ::/0";
 
-    private WingsImportParser() {
-    }
+    private WingsImportParser() {}
 
     public static String buildLink(ProxySettings settings) throws Exception {
         return buildLink(null, settings);
@@ -47,9 +45,8 @@ public final class WingsImportParser {
         return encodeConfig(config);
     }
 
-    public static String buildXrayProfilesLink(Context context,
-                                               List<XrayProfile> profiles,
-                                               String activeProfileId) throws Exception {
+    public static String buildXrayProfilesLink(Context context, List<XrayProfile> profiles, String activeProfileId)
+        throws Exception {
         if (context == null) {
             throw new IllegalArgumentException("Context is required");
         }
@@ -67,9 +64,9 @@ public final class WingsImportParser {
         }
 
         WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
-                .setVer(CURRENT_VERSION)
-                .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
-                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
 
         WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder();
         xray.setMergeOnly(true);
@@ -98,10 +95,10 @@ public final class WingsImportParser {
                     continue;
                 }
                 WingsvProto.Subscription.Builder subscriptionBuilder = WingsvProto.Subscription.newBuilder()
-                        .setId(value(subscription.id))
-                        .setTitle(value(subscription.title))
-                        .setUrl(value(subscription.url))
-                        .setFormatHint(value(subscription.formatHint));
+                    .setId(value(subscription.id))
+                    .setTitle(value(subscription.title))
+                    .setUrl(value(subscription.url))
+                    .setFormatHint(value(subscription.formatHint));
                 if (subscription.refreshIntervalHours > 0) {
                     subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
                 }
@@ -125,21 +122,21 @@ public final class WingsImportParser {
         }
 
         WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
-                .setVer(CURRENT_VERSION)
-                .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
-                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
 
         WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder()
-                .setMergeOnly(true)
-                .setActiveProfileId(value(profile.id))
-                .addProfiles(toProtoProfile(profile));
+            .setMergeOnly(true)
+            .setActiveProfileId(value(profile.id))
+            .addProfiles(toProtoProfile(profile));
 
         config.setXray(xray.build());
         return encodeConfig(config.build());
     }
 
-    public static String buildXraySubscriptionsLink(Context context,
-                                                    List<XraySubscription> subscriptions) throws Exception {
+    public static String buildXraySubscriptionsLink(Context context, List<XraySubscription> subscriptions)
+        throws Exception {
         if (context == null) {
             throw new IllegalArgumentException("Context is required");
         }
@@ -157,18 +154,17 @@ public final class WingsImportParser {
         }
 
         WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
-                .setVer(CURRENT_VERSION)
-                .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
-                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY);
 
-        WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder()
-                .setMergeOnly(true);
+        WingsvProto.Xray.Builder xray = WingsvProto.Xray.newBuilder().setMergeOnly(true);
         for (XraySubscription subscription : dedupedSubscriptions.values()) {
             WingsvProto.Subscription.Builder subscriptionBuilder = WingsvProto.Subscription.newBuilder()
-                    .setId(value(subscription.id))
-                    .setTitle(value(subscription.title))
-                    .setUrl(value(subscription.url))
-                    .setFormatHint(value(subscription.formatHint));
+                .setId(value(subscription.id))
+                .setTitle(value(subscription.title))
+                .setUrl(value(subscription.url))
+                .setFormatHint(value(subscription.formatHint));
             if (subscription.refreshIntervalHours > 0) {
                 subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
             }
@@ -245,17 +241,18 @@ public final class WingsImportParser {
     }
 
     private static WingsvProto.Config buildProtoConfig(Context context, ProxySettings settings) throws Exception {
-        BackendType backendType = settings != null && settings.backendType != null
-                ? settings.backendType
-                : BackendType.VK_TURN_WIREGUARD;
+        BackendType backendType =
+            settings != null && settings.backendType != null ? settings.backendType : BackendType.VK_TURN_WIREGUARD;
         WingsvProto.Config.Builder builder = WingsvProto.Config.newBuilder()
-                .setVer(CURRENT_VERSION)
-                .setBackend(backendType.toProto())
-                .setType(backendType == BackendType.XRAY
-                        ? WingsvProto.ConfigType.CONFIG_TYPE_XRAY
-                        : backendType == BackendType.AMNEZIAWG
+            .setVer(CURRENT_VERSION)
+            .setBackend(backendType.toProto())
+            .setType(
+                backendType == BackendType.XRAY
+                    ? WingsvProto.ConfigType.CONFIG_TYPE_XRAY
+                    : backendType == BackendType.AMNEZIAWG
                         ? WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG
-                        : WingsvProto.ConfigType.CONFIG_TYPE_VK);
+                        : WingsvProto.ConfigType.CONFIG_TYPE_VK
+            );
 
         if (settings != null && backendType == BackendType.XRAY) {
             WingsvProto.Xray xray = buildXray(context, settings);
@@ -326,10 +323,10 @@ public final class WingsImportParser {
                     continue;
                 }
                 WingsvProto.Subscription.Builder subscriptionBuilder = WingsvProto.Subscription.newBuilder()
-                        .setId(value(subscription.id))
-                        .setTitle(value(subscription.title))
-                        .setUrl(value(subscription.url))
-                        .setFormatHint(value(subscription.formatHint));
+                    .setId(value(subscription.id))
+                    .setTitle(value(subscription.title))
+                    .setUrl(value(subscription.url))
+                    .setFormatHint(value(subscription.formatHint));
                 if (subscription.refreshIntervalHours > 0) {
                     subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
                 }
@@ -366,8 +363,10 @@ public final class WingsImportParser {
         }
         String sessionMode = value(settings.turnSessionMode);
         WingsvProto.TurnSessionMode protoSessionMode = toProtoSessionMode(sessionMode);
-        if (protoSessionMode != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO
-                && protoSessionMode != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_UNSPECIFIED) {
+        if (
+            protoSessionMode != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO &&
+            protoSessionMode != WingsvProto.TurnSessionMode.TURN_SESSION_MODE_UNSPECIFIED
+        ) {
             builder.setSessionMode(protoSessionMode);
         }
         String localEndpoint = value(settings.localEndpoint);
@@ -380,14 +379,13 @@ public final class WingsImportParser {
         if (!TextUtils.isEmpty(value(settings.turnPort))) {
             try {
                 builder.setPort(Integer.parseInt(value(settings.turnPort)));
-            } catch (NumberFormatException ignored) {
-            }
+            } catch (NumberFormatException ignored) {}
         }
         return builder.build();
     }
 
     private static void setEndpoint(WingsvProto.Turn.Builder builder, String endpoint, boolean remote)
-            throws Exception {
+        throws Exception {
         WingsvProto.Endpoint parsed = parseEndpoint(endpoint);
         if (parsed == null) {
             return;
@@ -404,7 +402,9 @@ public final class WingsImportParser {
 
         WingsvProto.Interface.Builder iface = WingsvProto.Interface.newBuilder();
         if (!TextUtils.isEmpty(value(settings.wgPrivateKey))) {
-            iface.setPrivateKey(com.google.protobuf.ByteString.copyFrom(decodeWireGuardKey(value(settings.wgPrivateKey))));
+            iface.setPrivateKey(
+                com.google.protobuf.ByteString.copyFrom(decodeWireGuardKey(value(settings.wgPrivateKey)))
+            );
         }
         for (String address : splitCsv(value(settings.wgAddresses))) {
             iface.addAddrs(address);
@@ -428,7 +428,9 @@ public final class WingsImportParser {
             peer.setPublicKey(com.google.protobuf.ByteString.copyFrom(decodeWireGuardKey(value(settings.wgPublicKey))));
         }
         if (!TextUtils.isEmpty(value(settings.wgPresharedKey))) {
-            peer.setPresharedKey(com.google.protobuf.ByteString.copyFrom(decodeWireGuardKey(value(settings.wgPresharedKey))));
+            peer.setPresharedKey(
+                com.google.protobuf.ByteString.copyFrom(decodeWireGuardKey(value(settings.wgPresharedKey)))
+            );
         }
         String allowedIps = value(settings.wgAllowedIps);
         if (!TextUtils.isEmpty(allowedIps) && !DEFAULT_ALLOWED_IPS.equals(allowedIps)) {
@@ -454,16 +456,20 @@ public final class WingsImportParser {
 
         ImportedConfig importedConfig = new ImportedConfig();
         importedConfig.backendType = BackendType.fromProto(config.getBackend());
-        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XRAY
-                || importedConfig.backendType == BackendType.XRAY
-                || config.hasXray()) {
+        if (
+            config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XRAY ||
+            importedConfig.backendType == BackendType.XRAY ||
+            config.hasXray()
+        ) {
             importedConfig.backendType = BackendType.XRAY;
             parseXray(config, importedConfig);
             return importedConfig;
         }
-        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG
-                || importedConfig.backendType == BackendType.AMNEZIAWG
-                || config.hasAwg()) {
+        if (
+            config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG ||
+            importedConfig.backendType == BackendType.AMNEZIAWG ||
+            config.hasAwg()
+        ) {
             importedConfig.backendType = BackendType.AMNEZIAWG;
             if (config.hasAwg()) {
                 importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
@@ -539,13 +545,11 @@ public final class WingsImportParser {
     }
 
     private static void parseXray(WingsvProto.Config config, ImportedConfig importedConfig) {
-        WingsvProto.Xray xray = config.hasXray()
-                ? config.getXray()
-                : WingsvProto.Xray.getDefaultInstance();
+        WingsvProto.Xray xray = config.hasXray() ? config.getXray() : WingsvProto.Xray.getDefaultInstance();
         importedConfig.xrayMergeOnly = xray.hasMergeOnly() && xray.getMergeOnly();
         importedConfig.xraySettings = xray.hasSettings()
-                ? fromProtoXraySettings(xray.getSettings())
-                : defaultXraySettings();
+            ? fromProtoXraySettings(xray.getSettings())
+            : defaultXraySettings();
         importedConfig.activeXrayProfileId = value(xray.getActiveProfileId());
         importedConfig.xraySubscriptionJson = value(xray.getSubscriptionJson());
         if (xray.getSubscriptionsCount() > 0) {
@@ -628,10 +632,7 @@ public final class WingsImportParser {
             return null;
         }
         try {
-            return WingsvProto.Endpoint.newBuilder()
-                    .setHost(host)
-                    .setPort(Integer.parseInt(portRaw))
-                    .build();
+            return WingsvProto.Endpoint.newBuilder().setHost(host).setPort(Integer.parseInt(portRaw)).build();
         } catch (NumberFormatException ignored) {
             return null;
         }
@@ -658,9 +659,9 @@ public final class WingsImportParser {
             InetAddress inetAddress = InetAddress.getByName(address);
             int prefix = Integer.parseInt(prefixRaw);
             return WingsvProto.Cidr.newBuilder()
-                    .setAddr(com.google.protobuf.ByteString.copyFrom(inetAddress.getAddress()))
-                    .setPrefix(prefix)
-                    .build();
+                .setAddr(com.google.protobuf.ByteString.copyFrom(inetAddress.getAddress()))
+                .setPrefix(prefix)
+                .build();
         } catch (Exception ignored) {
             return null;
         }
@@ -821,13 +822,13 @@ public final class WingsImportParser {
 
     private static XrayProfile fromProtoProfile(WingsvProto.VlessProfile profile) {
         return new XrayProfile(
-                value(profile.getId()),
-                value(profile.getTitle()),
-                value(profile.getRawLink()),
-                value(profile.getSubscriptionId()),
-                value(profile.getSubscriptionTitle()),
-                value(profile.getAddress()),
-                profile.hasPort() ? profile.getPort() : 0
+            value(profile.getId()),
+            value(profile.getTitle()),
+            value(profile.getRawLink()),
+            value(profile.getSubscriptionId()),
+            value(profile.getSubscriptionTitle()),
+            value(profile.getAddress()),
+            profile.hasPort() ? profile.getPort() : 0
         );
     }
 
@@ -888,13 +889,13 @@ public final class WingsImportParser {
 
     private static XraySubscription fromProtoSubscription(WingsvProto.Subscription subscription) {
         return new XraySubscription(
-                value(subscription.getId()),
-                value(subscription.getTitle()),
-                value(subscription.getUrl()),
-                value(subscription.getFormatHint()),
-                subscription.hasRefreshIntervalHours() ? subscription.getRefreshIntervalHours() : 0,
-                !subscription.hasAutoUpdate() || subscription.getAutoUpdate(),
-                subscription.hasLastUpdatedAt() ? subscription.getLastUpdatedAt() : 0L
+            value(subscription.getId()),
+            value(subscription.getTitle()),
+            value(subscription.getUrl()),
+            value(subscription.getFormatHint()),
+            subscription.hasRefreshIntervalHours() ? subscription.getRefreshIntervalHours() : 0,
+            !subscription.hasAutoUpdate() || subscription.getAutoUpdate(),
+            subscription.hasLastUpdatedAt() ? subscription.getLastUpdatedAt() : 0L
         );
     }
 
@@ -936,6 +937,7 @@ public final class WingsImportParser {
     }
 
     public static final class ImportedConfig {
+
         public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
         public String endpoint;
         public String link;

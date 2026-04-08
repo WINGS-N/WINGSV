@@ -60,7 +60,7 @@
                     android:contentDescription="@string/home"
                     android:padding="36dp"
                     android:src="@drawable/ic_power"
-                    android:tint="@color/wingsv_power_off_text" />
+                    app:tint="@color/wingsv_power_off_text" />
             </FrameLayout>
 
             <TextView
@@ -305,7 +305,7 @@
                     android:contentDescription="@string/refresh_ip"
                     android:padding="8dp"
                     android:src="@drawable/ic_refresh"
-                    android:tint="?android:textColorPrimary" />
+                    app:tint="?android:textColorPrimary" />
             </RelativeLayout>
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 

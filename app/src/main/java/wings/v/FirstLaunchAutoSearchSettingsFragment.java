@@ -13,26 +13,26 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatEditText;
 import androidx.fragment.app.Fragment;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import wings.v.core.AutoSearchManager;
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentFirstLaunchAutoSearchSettingsBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
+
     public interface Host {
         void onAutoSearchSettingsCompleted();
     }
 
     @Nullable
     private FragmentFirstLaunchAutoSearchSettingsBinding binding;
+
     private final List<NumberField> fields = new ArrayList<>();
 
     public static FirstLaunchAutoSearchSettingsFragment create() {
@@ -41,9 +41,11 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchAutoSearchSettingsBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -77,16 +79,41 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
         LinearLayout container = binding.containerAutoSearchSettingsFields;
         container.removeAllViews();
         fields.clear();
-        addNumber(container, R.string.auto_search_setting_target_count,
-                AutoSearchManager.getTargetProfileCount(requireContext()), 1, 20);
-        addNumber(container, R.string.auto_search_setting_tcping_timeout,
-                AutoSearchManager.getTcpingTimeoutMs(requireContext()), 300, 10_000);
-        addNumber(container, R.string.auto_search_setting_download_size,
-                AutoSearchManager.getDownloadSizeMb(requireContext()), 1, 100);
-        addNumber(container, R.string.auto_search_setting_download_timeout,
-                AutoSearchManager.getDownloadTimeoutSeconds(requireContext()), 3, 120);
-        addNumber(container, R.string.auto_search_setting_download_attempts,
-                AutoSearchManager.getDownloadAttempts(requireContext()), 1, 10);
+        addNumber(
+            container,
+            R.string.auto_search_setting_target_count,
+            AutoSearchManager.getTargetProfileCount(requireContext()),
+            1,
+            20
+        );
+        addNumber(
+            container,
+            R.string.auto_search_setting_tcping_timeout,
+            AutoSearchManager.getTcpingTimeoutMs(requireContext()),
+            300,
+            10_000
+        );
+        addNumber(
+            container,
+            R.string.auto_search_setting_download_size,
+            AutoSearchManager.getDownloadSizeMb(requireContext()),
+            1,
+            100
+        );
+        addNumber(
+            container,
+            R.string.auto_search_setting_download_timeout,
+            AutoSearchManager.getDownloadTimeoutSeconds(requireContext()),
+            3,
+            120
+        );
+        addNumber(
+            container,
+            R.string.auto_search_setting_download_attempts,
+            AutoSearchManager.getDownloadAttempts(requireContext()),
+            1,
+            10
+        );
     }
 
     private void addNumber(LinearLayout container, int labelRes, int value, int min, int max) {
@@ -102,16 +129,16 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         label.setIncludeFontPadding(false);
-        row.addView(label, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        row.addView(
+            label,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
 
         AppCompatEditText editText = new AppCompatEditText(requireContext());
         editText.setSingleLine(true);
         editText.setInputType(InputType.TYPE_CLASS_NUMBER);
         editText.setKeyListener(DigitsKeyListener.getInstance("0123456789"));
-        editText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(5)});
+        editText.setFilters(new InputFilter[] { new InputFilter.LengthFilter(5) });
         editText.setText(String.valueOf(value));
         editText.setSelectAllOnFocus(true);
         editText.setTextColor(0xFFFFFFFF);
@@ -120,31 +147,31 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
         editText.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         editText.setBackgroundColor(0x00000000);
         editText.setPadding(0, dp(9), 0, 0);
-        row.addView(editText, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        row.addView(
+            editText,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
 
         NumberField field = new NumberField(editText, min, max);
         fields.add(field);
-        editText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence value, int start, int count, int after) {
-            }
+        editText.addTextChangedListener(
+            new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
 
-            @Override
-            public void onTextChanged(CharSequence value, int start, int before, int count) {
-            }
+                @Override
+                public void onTextChanged(CharSequence value, int start, int before, int count) {}
 
-            @Override
-            public void afterTextChanged(Editable value) {
-                validate(field);
+                @Override
+                public void afterTextChanged(Editable value) {
+                    validate(field);
+                }
             }
-        });
+        );
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
         params.setMargins(0, container.getChildCount() == 0 ? 0 : dp(10), 0, 0);
         container.addView(row, params);
@@ -153,11 +180,9 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
     private boolean validate(NumberField field) {
         int value = field.value();
         boolean valid = value >= field.min && value <= field.max;
-        field.editText.setError(valid ? null : getString(
-                R.string.first_launch_auto_search_number_error,
-                field.min,
-                field.max
-        ));
+        field.editText.setError(
+            valid ? null : getString(R.string.first_launch_auto_search_number_error, field.min, field.max)
+        );
         return valid;
     }
 
@@ -178,14 +203,11 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                value,
-                getResources().getDisplayMetrics()
-        );
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
     }
 
     private static final class NumberField {
+
         final AppCompatEditText editText;
         final int min;
         final int max;
@@ -199,7 +221,7 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
         int value() {
             try {
                 return Integer.parseInt(editText.getText() == null ? "" : editText.getText().toString().trim());
-            } catch (Exception ignored) {
+            } catch (NumberFormatException ignored) {
                 return -1;
             }
         }

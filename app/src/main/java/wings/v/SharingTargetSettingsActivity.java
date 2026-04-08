@@ -14,18 +14,15 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
-
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.PreferenceManager;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.net.NetworkInterface;
-
 import dev.oneuiproject.oneui.widget.CardItemView;
 import dev.oneuiproject.oneui.widget.SwitchItemView;
+import java.net.NetworkInterface;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import kotlin.Unit;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
@@ -35,7 +32,9 @@ import wings.v.databinding.ActivitySharingTargetSettingsBinding;
 import wings.v.service.ProxyTunnelService;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
 
+@SuppressWarnings("PMD.DoNotUseThreads")
 public class SharingTargetSettingsActivity extends AppCompatActivity {
+
     private static final String EXTRA_TARGET = "sharing_target";
 
     private interface StringPreferenceSetter {
@@ -79,25 +78,28 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
     private boolean updatingUi;
     private boolean tetherOffloadOperationInFlight;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener =
-            (sharedPreferences, key) -> {
-                if (key == null) {
-                    return;
-                }
-                if (AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key)
-                        || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)
-                        || AppPrefs.KEY_SHARING_UPSTREAM_INTERFACE.equals(key)
-                        || AppPrefs.KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE.equals(key)
-                        || AppPrefs.KEY_ROOT_MODE.equals(key)
-                        || AppPrefs.KEY_KERNEL_WIREGUARD.equals(key)) {
-                    mainHandler.post(this::refreshUi);
-                }
-            };
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener = (
+        sharedPreferences,
+        key
+    ) -> {
+        if (key == null) {
+            return;
+        }
+        if (
+            AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key) ||
+            AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key) ||
+            AppPrefs.KEY_SHARING_UPSTREAM_INTERFACE.equals(key) ||
+            AppPrefs.KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE.equals(key) ||
+            AppPrefs.KEY_ROOT_MODE.equals(key) ||
+            AppPrefs.KEY_KERNEL_WIREGUARD.equals(key)
+        ) {
+            mainHandler.post(this::refreshUi);
+        }
+    };
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
 
     public static Intent createIntent(Context context, Target target) {
-        return new Intent(context, SharingTargetSettingsActivity.class)
-                .putExtra(EXTRA_TARGET, target.value);
+        return new Intent(context, SharingTargetSettingsActivity.class).putExtra(EXTRA_TARGET, target.value);
     }
 
     @Override
@@ -121,15 +123,17 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        PreferenceManager.getDefaultSharedPreferences(getApplicationContext())
-                .registerOnSharedPreferenceChangeListener(preferenceChangeListener);
+        PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).registerOnSharedPreferenceChangeListener(
+            preferenceChangeListener
+        );
         refreshUi();
     }
 
     @Override
     protected void onPause() {
-        PreferenceManager.getDefaultSharedPreferences(getApplicationContext())
-                .unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
+        PreferenceManager.getDefaultSharedPreferences(
+            getApplicationContext()
+        ).unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
         super.onPause();
     }
 
@@ -143,79 +147,67 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         binding.rowCurrentUpstreams.setTitle(getString(R.string.sharing_current_upstreams_title));
 
         configureSwitch(
-                binding.itemDisableIpv6,
-                R.string.sharing_disable_ipv6_title,
-                R.string.sharing_disable_ipv6_summary,
-                AppPrefs::setSharingDisableIpv6Enabled
+            binding.itemDisableIpv6,
+            R.string.sharing_disable_ipv6_title,
+            R.string.sharing_disable_ipv6_summary,
+            AppPrefs::setSharingDisableIpv6Enabled
         );
         configureSwitch(
-                binding.itemDhcpWorkaround,
-                R.string.sharing_dhcp_title,
-                R.string.sharing_dhcp_summary,
-                AppPrefs::setSharingDhcpWorkaroundEnabled
+            binding.itemDhcpWorkaround,
+            R.string.sharing_dhcp_title,
+            R.string.sharing_dhcp_summary,
+            AppPrefs::setSharingDhcpWorkaroundEnabled
         );
         configureSwitch(
-                binding.itemRepeaterSafeMode,
-                R.string.sharing_repeater_safe_mode_title,
-                R.string.sharing_repeater_safe_mode_summary,
-                AppPrefs::setSharingRepeaterSafeModeEnabled
+            binding.itemRepeaterSafeMode,
+            R.string.sharing_repeater_safe_mode_title,
+            R.string.sharing_repeater_safe_mode_summary,
+            AppPrefs::setSharingRepeaterSafeModeEnabled
         );
         configureSwitch(
-                binding.itemTempHotspotUseSystem,
-                R.string.sharing_temp_hotspot_use_system_title,
-                R.string.sharing_temp_hotspot_use_system_summary,
-                AppPrefs::setSharingTempHotspotUseSystemEnabled
+            binding.itemTempHotspotUseSystem,
+            R.string.sharing_temp_hotspot_use_system_title,
+            R.string.sharing_temp_hotspot_use_system_summary,
+            AppPrefs::setSharingTempHotspotUseSystemEnabled
         );
 
-        configureActionRow(
-                binding.rowUpstreamInterface,
+        configureActionRow(binding.rowUpstreamInterface, R.string.sharing_upstream_title, null, view ->
+            showInterfaceInputDialog(
                 R.string.sharing_upstream_title,
-                null,
-                view -> showInterfaceInputDialog(
-                        R.string.sharing_upstream_title,
-                        AppPrefs.getSharingUpstreamInterface(this),
-                        AppPrefs::setSharingUpstreamInterface
-                )
+                AppPrefs.getSharingUpstreamInterface(this),
+                AppPrefs::setSharingUpstreamInterface
+            )
         );
-        configureActionRow(
-                binding.rowFallbackUpstreamInterface,
+        configureActionRow(binding.rowFallbackUpstreamInterface, R.string.sharing_fallback_upstream_title, null, view ->
+            showInterfaceInputDialog(
                 R.string.sharing_fallback_upstream_title,
-                null,
-                view -> showInterfaceInputDialog(
-                        R.string.sharing_fallback_upstream_title,
-                        AppPrefs.getSharingFallbackUpstreamInterface(this),
-                        AppPrefs::setSharingFallbackUpstreamInterface
-                )
+                AppPrefs.getSharingFallbackUpstreamInterface(this),
+                AppPrefs::setSharingFallbackUpstreamInterface
+            )
         );
-        configureActionRow(
-                binding.rowMasqueradeMode,
+        configureActionRow(binding.rowMasqueradeMode, R.string.sharing_masquerade_title, null, view ->
+            showSingleChoiceDialog(
                 R.string.sharing_masquerade_title,
-                null,
-                view -> showSingleChoiceDialog(
-                        R.string.sharing_masquerade_title,
-                        R.array.sharing_masquerade_entries,
-                        R.array.sharing_masquerade_values,
-                        AppPrefs.getSharingMasqueradeMode(this),
-                        value -> {
-                            AppPrefs.setSharingMasqueradeMode(this, value);
-                            refreshUi();
-                        }
-                )
+                R.array.sharing_masquerade_entries,
+                R.array.sharing_masquerade_values,
+                AppPrefs.getSharingMasqueradeMode(this),
+                value -> {
+                    AppPrefs.setSharingMasqueradeMode(this, value);
+                    refreshUi();
+                }
+            )
         );
-        configureActionRow(
-                binding.rowWifiLock,
+        configureActionRow(binding.rowWifiLock, R.string.sharing_wifi_lock_title, null, view ->
+            showSingleChoiceDialog(
                 R.string.sharing_wifi_lock_title,
-                null,
-                view -> showSingleChoiceDialog(
-                        R.string.sharing_wifi_lock_title,
-                        R.array.sharing_wifi_lock_entries,
-                        R.array.sharing_wifi_lock_values,
-                        AppPrefs.getSharingWifiLockMode(this),
-                        value -> {
-                            AppPrefs.setSharingWifiLockMode(this, value);
-                            refreshUi();
-                        }
-                )
+                R.array.sharing_wifi_lock_entries,
+                R.array.sharing_wifi_lock_values,
+                AppPrefs.getSharingWifiLockMode(this),
+                value -> {
+                    AppPrefs.setSharingWifiLockMode(this, value);
+                    refreshUi();
+                }
+            )
         );
         configureTetherOffloadSwitch();
     }
@@ -257,14 +249,16 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         showView(binding.itemTempHotspotUseSystem, false);
     }
 
-    private void configureSwitch(SwitchItemView itemView,
-                                 int titleRes,
-                                 int summaryRes,
-                                 BooleanPreferenceSetter setter) {
+    private void configureSwitch(
+        SwitchItemView itemView,
+        int titleRes,
+        int summaryRes,
+        BooleanPreferenceSetter setter
+    ) {
         itemView.setTitle(getString(titleRes));
         itemView.setSummary(getString(summaryRes));
         itemView.setOnClickListener(view ->
-                applySwitchChange(itemView, resolveTargetCheckedStateForRowTap(itemView), setter, view)
+            applySwitchChange(itemView, resolveTargetCheckedStateForRowTap(itemView), setter, view)
         );
         itemView.setOnCheckedChangedListener((viewId, checked) -> {
             if (!updatingUi) {
@@ -278,10 +272,12 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         return itemView.getSeparateSwitch() ? !itemView.isChecked() : itemView.isChecked();
     }
 
-    private void configureActionRow(CardItemView itemView,
-                                    int titleRes,
-                                    @Nullable Integer summaryRes,
-                                    View.OnClickListener listener) {
+    private void configureActionRow(
+        CardItemView itemView,
+        int titleRes,
+        @Nullable Integer summaryRes,
+        View.OnClickListener listener
+    ) {
         itemView.setTitle(getString(titleRes));
         if (summaryRes != null) {
             itemView.setSummary(getString(summaryRes));
@@ -292,14 +288,14 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         });
     }
 
-    private void applySwitchChange(SwitchItemView itemView,
-                                   boolean checked,
-                                   BooleanPreferenceSetter setter,
-                                   View sourceView) {
+    private void applySwitchChange(
+        SwitchItemView itemView,
+        boolean checked,
+        BooleanPreferenceSetter setter,
+        View sourceView
+    ) {
         if (itemView.isChecked() != checked) {
-            updatingUi = true;
             itemView.setChecked(checked);
-            updatingUi = false;
         }
         setter.set(this, checked);
         Haptics.softSliderStep(sourceView);
@@ -308,20 +304,17 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     private void refreshUi() {
         binding.rowCurrentUpstreams.setSummary(buildCurrentUpstreamsSummary());
-        binding.rowUpstreamInterface.setSummary(summarizeInterfaceValue(
-                AppPrefs.getSharingUpstreamInterface(this),
-                R.string.sharing_upstream_summary_auto
-        ));
-        binding.rowFallbackUpstreamInterface.setSummary(summarizeInterfaceValue(
+        binding.rowUpstreamInterface.setSummary(
+            summarizeInterfaceValue(AppPrefs.getSharingUpstreamInterface(this), R.string.sharing_upstream_summary_auto)
+        );
+        binding.rowFallbackUpstreamInterface.setSummary(
+            summarizeInterfaceValue(
                 AppPrefs.getSharingFallbackUpstreamInterface(this),
                 R.string.sharing_fallback_upstream_summary_auto
-        ));
-        binding.rowMasqueradeMode.setSummary(getMasqueradeModeLabel(
-                AppPrefs.getSharingMasqueradeMode(this)
-        ));
-        binding.rowWifiLock.setSummary(getWifiLockLabel(
-                AppPrefs.getSharingWifiLockMode(this)
-        ));
+            )
+        );
+        binding.rowMasqueradeMode.setSummary(getMasqueradeModeLabel(AppPrefs.getSharingMasqueradeMode(this)));
+        binding.rowWifiLock.setSummary(getWifiLockLabel(AppPrefs.getSharingWifiLockMode(this)));
         updateSwitch(binding.itemDisableIpv6, AppPrefs.isSharingDisableIpv6Enabled(this));
         updateSwitch(binding.itemDhcpWorkaround, AppPrefs.isSharingDhcpWorkaroundEnabled(this));
         updateSwitch(binding.itemRepeaterSafeMode, AppPrefs.isSharingRepeaterSafeModeEnabled(this));
@@ -331,9 +324,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
     }
 
     private void updateSwitch(SwitchItemView itemView, boolean checked) {
-        updatingUi = true;
         itemView.setChecked(checked);
-        updatingUi = false;
     }
 
     private void showView(View view, boolean visible) {
@@ -344,7 +335,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         binding.rowTetherOffload.setTitle(getString(R.string.sharing_offload_title));
         binding.rowTetherOffload.setSummary(getString(R.string.sharing_offload_summary));
         binding.rowTetherOffload.setOnClickListener(view ->
-                applyTetherOffloadChange(!binding.rowTetherOffload.isChecked(), view)
+            applyTetherOffloadChange(!binding.rowTetherOffload.isChecked(), view)
         );
         binding.rowTetherOffload.setOnCheckedChangedListener((viewId, checked) -> {
             if (!updatingUi) {
@@ -354,14 +345,13 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         });
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void applyTetherOffloadChange(boolean enabled, View sourceView) {
         if (tetherOffloadOperationInFlight) {
             return;
         }
         if (binding.rowTetherOffload.isChecked() != enabled) {
-            updatingUi = true;
             binding.rowTetherOffload.setChecked(enabled);
-            updatingUi = false;
         }
         tetherOffloadOperationInFlight = true;
         binding.rowTetherOffload.setEnabled(false);
@@ -383,9 +373,9 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
                 refreshUi();
                 if (!TextUtils.isEmpty(finalError)) {
                     Toast.makeText(
-                            this,
-                            getString(R.string.sharing_action_failed_detail, finalError),
-                            Toast.LENGTH_SHORT
+                        this,
+                        getString(R.string.sharing_action_failed_detail, finalError),
+                        Toast.LENGTH_SHORT
                     ).show();
                 }
             });
@@ -433,9 +423,11 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         if (backendType == BackendType.XRAY || backendType == BackendType.AMNEZIAWG) {
             return true;
         }
-        return backendType == BackendType.VK_TURN_WIREGUARD
-                && AppPrefs.isRootModeEnabled(this)
-                && !AppPrefs.isKernelWireGuardEnabled(this);
+        return (
+            backendType == BackendType.VK_TURN_WIREGUARD &&
+            AppPrefs.isRootModeEnabled(this) &&
+            !AppPrefs.isKernelWireGuardEnabled(this)
+        );
     }
 
     private boolean isInterfacePresent(@Nullable String interfaceName) {
@@ -444,7 +436,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         }
         try {
             return NetworkInterface.getByName(interfaceName) != null;
-        } catch (Exception ignored) {
+        } catch (java.net.SocketException ignored) {
             return false;
         }
     }
@@ -489,9 +481,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         return getString(R.string.sharing_wifi_lock_system);
     }
 
-    private void showInterfaceInputDialog(int titleRes,
-                                          @Nullable String initialValue,
-                                          StringPreferenceSetter setter) {
+    private void showInterfaceInputDialog(int titleRes, @Nullable String initialValue, StringPreferenceSetter setter) {
         EditText editText = new EditText(this);
         editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editText.setHint(R.string.sharing_input_upstream_hint);
@@ -499,21 +489,23 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         editText.setSelection(editText.getText().length());
 
         new AlertDialog.Builder(this)
-                .setTitle(titleRes)
-                .setView(editText)
-                .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
-                    setter.set(this, editText.getText() == null ? "" : editText.getText().toString().trim());
-                    refreshUi();
-                })
-                .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-                .show();
+            .setTitle(titleRes)
+            .setView(editText)
+            .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
+                setter.set(this, editText.getText() == null ? "" : editText.getText().toString().trim());
+                refreshUi();
+            })
+            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
+            .show();
     }
 
-    private void showSingleChoiceDialog(int titleRes,
-                                        int entriesRes,
-                                        int valuesRes,
-                                        @Nullable String selectedValue,
-                                        ChoiceSetter setter) {
+    private void showSingleChoiceDialog(
+        int titleRes,
+        int entriesRes,
+        int valuesRes,
+        @Nullable String selectedValue,
+        ChoiceSetter setter
+    ) {
         CharSequence[] entries = getResources().getTextArray(entriesRes);
         String[] values = getResources().getStringArray(valuesRes);
         int selectedIndex = 0;
@@ -527,15 +519,15 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         }
 
         new AlertDialog.Builder(this)
-                .setTitle(titleRes)
-                .setSingleChoiceItems(entries, selectedIndex, (dialog, which) -> {
-                    if (which >= 0 && which < values.length) {
-                        setter.set(values[which]);
-                    }
-                    dialog.dismiss();
-                    refreshUi();
-                })
-                .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-                .show();
+            .setTitle(titleRes)
+            .setSingleChoiceItems(entries, selectedIndex, (dialog, which) -> {
+                if (which >= 0 && which < values.length) {
+                    setter.set(values[which]);
+                }
+                dialog.dismiss();
+                refreshUi();
+            })
+            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
+            .show();
     }
 }

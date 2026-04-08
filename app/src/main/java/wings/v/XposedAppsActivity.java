@@ -3,22 +3,20 @@ package wings.v;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-
 import wings.v.databinding.ActivityXposedAppsBinding;
 import wings.v.ui.XposedAppsFragment;
 
 public class XposedAppsActivity extends AppCompatActivity {
+
     private static final String EXTRA_MODE = "mode";
 
     public static final String MODE_TARGET_APPS = "target_apps";
     public static final String MODE_HIDDEN_VPN_APPS = "hidden_vpn_apps";
 
     public static Intent createIntent(Context context, String mode) {
-        return new Intent(context, XposedAppsActivity.class)
-                .putExtra(EXTRA_MODE, mode);
+        return new Intent(context, XposedAppsActivity.class).putExtra(EXTRA_MODE, mode);
     }
 
     @Override
@@ -38,9 +36,9 @@ public class XposedAppsActivity extends AppCompatActivity {
 
         if (savedInstanceState == null) {
             getSupportFragmentManager()
-                    .beginTransaction()
-                    .replace(R.id.xposed_apps_container, XposedAppsFragment.create(mode))
-                    .commit();
+                .beginTransaction()
+                .replace(R.id.xposed_apps_container, XposedAppsFragment.create(mode))
+                .commit();
         }
     }
 }

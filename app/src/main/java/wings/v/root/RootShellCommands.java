@@ -1,16 +1,15 @@
 package wings.v.root;
 
 import android.text.TextUtils;
-
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 final class RootShellCommands {
-    private RootShellCommands() {
-    }
 
-    static void handle(String[] args) throws Exception {
+    private RootShellCommands() {}
+
+    static void handle(String... args) throws Exception {
         if (args == null || args.length == 0) {
             throw new IllegalArgumentException("Usage: shell <command>");
         }
@@ -18,9 +17,7 @@ final class RootShellCommands {
         if (command.isEmpty()) {
             throw new IllegalArgumentException("Usage: shell <command>");
         }
-        Process process = new ProcessBuilder("sh", "-c", command)
-                .redirectErrorStream(true)
-                .start();
+        Process process = new ProcessBuilder("sh", "-c", command).redirectErrorStream(true).start();
         String output;
         try (InputStream inputStream = process.getInputStream()) {
             output = readFully(inputStream);
@@ -31,9 +28,7 @@ final class RootShellCommands {
         }
         if (exitCode != 0) {
             throw new IllegalStateException(
-                    TextUtils.isEmpty(output)
-                            ? "Shell command exited with code " + exitCode
-                            : output.trim()
+                TextUtils.isEmpty(output) ? "Shell command exited with code " + exitCode : output.trim()
             );
         }
     }
@@ -42,9 +37,11 @@ final class RootShellCommands {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         int read;
-        while ((read = inputStream.read(buffer)) != -1) {
+        read = inputStream.read(buffer);
+        while (read != -1) {
             outputStream.write(buffer, 0, read);
+            read = inputStream.read(buffer);
         }
-        return outputStream.toString(StandardCharsets.UTF_8);
+        return outputStream.toString(StandardCharsets.UTF_8.name());
     }
 }

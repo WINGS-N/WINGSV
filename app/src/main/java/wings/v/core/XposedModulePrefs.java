@@ -2,17 +2,16 @@ package wings.v.core;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-
 import androidx.preference.PreferenceManager;
-
 import java.io.File;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
-
 import wings.v.R;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class XposedModulePrefs {
+
     public static final String PREFS_NAME = "xposed_module_preferences";
     public static final String PROP_NATIVE_HOOK_ENABLED = "persist.wingsv.xposed.native_hook";
     public static final String KEY_OPEN_SETTINGS = "pref_open_xposed_settings";
@@ -28,42 +27,36 @@ public final class XposedModulePrefs {
     public static final boolean DEFAULT_NATIVE_HOOK_ENABLED = false;
     public static final boolean DEFAULT_HIDE_VPN_APPS = true;
     public static final String DEFAULT_HIDDEN_VPN_PACKAGES =
-            "com.github.dyhkwong.sagernet\n"
-                    + "com.v2ray.ang\n"
-                    + "org.amnezia.awg\n"
-                    + "org.amnezia.vpn\n"
-                    + "de.blinkt.openvpn\n"
-                    + "net.openvpn.openvpn\n"
-                    + "com.wireguard.android\n"
-                    + "com.cloudflare.onedotonedotonedotone\n"
-                    + "com.psiphon3\n"
-                    + "app.hiddify.com\n"
-                    + "io.nekohasekai.sfa\n"
-                    + "com.nordvpn.android\n"
-                    + "com.expressvpn.vpn\n"
-                    + "com.protonvpn.android\n"
-                    + "free.vpn.unblock.proxy.turbovpn\n"
-                    + "com.zaneschepke.wireguardautotunnel\n"
-                    + "moe.nb4a\n"
-                    + "io.github.romanvht.byedpi\n"
-                    + "com.vkturn.proxy";
+        "com.github.dyhkwong.sagernet\n" +
+        "com.v2ray.ang\n" +
+        "org.amnezia.awg\n" +
+        "org.amnezia.vpn\n" +
+        "de.blinkt.openvpn\n" +
+        "net.openvpn.openvpn\n" +
+        "com.wireguard.android\n" +
+        "com.cloudflare.onedotonedotonedotone\n" +
+        "com.psiphon3\n" +
+        "app.hiddify.com\n" +
+        "io.nekohasekai.sfa\n" +
+        "com.nordvpn.android\n" +
+        "com.expressvpn.vpn\n" +
+        "com.protonvpn.android\n" +
+        "free.vpn.unblock.proxy.turbovpn\n" +
+        "com.zaneschepke.wireguardautotunnel\n" +
+        "moe.nb4a\n" +
+        "io.github.romanvht.byedpi\n" +
+        "com.vkturn.proxy";
 
-    private XposedModulePrefs() {
-    }
+    private XposedModulePrefs() {}
 
     public static void ensureDefaults(Context context) {
-        PreferenceManager.setDefaultValues(
-                context,
-                PREFS_NAME,
-                Context.MODE_PRIVATE,
-                R.xml.xposed_preferences,
-                false
-        );
+        PreferenceManager.setDefaultValues(context, PREFS_NAME, Context.MODE_PRIVATE, R.xml.xposed_preferences, false);
         SharedPreferences preferences = prefs(context);
         SharedPreferences.Editor editor = null;
         if (!preferences.contains(KEY_HIDDEN_VPN_PACKAGES)) {
-            editor = preferences.edit()
-                    .putStringSet(KEY_HIDDEN_VPN_PACKAGES, parsePackageSet(DEFAULT_HIDDEN_VPN_PACKAGES));
+            editor = preferences
+                .edit()
+                .putStringSet(KEY_HIDDEN_VPN_PACKAGES, parsePackageSet(DEFAULT_HIDDEN_VPN_PACKAGES));
         }
         if (editor != null) {
             editor.commit();
@@ -93,7 +86,7 @@ public final class XposedModulePrefs {
     }
 
     public static void setPackageEnabled(Context context, String key, String packageName, boolean enabled) {
-        if (packageName == null || packageName.trim().isEmpty()) {
+        if (packageName == null || packageName.isBlank()) {
             return;
         }
         Set<String> packages = getPackageSet(context, key);
@@ -116,13 +109,13 @@ public final class XposedModulePrefs {
 
     public static Set<String> parsePackageSet(String value) {
         Set<String> packages = new LinkedHashSet<>();
-        if (value == null || value.trim().isEmpty()) {
+        if (value == null || value.isBlank()) {
             return packages;
         }
         Arrays.stream(value.split("[,\\n\\r\\t ]+"))
-                .map(String::trim)
-                .filter(packageName -> !packageName.isEmpty())
-                .forEach(packages::add);
+            .map(String::trim)
+            .filter(packageName -> !packageName.isEmpty())
+            .forEach(packages::add);
         return packages;
     }
 
@@ -144,20 +137,18 @@ public final class XposedModulePrefs {
     }
 
     private static void exportSystemProperties(Context context) {
-        boolean nativeHookEnabled = prefs(context)
-                .getBoolean(KEY_NATIVE_HOOK_ENABLED, DEFAULT_NATIVE_HOOK_ENABLED);
+        boolean nativeHookEnabled = prefs(context).getBoolean(KEY_NATIVE_HOOK_ENABLED, DEFAULT_NATIVE_HOOK_ENABLED);
         String value = nativeHookEnabled ? "1" : "0";
         try {
             Process process = new ProcessBuilder(
-                    "su",
-                    "-c",
-                    "setprop " + shellQuote(PROP_NATIVE_HOOK_ENABLED) + " " + shellQuote(value)
+                "su",
+                "-c",
+                "setprop " + shellQuote(PROP_NATIVE_HOOK_ENABLED) + " " + shellQuote(value)
             )
-                    .redirectErrorStream(true)
-                    .start();
+                .redirectErrorStream(true)
+                .start();
             process.waitFor();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static String shellQuote(String value) {

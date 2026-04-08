@@ -5,7 +5,6 @@ import android.net.LocalSocket;
 import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-
 import java.io.Closeable;
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -15,7 +14,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
+@SuppressWarnings(
+    { "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment", "PMD.AvoidCatchingGenericException" }
+)
 final class ProxyProtectBridgeServer implements Closeable {
+
     interface VpnServiceProvider {
         VpnService getVpnService();
     }
@@ -71,9 +74,11 @@ final class ProxyProtectBridgeServer implements Closeable {
     }
 
     private void handleClient(LocalSocket client) {
-        try (LocalSocket socket = client;
-             InputStream inputStream = socket.getInputStream();
-             OutputStream outputStream = socket.getOutputStream()) {
+        try (
+            LocalSocket socket = client;
+            InputStream inputStream = socket.getInputStream();
+            OutputStream outputStream = socket.getOutputStream()
+        ) {
             byte[] requestBuffer = new byte[1];
             while (!closed) {
                 int read = inputStream.read(requestBuffer);
@@ -96,8 +101,7 @@ final class ProxyProtectBridgeServer implements Closeable {
                 outputStream.write(protectedOk ? 1 : 0);
                 outputStream.flush();
             }
-        } catch (IOException ignored) {
-        }
+        } catch (IOException ignored) {}
     }
 
     private boolean protect(FileDescriptor fileDescriptor) {
@@ -118,8 +122,7 @@ final class ProxyProtectBridgeServer implements Closeable {
         closed = true;
         try {
             serverSocket.close();
-        } catch (IOException ignored) {
-        }
+        } catch (IOException ignored) {}
         clientExecutor.shutdownNow();
     }
 
@@ -129,7 +132,6 @@ final class ProxyProtectBridgeServer implements Closeable {
         }
         try {
             socket.close();
-        } catch (IOException ignored) {
-        }
+        } catch (IOException ignored) {}
     }
 }

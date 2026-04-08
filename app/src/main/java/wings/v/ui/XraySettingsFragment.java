@@ -3,12 +3,10 @@ package wings.v.ui;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-
 import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
@@ -16,6 +14,7 @@ import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 
 public class XraySettingsFragment extends PreferenceFragmentCompat {
+
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         setPreferencesFromResource(R.xml.xray_preferences, rootKey);
@@ -47,8 +46,10 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         }
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
-            if (TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED)
-                    || TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED)) {
+            if (
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED) ||
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED)
+            ) {
                 requireView().post(this::syncFromStore);
             }
             return true;
@@ -71,9 +72,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setOnBindEditTextListener(editText ->
-                editText.setInputType(InputType.TYPE_CLASS_NUMBER)
-        );
+        preference.setOnBindEditTextListener(editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
     }
 
     private void syncFromStore() {

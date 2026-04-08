@@ -12,13 +12,11 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.preference.PreferenceManager;
-
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,18 +24,19 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import wings.v.core.Haptics;
 import wings.v.core.AppPrefs;
+import wings.v.core.Haptics;
 import wings.v.core.SubscriptionHwidStore;
 import wings.v.core.WingsImportParser;
+import wings.v.core.XrayStore;
 import wings.v.core.XraySubscription;
 import wings.v.core.XraySubscriptionUpdater;
-import wings.v.core.XrayStore;
 import wings.v.databinding.ActivitySubscriptionsBinding;
 import wings.v.databinding.ItemSubscriptionEntryBinding;
 
+@SuppressWarnings("PMD.DoNotUseThreads")
 public class SubscriptionsActivity extends AppCompatActivity {
+
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final LinkedHashSet<String> selectedSubscriptionIds = new LinkedHashSet<>();
     private final LinkedHashMap<String, SubscriptionRowViews> rowViews = new LinkedHashMap<>();
@@ -128,21 +127,21 @@ public class SubscriptionsActivity extends AppCompatActivity {
         refreshSubscriptionHwidRow();
         int refreshIntervalHours = XrayStore.getRefreshIntervalHours(this);
         binding.rowSubscriptionRefreshInterval.setSummary(
-                getString(R.string.xray_subscriptions_refresh_interval_summary, refreshIntervalHours)
+            getString(R.string.xray_subscriptions_refresh_interval_summary, refreshIntervalHours)
         );
 
         String lastError = XrayStore.getLastSubscriptionsError(this);
         long lastRefreshAt = XrayStore.getLastSubscriptionsRefreshAt(this);
         if (!TextUtils.isEmpty(lastError)) {
             binding.textSubscriptionHeaderSummary.setText(
-                    getString(R.string.xray_subscriptions_header_error, lastError)
+                getString(R.string.xray_subscriptions_header_error, lastError)
             );
         } else if (lastRefreshAt > 0L) {
             binding.textSubscriptionHeaderSummary.setText(
-                    getString(
-                            R.string.xray_subscriptions_header_last_refresh,
-                            DateFormat.getDateTimeInstance().format(lastRefreshAt)
-                    )
+                getString(
+                    R.string.xray_subscriptions_header_last_refresh,
+                    DateFormat.getDateTimeInstance().format(lastRefreshAt)
+                )
             );
         } else {
             binding.textSubscriptionHeaderSummary.setText(R.string.xray_subscriptions_header_summary);
@@ -160,25 +159,30 @@ public class SubscriptionsActivity extends AppCompatActivity {
         for (int index = 0; index < subscriptions.size(); index++) {
             XraySubscription subscription = subscriptions.get(index);
             ItemSubscriptionEntryBinding rowBinding = ItemSubscriptionEntryBinding.inflate(
-                    inflater,
-                    binding.containerSubscriptions,
-                    false
+                inflater,
+                binding.containerSubscriptions,
+                false
             );
-            rowBinding.textSubscriptionTitle.setText(TextUtils.isEmpty(subscription.title)
+            rowBinding.textSubscriptionTitle.setText(
+                TextUtils.isEmpty(subscription.title)
                     ? getString(R.string.xray_subscriptions_untitled)
-                    : subscription.title);
+                    : subscription.title
+            );
             StringBuilder summary = new StringBuilder(subscription.url);
             if (subscription.lastUpdatedAt > 0L) {
-                summary.append('\n')
-                        .append(getString(
-                                R.string.xray_subscriptions_last_updated_label,
-                                DateFormat.getDateTimeInstance().format(subscription.lastUpdatedAt)
-                        ));
+                summary
+                    .append('\n')
+                    .append(
+                        getString(
+                            R.string.xray_subscriptions_last_updated_label,
+                            DateFormat.getDateTimeInstance().format(subscription.lastUpdatedAt)
+                        )
+                    );
             }
             rowBinding.textSubscriptionSummary.setText(summary.toString());
-            rowBinding.viewSubscriptionDivider.setVisibility(index == subscriptions.size() - 1
-                    ? View.GONE
-                    : View.VISIBLE);
+            rowBinding.viewSubscriptionDivider.setVisibility(
+                index == subscriptions.size() - 1 ? View.GONE : View.VISIBLE
+            );
             rowBinding.checkboxSubscriptionSelected.setClickable(false);
             rowBinding.checkboxSubscriptionSelected.setFocusable(false);
             rowBinding.rowSubscriptionEntry.setOnClickListener(view -> {
@@ -206,9 +210,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
         binding.switchSubscriptionHwid.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Haptics.softSliderStep(buttonView);
             PreferenceManager.getDefaultSharedPreferences(this)
-                    .edit()
-                    .putBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, isChecked)
-                    .apply();
+                .edit()
+                .putBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, isChecked)
+                .apply();
             refreshSubscriptionHwidRow();
         });
     }
@@ -222,57 +226,56 @@ public class SubscriptionsActivity extends AppCompatActivity {
         EditText titleInput = new EditText(this);
         titleInput.setHint(R.string.xray_subscriptions_title_hint);
         titleInput.setText(existing != null ? existing.title : "");
-        container.addView(titleInput, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        container.addView(
+            titleInput,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
 
         EditText urlInput = new EditText(this);
         urlInput.setHint(R.string.xray_subscriptions_url_hint);
         urlInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         urlInput.setText(existing != null ? existing.url : "");
-        container.addView(urlInput, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        container.addView(
+            urlInput,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
 
-        int dialogTitle = existing == null
-                ? R.string.xray_subscriptions_add_title
-                : R.string.xray_subscriptions_edit_title;
+        int dialogTitle =
+            existing == null ? R.string.xray_subscriptions_add_title : R.string.xray_subscriptions_edit_title;
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                .setTitle(dialogTitle)
-                .setView(container)
-                .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-                .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
-                    String url = urlInput.getText() != null ? urlInput.getText().toString().trim() : "";
-                    if (TextUtils.isEmpty(url)) {
-                        Toast.makeText(this, R.string.xray_subscriptions_url_required, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    List<XraySubscription> subscriptions = new ArrayList<>(XrayStore.getSubscriptions(this));
-                    XraySubscription updated = new XraySubscription(
-                            existing != null ? existing.id : null,
-                            titleInput.getText() != null ? titleInput.getText().toString().trim() : "",
-                            url,
-                            "auto",
-                            existing != null ? existing.refreshIntervalHours : XrayStore.getRefreshIntervalHours(this),
-                            existing == null || existing.autoUpdate,
-                            existing != null ? existing.lastUpdatedAt : 0L
-                    );
-                    if (existing != null) {
-                        for (int index = 0; index < subscriptions.size(); index++) {
-                            if (TextUtils.equals(subscriptions.get(index).id, existing.id)) {
-                                subscriptions.set(index, updated);
-                                XrayStore.setSubscriptions(this, subscriptions);
-                                refreshUi();
-                                return;
-                            }
+            .setTitle(dialogTitle)
+            .setView(container)
+            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
+            .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
+                String url = urlInput.getText() != null ? urlInput.getText().toString().trim() : "";
+                if (TextUtils.isEmpty(url)) {
+                    Toast.makeText(this, R.string.xray_subscriptions_url_required, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                List<XraySubscription> subscriptions = new ArrayList<>(XrayStore.getSubscriptions(this));
+                XraySubscription updated = new XraySubscription(
+                    existing != null ? existing.id : null,
+                    titleInput.getText() != null ? titleInput.getText().toString().trim() : "",
+                    url,
+                    "auto",
+                    existing != null ? existing.refreshIntervalHours : XrayStore.getRefreshIntervalHours(this),
+                    existing == null || existing.autoUpdate,
+                    existing != null ? existing.lastUpdatedAt : 0L
+                );
+                if (existing != null) {
+                    for (int index = 0; index < subscriptions.size(); index++) {
+                        if (TextUtils.equals(subscriptions.get(index).id, existing.id)) {
+                            subscriptions.set(index, updated);
+                            XrayStore.setSubscriptions(this, subscriptions);
+                            refreshUi();
+                            return;
                         }
                     }
-                    subscriptions.add(updated);
-                    XrayStore.setSubscriptions(this, subscriptions);
-                    refreshUi();
-                });
+                }
+                subscriptions.add(updated);
+                XrayStore.setSubscriptions(this, subscriptions);
+                refreshUi();
+            });
 
         if (existing != null) {
             builder.setNeutralButton(R.string.xray_subscriptions_delete_title, (dialog, which) -> {
@@ -290,22 +293,23 @@ public class SubscriptionsActivity extends AppCompatActivity {
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
         input.setText(String.valueOf(XrayStore.getRefreshIntervalHours(this)));
         new AlertDialog.Builder(this)
-                .setTitle(R.string.xray_subscriptions_refresh_interval_title)
-                .setView(input)
-                .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-                .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
-                    int hours;
-                    try {
-                        hours = Integer.parseInt(String.valueOf(input.getText()).trim());
-                    } catch (Exception ignored) {
-                        hours = 24;
-                    }
-                    XrayStore.setRefreshIntervalHours(this, hours);
-                    refreshUi();
-                })
-                .show();
+            .setTitle(R.string.xray_subscriptions_refresh_interval_title)
+            .setView(input)
+            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
+            .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
+                int hours;
+                try {
+                    hours = Integer.parseInt(String.valueOf(input.getText()).trim());
+                } catch (NumberFormatException ignored) {
+                    hours = 24;
+                }
+                XrayStore.setRefreshIntervalHours(this, hours);
+                refreshUi();
+            })
+            .show();
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void refreshSubscriptions() {
         if (refreshingSubscriptions) {
             return;
@@ -317,25 +321,24 @@ public class SubscriptionsActivity extends AppCompatActivity {
             String message;
             try {
                 XraySubscriptionUpdater.RefreshResult result = XraySubscriptionUpdater.refreshAll(
-                        this,
-                        new XraySubscriptionUpdater.ProgressListener() {
-                            @Override
-                            public void onSubscriptionStarted(XraySubscription subscription) {
-                                runOnUiThread(() -> {
-                                    refreshingSubscriptionId = subscription != null ? subscription.id : "";
-                                    updateRefreshStateUi();
-                                    updateAllRowStates();
-                                });
-                            }
-
-                            @Override
-                            public void onSubscriptionFinished(XraySubscription subscription, String error) {
-                            }
+                    this,
+                    new XraySubscriptionUpdater.ProgressListener() {
+                        @Override
+                        public void onSubscriptionStarted(XraySubscription subscription) {
+                            runOnUiThread(() -> {
+                                refreshingSubscriptionId = subscription != null ? subscription.id : "";
+                                updateRefreshStateUi();
+                                updateAllRowStates();
+                            });
                         }
+
+                        @Override
+                        public void onSubscriptionFinished(XraySubscription subscription, String error) {}
+                    }
                 );
                 message = TextUtils.isEmpty(result.error)
-                        ? getString(R.string.xray_subscriptions_refresh_success, result.profiles.size())
-                        : getString(R.string.xray_subscriptions_refresh_partial, result.error);
+                    ? getString(R.string.xray_subscriptions_refresh_success, result.profiles.size())
+                    : getString(R.string.xray_subscriptions_refresh_partial, result.error);
             } catch (Exception error) {
                 message = getString(R.string.xray_subscriptions_refresh_failed, error.getMessage());
             }
@@ -408,7 +411,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         boolean visible = selectionMode && !selectedSubscriptionIds.isEmpty();
         binding.layoutSubscriptionSelectionActions.setVisibility(visible ? View.VISIBLE : View.GONE);
         binding.textSubscriptionSelectionCount.setText(
-                getString(R.string.xray_subscriptions_selected_count, selectedSubscriptionIds.size())
+            getString(R.string.xray_subscriptions_selected_count, selectedSubscriptionIds.size())
         );
     }
 
@@ -419,9 +422,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
             row.checkbox.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
             row.checkbox.setChecked(selected);
             row.progress.setVisibility(
-                    refreshingSubscriptions && TextUtils.equals(refreshingSubscriptionId, row.subscription.id)
-                            ? View.VISIBLE
-                            : View.GONE
+                refreshingSubscriptions && TextUtils.equals(refreshingSubscriptionId, row.subscription.id)
+                    ? View.VISIBLE
+                    : View.GONE
             );
         }
     }
@@ -452,6 +455,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         return result;
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void shareSelectedSubscriptions() {
         if (selectedSubscriptionIds.isEmpty()) {
             return;
@@ -463,9 +467,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         }
         try {
             String link = WingsImportParser.buildXraySubscriptionsLink(this, selected);
-            Intent sendIntent = new Intent(Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, link);
+            Intent sendIntent = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, link);
             startActivity(Intent.createChooser(sendIntent, getString(R.string.xray_subscriptions_share_chooser)));
             clearSelectionMode();
         } catch (Exception ignored) {
@@ -492,6 +494,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
     }
 
     private static final class SubscriptionRowViews {
+
         final XraySubscription subscription;
         final View root;
         final AppCompatCheckBox checkbox;
@@ -511,9 +514,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
         }
         binding.rowRefreshSubscriptionsNow.setEnabled(!refreshingSubscriptions);
         binding.rowRefreshSubscriptionsNow.setSummary(
-                refreshingSubscriptions
-                        ? getString(R.string.xray_profiles_refresh_subscriptions_running)
-                        : getString(R.string.xray_subscriptions_refresh_now_summary)
+            refreshingSubscriptions
+                ? getString(R.string.xray_profiles_refresh_subscriptions_running)
+                : getString(R.string.xray_subscriptions_refresh_now_summary)
         );
         binding.progressRefreshSubscriptionsNow.setVisibility(refreshingSubscriptions ? View.VISIBLE : View.GONE);
     }

@@ -5,8 +5,6 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.widget.Toast;
-
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
@@ -14,68 +12,68 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-
 import dev.oneuiproject.oneui.preference.UpdatableWidgetPreference;
-import wings.v.FirstLaunchActivity;
+import wings.v.AboutAppActivity;
+import wings.v.ActiveProbingSettingsActivity;
+import wings.v.AmneziaSettingsActivity;
 import wings.v.AutoSearchActivity;
 import wings.v.ByeDpiSettingsActivity;
 import wings.v.ExternalActions;
-import wings.v.MainActivity;
-import wings.v.AboutAppActivity;
+import wings.v.FirstLaunchActivity;
 import wings.v.ProxyLogsActivity;
 import wings.v.R;
-import wings.v.ActiveProbingSettingsActivity;
-import wings.v.AmneziaSettingsActivity;
-import wings.v.core.ActiveProbingManager;
-import wings.v.core.AmneziaStore;
-import wings.v.core.AutoSearchManager;
-import wings.v.core.AppUpdateManager;
-import wings.v.core.AppPrefs;
-import wings.v.core.BackendType;
-import wings.v.core.ByeDpiStore;
-import wings.v.core.Haptics;
-import wings.v.core.RootUtils;
-import wings.v.core.ProxySettings;
-import wings.v.core.UiFormatter;
-import wings.v.core.UpdateBadgeUtils;
-import wings.v.core.XrayStore;
 import wings.v.SubscriptionsActivity;
 import wings.v.XposedSettingsActivity;
 import wings.v.XraySettingsActivity;
+import wings.v.core.ActiveProbingManager;
+import wings.v.core.AmneziaStore;
+import wings.v.core.AppPrefs;
+import wings.v.core.AppUpdateManager;
+import wings.v.core.AutoSearchManager;
+import wings.v.core.BackendType;
+import wings.v.core.ByeDpiStore;
+import wings.v.core.Haptics;
+import wings.v.core.ProxySettings;
+import wings.v.core.RootUtils;
+import wings.v.core.UiFormatter;
+import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
+import wings.v.core.XrayStore;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class SettingsFragment extends PreferenceFragmentCompat {
-    private static final String[] VK_PROXY_PREFERENCE_KEYS = new String[] {
-            AppPrefs.KEY_ENDPOINT,
-            AppPrefs.KEY_VK_LINK,
-            AppPrefs.KEY_THREADS,
-            AppPrefs.KEY_USE_UDP,
-            AppPrefs.KEY_NO_OBFUSCATION,
-            AppPrefs.KEY_TURN_SESSION_MODE,
-            AppPrefs.KEY_LOCAL_ENDPOINT,
-            AppPrefs.KEY_TURN_HOST,
-            AppPrefs.KEY_TURN_PORT,
-            "pref_inset_after_backend",
-            "pref_inset_after_vk_proxy",
-            "pref_category_vk_proxy"
+
+    private static final String[] VK_PROXY_PREFERENCE_KEYS = {
+        AppPrefs.KEY_ENDPOINT,
+        AppPrefs.KEY_VK_LINK,
+        AppPrefs.KEY_THREADS,
+        AppPrefs.KEY_USE_UDP,
+        AppPrefs.KEY_NO_OBFUSCATION,
+        AppPrefs.KEY_TURN_SESSION_MODE,
+        AppPrefs.KEY_LOCAL_ENDPOINT,
+        AppPrefs.KEY_TURN_HOST,
+        AppPrefs.KEY_TURN_PORT,
+        "pref_inset_after_backend",
+        "pref_inset_after_vk_proxy",
+        "pref_category_vk_proxy",
     };
-    private static final String[] WG_BACKEND_PREFERENCE_KEYS = new String[] {
-            AppPrefs.KEY_WG_PRIVATE_KEY,
-            AppPrefs.KEY_WG_ADDRESSES,
-            AppPrefs.KEY_WG_DNS,
-            AppPrefs.KEY_WG_MTU,
-            AppPrefs.KEY_WG_PUBLIC_KEY,
-            AppPrefs.KEY_WG_PRESHARED_KEY,
-            AppPrefs.KEY_WG_ALLOWED_IPS,
-            "pref_inset_after_wg_interface",
-            "pref_inset_after_wg_peer",
-            "pref_category_wg_interface",
-            "pref_category_wg_peer"
+    private static final String[] WG_BACKEND_PREFERENCE_KEYS = {
+        AppPrefs.KEY_WG_PRIVATE_KEY,
+        AppPrefs.KEY_WG_ADDRESSES,
+        AppPrefs.KEY_WG_DNS,
+        AppPrefs.KEY_WG_MTU,
+        AppPrefs.KEY_WG_PUBLIC_KEY,
+        AppPrefs.KEY_WG_PRESHARED_KEY,
+        AppPrefs.KEY_WG_ALLOWED_IPS,
+        "pref_inset_after_wg_interface",
+        "pref_inset_after_wg_peer",
+        "pref_category_wg_interface",
+        "pref_category_wg_peer",
     };
-    private static final String[] AWG_BACKEND_PREFERENCE_KEYS = new String[] {
-            AmneziaStore.KEY_OPEN_SETTINGS,
-            "pref_category_awg",
-            "pref_inset_after_awg"
+    private static final String[] AWG_BACKEND_PREFERENCE_KEYS = {
+        AmneziaStore.KEY_OPEN_SETTINGS,
+        "pref_category_awg",
+        "pref_inset_after_awg",
     };
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private AppUpdateManager appUpdateManager;
@@ -295,24 +293,26 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         String unavailableReason = RootUtils.getRootModeUnavailableReason(requireContext(), backendType, false);
         boolean supported = TextUtils.isEmpty(unavailableReason);
         rootModePreference.setEnabled(supported);
-        rootModePreference.setSummary(supported
+        rootModePreference.setSummary(
+            supported
                 ? getString(R.string.root_mode_summary)
-                : getString(R.string.root_mode_unavailable, unavailableReason));
+                : getString(R.string.root_mode_unavailable, unavailableReason)
+        );
         rootModePreference.setOnPreferenceChangeListener((preference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
-            if (!(newValue instanceof Boolean) || !((Boolean) newValue)) {
+            if (!(newValue instanceof Boolean) || !(Boolean) newValue) {
                 return true;
             }
             String reason = RootUtils.getRootModeUnavailableReason(
-                    requireContext(),
-                    XrayStore.getBackendType(requireContext()),
-                    false
+                requireContext(),
+                XrayStore.getBackendType(requireContext()),
+                false
             );
             if (!TextUtils.isEmpty(reason)) {
                 Toast.makeText(
-                        requireContext(),
-                        getString(R.string.root_mode_unavailable, reason),
-                        Toast.LENGTH_SHORT
+                    requireContext(),
+                    getString(R.string.root_mode_unavailable, reason),
+                    Toast.LENGTH_SHORT
                 ).show();
                 return false;
             }
@@ -320,30 +320,32 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         });
 
         String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
-                requireContext(),
-                backendType,
-                false
+            requireContext(),
+            backendType,
+            false
         );
         boolean kernelSupported = TextUtils.isEmpty(kernelUnavailableReason);
         kernelWireGuardPreference.setEnabled(kernelSupported);
-        kernelWireGuardPreference.setSummary(kernelSupported
+        kernelWireGuardPreference.setSummary(
+            kernelSupported
                 ? getString(R.string.kernel_wireguard_summary)
-                : getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason));
+                : getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason)
+        );
         kernelWireGuardPreference.setOnPreferenceChangeListener((preference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
-            if (!(newValue instanceof Boolean) || !((Boolean) newValue)) {
+            if (!(newValue instanceof Boolean) || !(Boolean) newValue) {
                 return true;
             }
             String reason = RootUtils.getKernelWireGuardUnavailableReason(
-                    requireContext(),
-                    XrayStore.getBackendType(requireContext()),
-                    false
+                requireContext(),
+                XrayStore.getBackendType(requireContext()),
+                false
             );
             if (!TextUtils.isEmpty(reason)) {
                 Toast.makeText(
-                        requireContext(),
-                        getString(R.string.kernel_wireguard_unavailable, reason),
-                        Toast.LENGTH_SHORT
+                    requireContext(),
+                    getString(R.string.kernel_wireguard_unavailable, reason),
+                    Toast.LENGTH_SHORT
                 ).show();
                 return false;
             }
@@ -381,9 +383,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (byeDpiSettingsPreference != null) {
             byeDpiSettingsPreference.setVisible(true);
             byeDpiSettingsPreference.setEnabled(xrayBackend);
-            byeDpiSettingsPreference.setSummary(xrayBackend
-                    ? getString(R.string.byedpi_open_summary)
-                    : getString(R.string.byedpi_xray_only_summary));
+            byeDpiSettingsPreference.setSummary(
+                xrayBackend ? getString(R.string.byedpi_open_summary) : getString(R.string.byedpi_xray_only_summary)
+            );
         }
     }
 
@@ -401,9 +403,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
         aboutPreference.setIcon(R.drawable.ic_about_app_info);
         if (aboutPreference instanceof UpdatableWidgetPreference) {
-            ((UpdatableWidgetPreference) aboutPreference).setShowWidget(
-                    UpdateBadgeUtils.shouldShowUpdateBadge(state)
-            );
+            ((UpdatableWidgetPreference) aboutPreference).setShowWidget(UpdateBadgeUtils.shouldShowUpdateBadge(state));
         }
     }
 
@@ -451,9 +451,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setOnBindEditTextListener(editText ->
-                editText.setInputType(InputType.TYPE_CLASS_NUMBER)
-        );
+        preference.setOnBindEditTextListener(editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             return TextUtils.isEmpty(value) ? "Не задано" : value;
@@ -468,9 +466,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         preference.setOnBindEditTextListener(editText -> {
             editText.setSingleLine(false);
             editText.setMinLines(3);
-            editText.setInputType(InputType.TYPE_CLASS_TEXT
-                    | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            editText.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                    InputType.TYPE_TEXT_FLAG_MULTI_LINE |
+                    InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            );
         });
     }
 
@@ -486,16 +486,18 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             configureRootPreferences();
             configureXrayPreferences();
         };
-        getPreferenceManager().getSharedPreferences()
-                .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+        getPreferenceManager()
+            .getSharedPreferences()
+            .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
     }
 
     private void unregisterPreferencesListener() {
         if (preferencesChangeListener == null) {
             return;
         }
-        getPreferenceManager().getSharedPreferences()
-                .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        getPreferenceManager()
+            .getSharedPreferences()
+            .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         preferencesChangeListener = null;
     }
 
@@ -519,14 +521,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
         syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
         syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(requireContext()));
-        syncSwitchPreference(
-                AppPrefs.KEY_KERNEL_WIREGUARD,
-                AppPrefs.isKernelWireGuardEnabled(requireContext())
-        );
-        syncSwitchPreference(
-                AppPrefs.KEY_AUTO_START_ON_BOOT,
-                AppPrefs.isAutoStartOnBootEnabled(requireContext())
-        );
+        syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(requireContext()));
+        syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(requireContext()));
         syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(requireContext()).prefValue);
     }
 
@@ -560,9 +556,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (AppPrefs.KEY_BACKEND_TYPE.equals(key)) {
             preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                BackendType nextBackend = BackendType.fromPrefValue(newValue == null
-                        ? null
-                        : String.valueOf(newValue));
+                BackendType nextBackend = BackendType.fromPrefValue(newValue == null ? null : String.valueOf(newValue));
                 ExternalActions.setBackend(requireContext(), nextBackend, true, false);
                 configureRootPreferences();
                 configureXrayPreferences(nextBackend);

@@ -4,7 +4,6 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-
 import androidx.annotation.Nullable;
 import androidx.preference.DropDownPreference;
 import androidx.preference.EditTextPreference;
@@ -12,11 +11,9 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
 import wings.v.ByeDpiStrategyTestActivity;
 import wings.v.ByeDpiTargetsActivity;
 import wings.v.R;
@@ -28,35 +25,37 @@ import wings.v.core.Haptics;
 import wings.v.core.XrayStore;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
+
     private static final Set<String> RUNTIME_AFFECTING_KEYS = new LinkedHashSet<>();
-    private static final String[] UI_EDITOR_KEYS = new String[] {
-            ByeDpiStore.KEY_MAX_CONNECTIONS,
-            ByeDpiStore.KEY_BUFFER_SIZE,
-            ByeDpiStore.KEY_NO_DOMAIN,
-            ByeDpiStore.KEY_TCP_FAST_OPEN,
-            ByeDpiStore.KEY_HOSTS_MODE,
-            ByeDpiStore.KEY_HOSTS_BLACKLIST,
-            ByeDpiStore.KEY_HOSTS_WHITELIST,
-            ByeDpiStore.KEY_DEFAULT_TTL,
-            ByeDpiStore.KEY_DESYNC_METHOD,
-            ByeDpiStore.KEY_SPLIT_POSITION,
-            ByeDpiStore.KEY_SPLIT_AT_HOST,
-            ByeDpiStore.KEY_DROP_SACK,
-            ByeDpiStore.KEY_FAKE_TTL,
-            ByeDpiStore.KEY_FAKE_OFFSET,
-            ByeDpiStore.KEY_FAKE_SNI,
-            ByeDpiStore.KEY_OOB_DATA,
-            ByeDpiStore.KEY_DESYNC_HTTP,
-            ByeDpiStore.KEY_DESYNC_HTTPS,
-            ByeDpiStore.KEY_DESYNC_UDP,
-            ByeDpiStore.KEY_HOST_MIXED_CASE,
-            ByeDpiStore.KEY_DOMAIN_MIXED_CASE,
-            ByeDpiStore.KEY_HOST_REMOVE_SPACES,
-            ByeDpiStore.KEY_TLSREC_ENABLED,
-            ByeDpiStore.KEY_TLSREC_POSITION,
-            ByeDpiStore.KEY_TLSREC_AT_SNI,
-            ByeDpiStore.KEY_UDP_FAKE_COUNT
+    private static final String[] UI_EDITOR_KEYS = {
+        ByeDpiStore.KEY_MAX_CONNECTIONS,
+        ByeDpiStore.KEY_BUFFER_SIZE,
+        ByeDpiStore.KEY_NO_DOMAIN,
+        ByeDpiStore.KEY_TCP_FAST_OPEN,
+        ByeDpiStore.KEY_HOSTS_MODE,
+        ByeDpiStore.KEY_HOSTS_BLACKLIST,
+        ByeDpiStore.KEY_HOSTS_WHITELIST,
+        ByeDpiStore.KEY_DEFAULT_TTL,
+        ByeDpiStore.KEY_DESYNC_METHOD,
+        ByeDpiStore.KEY_SPLIT_POSITION,
+        ByeDpiStore.KEY_SPLIT_AT_HOST,
+        ByeDpiStore.KEY_DROP_SACK,
+        ByeDpiStore.KEY_FAKE_TTL,
+        ByeDpiStore.KEY_FAKE_OFFSET,
+        ByeDpiStore.KEY_FAKE_SNI,
+        ByeDpiStore.KEY_OOB_DATA,
+        ByeDpiStore.KEY_DESYNC_HTTP,
+        ByeDpiStore.KEY_DESYNC_HTTPS,
+        ByeDpiStore.KEY_DESYNC_UDP,
+        ByeDpiStore.KEY_HOST_MIXED_CASE,
+        ByeDpiStore.KEY_DOMAIN_MIXED_CASE,
+        ByeDpiStore.KEY_HOST_REMOVE_SPACES,
+        ByeDpiStore.KEY_TLSREC_ENABLED,
+        ByeDpiStore.KEY_TLSREC_POSITION,
+        ByeDpiStore.KEY_TLSREC_AT_SNI,
+        ByeDpiStore.KEY_UDP_FAKE_COUNT,
     };
 
     static {
@@ -201,16 +200,14 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setOnBindEditTextListener(editText -> editText.setInputType(
-                signed
-                        ? InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED
-                        : InputType.TYPE_CLASS_NUMBER
-        ));
+        preference.setOnBindEditTextListener(editText ->
+            editText.setInputType(
+                signed ? InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED : InputType.TYPE_CLASS_NUMBER
+            )
+        );
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            String normalizedValue = TextUtils.isEmpty(value)
-                    ? getString(R.string.byedpi_value_not_set)
-                    : value;
+            String normalizedValue = TextUtils.isEmpty(value) ? getString(R.string.byedpi_value_not_set) : value;
             if (descriptionResId == 0) {
                 return normalizedValue;
             }
@@ -224,11 +221,13 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         if (multiline) {
-            preference.setOnBindEditTextListener(editText -> editText.setInputType(
-                    InputType.TYPE_CLASS_TEXT
-                            | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                            | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            ));
+            preference.setOnBindEditTextListener(editText ->
+                editText.setInputType(
+                    InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_FLAG_MULTI_LINE |
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                )
+            );
         }
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
@@ -241,11 +240,13 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setOnBindEditTextListener(editText -> editText.setInputType(
-                InputType.TYPE_CLASS_TEXT
-                        | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                        | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        ));
+        preference.setOnBindEditTextListener(editText ->
+            editText.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                    InputType.TYPE_TEXT_FLAG_MULTI_LINE |
+                    InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            )
+        );
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             if (TextUtils.isEmpty(value)) {
@@ -288,13 +289,12 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
             syncFromPrefs();
             refreshAvailability();
             refreshVisibility();
-            if (isRuntimeAffectingKey(key)
-                    && XrayStore.getBackendType(requireContext()) == BackendType.XRAY
-                    && ProxyTunnelService.isActive()) {
-                ProxyTunnelService.requestReconnect(
-                        requireContext(),
-                        "ByeDPI settings changed"
-                );
+            if (
+                isRuntimeAffectingKey(key) &&
+                XrayStore.getBackendType(requireContext()) == BackendType.XRAY &&
+                ProxyTunnelService.isActive()
+            ) {
+                ProxyTunnelService.requestReconnect(requireContext(), "ByeDPI settings changed");
             }
         };
         preferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
@@ -364,9 +364,9 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         SwitchPreferenceCompat autoStartPreference = findPreference(ByeDpiStore.KEY_AUTO_START_WITH_XRAY);
         if (autoStartPreference != null) {
             autoStartPreference.setEnabled(available);
-            autoStartPreference.setSummary(available
-                    ? getString(R.string.byedpi_auto_start_summary)
-                    : getString(R.string.byedpi_xray_only_summary));
+            autoStartPreference.setSummary(
+                available ? getString(R.string.byedpi_auto_start_summary) : getString(R.string.byedpi_xray_only_summary)
+            );
         }
     }
 
@@ -427,9 +427,10 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         if (fakeSni != null) {
             fakeSni.setVisible(fakeVisible);
         }
-        boolean oobVisible = !useCommandSettings
-                && (settings.desyncMethod == ByeDpiSettings.DesyncMethod.OOB
-                || settings.desyncMethod == ByeDpiSettings.DesyncMethod.DISOOB);
+        boolean oobVisible =
+            !useCommandSettings &&
+            (settings.desyncMethod == ByeDpiSettings.DesyncMethod.OOB ||
+                settings.desyncMethod == ByeDpiSettings.DesyncMethod.DISOOB);
         if (oobData != null) {
             oobData.setVisible(oobVisible);
         }

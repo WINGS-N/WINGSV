@@ -108,7 +108,7 @@
                 android:layout_height="24dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_search"
-                android:tint="?android:textColorSecondary" />
+                app:tint="?android:textColorSecondary" />
 
             <androidx.appcompat.widget.AppCompatEditText
                 android:id="@+id/input_app_search"
@@ -133,7 +133,7 @@
                 android:contentDescription="@string/apps_search_close"
                 android:padding="6dp"
                 android:src="@drawable/ic_close_circle"
-                android:tint="?android:textColorSecondary"
+                app:tint="?android:textColorSecondary"
                 android:visibility="gone" />
         </LinearLayout>
     </FrameLayout>

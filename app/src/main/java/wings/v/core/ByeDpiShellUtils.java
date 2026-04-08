@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class ByeDpiShellUtils {
-    private ByeDpiShellUtils() {
-    }
+
+    private ByeDpiShellUtils() {}
 
     public static List<String> shellSplit(CharSequence value) {
         ArrayList<String> tokens = new ArrayList<>();

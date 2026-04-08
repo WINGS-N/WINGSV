@@ -3,18 +3,17 @@ package wings.v.service;
 import android.content.Context;
 import android.content.Intent;
 import android.net.VpnService;
-
 import com.wireguard.android.backend.GoBackend;
-
 import java.lang.reflect.Field;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.AvoidAccessibilityAlteration" })
 final class GoBackendVpnAccess {
+
     private static final long SERVICE_WAIT_TIMEOUT_MS = 2_000L;
 
-    private GoBackendVpnAccess() {
-    }
+    private GoBackendVpnAccess() {}
 
     static VpnService ensureServiceStarted(Context context) {
         if (context == null) {
@@ -40,8 +39,7 @@ final class GoBackendVpnAccess {
         }
         try {
             context.stopService(new Intent(context, GoBackend.VpnService.class));
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static VpnService awaitService(long timeoutMs) {

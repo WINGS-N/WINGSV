@@ -6,18 +6,15 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Toast;
-
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
 import wings.v.byedpi.ByeDpiLocalRunner;
 import wings.v.byedpi.ByeDpiSiteChecker;
 import wings.v.byedpi.ByeDpiStrategyResult;
@@ -28,7 +25,11 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ActivityByeDpiStrategyTestBinding;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings(
+    { "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment", "PMD.AvoidCatchingGenericException" }
+)
 public class ByeDpiStrategyTestActivity extends AppCompatActivity {
+
     private static final long RUNNER_START_TIMEOUT_MS = 4_000L;
 
     private ActivityByeDpiStrategyTestBinding binding;
@@ -80,7 +81,6 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.byedpi_proxytest_stop_tunnel_first, Toast.LENGTH_LONG).show();
             return;
         }
-        ByeDpiSettings settings = ByeDpiStore.getSettings(this);
         List<String> targets = ByeDpiStore.getProxyTestTargets(this);
         List<String> strategies = ByeDpiStore.getProxyTestStrategies(this);
         if (targets.isEmpty()) {
@@ -118,18 +118,14 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                 try (ByeDpiLocalRunner runner = new ByeDpiLocalRunner()) {
                     runner.start(strategySettings, null, RUNNER_START_TIMEOUT_MS);
                     int successCount = ByeDpiSiteChecker.countSuccessfulRequests(
-                            targets,
-                            Math.max(1, strategySettings.proxyTestRequests),
-                            Math.max(1, strategySettings.proxyTestTimeoutSeconds),
-                            Math.max(1, strategySettings.proxyTestConcurrencyLimit),
-                            runner.getDialHost(),
-                            runner.getDialPort(),
-                            strategySettings.proxyAuthEnabled
-                                    ? strategySettings.resolveRuntimeProxyUsername()
-                                    : "",
-                            strategySettings.proxyAuthEnabled
-                                    ? strategySettings.resolveRuntimeProxyPassword()
-                                    : ""
+                        targets,
+                        Math.max(1, strategySettings.proxyTestRequests),
+                        Math.max(1, strategySettings.proxyTestTimeoutSeconds),
+                        Math.max(1, strategySettings.proxyTestConcurrencyLimit),
+                        runner.getDialHost(),
+                        runner.getDialPort(),
+                        strategySettings.proxyAuthEnabled ? strategySettings.resolveRuntimeProxyUsername() : "",
+                        strategySettings.proxyAuthEnabled ? strategySettings.resolveRuntimeProxyPassword() : ""
                     );
                     result.successCount = successCount;
                 } catch (Exception error) {
@@ -141,11 +137,9 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     results.sort(Comparator.comparingInt((ByeDpiStrategyResult item) -> item.successCount).reversed());
                     adapter.replaceItems(results);
-                    binding.textStatus.setText(getString(
-                            R.string.byedpi_proxytest_progress,
-                            currentIndex,
-                            strategies.size()
-                    ));
+                    binding.textStatus.setText(
+                        getString(R.string.byedpi_proxytest_progress, currentIndex, strategies.size())
+                    );
                 });
             }
             runOnUiThread(() -> {
@@ -197,10 +191,8 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
             binding.textStatus.setText(R.string.byedpi_proxytest_complete);
             return;
         }
-        binding.textStatus.setText(getString(
-                R.string.byedpi_proxytest_complete_best,
-                best.successCount,
-                best.totalRequests
-        ));
+        binding.textStatus.setText(
+            getString(R.string.byedpi_proxytest_complete_best, best.successCount, best.totalRequests)
+        );
     }
 }

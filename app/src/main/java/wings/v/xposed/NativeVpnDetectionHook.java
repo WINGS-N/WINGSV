@@ -2,18 +2,24 @@ package wings.v.xposed;
 
 import android.os.Build;
 import android.util.Log;
-
+import de.robv.android.xposed.XposedBridge;
 import java.io.File;
 
-import de.robv.android.xposed.XposedBridge;
-
+@SuppressWarnings(
+    {
+        "PMD.AvoidSynchronizedAtMethodLevel",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.AvoidUsingNativeCode",
+        "PMD.UseProperClassLoader",
+    }
+)
 final class NativeVpnDetectionHook {
+
     private static final String LOG_TAG = "WINGS-Xposed";
     private static boolean attempted;
     private static boolean installed;
 
-    private NativeVpnDetectionHook() {
-    }
+    private NativeVpnDetectionHook() {}
 
     static synchronized boolean install() {
         if (attempted) {
@@ -47,8 +53,7 @@ final class NativeVpnDetectionHook {
         try {
             System.loadLibrary("wingsxposednative");
             return;
-        } catch (UnsatisfiedLinkError ignored) {
-        }
+        } catch (UnsatisfiedLinkError ignored) {}
 
         File nativeDir = resolveModuleNativeLibraryDir();
         if (nativeDir == null) {
@@ -69,9 +74,7 @@ final class NativeVpnDetectionHook {
             return null;
         }
 
-        String abi = Build.SUPPORTED_ABIS != null && Build.SUPPORTED_ABIS.length > 0
-                ? Build.SUPPORTED_ABIS[0]
-                : "";
+        String abi = Build.SUPPORTED_ABIS != null && Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "";
         String libDirName;
         if (abi.startsWith("arm64")) {
             libDirName = "arm64";
@@ -104,7 +107,8 @@ final class NativeVpnDetectionHook {
             }
         }
 
-        String resourcePath = NativeVpnDetectionHook.class.getResource("NativeVpnDetectionHook.class") != null
+        String resourcePath =
+            NativeVpnDetectionHook.class.getResource("NativeVpnDetectionHook.class") != null
                 ? NativeVpnDetectionHook.class.getResource("NativeVpnDetectionHook.class").toString()
                 : "";
         int fileStart = resourcePath.indexOf("file:");

@@ -2,18 +2,16 @@ package wings.v.core;
 
 import android.net.Uri;
 import android.text.TextUtils;
-
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class VlessLinkParser {
-    private VlessLinkParser() {
-    }
 
-    public static XrayProfile parseProfile(String rawLink,
-                                           String subscriptionId,
-                                           String subscriptionTitle) {
+    private VlessLinkParser() {}
+
+    public static XrayProfile parseProfile(String rawLink, String subscriptionId, String subscriptionTitle) {
         String normalized = rawLink == null ? "" : rawLink.trim();
         if (TextUtils.isEmpty(normalized) || !normalized.startsWith("vless://")) {
             return null;
@@ -34,16 +32,16 @@ public final class VlessLinkParser {
             int port = Integer.parseInt(hostPort.substring(separator + 1).trim());
             String fragment = uri.getEncodedFragment();
             String title = TextUtils.isEmpty(fragment)
-                    ? host + ":" + port
-                    : URLDecoder.decode(fragment, StandardCharsets.UTF_8.name());
+                ? host + ":" + port
+                : URLDecoder.decode(fragment, StandardCharsets.UTF_8.name());
             return new XrayProfile(
-                    UUID.randomUUID().toString(),
-                    title,
-                    normalized,
-                    subscriptionId,
-                    subscriptionTitle,
-                    host,
-                    port
+                UUID.randomUUID().toString(),
+                title,
+                normalized,
+                subscriptionId,
+                subscriptionTitle,
+                host,
+                port
             );
         } catch (Exception ignored) {
             return null;

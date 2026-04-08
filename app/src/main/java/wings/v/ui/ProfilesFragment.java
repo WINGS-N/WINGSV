@@ -14,18 +14,17 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
-
+import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
+import dev.oneuiproject.oneui.widget.Separator;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.text.DateFormat;
@@ -38,9 +37,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
-import dev.oneuiproject.oneui.widget.Separator;
 import wings.v.MainActivity;
 import wings.v.R;
 import wings.v.core.AppPrefs;
@@ -55,7 +51,11 @@ import wings.v.databinding.FragmentProfilesBinding;
 import wings.v.databinding.ItemProfileEntryBinding;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings(
+    { "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException", "PMD.NullAssignment", "PMD.ExceptionAsFlowControl" }
+)
 public class ProfilesFragment extends Fragment {
+
     private static final int TCPING_TIMEOUT_MS = 1000;
     private static final int TCPING_PARALLELISM = 5;
     private static final int PING_GOOD_THRESHOLD_MS = 150;
@@ -116,8 +116,11 @@ public class ProfilesFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentProfilesBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -164,10 +167,10 @@ public class ProfilesFragment extends Fragment {
             return false;
         });
         binding.scrollProfilesContent.setOnScrollChangeListener(
-                (NestedScrollView scrollView, int scrollX, int scrollY, int oldScrollX, int oldScrollY) -> {
-                    updateScrollToTopButton();
-                    maybeAppendMoreItems();
-                }
+            (NestedScrollView scrollView, int scrollX, int scrollY, int oldScrollX, int oldScrollY) -> {
+                updateScrollToTopButton();
+                maybeAppendMoreItems();
+            }
         );
     }
 
@@ -213,35 +216,34 @@ public class ProfilesFragment extends Fragment {
         if (!TextUtils.isEmpty(pendingFilterId)) {
             activeFilterId = pendingFilterId;
         }
-        final int generation = ++renderGeneration;
+        renderGeneration++;
+        final int generation = renderGeneration;
         final String requestedFilterId = activeFilterId;
         renderExecutor.execute(() -> {
             List<XrayProfile> profiles = XrayStore.getProfiles(appContext);
             XrayProfile activeProfile = XrayStore.getActiveProfile(appContext);
             String activeProfileId = activeProfile != null ? activeProfile.id : "";
             LinkedHashMap<String, FilterSpec> computedFilters = buildFilters(profiles, appContext);
-            String resolvedFilterId = computedFilters.containsKey(requestedFilterId)
-                    ? requestedFilterId
-                    : FILTER_ALL;
+            String resolvedFilterId = computedFilters.containsKey(requestedFilterId) ? requestedFilterId : FILTER_ALL;
             List<XrayProfile> filteredProfiles = filterProfiles(profiles, resolvedFilterId);
             sortProfilesByStoredTcping(filteredProfiles, XrayStore.getProfilePingResultsMap(appContext));
             Map<String, List<XrayProfile>> groupedProfiles = groupProfilesForDisplay(
-                    filteredProfiles,
-                    resolvedFilterId,
-                    computedFilters,
-                    appContext
+                filteredProfiles,
+                resolvedFilterId,
+                computedFilters,
+                appContext
             );
             ArrayList<DisplayItem> displayItems = buildDisplayItems(groupedProfiles);
             String renderSignature = buildRenderSignature(resolvedFilterId, displayItems);
             ProfilesUiModel uiModel = new ProfilesUiModel(
-                    profiles,
-                    activeProfileId,
-                    computedFilters,
-                    resolvedFilterId,
-                    displayItems,
-                    renderSignature,
-                    XrayStore.getLastSubscriptionsRefreshAt(appContext),
-                    XrayStore.getLastSubscriptionsError(appContext)
+                profiles,
+                activeProfileId,
+                computedFilters,
+                resolvedFilterId,
+                displayItems,
+                renderSignature,
+                XrayStore.getLastSubscriptionsRefreshAt(appContext),
+                XrayStore.getLastSubscriptionsError(appContext)
             );
             postToUi(() -> applyUiModel(generation, uiModel));
         });
@@ -251,8 +253,8 @@ public class ProfilesFragment extends Fragment {
         if (binding == null || !isAdded() || generation != renderGeneration || uiModel == null) {
             return;
         }
-        boolean contentChanged = !TextUtils.equals(currentRenderSignature, uiModel.renderSignature)
-                || rowViews.isEmpty();
+        boolean contentChanged =
+            !TextUtils.equals(currentRenderSignature, uiModel.renderSignature) || rowViews.isEmpty();
         currentProfiles = new ArrayList<>(uiModel.profiles);
         currentActiveProfileId = uiModel.activeProfileId;
         activeFilterId = uiModel.activeFilterId;
@@ -306,40 +308,47 @@ public class ProfilesFragment extends Fragment {
         LayoutInflater inflater = LayoutInflater.from(requireContext());
         int appendedProfiles = 0;
         while (renderedItemCount < currentDisplayItems.size()) {
-            DisplayItem item = currentDisplayItems.get(renderedItemCount++);
+            DisplayItem item = currentDisplayItems.get(renderedItemCount);
+            renderedItemCount++;
             if (item instanceof HeaderDisplayItem) {
                 HeaderDisplayItem header = (HeaderDisplayItem) item;
                 Separator separator = new Separator(requireContext());
                 separator.setText(header.title);
                 binding.containerProfileGroups.addView(separator);
                 currentAppendGroupContainer = (RoundedLinearLayout) inflater.inflate(
-                        R.layout.item_profile_group_section,
-                        binding.containerProfileGroups,
-                        false
+                    R.layout.item_profile_group_section,
+                    binding.containerProfileGroups,
+                    false
                 );
-                binding.containerProfileGroups.addView(currentAppendGroupContainer, new LinearLayout.LayoutParams(
+                binding.containerProfileGroups.addView(
+                    currentAppendGroupContainer,
+                    new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
-                ));
+                    )
+                );
                 continue;
             }
 
             ProfileDisplayItem profileItem = (ProfileDisplayItem) item;
             if (currentAppendGroupContainer == null) {
                 currentAppendGroupContainer = (RoundedLinearLayout) inflater.inflate(
-                        R.layout.item_profile_group_section,
-                        binding.containerProfileGroups,
-                        false
+                    R.layout.item_profile_group_section,
+                    binding.containerProfileGroups,
+                    false
                 );
-                binding.containerProfileGroups.addView(currentAppendGroupContainer, new LinearLayout.LayoutParams(
+                binding.containerProfileGroups.addView(
+                    currentAppendGroupContainer,
+                    new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
-                ));
+                    )
+                );
             }
             ItemProfileEntryBinding rowBinding = ItemProfileEntryBinding.inflate(
-                    inflater,
-                    currentAppendGroupContainer,
-                    false
+                inflater,
+                currentAppendGroupContainer,
+                false
             );
             XrayProfile profile = profileItem.profile;
             rowBinding.textProfileTitle.setText(profileTitle(profile));
@@ -381,8 +390,9 @@ public class ProfilesFragment extends Fragment {
         if (content == null) {
             return;
         }
-        int distanceToBottom = content.getBottom()
-                - (binding.scrollProfilesContent.getScrollY() + binding.scrollProfilesContent.getHeight());
+        int distanceToBottom =
+            content.getBottom() -
+            (binding.scrollProfilesContent.getScrollY() + binding.scrollProfilesContent.getHeight());
         if (distanceToBottom <= dp(LOAD_MORE_THRESHOLD_DP)) {
             appendMoreItems();
         } else {
@@ -394,19 +404,17 @@ public class ProfilesFragment extends Fragment {
         if (TextUtils.isEmpty(lastError)) {
             if (refreshedAt > 0L) {
                 binding.textProfilesHeaderSummary.setText(
-                        getString(
-                                R.string.xray_profiles_header_last_refresh,
-                                DateFormat.getDateTimeInstance().format(refreshedAt)
-                        )
+                    getString(
+                        R.string.xray_profiles_header_last_refresh,
+                        DateFormat.getDateTimeInstance().format(refreshedAt)
+                    )
                 );
             } else {
                 binding.textProfilesHeaderSummary.setText(R.string.xray_profiles_header_summary);
             }
             return;
         }
-        binding.textProfilesHeaderSummary.setText(
-                getString(R.string.xray_profiles_header_error, lastError)
-        );
+        binding.textProfilesHeaderSummary.setText(getString(R.string.xray_profiles_header_error, lastError));
     }
 
     private void updateEmptyState() {
@@ -439,19 +447,16 @@ public class ProfilesFragment extends Fragment {
             String filterId = "sub:" + profile.subscriptionId;
             if (!subscriptions.containsKey(filterId)) {
                 String title = TextUtils.isEmpty(profile.subscriptionTitle)
-                        ? context.getString(R.string.xray_profiles_filter_no_subscription)
-                        : profile.subscriptionTitle;
+                    ? context.getString(R.string.xray_profiles_filter_no_subscription)
+                    : profile.subscriptionTitle;
                 subscriptions.put(filterId, new FilterSpec(filterId, title));
             }
         }
         result.putAll(subscriptions);
         if (hasManualProfiles) {
             result.put(
-                    FILTER_NO_SUBSCRIPTION,
-                    new FilterSpec(
-                            FILTER_NO_SUBSCRIPTION,
-                            context.getString(R.string.xray_profiles_filter_no_subscription)
-                    )
+                FILTER_NO_SUBSCRIPTION,
+                new FilterSpec(FILTER_NO_SUBSCRIPTION, context.getString(R.string.xray_profiles_filter_no_subscription))
             );
         }
         return result;
@@ -477,8 +482,8 @@ public class ProfilesFragment extends Fragment {
             }
             pill.setOnClickListener(v -> onFilterSelected(filterSpec));
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             );
             if (binding.groupProfileFilters.getChildCount() > 0) {
                 params.setMarginStart(dp(8));
@@ -514,15 +519,13 @@ public class ProfilesFragment extends Fragment {
         XrayStore.setActiveProfileId(requireContext(), profile.id);
         updateAllRowStates(currentActiveProfileId);
         refreshVisibleProfileTrafficStats(true);
-        if (XrayStore.getBackendType(requireContext()) == BackendType.XRAY
-                && ProxyTunnelService.isActive()) {
+        if (XrayStore.getBackendType(requireContext()) == BackendType.XRAY && ProxyTunnelService.isActive()) {
             try {
                 ContextCompat.startForegroundService(
-                        requireContext(),
-                        ProxyTunnelService.createReconnectIntent(requireContext())
+                    requireContext(),
+                    ProxyTunnelService.createReconnectIntent(requireContext())
                 );
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         Toast.makeText(requireContext(), R.string.xray_profiles_selected, Toast.LENGTH_SHORT).show();
     }
@@ -588,7 +591,7 @@ public class ProfilesFragment extends Fragment {
         boolean visible = selectionMode && !selectedProfileIds.isEmpty();
         binding.layoutProfileSelectionActions.setVisibility(visible ? View.VISIBLE : View.GONE);
         binding.textProfileSelectionCount.setText(
-                getString(R.string.xray_profiles_selected_count, selectedProfileIds.size())
+            getString(R.string.xray_profiles_selected_count, selectedProfileIds.size())
         );
         updateSelectionToggleButton();
         updateBottomNavigationSuppression(visible);
@@ -599,9 +602,9 @@ public class ProfilesFragment extends Fragment {
             return;
         }
         binding.buttonProfileSelectAll.setText(
-                areAllProfilesInCurrentFilterSelected()
-                        ? R.string.xray_profiles_deselect_all_action
-                        : R.string.xray_profiles_select_all_action
+            areAllProfilesInCurrentFilterSelected()
+                ? R.string.xray_profiles_deselect_all_action
+                : R.string.xray_profiles_select_all_action
         );
     }
 
@@ -626,9 +629,7 @@ public class ProfilesFragment extends Fragment {
         views.root.setActivated(selected);
         views.checkbox.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
         views.checkbox.setChecked(selected);
-        views.activeIcon.setVisibility(selectionMode
-                ? View.GONE
-                : (active ? View.VISIBLE : View.INVISIBLE));
+        views.activeIcon.setVisibility(selectionMode ? View.GONE : active ? View.VISIBLE : View.INVISIBLE);
         applyTrafficState(views, profileTrafficStats.get(views.profile.id));
         applyPingState(views, pingStates.get(views.pingKey));
     }
@@ -637,9 +638,7 @@ public class ProfilesFragment extends Fragment {
         if (views == null) {
             return;
         }
-        XrayStore.ProfileTrafficStats stats = trafficStats != null
-                ? trafficStats
-                : XrayStore.ProfileTrafficStats.ZERO;
+        XrayStore.ProfileTrafficStats stats = trafficStats != null ? trafficStats : XrayStore.ProfileTrafficStats.ZERO;
         boolean visible = stats.rxBytes > 0L || stats.txBytes > 0L;
         views.trafficRow.setVisibility(visible ? View.VISIBLE : View.GONE);
         if (!visible) {
@@ -689,17 +688,17 @@ public class ProfilesFragment extends Fragment {
         }
         binding.rowRefreshSubscriptions.setEnabled(!refreshingSubscriptions && !tcpingRunning);
         binding.rowRefreshSubscriptions.setSummary(
-                refreshingSubscriptions
-                        ? getString(R.string.xray_profiles_refresh_subscriptions_running)
-                        : getString(R.string.xray_profiles_refresh_subscriptions_summary)
+            refreshingSubscriptions
+                ? getString(R.string.xray_profiles_refresh_subscriptions_running)
+                : getString(R.string.xray_profiles_refresh_subscriptions_summary)
         );
         binding.progressRefreshSubscriptions.setVisibility(refreshingSubscriptions ? View.VISIBLE : View.GONE);
 
         binding.rowTcppingActiveProfile.setEnabled(!tcpingRunning && !refreshingSubscriptions);
         binding.rowTcppingActiveProfile.setSummary(
-                tcpingRunning
-                        ? getString(R.string.xray_profiles_tcping_running)
-                        : getString(R.string.xray_profiles_tcping_summary_filter, currentFilterTitle())
+            tcpingRunning
+                ? getString(R.string.xray_profiles_tcping_running)
+                : getString(R.string.xray_profiles_tcping_summary_filter, currentFilterTitle())
         );
     }
 
@@ -715,12 +714,12 @@ public class ProfilesFragment extends Fragment {
             try {
                 XraySubscriptionUpdater.RefreshResult result = XraySubscriptionUpdater.refreshAll(appContext);
                 resolvedToastMessage = TextUtils.isEmpty(result.error)
-                        ? appContext.getString(R.string.xray_profiles_refresh_subscriptions_done, result.profiles.size())
-                        : appContext.getString(R.string.xray_subscriptions_refresh_partial, result.error);
+                    ? appContext.getString(R.string.xray_profiles_refresh_subscriptions_done, result.profiles.size())
+                    : appContext.getString(R.string.xray_subscriptions_refresh_partial, result.error);
             } catch (Exception error) {
                 resolvedToastMessage = appContext.getString(
-                        R.string.xray_subscriptions_refresh_failed,
-                        error.getMessage()
+                    R.string.xray_subscriptions_refresh_failed,
+                    error.getMessage()
                 );
             }
             final String toastMessage = resolvedToastMessage;
@@ -743,7 +742,8 @@ public class ProfilesFragment extends Fragment {
         }
 
         tcpingRunning = true;
-        final int generation = ++tcpingGeneration;
+        tcpingGeneration++;
+        final int generation = tcpingGeneration;
         final AtomicInteger remaining = new AtomicInteger(targets.size());
         for (XrayProfile profile : targets) {
             pingStates.put(pingStateKey(profile), PingState.loading());
@@ -760,10 +760,10 @@ public class ProfilesFragment extends Fragment {
                     }
                     pingStates.put(pingStateKey(profile), result);
                     XrayStore.putProfilePingResult(
-                            requireContext(),
-                            pingStateKey(profile),
-                            result.state == PingDisplayState.SUCCESS,
-                            result.latencyMs
+                        requireContext(),
+                        pingStateKey(profile),
+                        result.state == PingDisplayState.SUCCESS,
+                        result.latencyMs
                     );
                     ProfileRowViews row = rowViews.get(profile.id);
                     if (row != null) {
@@ -824,8 +824,7 @@ public class ProfilesFragment extends Fragment {
         popupMenu.inflate(R.menu.menu_profile_share_formats);
         popupMenu.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
-            if (itemId == R.id.menu_profile_share_format_wingsv
-                    || itemId == R.id.menu_profile_share_format_vless) {
+            if (itemId == R.id.menu_profile_share_format_wingsv || itemId == R.id.menu_profile_share_format_vless) {
                 shareSelectedProfiles(itemId);
                 return true;
             }
@@ -855,12 +854,9 @@ public class ProfilesFragment extends Fragment {
                 sharedText = WingsImportParser.buildXrayProfilesLink(context, selectedProfiles, activeProfileId);
             }
             Intent sendIntent = new Intent(Intent.ACTION_SEND)
-                    .setType("text/plain")
-                    .putExtra(Intent.EXTRA_TEXT, sharedText);
-            Intent chooserIntent = Intent.createChooser(
-                    sendIntent,
-                    getString(R.string.xray_profiles_share_chooser)
-            );
+                .setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, sharedText);
+            Intent chooserIntent = Intent.createChooser(sendIntent, getString(R.string.xray_profiles_share_chooser));
             if (chooserIntent.resolveActivity(context.getPackageManager()) == null) {
                 throw new IllegalStateException("No share targets");
             }
@@ -955,9 +951,9 @@ public class ProfilesFragment extends Fragment {
         updateAllRowStates(currentActiveProfileId);
         clearSelectionMode();
         Toast.makeText(
-                requireContext(),
-                getString(R.string.xray_profiles_reset_stats_done, profileIds.size()),
-                Toast.LENGTH_SHORT
+            requireContext(),
+            getString(R.string.xray_profiles_reset_stats_done, profileIds.size()),
+            Toast.LENGTH_SHORT
         ).show();
     }
 
@@ -1018,10 +1014,8 @@ public class ProfilesFragment extends Fragment {
                 continue;
             }
             merged.put(
-                    activeKey,
-                    storedResult.success
-                            ? PingState.success(storedResult.latencyMs)
-                            : PingState.failed()
+                activeKey,
+                storedResult.success ? PingState.success(storedResult.latencyMs) : PingState.failed()
             );
         }
 
@@ -1054,9 +1048,7 @@ public class ProfilesFragment extends Fragment {
             return new ArrayList<>(profiles);
         }
         ArrayList<XrayProfile> filtered = new ArrayList<>();
-        String subscriptionId = filterId.startsWith("sub:")
-                ? filterId.substring("sub:".length())
-                : "";
+        String subscriptionId = filterId.startsWith("sub:") ? filterId.substring("sub:".length()) : "";
         for (XrayProfile profile : profiles) {
             if (profile == null) {
                 continue;
@@ -1074,15 +1066,18 @@ public class ProfilesFragment extends Fragment {
         return filtered;
     }
 
-    private void sortProfilesByStoredTcping(List<XrayProfile> profiles,
-                                            Map<String, XrayStore.ProfilePingResult> pingResults) {
+    private void sortProfilesByStoredTcping(
+        List<XrayProfile> profiles,
+        Map<String, XrayStore.ProfilePingResult> pingResults
+    ) {
         if (profiles == null || profiles.size() < 2 || pingResults == null || pingResults.isEmpty()) {
             return;
         }
-        profiles.sort(Comparator
-                .comparingInt((XrayProfile profile) -> pingSortBucket(pingResults.get(pingStateKey(profile))))
+        profiles.sort(
+            Comparator.comparingInt((XrayProfile profile) -> pingSortBucket(pingResults.get(pingStateKey(profile))))
                 .thenComparingInt(profile -> pingSortLatency(pingResults.get(pingStateKey(profile))))
-                .thenComparing(this::profileSortTitle, String.CASE_INSENSITIVE_ORDER));
+                .thenComparing(this::profileSortTitle, String.CASE_INSENSITIVE_ORDER)
+        );
     }
 
     private int pingSortBucket(@Nullable XrayStore.ProfilePingResult result) {
@@ -1112,10 +1107,12 @@ public class ProfilesFragment extends Fragment {
         return "";
     }
 
-    private Map<String, List<XrayProfile>> groupProfilesForDisplay(List<XrayProfile> profiles,
-                                                                   String filterId,
-                                                                   Map<String, FilterSpec> filters,
-                                                                   Context context) {
+    private Map<String, List<XrayProfile>> groupProfilesForDisplay(
+        List<XrayProfile> profiles,
+        String filterId,
+        Map<String, FilterSpec> filters,
+        Context context
+    ) {
         if (TextUtils.equals(filterId, FILTER_ALL)) {
             return XraySubscriptionUpdater.groupProfilesBySubscription(profiles);
         }
@@ -1146,14 +1143,10 @@ public class ProfilesFragment extends Fragment {
         StringBuilder builder = new StringBuilder(filterId).append('|');
         for (DisplayItem item : displayItems) {
             if (item instanceof HeaderDisplayItem) {
-                builder.append("h:")
-                        .append(((HeaderDisplayItem) item).title)
-                        .append('|');
+                builder.append("h:").append(((HeaderDisplayItem) item).title).append('|');
             } else if (item instanceof ProfileDisplayItem) {
                 XrayProfile profile = ((ProfileDisplayItem) item).profile;
-                builder.append("p:")
-                        .append(pingStateKey(profile))
-                        .append('|');
+                builder.append("p:").append(pingStateKey(profile)).append('|');
             }
         }
         return builder.toString();
@@ -1259,8 +1252,7 @@ public class ProfilesFragment extends Fragment {
             if (TextUtils.isEmpty(currentActiveProfileId)) {
                 return;
             }
-            XrayStore.ProfileTrafficStats stats =
-                    XrayStore.getProfileTrafficStats(context, currentActiveProfileId);
+            XrayStore.ProfileTrafficStats stats = XrayStore.getProfileTrafficStats(context, currentActiveProfileId);
             profileTrafficStats.put(currentActiveProfileId, stats);
             ProfileRowViews row = rowViews.get(currentActiveProfileId);
             if (row != null) {
@@ -1292,6 +1284,7 @@ public class ProfilesFragment extends Fragment {
     }
 
     private static final class FilterSpec {
+
         final String id;
         final String title;
 
@@ -1301,10 +1294,10 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private abstract static class DisplayItem {
-    }
+    private interface DisplayItem {}
 
-    private static final class HeaderDisplayItem extends DisplayItem {
+    private static final class HeaderDisplayItem implements DisplayItem {
+
         final String title;
 
         HeaderDisplayItem(String title) {
@@ -1312,7 +1305,8 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private static final class ProfileDisplayItem extends DisplayItem {
+    private static final class ProfileDisplayItem implements DisplayItem {
+
         final XrayProfile profile;
         final boolean showDivider;
 
@@ -1323,6 +1317,7 @@ public class ProfilesFragment extends Fragment {
     }
 
     private static final class ProfileRowViews {
+
         final XrayProfile profile;
         final String pingKey;
         final FrameLayout root;
@@ -1352,10 +1347,11 @@ public class ProfilesFragment extends Fragment {
         NONE,
         LOADING,
         SUCCESS,
-        FAILED
+        FAILED,
     }
 
     private static final class PingState {
+
         final PingDisplayState state;
         final int latencyMs;
 
@@ -1382,6 +1378,7 @@ public class ProfilesFragment extends Fragment {
     }
 
     private static final class ProfilesUiModel {
+
         final List<XrayProfile> profiles;
         final String activeProfileId;
         final LinkedHashMap<String, FilterSpec> filters;
@@ -1391,14 +1388,16 @@ public class ProfilesFragment extends Fragment {
         final long lastRefreshAt;
         final String lastError;
 
-        ProfilesUiModel(List<XrayProfile> profiles,
-                        String activeProfileId,
-                        LinkedHashMap<String, FilterSpec> filters,
-                        String activeFilterId,
-                        List<DisplayItem> displayItems,
-                        String renderSignature,
-                        long lastRefreshAt,
-                        String lastError) {
+        ProfilesUiModel(
+            List<XrayProfile> profiles,
+            String activeProfileId,
+            LinkedHashMap<String, FilterSpec> filters,
+            String activeFilterId,
+            List<DisplayItem> displayItems,
+            String renderSignature,
+            long lastRefreshAt,
+            String lastError
+        ) {
             this.profiles = profiles;
             this.activeProfileId = activeProfileId;
             this.filters = filters;

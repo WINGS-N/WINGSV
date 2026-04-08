@@ -3,12 +3,16 @@ package wings.v;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextPaint;
 import android.text.TextUtils;
+import android.text.style.MetricAffectingSpan;
 import android.view.View;
 import android.widget.Toast;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -16,15 +20,14 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 import androidx.viewpager2.widget.ViewPager2;
-
+import dev.oneuiproject.oneui.layout.Badge;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import dev.oneuiproject.oneui.layout.Badge;
-import wings.v.core.AppUpdateManager;
 import wings.v.core.AppPrefs;
+import wings.v.core.AppUpdateManager;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.PermissionUtils;
@@ -35,7 +38,9 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityMainBinding;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment" })
 public class MainActivity extends AppCompatActivity {
+
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
     private static final long BACK_EXIT_WINDOW_MS = 2_000L;
 
@@ -53,19 +58,17 @@ public class MainActivity extends AppCompatActivity {
     private long lastBackPressedAtMs;
     private final AppUpdateManager.Listener updateStateListener = this::applyUpdateBadgeState;
 
-    private final ActivityResultLauncher<Intent> firstLaunchLauncher =
-            registerForActivityResult(
-                    new ActivityResultContracts.StartActivityForResult(),
-                    result -> {
-                        if (pendingStartAfterOnboarding
-                                && PermissionUtils.areCorePermissionsGranted(this)) {
-                            pendingStartAfterOnboarding = false;
-                            startTunnelService();
-                            return;
-                        }
-                        pendingStartAfterOnboarding = false;
-                    }
-            );
+    private final ActivityResultLauncher<Intent> firstLaunchLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (pendingStartAfterOnboarding && PermissionUtils.areCorePermissionsGranted(this)) {
+                pendingStartAfterOnboarding = false;
+                startTunnelService();
+                return;
+            }
+            pendingStartAfterOnboarding = false;
+        }
+    );
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -83,19 +86,21 @@ public class MainActivity extends AppCompatActivity {
         pagerAdapter = new MainPagerAdapter(this, hasProfilesTab, hasSharingTab);
         binding.mainPager.setAdapter(pagerAdapter);
         binding.mainPager.setOffscreenPageLimit(pagerAdapter.getPageCount());
-        binding.mainPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override
-            public void onPageSelected(int position) {
-                int tabId = tabIdForPosition(position);
-                boolean changed = currentTabId != tabId;
-                currentTabId = tabId;
-                binding.bottomTab.setSelectedItem(tabId);
-                updateTitle(tabId);
-                if (pageSelectionReady && changed) {
-                    Haptics.softSliderStep(binding.mainPager);
+        binding.mainPager.registerOnPageChangeCallback(
+            new ViewPager2.OnPageChangeCallback() {
+                @Override
+                public void onPageSelected(int position) {
+                    int tabId = tabIdForPosition(position);
+                    boolean changed = currentTabId != tabId;
+                    currentTabId = tabId;
+                    binding.bottomTab.setSelectedItem(tabId);
+                    updateTitle(tabId);
+                    if (pageSelectionReady && changed) {
+                        Haptics.softSliderStep(binding.mainPager);
+                    }
                 }
             }
-        });
+        );
 
         binding.bottomTab.setOnMenuItemClickListener(item -> {
             int position = positionForTabId(item.getItemId());
@@ -190,30 +195,32 @@ public class MainActivity extends AppCompatActivity {
 
         if (AppPrefs.isRootModeEnabled(this)) {
             String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
-                    this,
-                    XrayStore.getBackendType(this),
-                    true
+                this,
+                XrayStore.getBackendType(this),
+                true
             );
             if (!TextUtils.isEmpty(rootUnavailableReason)) {
                 Toast.makeText(
-                        this,
-                        getString(R.string.root_mode_unavailable, rootUnavailableReason),
-                        Toast.LENGTH_SHORT
+                    this,
+                    getString(R.string.root_mode_unavailable, rootUnavailableReason),
+                    Toast.LENGTH_SHORT
                 ).show();
                 return;
             }
-            if (XrayStore.getBackendType(this) == BackendType.VK_TURN_WIREGUARD
-                    && AppPrefs.isKernelWireGuardEnabled(this)) {
+            if (
+                XrayStore.getBackendType(this) == BackendType.VK_TURN_WIREGUARD &&
+                AppPrefs.isKernelWireGuardEnabled(this)
+            ) {
                 String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
-                        this,
-                        BackendType.VK_TURN_WIREGUARD,
-                        false
+                    this,
+                    BackendType.VK_TURN_WIREGUARD,
+                    false
                 );
                 if (!TextUtils.isEmpty(kernelUnavailableReason)) {
                     Toast.makeText(
-                            this,
-                            getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason),
-                            Toast.LENGTH_SHORT
+                        this,
+                        getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason),
+                        Toast.LENGTH_SHORT
                     ).show();
                     return;
                 }
@@ -237,7 +244,7 @@ public class MainActivity extends AppCompatActivity {
     private void startTunnelService() {
         try {
             ContextCompat.startForegroundService(this, ProxyTunnelService.createStartIntent(this));
-        } catch (Exception ignored) {
+        } catch (IllegalStateException ignored) {
             Toast.makeText(this, R.string.service_start_failed, Toast.LENGTH_SHORT).show();
         }
     }
@@ -255,7 +262,28 @@ public class MainActivity extends AppCompatActivity {
         } else {
             screenTitle = getString(R.string.home);
         }
-        binding.toolbarLayout.setTitle(getString(R.string.main_toolbar_title_format, screenTitle));
+        binding.toolbarLayout.setTitle(buildToolbarTitle(screenTitle));
+    }
+
+    private CharSequence buildToolbarTitle(@NonNull String screenTitle) {
+        String appName = getString(R.string.app_name);
+        String title = getString(R.string.main_toolbar_title_format, screenTitle);
+        int appNameStart = title.indexOf(appName);
+        if (appNameStart < 0) {
+            return title;
+        }
+        Typeface sharpSansBold = ResourcesCompat.getFont(this, R.font.samsungsharpsans_bold);
+        if (sharpSansBold == null) {
+            return title;
+        }
+        SpannableString spannable = new SpannableString(title);
+        spannable.setSpan(
+            new ToolbarTitleTypefaceSpan(sharpSansBold),
+            appNameStart,
+            appNameStart + appName.length(),
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        return spannable;
     }
 
     private int positionForTabId(int tabId) {
@@ -318,12 +346,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void configureBackHandling() {
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                handleMainBackPressed();
+        getOnBackPressedDispatcher().addCallback(
+            this,
+            new OnBackPressedCallback(true) {
+                @Override
+                public void handleOnBackPressed() {
+                    handleMainBackPressed();
+                }
             }
-        });
+        );
     }
 
     private void handleMainBackPressed() {
@@ -367,8 +398,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         binding.bottomTab.setItemBadge(
-                R.id.menu_settings,
-                UpdateBadgeUtils.shouldShowUpdateBadge(state) ? Badge.DOT.INSTANCE : Badge.NONE.INSTANCE
+            R.id.menu_settings,
+            UpdateBadgeUtils.shouldShowUpdateBadge(state) ? Badge.DOT.INSTANCE : Badge.NONE.INSTANCE
         );
     }
 
@@ -394,12 +425,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshRootStateAsync() {
-        if (!AppPrefs.isRootAccessGranted(this)
-                && !AppPrefs.isRootModeEnabled(this)
-                && !AppPrefs.hasRootRuntimeState(this)) {
+        if (
+            !AppPrefs.isRootAccessGranted(this) &&
+            !AppPrefs.isRootModeEnabled(this) &&
+            !AppPrefs.hasRootRuntimeState(this)
+        ) {
             return;
         }
-        final int generation = ++rootStateRefreshGeneration;
+        rootStateRefreshGeneration++;
+        final int generation = rootStateRefreshGeneration;
         rootStateExecutor.execute(() -> {
             Context appContext = getApplicationContext();
             boolean granted = RootUtils.refreshRootAccessState(appContext);
@@ -435,17 +469,22 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra(EXTRA_FORCE_CURRENT_TAB_ID, targetTabId);
         setIntent(intent);
         recreate();
+        suppressActivityTransition();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void suppressActivityTransition() {
         overridePendingTransition(0, 0);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void handleImportIntent(Intent intent) {
         if (intent == null || intent.getDataString() == null) {
             return;
         }
 
         String rawData = intent.getDataString();
-        if (TextUtils.isEmpty(rawData)
-                || (!rawData.startsWith("wingsv://") && !rawData.startsWith("vless://"))) {
+        if (TextUtils.isEmpty(rawData) || (!rawData.startsWith("wingsv://") && !rawData.startsWith("vless://"))) {
             return;
         }
 
@@ -469,24 +508,51 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         preferencesChangeListener = (sharedPreferences, key) -> {
-            if (AppPrefs.KEY_BACKEND_TYPE.equals(key)
-                    || AppPrefs.KEY_ROOT_MODE.equals(key)
-                    || AppPrefs.KEY_ROOT_ACCESS_GRANTED.equals(key)
-                    || AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key)
-                    || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)) {
+            if (
+                AppPrefs.KEY_BACKEND_TYPE.equals(key) ||
+                AppPrefs.KEY_ROOT_MODE.equals(key) ||
+                AppPrefs.KEY_ROOT_ACCESS_GRANTED.equals(key) ||
+                AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key) ||
+                AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)
+            ) {
                 runOnUiThread(this::syncNavigationState);
             }
         };
-        PreferenceManager.getDefaultSharedPreferences(this)
-                .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(
+            preferencesChangeListener
+        );
     }
 
     private void unregisterPreferencesListener() {
         if (preferencesChangeListener == null) {
             return;
         }
-        PreferenceManager.getDefaultSharedPreferences(this)
-                .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(
+            preferencesChangeListener
+        );
         preferencesChangeListener = null;
+    }
+
+    private static final class ToolbarTitleTypefaceSpan extends MetricAffectingSpan {
+
+        private final Typeface typeface;
+
+        ToolbarTitleTypefaceSpan(@NonNull Typeface typeface) {
+            this.typeface = typeface;
+        }
+
+        @Override
+        public void updateMeasureState(TextPaint textPaint) {
+            apply(textPaint);
+        }
+
+        @Override
+        public void updateDrawState(TextPaint textPaint) {
+            apply(textPaint);
+        }
+
+        private void apply(@NonNull TextPaint textPaint) {
+            textPaint.setTypeface(typeface);
+        }
     }
 }

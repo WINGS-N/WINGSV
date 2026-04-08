@@ -7,12 +7,12 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
-
 import androidx.annotation.Nullable;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class Haptics {
-    private Haptics() {
-    }
+
+    private Haptics() {}
 
     public static void softSelection(@Nullable View view) {
         if (view == null) {
@@ -57,7 +57,7 @@ public final class Haptics {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             view.performHapticFeedback(
-                    turningOn ? HapticFeedbackConstants.TOGGLE_ON : HapticFeedbackConstants.TOGGLE_OFF
+                turningOn ? HapticFeedbackConstants.TOGGLE_ON : HapticFeedbackConstants.TOGGLE_OFF
             );
             return;
         }
@@ -74,19 +74,21 @@ public final class Haptics {
                 return false;
             }
 
-            if (vibrator.areAllPrimitivesSupported(
+            if (
+                vibrator.areAllPrimitivesSupported(
                     VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
                     VibrationEffect.Composition.PRIMITIVE_TICK
-            )) {
-                VibrationEffect.Composition composition = VibrationEffect.startComposition()
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.35f);
+                )
+            ) {
+                VibrationEffect.Composition composition = VibrationEffect.startComposition().addPrimitive(
+                    VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
+                    0.35f
+                );
 
-                if (confirm && vibrator.areAllPrimitivesSupported(
-                        VibrationEffect.Composition.PRIMITIVE_CLICK
-                )) {
+                if (confirm && vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)) {
                     composition
-                            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.45f, 25)
-                            .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.2f, 20);
+                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.45f, 25)
+                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.2f, 20);
                 } else {
                     composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.2f, 18);
                 }
@@ -94,8 +96,7 @@ public final class Haptics {
                 vibrator.vibrate(composition.compose());
                 return true;
             }
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         return false;
     }
 
@@ -109,21 +110,22 @@ public final class Haptics {
                 return false;
             }
 
-            if (!vibrator.areAllPrimitivesSupported(
+            if (
+                !vibrator.areAllPrimitivesSupported(
                     VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
                     VibrationEffect.Composition.PRIMITIVE_TICK
-            )) {
+                )
+            ) {
                 return false;
             }
 
             VibrationEffect effect = VibrationEffect.startComposition()
-                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.4f)
-                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.26f, 14)
-                    .compose();
+                .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.4f)
+                .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.26f, 14)
+                .compose();
             vibrator.vibrate(effect);
             return true;
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         return false;
     }
 
@@ -137,33 +139,34 @@ public final class Haptics {
                 return false;
             }
 
-            if (!vibrator.areAllPrimitivesSupported(
+            if (
+                !vibrator.areAllPrimitivesSupported(
                     VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
                     VibrationEffect.Composition.PRIMITIVE_TICK,
                     VibrationEffect.Composition.PRIMITIVE_CLICK
-            )) {
+                )
+            ) {
                 return false;
             }
 
             VibrationEffect.Composition composition = VibrationEffect.startComposition();
             if (turningOn) {
                 composition
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.18f)
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.28f, 16)
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.4f, 18)
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.58f, 22)
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.16f, 20);
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.18f)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.28f, 16)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.4f, 18)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.58f, 22)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.16f, 20);
             } else {
                 composition
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.38f)
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.3f, 18)
-                        .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.2f, 22);
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.38f)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.3f, 18)
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.2f, 22);
             }
 
             vibrator.vibrate(composition.compose());
             return true;
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         return false;
     }
 

@@ -5,10 +5,8 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -16,13 +14,13 @@ import java.net.URL;
 /**
  * Opens app control-plane HTTP connections outside the app-owned VPN.
  */
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class DirectNetworkConnection {
-    private DirectNetworkConnection() {
-    }
+
+    private DirectNetworkConnection() {}
 
     @NonNull
-    public static HttpURLConnection openHttpConnection(@NonNull Context context,
-                                                       @NonNull URL url) throws IOException {
+    public static HttpURLConnection openHttpConnection(@NonNull Context context, @NonNull URL url) throws IOException {
         Network network = findUsablePhysicalNetwork(context);
         if (network == null) {
             throw new IOException("No usable physical network");
@@ -31,6 +29,7 @@ public final class DirectNetworkConnection {
     }
 
     @Nullable
+    @SuppressWarnings("deprecation")
     public static Network findUsablePhysicalNetwork(@NonNull Context context) {
         ConnectivityManager connectivityManager = context.getSystemService(ConnectivityManager.class);
         if (connectivityManager == null) {
@@ -50,13 +49,14 @@ public final class DirectNetworkConnection {
                     return network;
                 }
             }
-        } catch (Exception ignored) {
-        }
+        } catch (RuntimeException ignored) {}
         return null;
     }
 
-    private static boolean isUsablePhysicalNetwork(@NonNull ConnectivityManager connectivityManager,
-                                                   @Nullable Network network) {
+    private static boolean isUsablePhysicalNetwork(
+        @NonNull ConnectivityManager connectivityManager,
+        @Nullable Network network
+    ) {
         if (network == null) {
             return false;
         }
@@ -65,15 +65,18 @@ public final class DirectNetworkConnection {
             if (capabilities == null || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
                 return false;
             }
-            boolean physicalTransport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+            boolean physicalTransport =
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
             if (!physicalTransport || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
                 return false;
             }
-            return Build.VERSION.SDK_INT < Build.VERSION_CODES.P
-                    || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED);
-        } catch (Exception ignored) {
+            return (
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.P ||
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)
+            );
+        } catch (RuntimeException ignored) {
             return false;
         }
     }

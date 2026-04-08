@@ -2,13 +2,12 @@ package wings.v.root;
 
 import android.content.Context;
 import android.os.Looper;
-
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
 public final class RootCommandMain {
-    private RootCommandMain() {
-    }
+
+    private RootCommandMain() {}
 
     public static void main(String[] args) throws Exception {
         if (args == null || args.length == 0) {
@@ -28,6 +27,7 @@ public final class RootCommandMain {
         throw new IllegalArgumentException("Unknown root command: " + command);
     }
 
+    @SuppressWarnings("deprecation")
     private static Context obtainSystemContext() throws Exception {
         if (Looper.myLooper() == null) {
             Looper.prepareMainLooper();

@@ -1,17 +1,17 @@
 package wings.v.core;
 
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+@SuppressWarnings("PMD.AvoidUsingHardCodedIP")
 public final class ByeDpiSettings {
+
     public static final String DEFAULT_COMMAND_ARGS =
-            "-o1 -d1 -a1 -At,r,s -s1 -d1 -s5+s -s10+s -s15+s -s20+s -r1+s -S -a1 -As -s1 -d1 -s5+s -s10+s -s15+s -s20+s -S -a1";
+        "-o1 -d1 -a1 -At,r,s -s1 -d1 -s5+s -s10+s -s15+s -s20+s -r1+s -S -a1 -As -s1 -d1 -s5+s -s10+s -s15+s -s20+s -S -a1";
     private static final String DEFAULT_CONNECT_BIND_IP = "0.0.0.0";
 
     public enum DesyncMethod {
@@ -107,9 +107,7 @@ public final class ByeDpiSettings {
 
     @NonNull
     public List<String> buildRuntimeArguments(@Nullable String protectPath) {
-        return useCommandLineSettings
-                ? buildCommandArguments(protectPath)
-                : buildUiArguments(protectPath);
+        return useCommandLineSettings ? buildCommandArguments(protectPath) : buildUiArguments(protectPath);
     }
 
     @NonNull
@@ -133,10 +131,12 @@ public final class ByeDpiSettings {
     @NonNull
     public String resolveRuntimeDialHost() {
         String listenHost = resolveRuntimeListenIp();
-        if (TextUtils.isEmpty(listenHost)
-                || TextUtils.equals(listenHost, "0.0.0.0")
-                || TextUtils.equals(listenHost, "::")
-                || TextUtils.equals(listenHost, "[::]")) {
+        if (
+            TextUtils.isEmpty(listenHost) ||
+            TextUtils.equals(listenHost, "0.0.0.0") ||
+            TextUtils.equals(listenHost, "::") ||
+            TextUtils.equals(listenHost, "[::]")
+        ) {
             return "127.0.0.1";
         }
         return listenHost;
@@ -184,11 +184,13 @@ public final class ByeDpiSettings {
             result.add(DEFAULT_CONNECT_BIND_IP);
         }
         for (String token : splitArgs) {
-            if (TextUtils.isEmpty(token)
-                    || TextUtils.equals(token, "--help")
-                    || TextUtils.equals(token, "--version")
-                    || TextUtils.equals(token, "-h")
-                    || TextUtils.equals(token, "-v")) {
+            if (
+                TextUtils.isEmpty(token) ||
+                TextUtils.equals(token, "--help") ||
+                TextUtils.equals(token, "--version") ||
+                TextUtils.equals(token, "-h") ||
+                TextUtils.equals(token, "-v")
+            ) {
                 continue;
             }
             result.add(token);
@@ -278,7 +280,6 @@ public final class ByeDpiSettings {
                     result.add("-f" + positionArgument);
                     break;
                 case NONE:
-                default:
                     break;
             }
         }
@@ -354,9 +355,11 @@ public final class ByeDpiSettings {
     private boolean hasProtectPathArgument(@NonNull List<String> args) {
         for (String token : args) {
             String normalized = trim(token);
-            if (TextUtils.equals(normalized, "--protect-path")
-                    || TextUtils.equals(normalized, "-P")
-                    || normalized.startsWith("-P")) {
+            if (
+                TextUtils.equals(normalized, "--protect-path") ||
+                TextUtils.equals(normalized, "-P") ||
+                normalized.startsWith("-P")
+            ) {
                 return true;
             }
         }
@@ -366,10 +369,12 @@ public final class ByeDpiSettings {
     private boolean hasConnIpArgument(@NonNull List<String> args) {
         for (String token : args) {
             String normalized = trim(token);
-            if (TextUtils.equals(normalized, "--conn-ip")
-                    || normalized.startsWith("--conn-ip=")
-                    || TextUtils.equals(normalized, "-I")
-                    || (normalized.startsWith("-I") && normalized.length() > 2)) {
+            if (
+                TextUtils.equals(normalized, "--conn-ip") ||
+                normalized.startsWith("--conn-ip=") ||
+                TextUtils.equals(normalized, "-I") ||
+                (normalized.startsWith("-I") && normalized.length() > 2)
+            ) {
                 return true;
             }
         }
@@ -379,8 +384,7 @@ public final class ByeDpiSettings {
     private boolean hasArgument(@NonNull List<String> args, @NonNull String longName) {
         for (String token : args) {
             String normalized = trim(token);
-            if (TextUtils.equals(normalized, longName)
-                    || normalized.startsWith(longName + "=")) {
+            if (TextUtils.equals(normalized, longName) || normalized.startsWith(longName + "=")) {
                 return true;
             }
         }
@@ -392,25 +396,21 @@ public final class ByeDpiSettings {
         List<String> split = ByeDpiShellUtils.shellSplit(trim(rawArgs));
         String commandIp = "";
         int commandPort = 0;
-        for (int index = 0; index < split.size(); index++) {
+        int index = 0;
+        while (index < split.size()) {
             String token = trim(split.get(index));
             if (token.startsWith("-i") && token.length() > 2) {
                 commandIp = trim(token.substring(2));
-                continue;
-            }
-            if (TextUtils.equals(token, "--ip") && index + 1 < split.size()) {
+            } else if (TextUtils.equals(token, "--ip") && index + 1 < split.size()) {
                 commandIp = trim(split.get(index + 1));
                 index++;
-                continue;
-            }
-            if (token.startsWith("-p") && token.length() > 2) {
+            } else if (token.startsWith("-p") && token.length() > 2) {
                 commandPort = parseInt(token.substring(2), 0);
-                continue;
-            }
-            if (TextUtils.equals(token, "--port") && index + 1 < split.size()) {
+            } else if (TextUtils.equals(token, "--port") && index + 1 < split.size()) {
                 commandPort = parseInt(split.get(index + 1), 0);
                 index++;
             }
+            index++;
         }
         return new CommandAddress(commandIp, commandPort);
     }
@@ -420,25 +420,21 @@ public final class ByeDpiSettings {
         List<String> split = ByeDpiShellUtils.shellSplit(trim(rawArgs));
         String username = "";
         String password = "";
-        for (int index = 0; index < split.size(); index++) {
+        int index = 0;
+        while (index < split.size()) {
             String token = trim(split.get(index));
             if (token.startsWith("--socks-user=")) {
                 username = trim(token.substring("--socks-user=".length()));
-                continue;
-            }
-            if (TextUtils.equals(token, "--socks-user") && index + 1 < split.size()) {
+            } else if (TextUtils.equals(token, "--socks-user") && index + 1 < split.size()) {
                 username = trim(split.get(index + 1));
                 index++;
-                continue;
-            }
-            if (token.startsWith("--socks-pass=")) {
+            } else if (token.startsWith("--socks-pass=")) {
                 password = trim(token.substring("--socks-pass=".length()));
-                continue;
-            }
-            if (TextUtils.equals(token, "--socks-pass") && index + 1 < split.size()) {
+            } else if (TextUtils.equals(token, "--socks-pass") && index + 1 < split.size()) {
                 password = trim(split.get(index + 1));
                 index++;
             }
+            index++;
         }
         return new CommandProxyAuth(username, password);
     }
@@ -446,7 +442,7 @@ public final class ByeDpiSettings {
     private static int parseInt(@Nullable String value, int defaultValue) {
         try {
             return Integer.parseInt(trim(value));
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return defaultValue;
         }
     }
@@ -457,6 +453,7 @@ public final class ByeDpiSettings {
     }
 
     private static final class CommandAddress {
+
         final String ip;
         final int port;
 
@@ -467,6 +464,7 @@ public final class ByeDpiSettings {
     }
 
     private static final class CommandProxyAuth {
+
         final String username;
         final String password;
 

@@ -4,18 +4,19 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.animation.LinearInterpolator;
-
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatImageView;
-
 import wings.v.R;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class ParallaxGradientBackgroundView extends AppCompatImageView {
+
     private static final long DRIFT_DURATION_MS = 26_000L;
     private static final float BASE_SCALE = 1.18f;
 
     private float driftProgress;
     private float pagerProgress;
+
     @Nullable
     private ValueAnimator driftAnimator;
 

@@ -11,16 +11,15 @@ import android.os.Looper;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -28,7 +27,6 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -37,14 +35,15 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import wings.v.R;
 import wings.v.XposedAppsActivity;
 import wings.v.core.Haptics;
 import wings.v.core.XposedModulePrefs;
 import wings.v.databinding.FragmentAppsBinding;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.NullAssignment" })
 public class XposedAppsFragment extends Fragment {
+
     private static final String ARG_MODE = "mode";
     private static final String STATE_SEARCH_QUERY = "xposed_apps_search_query";
     private static final String STATE_SEARCH_VISIBLE = "xposed_apps_search_visible";
@@ -99,8 +98,11 @@ public class XposedAppsFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentAppsBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -108,10 +110,7 @@ public class XposedAppsFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        requireActivity().getOnBackPressedDispatcher().addCallback(
-                getViewLifecycleOwner(),
-                searchBackCallback
-        );
+        requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), searchBackCallback);
 
         adapter = new AppSearchAdapter(this::onPackageToggled);
         searchAdapter = new AppSearchAdapter(this::onPackageToggled);
@@ -120,31 +119,35 @@ public class XposedAppsFragment extends Fragment {
         binding.recyclerApps.setAdapter(adapter);
         binding.recyclerSearchResults.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.recyclerSearchResults.setAdapter(searchAdapter);
-        binding.recyclerApps.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
-                if (dy == 0) {
-                    return;
+        binding.recyclerApps.addOnScrollListener(
+            new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                    if (dy == 0) {
+                        return;
+                    }
+                    hideKeyboard();
+                    if (!searchOverlayVisible) {
+                        if (dy > 0) {
+                            setSearchBarHidden(true);
+                        } else if (dy < 0) {
+                            setSearchBarHidden(false);
+                        }
+                    }
+                    updateScrollToTopButton();
                 }
-                hideKeyboard();
-                if (!searchOverlayVisible) {
-                    if (dy > 0) {
-                        setSearchBarHidden(true);
-                    } else if (dy < 0) {
-                        setSearchBarHidden(false);
+            }
+        );
+        binding.recyclerSearchResults.addOnScrollListener(
+            new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                    if (dy != 0) {
+                        hideKeyboard();
                     }
                 }
-                updateScrollToTopButton();
             }
-        });
-        binding.recyclerSearchResults.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
-                if (dy != 0) {
-                    hideKeyboard();
-                }
-            }
-        });
+        );
 
         binding.searchBarContainer.setOnClickListener(v -> showSearchOverlay(true));
         binding.inputAppSearch.setOnClickListener(v -> showSearchOverlay(true));
@@ -154,11 +157,12 @@ public class XposedAppsFragment extends Fragment {
             }
         });
         binding.inputAppSearch.setOnEditorActionListener((v, actionId, event) -> {
-            boolean searchAction = actionId == EditorInfo.IME_ACTION_SEARCH
-                    || actionId == EditorInfo.IME_ACTION_DONE
-                    || (event != null
-                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
-                    && event.getAction() == KeyEvent.ACTION_DOWN);
+            boolean searchAction =
+                actionId == EditorInfo.IME_ACTION_SEARCH ||
+                actionId == EditorInfo.IME_ACTION_DONE ||
+                (event != null &&
+                    event.getKeyCode() == KeyEvent.KEYCODE_ENTER &&
+                    event.getAction() == KeyEvent.ACTION_DOWN);
             if (!searchAction) {
                 return false;
             }
@@ -166,30 +170,28 @@ public class XposedAppsFragment extends Fragment {
             binding.inputAppSearch.clearFocus();
             return true;
         });
-        binding.inputAppSearch.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
+        binding.inputAppSearch.addTextChangedListener(
+            new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                searchQuery = s != null ? s.toString() : "";
-                updateSearchResults();
-            }
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    searchQuery = s != null ? s.toString() : "";
+                    updateSearchResults();
+                }
 
-            @Override
-            public void afterTextChanged(Editable s) {
+                @Override
+                public void afterTextChanged(Editable s) {}
             }
-        });
+        );
         binding.buttonSearchClose.setOnClickListener(v -> {
             binding.inputAppSearch.setText("");
             hideSearchOverlay(true);
             Haptics.softSliderStep(v);
         });
         binding.buttonScrollToTop.setOnClickListener(v -> {
-            RecyclerView activeRecycler = searchOverlayVisible
-                    ? binding.recyclerSearchResults
-                    : binding.recyclerApps;
+            RecyclerView activeRecycler = searchOverlayVisible ? binding.recyclerSearchResults : binding.recyclerApps;
             activeRecycler.smoothScrollToPosition(0);
             setSearchBarHidden(false);
             Haptics.softSliderStep(v);
@@ -289,9 +291,7 @@ public class XposedAppsFragment extends Fragment {
             return;
         }
         if (filterEntries(searchQuery, true).isEmpty()) {
-            binding.textSearchEmpty.setText(appEntries.isEmpty()
-                    ? R.string.apps_empty
-                    : R.string.apps_no_results);
+            binding.textSearchEmpty.setText(appEntries.isEmpty() ? R.string.apps_empty : R.string.apps_no_results);
             binding.textSearchEmpty.setVisibility(View.VISIBLE);
         } else {
             binding.textSearchEmpty.setVisibility(View.GONE);
@@ -305,10 +305,12 @@ public class XposedAppsFragment extends Fragment {
             if (!matchesAppTypeFilter(entry)) {
                 continue;
             }
-            if (!includeQuery
-                    || normalizedQuery.isEmpty()
-                    || entry.label.toLowerCase(Locale.getDefault()).contains(normalizedQuery)
-                    || entry.packageName.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            if (
+                !includeQuery ||
+                normalizedQuery.isEmpty() ||
+                entry.label.toLowerCase(Locale.getDefault()).contains(normalizedQuery) ||
+                entry.packageName.toLowerCase(Locale.ROOT).contains(normalizedQuery)
+            ) {
                 filteredEntries.add(entry);
             }
         }
@@ -366,8 +368,8 @@ public class XposedAppsFragment extends Fragment {
             Haptics.softSelection(v);
         });
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
         if (binding.groupAppTypeFilters.getChildCount() > 0) {
             params.setMarginStart(dpToPxInt(8));
@@ -408,7 +410,7 @@ public class XposedAppsFragment extends Fragment {
     }
 
     private void setSearchBarHidden(boolean hidden) {
-        if (binding == null || searchOverlayVisible && hidden) {
+        if (binding == null || (searchOverlayVisible && hidden)) {
             return;
         }
         if (searchBarHidden == hidden) {
@@ -417,20 +419,19 @@ public class XposedAppsFragment extends Fragment {
         searchBarHidden = hidden;
         float targetTranslation = hidden ? binding.searchBarContainer.getHeight() + dpToPx(24) : 0f;
         float targetAlpha = hidden ? SEARCH_BAR_HIDDEN_ALPHA : 1f;
-        binding.searchBarContainer.animate()
-                .translationY(targetTranslation)
-                .alpha(targetAlpha)
-                .setDuration(SEARCH_BAR_ANIMATION_MS)
-                .start();
+        binding.searchBarContainer
+            .animate()
+            .translationY(targetTranslation)
+            .alpha(targetAlpha)
+            .setDuration(SEARCH_BAR_ANIMATION_MS)
+            .start();
     }
 
     private void updateScrollToTopButton() {
         if (binding == null) {
             return;
         }
-        boolean shouldShow = !searchOverlayVisible
-                && searchBarHidden
-                && binding.recyclerApps.canScrollVertically(-1);
+        boolean shouldShow = !searchOverlayVisible && searchBarHidden && binding.recyclerApps.canScrollVertically(-1);
         binding.buttonScrollToTop.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
     }
 
@@ -446,7 +447,7 @@ public class XposedAppsFragment extends Fragment {
         InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
         if (inputMethodManager != null && binding != null) {
             binding.inputAppSearch.post(() ->
-                    inputMethodManager.showSoftInput(binding.inputAppSearch, InputMethodManager.SHOW_IMPLICIT)
+                inputMethodManager.showSoftInput(binding.inputAppSearch, InputMethodManager.SHOW_IMPLICIT)
             );
         }
     }
@@ -463,7 +464,7 @@ public class XposedAppsFragment extends Fragment {
         List<ApplicationInfo> installedApplications;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             installedApplications = packageManager.getInstalledApplications(
-                    PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA)
+                PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA)
             );
         } else {
             installedApplications = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
@@ -474,23 +475,27 @@ public class XposedAppsFragment extends Fragment {
             if (label.isEmpty()) {
                 label = applicationInfo.packageName;
             }
-            entries.add(new AppRoutingEntry(
+            entries.add(
+                new AppRoutingEntry(
                     label,
                     applicationInfo.packageName,
                     applicationInfo.loadIcon(packageManager),
-                    (applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0
-                            || (applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-            ));
+                    (applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 ||
+                        (applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                )
+            );
         }
-        entries.sort(Comparator
-                .comparing((AppRoutingEntry entry) -> entry.label.toLowerCase(Locale.getDefault()))
-                .thenComparing(entry -> entry.packageName));
+        entries.sort(
+            Comparator.comparing((AppRoutingEntry entry) -> entry.label.toLowerCase(Locale.getDefault())).thenComparing(
+                entry -> entry.packageName
+            )
+        );
         return entries;
     }
 
     private String getPrefsKey() {
         return XposedAppsActivity.MODE_HIDDEN_VPN_APPS.equals(mode)
-                ? XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES
-                : XposedModulePrefs.KEY_TARGET_PACKAGES;
+            ? XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES
+            : XposedModulePrefs.KEY_TARGET_PACKAGES;
     }
 }

@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
 import android.view.Gravity;
-
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -12,8 +11,8 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.drawable.DrawableCompat;
 
 public final class UpdateBadgeUtils {
-    private UpdateBadgeUtils() {
-    }
+
+    private UpdateBadgeUtils() {}
 
     public static boolean shouldShowUpdateBadge(@Nullable AppUpdateManager.UpdateState state) {
         if (state == null) {
@@ -44,7 +43,7 @@ public final class UpdateBadgeUtils {
 
         Drawable baseDrawable = DrawableCompat.wrap(base.mutate());
         Drawable badgeDrawable = DrawableCompat.wrap(badge.mutate());
-        LayerDrawable layered = new LayerDrawable(new Drawable[]{baseDrawable, badgeDrawable});
+        LayerDrawable layered = new LayerDrawable(new Drawable[] { baseDrawable, badgeDrawable });
 
         int baseWidth = Math.max(1, baseDrawable.getIntrinsicWidth());
         int baseHeight = Math.max(1, baseDrawable.getIntrinsicHeight());

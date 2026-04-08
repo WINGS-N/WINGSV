@@ -6,12 +6,10 @@ import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.graphics.drawable.RoundedBitmapDrawable;
 import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -21,8 +19,11 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidFileStream", "PMD.AvoidCatchingGenericException" })
 public final class GithubAvatarLoader {
+
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+
     public interface Callback {
         void onLoaded(@NonNull Drawable drawable);
     }
@@ -76,12 +77,16 @@ public final class GithubAvatarLoader {
                 return null;
             }
 
-            try (InputStream inputStream = connection.getInputStream();
-                 FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+            try (
+                InputStream inputStream = connection.getInputStream();
+                FileOutputStream outputStream = new FileOutputStream(tempFile)
+            ) {
                 byte[] buffer = new byte[8192];
                 int read;
-                while ((read = inputStream.read(buffer)) != -1) {
+                read = inputStream.read(buffer);
+                while (read != -1) {
                     outputStream.write(buffer, 0, read);
+                    read = inputStream.read(buffer);
                 }
                 outputStream.flush();
             }
@@ -98,12 +103,16 @@ public final class GithubAvatarLoader {
                 targetFile.delete();
             }
             if (!tempFile.renameTo(targetFile)) {
-                try (InputStream inputStream = new FileInputStream(tempFile);
-                     FileOutputStream outputStream = new FileOutputStream(targetFile)) {
+                try (
+                    InputStream inputStream = new FileInputStream(tempFile);
+                    FileOutputStream outputStream = new FileOutputStream(targetFile)
+                ) {
                     byte[] buffer = new byte[8192];
                     int read;
-                    while ((read = inputStream.read(buffer)) != -1) {
+                    read = inputStream.read(buffer);
+                    while (read != -1) {
                         outputStream.write(buffer, 0, read);
+                        read = inputStream.read(buffer);
                     }
                     outputStream.flush();
                 }
@@ -111,7 +120,7 @@ public final class GithubAvatarLoader {
                 tempFile.delete();
             }
             return bitmap;
-        } catch (Exception ignored) {
+        } catch (java.io.IOException ignored) {
             //noinspection ResultOfMethodCallIgnored
             tempFile.delete();
             return null;
@@ -131,14 +140,13 @@ public final class GithubAvatarLoader {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inPreferredConfig = Bitmap.Config.ARGB_8888;
             return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
             return null;
         }
     }
 
     private Drawable toCircularDrawable(Bitmap bitmap) {
-        RoundedBitmapDrawable drawable =
-                RoundedBitmapDrawableFactory.create(appContext.getResources(), bitmap);
+        RoundedBitmapDrawable drawable = RoundedBitmapDrawableFactory.create(appContext.getResources(), bitmap);
         drawable.setCircular(true);
         drawable.setAntiAlias(true);
         return drawable;

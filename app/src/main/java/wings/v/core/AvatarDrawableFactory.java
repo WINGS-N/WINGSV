@@ -11,13 +11,13 @@ import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
-
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
+import java.util.Locale;
 
 public final class AvatarDrawableFactory {
-    private AvatarDrawableFactory() {
-    }
+
+    private AvatarDrawableFactory() {}
 
     public static Drawable create(Context context, String initials, @ColorInt int backgroundColor) {
         float density = context.getResources().getDisplayMetrics().density;
@@ -30,7 +30,7 @@ public final class AvatarDrawableFactory {
         float radius = sizePx / 2f;
         canvas.drawCircle(radius, radius, radius, circlePaint);
 
-        String label = TextUtils.isEmpty(initials) ? "?" : initials.trim().toUpperCase();
+        String label = TextUtils.isEmpty(initials) ? "?" : initials.trim().toUpperCase(Locale.ROOT);
         Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(Color.WHITE);
         textPaint.setTextAlign(Paint.Align.CENTER);
@@ -44,9 +44,11 @@ public final class AvatarDrawableFactory {
         return new BitmapDrawable(context.getResources(), bitmap);
     }
 
-    public static Drawable createCircularBanner(Context context,
-                                                @NonNull Drawable bannerDrawable,
-                                                @ColorInt int backgroundColor) {
+    public static Drawable createCircularBanner(
+        Context context,
+        @NonNull Drawable bannerDrawable,
+        @ColorInt int backgroundColor
+    ) {
         float density = context.getResources().getDisplayMetrics().density;
         int sizePx = Math.max(1, Math.round(40f * density));
         Bitmap bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);

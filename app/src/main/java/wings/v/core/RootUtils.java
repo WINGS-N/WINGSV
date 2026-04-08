@@ -2,17 +2,16 @@ package wings.v.core;
 
 import android.content.Context;
 import android.text.TextUtils;
-
 import com.wireguard.android.backend.WgQuickBackend;
 import com.wireguard.android.util.RootShell;
-
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class RootUtils {
-    private RootUtils() {
-    }
+
+    private RootUtils() {}
 
     public static boolean verifyRootAccess(Context context) {
         RootShell rootShell = new RootShell(context.getApplicationContext());
@@ -44,9 +43,7 @@ public final class RootUtils {
         return isRootModeSupported(context, BackendType.VK_TURN_WIREGUARD, refreshAccess);
     }
 
-    public static boolean isRootModeSupported(Context context,
-                                              BackendType backendType,
-                                              boolean refreshAccess) {
+    public static boolean isRootModeSupported(Context context, BackendType backendType, boolean refreshAccess) {
         return refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
     }
 
@@ -58,9 +55,7 @@ public final class RootUtils {
         return getRootModeUnavailableReason(context, BackendType.VK_TURN_WIREGUARD, refreshAccess);
     }
 
-    public static String getRootModeUnavailableReason(Context context,
-                                                      BackendType backendType,
-                                                      boolean refreshAccess) {
+    public static String getRootModeUnavailableReason(Context context, BackendType backendType, boolean refreshAccess) {
         boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
         if (!rootGranted) {
             return "Root-доступ не подтверждён";
@@ -68,15 +63,15 @@ public final class RootUtils {
         return null;
     }
 
-    public static boolean isKernelWireGuardSupported(Context context,
-                                                     BackendType backendType,
-                                                     boolean refreshAccess) {
+    public static boolean isKernelWireGuardSupported(Context context, BackendType backendType, boolean refreshAccess) {
         return TextUtils.isEmpty(getKernelWireGuardUnavailableReason(context, backendType, refreshAccess));
     }
 
-    public static String getKernelWireGuardUnavailableReason(Context context,
-                                                             BackendType backendType,
-                                                             boolean refreshAccess) {
+    public static String getKernelWireGuardUnavailableReason(
+        Context context,
+        BackendType backendType,
+        boolean refreshAccess
+    ) {
         boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
         if (!rootGranted) {
             return "Root-доступ не подтверждён";
@@ -112,18 +107,15 @@ public final class RootUtils {
     }
 
     public static String runRootHelper(Context context, String... args) throws Exception {
-        String packageCodePath = context.getApplicationInfo() != null
-                ? context.getApplicationInfo().sourceDir
-                : null;
+        String packageCodePath = context.getApplicationInfo() != null ? context.getApplicationInfo().sourceDir : null;
         StringBuilder command = new StringBuilder();
-        command.append("APK_PATH=$(cmd package path ")
-                .append(shellQuote(context.getPackageName()))
-                .append(" 2>/dev/null); ");
+        command
+            .append("APK_PATH=$(cmd package path ")
+            .append(shellQuote(context.getPackageName()))
+            .append(" 2>/dev/null); ");
         command.append("APK_PATH=${APK_PATH#package:}; ");
         command.append("if [ ! -r \"$APK_PATH\" ]; then ");
-        command.append("APK_PATH=$(pm path ")
-                .append(shellQuote(context.getPackageName()))
-                .append(" 2>/dev/null); ");
+        command.append("APK_PATH=$(pm path ").append(shellQuote(context.getPackageName())).append(" 2>/dev/null); ");
         command.append("APK_PATH=${APK_PATH#package:}; ");
         command.append("fi; ");
         command.append("if [ ! -r \"$APK_PATH\" ]; then ");
@@ -138,9 +130,7 @@ public final class RootUtils {
             }
         }
 
-        Process process = new ProcessBuilder("su", "-c", command.toString())
-                .redirectErrorStream(true)
-                .start();
+        Process process = new ProcessBuilder("su", "-c", command.toString()).redirectErrorStream(true).start();
         String output;
         try (InputStream inputStream = process.getInputStream()) {
             output = readFully(inputStream);
@@ -148,7 +138,7 @@ public final class RootUtils {
         int exitCode = process.waitFor();
         if (exitCode != 0) {
             throw new IllegalStateException(
-                    TextUtils.isEmpty(output) ? "Root helper exited with code " + exitCode : output.trim()
+                TextUtils.isEmpty(output) ? "Root helper exited with code " + exitCode : output.trim()
             );
         }
         return output == null ? "" : output.trim();
@@ -171,9 +161,11 @@ public final class RootUtils {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         int read;
-        while ((read = inputStream.read(buffer)) != -1) {
+        read = inputStream.read(buffer);
+        while (read != -1) {
             outputStream.write(buffer, 0, read);
+            read = inputStream.read(buffer);
         }
-        return outputStream.toString(StandardCharsets.UTF_8);
+        return outputStream.toString(StandardCharsets.UTF_8.name());
     }
 }

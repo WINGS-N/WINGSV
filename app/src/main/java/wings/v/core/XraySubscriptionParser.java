@@ -2,22 +2,21 @@ package wings.v.core;
 
 import android.text.TextUtils;
 import android.util.Base64;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class XraySubscriptionParser {
+
     private static final Pattern VLESS_PATTERN = Pattern.compile("vless://[^\\s\"']+");
 
-    private XraySubscriptionParser() {
-    }
+    private XraySubscriptionParser() {}
 
     public static List<String> parseLinks(String rawText) {
         LinkedHashSet<String> links = new LinkedHashSet<>();
@@ -55,8 +54,7 @@ public final class XraySubscriptionParser {
             if (!TextUtils.equals(decodedText.trim(), normalized)) {
                 collectLinks(decodedText, links, false);
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static boolean looksLikeJson(String rawText) {
@@ -74,8 +72,7 @@ public final class XraySubscriptionParser {
             } else {
                 collectJsonValue(new JSONObject(rawJson), links);
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static void collectJsonValue(Object value, LinkedHashSet<String> links) {

@@ -1,11 +1,11 @@
 package wings.v.qs;
 
 import android.service.quicksettings.Tile;
-
 import wings.v.ExternalActions;
 import wings.v.service.ProxyTunnelService;
 
 public class TunnelQuickSettingsTileService extends BaseQuickSettingsTileService {
+
     @Override
     protected void bindTile(Tile tile) {
         QuickSettingsTiles.bindTunnelTile(this, tile);

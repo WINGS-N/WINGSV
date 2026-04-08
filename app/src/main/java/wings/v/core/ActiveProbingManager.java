@@ -10,29 +10,27 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
 import wings.v.ActiveProbingSettingsActivity;
 import wings.v.R;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException" })
 public final class ActiveProbingManager {
+
     public static final String KEY_OPEN_SETTINGS = "pref_open_active_probing_settings";
     public static final String KEY_OPEN_TARGETS = "pref_open_active_probing_targets";
     public static final String KEY_TUNNEL_ENABLED = "pref_active_probing_tunnel_enabled";
@@ -48,10 +46,10 @@ public final class ActiveProbingManager {
     private static final int DEFAULT_INTERVAL_SECONDS = 20;
     private static final int DEFAULT_TIMEOUT_SECONDS = 2;
 
-    private ActiveProbingManager() {
-    }
+    private ActiveProbingManager() {}
 
     public static final class Settings {
+
         public boolean tunnelEnabled;
         public boolean vkTurnEnabled;
         public boolean backgroundEnabled;
@@ -71,24 +69,20 @@ public final class ActiveProbingManager {
     }
 
     public static final class ProbeResult {
+
         public final boolean hasUsablePhysicalNetwork;
         public final int totalCount;
         public final int reachableCount;
         public final List<String> failedTargets;
 
-        ProbeResult(boolean hasUsablePhysicalNetwork,
-                    int totalCount,
-                    int reachableCount,
-                    List<String> failedTargets) {
+        ProbeResult(boolean hasUsablePhysicalNetwork, int totalCount, int reachableCount, List<String> failedTargets) {
             this.hasUsablePhysicalNetwork = hasUsablePhysicalNetwork;
             this.totalCount = Math.max(totalCount, 0);
             this.reachableCount = Math.max(reachableCount, 0);
-            this.failedTargets = failedTargets != null
-                    ? new ArrayList<>(failedTargets)
-                    : new ArrayList<>();
+            this.failedTargets = failedTargets != null ? new ArrayList<>(failedTargets) : new ArrayList<>();
         }
 
-        public boolean allFailed() {
+        public boolean shouldFallback() {
             return hasUsablePhysicalNetwork && totalCount > 0 && reachableCount <= 0;
         }
 
@@ -138,24 +132,21 @@ public final class ActiveProbingManager {
         settings.tunnelEnabled = prefs(appContext).getBoolean(KEY_TUNNEL_ENABLED, false);
         settings.vkTurnEnabled = prefs(appContext).getBoolean(KEY_VK_TURN_ENABLED, false);
         settings.backgroundEnabled = prefs(appContext).getBoolean(KEY_BACKGROUND_ENABLED, false);
-        settings.xrayFallbackBackend = normalizeXrayFallbackBackend(BackendType.fromPrefValue(
-                prefs(appContext).getString(
-                        KEY_XRAY_FALLBACK_BACKEND,
-                        BackendType.VK_TURN_WIREGUARD.prefValue
-                )
-        ));
+        settings.xrayFallbackBackend = normalizeXrayFallbackBackend(
+            BackendType.fromPrefValue(
+                prefs(appContext).getString(KEY_XRAY_FALLBACK_BACKEND, BackendType.VK_TURN_WIREGUARD.prefValue)
+            )
+        );
         String storedUrls = prefs(appContext).getString(KEY_URLS, null);
-        settings.rawUrls = storedUrls == null
-                ? serializeUrls(defaultUrls(appContext))
-                : trim(storedUrls);
+        settings.rawUrls = storedUrls == null ? serializeUrls(defaultUrls(appContext)) : trim(storedUrls);
         settings.urls = parseUrls(appContext, settings.rawUrls);
         settings.intervalSeconds = parseInt(
-                prefs(appContext).getString(KEY_INTERVAL_SECONDS, String.valueOf(DEFAULT_INTERVAL_SECONDS)),
-                DEFAULT_INTERVAL_SECONDS
+            prefs(appContext).getString(KEY_INTERVAL_SECONDS, String.valueOf(DEFAULT_INTERVAL_SECONDS)),
+            DEFAULT_INTERVAL_SECONDS
         );
         settings.timeoutSeconds = parseInt(
-                prefs(appContext).getString(KEY_TIMEOUT_SECONDS, String.valueOf(DEFAULT_TIMEOUT_SECONDS)),
-                DEFAULT_TIMEOUT_SECONDS
+            prefs(appContext).getString(KEY_TIMEOUT_SECONDS, String.valueOf(DEFAULT_TIMEOUT_SECONDS)),
+            DEFAULT_TIMEOUT_SECONDS
         );
         return settings;
     }
@@ -166,9 +157,7 @@ public final class ActiveProbingManager {
 
     @NonNull
     public static BackendType normalizeXrayFallbackBackend(@Nullable BackendType backendType) {
-        return backendType == BackendType.AMNEZIAWG
-                ? BackendType.AMNEZIAWG
-                : BackendType.VK_TURN_WIREGUARD;
+        return backendType == BackendType.AMNEZIAWG ? BackendType.AMNEZIAWG : BackendType.VK_TURN_WIREGUARD;
     }
 
     @NonNull
@@ -178,9 +167,9 @@ public final class ActiveProbingManager {
             return resolved == BackendType.AMNEZIAWG ? "AmneziaWG" : "VK TURN";
         }
         return context.getString(
-                resolved == BackendType.AMNEZIAWG
-                        ? R.string.backend_amneziawg_title
-                        : R.string.backend_vk_turn_wireguard_title
+            resolved == BackendType.AMNEZIAWG
+                ? R.string.backend_amneziawg_title
+                : R.string.backend_vk_turn_wireguard_title
         );
     }
 
@@ -206,10 +195,7 @@ public final class ActiveProbingManager {
             return;
         }
         Context appContext = context.getApplicationContext();
-        prefs(appContext)
-                .edit()
-                .putString(KEY_URLS, serializeUrls(urls))
-                .apply();
+        prefs(appContext).edit().putString(KEY_URLS, serializeUrls(urls)).apply();
         ActiveProbingBackgroundScheduler.refresh(appContext);
     }
 
@@ -222,9 +208,8 @@ public final class ActiveProbingManager {
     @NonNull
     public static ProbeResult runDirectProbes(@Nullable Context context, @Nullable Settings settings) {
         Settings resolvedSettings = settings != null ? settings : getSettings(context);
-        List<String> urls = resolvedSettings.urls != null
-                ? new ArrayList<>(resolvedSettings.urls)
-                : defaultUrls(context);
+        List<String> urls =
+            resolvedSettings.urls != null ? new ArrayList<>(resolvedSettings.urls) : defaultUrls(context);
         if (context == null || urls.isEmpty()) {
             return new ProbeResult(false, urls.size(), 0, urls);
         }
@@ -234,22 +219,18 @@ public final class ActiveProbingManager {
         }
 
         int timeoutMs = (int) Math.max(500L, resolvedSettings.timeoutMs());
-        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(urls.size(), 4)));
-        ArrayList<Future<Boolean>> futures = new ArrayList<>();
-        for (String url : urls) {
-            futures.add(executor.submit(new ProbeTask(network, url, timeoutMs)));
-        }
-
         int successCount = 0;
         ArrayList<String> failedTargets = new ArrayList<>();
-        try {
+        try (ExecutorScope executorScope = new ExecutorScope(Math.max(1, Math.min(urls.size(), 4)))) {
+            ArrayList<Future<Boolean>> futures = new ArrayList<>();
+            for (String url : urls) {
+                futures.add(executorScope.executor.submit(new ProbeTask(network, url, timeoutMs)));
+            }
             for (int index = 0; index < urls.size(); index++) {
-                boolean success = false;
+                boolean success;
                 try {
                     success = futures.get(index).get(timeoutMs + 750L, TimeUnit.MILLISECONDS);
-                } catch (ExecutionException ignored) {
-                    success = false;
-                } catch (Exception ignored) {
+                } catch (ExecutionException | InterruptedException | java.util.concurrent.TimeoutException ignored) {
                     success = false;
                 }
                 if (success) {
@@ -258,53 +239,73 @@ public final class ActiveProbingManager {
                     failedTargets.add(urls.get(index));
                 }
             }
-        } finally {
-            executor.shutdownNow();
         }
         return new ProbeResult(true, urls.size(), successCount, failedTargets);
     }
 
-    public static void showTunnelFallbackNotification(@Nullable Context context,
-                                                      @Nullable ProbeResult result,
-                                                      @Nullable BackendType backendType) {
+    private static final class ExecutorScope implements AutoCloseable {
+
+        private final ExecutorService executor;
+
+        private ExecutorScope(int threadCount) {
+            this.executor = Executors.newFixedThreadPool(Math.max(1, threadCount));
+        }
+
+        @Override
+        public void close() {
+            executor.shutdownNow();
+        }
+    }
+
+    public static void showTunnelFallbackNotification(
+        @Nullable Context context,
+        @Nullable ProbeResult result,
+        @Nullable BackendType backendType
+    ) {
         showTriggerNotification(
-                context,
-                R.string.active_probing_notification_tunnel_title,
-                R.string.active_probing_notification_tunnel_text,
-                result,
-                backendType
+            context,
+            R.string.active_probing_notification_tunnel_title,
+            R.string.active_probing_notification_tunnel_text,
+            result,
+            backendType
         );
     }
 
-    public static void showBackgroundFallbackNotification(@Nullable Context context,
-                                                          @Nullable ProbeResult result,
-                                                          @Nullable BackendType backendType) {
+    public static void showBackgroundFallbackNotification(
+        @Nullable Context context,
+        @Nullable ProbeResult result,
+        @Nullable BackendType backendType
+    ) {
         showTriggerNotification(
-                context,
-                R.string.active_probing_notification_background_title,
-                R.string.active_probing_notification_background_text,
-                result,
-                backendType
+            context,
+            R.string.active_probing_notification_background_title,
+            R.string.active_probing_notification_background_text,
+            result,
+            backendType
         );
     }
 
-    public static void showReturnToXrayNotification(@Nullable Context context,
-                                                    @Nullable ProbeResult result,
-                                                    @Nullable BackendType backendType) {
+    public static void showReturnToXrayNotification(
+        @Nullable Context context,
+        @Nullable ProbeResult result,
+        @Nullable BackendType backendType
+    ) {
         showTriggerNotification(
-                context,
-                R.string.active_probing_notification_restore_title,
-                R.string.active_probing_notification_restore_text,
-                result,
-                backendType
+            context,
+            R.string.active_probing_notification_restore_title,
+            R.string.active_probing_notification_restore_text,
+            result,
+            backendType
         );
     }
 
-    private static void showTriggerNotification(@Nullable Context context,
-                                                int titleRes,
-                                                int textRes,
-                                                @Nullable ProbeResult result,
-                                                @Nullable BackendType backendType) {
+    private static void showTriggerNotification(
+        @Nullable Context context,
+        int titleRes,
+        int textRes,
+        @Nullable ProbeResult result,
+        @Nullable BackendType backendType
+    ) {
         if (context == null) {
             return;
         }
@@ -316,35 +317,33 @@ public final class ActiveProbingManager {
         createNotificationChannel(appContext, notificationManager);
         String failedTargets = result != null ? result.failedTargetsSummary() : "";
         String text = appContext.getString(
-                textRes,
-                TextUtils.isEmpty(failedTargets)
-                        ? appContext.getString(R.string.active_probing_notification_targets_unknown)
-                        : failedTargets,
-                getBackendLabel(appContext, backendType)
+            textRes,
+            TextUtils.isEmpty(failedTargets)
+                ? appContext.getString(R.string.active_probing_notification_targets_unknown)
+                : failedTargets,
+            getBackendLabel(appContext, backendType)
         );
-        Intent openIntent = ActiveProbingSettingsActivity.createIntent(appContext)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_SINGLE_TOP
-                        | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        Intent openIntent = ActiveProbingSettingsActivity.createIntent(appContext).addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP
+        );
         PendingIntent pendingIntent = PendingIntent.getActivity(
-                appContext,
-                401,
-                openIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            appContext,
+            401,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
         NotificationCompat.Builder builder = new NotificationCompat.Builder(appContext, NOTIFICATION_CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_power)
-                .setContentTitle(appContext.getString(titleRes))
-                .setContentText(text)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .setOnlyAlertOnce(true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH);
+            .setSmallIcon(R.drawable.ic_power)
+            .setContentTitle(appContext.getString(titleRes))
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH);
         try {
             notificationManager.notify(NOTIFICATION_ID, builder.build());
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static void createNotificationChannel(Context context, NotificationManager notificationManager) {
@@ -352,9 +351,9 @@ public final class ActiveProbingManager {
             return;
         }
         NotificationChannel channel = new NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                context.getString(R.string.active_probing_notification_channel_name),
-                NotificationManager.IMPORTANCE_HIGH
+            NOTIFICATION_CHANNEL_ID,
+            context.getString(R.string.active_probing_notification_channel_name),
+            NotificationManager.IMPORTANCE_HIGH
         );
         channel.enableVibration(true);
         channel.setDescription(context.getString(R.string.active_probing_notification_channel_description));
@@ -362,6 +361,7 @@ public final class ActiveProbingManager {
     }
 
     @Nullable
+    @SuppressWarnings("deprecation")
     private static Network findUsablePhysicalNetwork(Context context) {
         ConnectivityManager connectivityManager = context.getSystemService(ConnectivityManager.class);
         if (connectivityManager == null) {
@@ -381,13 +381,14 @@ public final class ActiveProbingManager {
                     return network;
                 }
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         return null;
     }
 
-    private static boolean isUsablePhysicalNetwork(@Nullable ConnectivityManager connectivityManager,
-                                                   @Nullable Network network) {
+    private static boolean isUsablePhysicalNetwork(
+        @Nullable ConnectivityManager connectivityManager,
+        @Nullable Network network
+    ) {
         if (connectivityManager == null || network == null) {
             return false;
         }
@@ -396,14 +397,17 @@ public final class ActiveProbingManager {
             if (capabilities == null || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
                 return false;
             }
-            boolean physicalTransport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
+            boolean physicalTransport =
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET);
             if (!physicalTransport || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
                 return false;
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-                    && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) {
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)
+            ) {
                 return false;
             }
             return true;
@@ -473,7 +477,7 @@ public final class ActiveProbingManager {
         }
         try {
             return Math.max(1, Integer.parseInt(rawValue.trim()));
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return fallback;
         }
     }
@@ -484,12 +488,11 @@ public final class ActiveProbingManager {
     }
 
     private static android.content.SharedPreferences prefs(Context context) {
-        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(
-                context.getApplicationContext()
-        );
+        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
     }
 
     private static final class ProbeTask implements Callable<Boolean> {
+
         private final Network network;
         private final String urlValue;
         private final int timeoutMs;

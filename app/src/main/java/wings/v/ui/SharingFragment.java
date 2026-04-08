@@ -12,27 +12,23 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
-
+import dev.oneuiproject.oneui.widget.CardItemView;
+import dev.oneuiproject.oneui.widget.SwitchItemView;
+import java.net.NetworkInterface;
 import java.util.EnumSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.net.NetworkInterface;
-
-import dev.oneuiproject.oneui.widget.CardItemView;
-import dev.oneuiproject.oneui.widget.SwitchItemView;
 import kotlin.Unit;
 import wings.v.R;
 import wings.v.SharingTargetSettingsActivity;
@@ -45,7 +41,9 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentSharingBinding;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException", "PMD.NullAssignment" })
 public class SharingFragment extends Fragment {
+
     private static final long VERIFY_INTERVAL_MS = 350L;
     private static final long VERIFY_TIMEOUT_MS = 8_000L;
 
@@ -63,20 +61,24 @@ public class SharingFragment extends Fragment {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener =
-            (sharedPreferences, key) -> {
-                if (!isAdded() || key == null) {
-                    return;
-                }
-                if (AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key)
-                        || AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key)
-                        || AppPrefs.KEY_SHARING_UPSTREAM_INTERFACE.equals(key)
-                        || AppPrefs.KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE.equals(key)
-                        || AppPrefs.KEY_ROOT_MODE.equals(key)
-                        || AppPrefs.KEY_KERNEL_WIREGUARD.equals(key)) {
-                    mainHandler.post(this::refreshUi);
-                }
-            };
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener = (
+        sharedPreferences,
+        key
+    ) -> {
+        if (!isAdded() || key == null) {
+            return;
+        }
+        if (
+            AppPrefs.KEY_ROOT_RUNTIME_ACTIVE.equals(key) ||
+            AppPrefs.KEY_ROOT_RUNTIME_TUNNEL.equals(key) ||
+            AppPrefs.KEY_SHARING_UPSTREAM_INTERFACE.equals(key) ||
+            AppPrefs.KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE.equals(key) ||
+            AppPrefs.KEY_ROOT_MODE.equals(key) ||
+            AppPrefs.KEY_KERNEL_WIREGUARD.equals(key)
+        ) {
+            mainHandler.post(this::refreshUi);
+        }
+    };
     private final BroadcastReceiver tetherStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -103,60 +105,66 @@ public class SharingFragment extends Fragment {
         binding = FragmentSharingBinding.bind(view);
 
         bindTetherToggleWithDetails(
-                binding.itemWifi,
-                TetherType.WIFI,
-                R.string.sharing_wifi,
-                SharingTargetSettingsActivity.Target.WIFI
+            binding.itemWifi,
+            TetherType.WIFI,
+            R.string.sharing_wifi,
+            SharingTargetSettingsActivity.Target.WIFI
         );
         bindTetherToggleWithDetails(
-                binding.itemUsb,
-                TetherType.USB,
-                R.string.sharing_usb,
-                SharingTargetSettingsActivity.Target.USB
+            binding.itemUsb,
+            TetherType.USB,
+            R.string.sharing_usb,
+            SharingTargetSettingsActivity.Target.USB
         );
         bindSimpleTetherToggle(binding.itemBluetooth, TetherType.BLUETOOTH, R.string.sharing_bluetooth);
         bindSimpleTetherToggle(binding.itemEthernet, TetherType.ETHERNET, R.string.sharing_ethernet);
         binding.itemEthernet.setVisibility(TetherType.isEthernetSupported() ? View.VISIBLE : View.GONE);
 
-        configureActionRow(binding.rowCleanRoutes, R.string.sharing_clean_title, R.string.sharing_clean_summary, this::onCleanRoutesRequested);
+        configureActionRow(
+            binding.rowCleanRoutes,
+            R.string.sharing_clean_title,
+            R.string.sharing_clean_summary,
+            clickedView -> onCleanRoutesRequested()
+        );
         binding.rowCurrentUpstreams.setTitle(getString(R.string.sharing_current_upstreams_title));
         configureActionRow(binding.rowUpstreamInterface, R.string.sharing_upstream_title, null, v ->
-                showInterfaceInputDialog(
-                        R.string.sharing_upstream_title,
-                        AppPrefs.getSharingUpstreamInterface(requireContext()),
-                        AppPrefs::setSharingUpstreamInterface
-                )
+            showInterfaceInputDialog(
+                R.string.sharing_upstream_title,
+                AppPrefs.getSharingUpstreamInterface(requireContext()),
+                AppPrefs::setSharingUpstreamInterface
+            )
         );
         configureActionRow(binding.rowFallbackUpstreamInterface, R.string.sharing_fallback_upstream_title, null, v ->
-                showInterfaceInputDialog(
-                        R.string.sharing_fallback_upstream_title,
-                        AppPrefs.getSharingFallbackUpstreamInterface(requireContext()),
-                        AppPrefs::setSharingFallbackUpstreamInterface
-                )
+            showInterfaceInputDialog(
+                R.string.sharing_fallback_upstream_title,
+                AppPrefs.getSharingFallbackUpstreamInterface(requireContext()),
+                AppPrefs::setSharingFallbackUpstreamInterface
+            )
         );
-        configureActionRow(
-                binding.rowMasqueradeMode,
+        configureActionRow(binding.rowMasqueradeMode, R.string.sharing_masquerade_title, null, v ->
+            showSingleChoiceDialog(
                 R.string.sharing_masquerade_title,
-                null,
-                v -> showSingleChoiceDialog(
-                        R.string.sharing_masquerade_title,
-                        R.array.sharing_masquerade_entries,
-                        R.array.sharing_masquerade_values,
-                        AppPrefs.getSharingMasqueradeMode(requireContext()),
-                        value -> {
-                            AppPrefs.setSharingMasqueradeMode(requireContext(), value);
-                            refreshUi();
-                        }
-                )
+                R.array.sharing_masquerade_entries,
+                R.array.sharing_masquerade_values,
+                AppPrefs.getSharingMasqueradeMode(requireContext()),
+                value -> {
+                    AppPrefs.setSharingMasqueradeMode(requireContext(), value);
+                    refreshUi();
+                }
+            )
         );
 
-        configureSettingSwitch(binding.itemDisableIpv6, R.string.sharing_disable_ipv6_title, R.string.sharing_disable_ipv6_summary,
-                checked -> AppPrefs.setSharingDisableIpv6Enabled(requireContext(), checked));
         configureSettingSwitch(
-                binding.itemAutoStartServices,
-                R.string.sharing_auto_start_title,
-                R.string.sharing_auto_start_summary,
-                checked -> AppPrefs.setSharingAutoStartOnBootEnabled(requireContext(), checked)
+            binding.itemDisableIpv6,
+            R.string.sharing_disable_ipv6_title,
+            R.string.sharing_disable_ipv6_summary,
+            checked -> AppPrefs.setSharingDisableIpv6Enabled(requireContext(), checked)
+        );
+        configureSettingSwitch(
+            binding.itemAutoStartServices,
+            R.string.sharing_auto_start_title,
+            R.string.sharing_auto_start_summary,
+            checked -> AppPrefs.setSharingAutoStartOnBootEnabled(requireContext(), checked)
         );
 
         refreshStickyState();
@@ -166,8 +174,9 @@ public class SharingFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
-                .registerOnSharedPreferenceChangeListener(preferenceChangeListener);
+        PreferenceManager.getDefaultSharedPreferences(
+            requireContext().getApplicationContext()
+        ).registerOnSharedPreferenceChangeListener(preferenceChangeListener);
         registerTetherReceiver();
         refreshStickyState();
         refreshUi();
@@ -182,8 +191,9 @@ public class SharingFragment extends Fragment {
     @Override
     public void onStop() {
         super.onStop();
-        PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
-                .unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
+        PreferenceManager.getDefaultSharedPreferences(
+            requireContext().getApplicationContext()
+        ).unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
         unregisterTetherReceiver();
     }
 
@@ -216,10 +226,12 @@ public class SharingFragment extends Fragment {
         });
     }
 
-    private void bindTetherToggleWithDetails(SwitchItemView itemView,
-                                             TetherType type,
-                                             int titleRes,
-                                             SharingTargetSettingsActivity.Target target) {
+    private void bindTetherToggleWithDetails(
+        SwitchItemView itemView,
+        TetherType type,
+        int titleRes,
+        SharingTargetSettingsActivity.Target target
+    ) {
         itemView.setTitle(getString(titleRes));
         itemView.setOnClickListener(v -> {
             if (!itemView.isEnabled()) {
@@ -236,10 +248,12 @@ public class SharingFragment extends Fragment {
         });
     }
 
-    private void configureActionRow(CardItemView row,
-                                    int titleRes,
-                                    @Nullable Integer summaryRes,
-                                    View.OnClickListener listener) {
+    private void configureActionRow(
+        CardItemView row,
+        int titleRes,
+        @Nullable Integer summaryRes,
+        View.OnClickListener listener
+    ) {
         row.setTitle(getString(titleRes));
         if (summaryRes != null) {
             row.setSummary(getString(summaryRes));
@@ -250,14 +264,16 @@ public class SharingFragment extends Fragment {
         });
     }
 
-    private void configureSettingSwitch(SwitchItemView itemView,
-                                        int titleRes,
-                                        int summaryRes,
-                                        SettingBooleanSetter setter) {
+    private void configureSettingSwitch(
+        SwitchItemView itemView,
+        int titleRes,
+        int summaryRes,
+        SettingBooleanSetter setter
+    ) {
         itemView.setTitle(getString(titleRes));
         itemView.setSummary(getString(summaryRes));
         itemView.setOnClickListener(v ->
-                applySettingSwitchChange(itemView, resolveTargetCheckedStateForRowTap(itemView), setter, v)
+            applySettingSwitchChange(itemView, resolveTargetCheckedStateForRowTap(itemView), setter, v)
         );
         itemView.setOnCheckedChangedListener((viewId, checked) -> {
             if (!updatingUi) {
@@ -271,14 +287,14 @@ public class SharingFragment extends Fragment {
         return itemView.getSeparateSwitch() ? !itemView.isChecked() : itemView.isChecked();
     }
 
-    private void applySettingSwitchChange(SwitchItemView itemView,
-                                          boolean checked,
-                                          SettingBooleanSetter setter,
-                                          View sourceView) {
+    private void applySettingSwitchChange(
+        SwitchItemView itemView,
+        boolean checked,
+        SettingBooleanSetter setter,
+        View sourceView
+    ) {
         if (itemView.isChecked() != checked) {
-            updatingUi = true;
             itemView.setChecked(checked);
-            updatingUi = false;
         }
         setter.set(checked);
         Haptics.softSliderStep(sourceView);
@@ -300,12 +316,7 @@ public class SharingFragment extends Fragment {
         executor.execute(() -> {
             String helperError = null;
             try {
-                RootUtils.runRootHelper(
-                        appContext,
-                        "tether",
-                        enabled ? "start" : "stop",
-                        type.commandName
-                );
+                RootUtils.runRootHelper(appContext, "tether", enabled ? "start" : "stop", type.commandName);
             } catch (Exception e) {
                 helperError = e.getMessage();
             }
@@ -319,7 +330,7 @@ public class SharingFragment extends Fragment {
         });
     }
 
-    private void onCleanRoutesRequested(View sourceView) {
+    private void onCleanRoutesRequested() {
         if (!isRootModeReady()) {
             refreshUi();
             return;
@@ -349,9 +360,7 @@ public class SharingFragment extends Fragment {
                     operationInFlight = false;
                     verificationRunnable = null;
                     if (ProxyTunnelService.isActive()) {
-                        requireContext().startService(
-                                ProxyTunnelService.createReapplySharingIntent(requireContext())
-                        );
+                        requireContext().startService(ProxyTunnelService.createReapplySharingIntent(requireContext()));
                     }
                     refreshUi();
                     return;
@@ -365,9 +374,9 @@ public class SharingFragment extends Fragment {
                         message = getString(R.string.sharing_state_change_timeout);
                     }
                     Toast.makeText(
-                            requireContext(),
-                            getString(R.string.sharing_action_failed_detail, message),
-                            Toast.LENGTH_SHORT
+                        requireContext(),
+                        getString(R.string.sharing_action_failed_detail, message),
+                        Toast.LENGTH_SHORT
                     ).show();
                     return;
                 }
@@ -408,38 +417,38 @@ public class SharingFragment extends Fragment {
         updateBooleanSetting(binding.itemAutoStartServices, AppPrefs.isSharingAutoStartOnBootEnabled(requireContext()));
 
         binding.rowCurrentUpstreams.setSummary(buildCurrentUpstreamsSummary());
-        binding.rowUpstreamInterface.setSummary(summarizeInterfaceValue(
+        binding.rowUpstreamInterface.setSummary(
+            summarizeInterfaceValue(
                 AppPrefs.getSharingUpstreamInterface(requireContext()),
                 R.string.sharing_upstream_summary_auto
-        ));
-        binding.rowFallbackUpstreamInterface.setSummary(summarizeInterfaceValue(
+            )
+        );
+        binding.rowFallbackUpstreamInterface.setSummary(
+            summarizeInterfaceValue(
                 AppPrefs.getSharingFallbackUpstreamInterface(requireContext()),
                 R.string.sharing_fallback_upstream_summary_auto
-        ));
-        binding.rowMasqueradeMode.setSummary(getMasqueradeModeLabel(
-                AppPrefs.getSharingMasqueradeMode(requireContext())
-        ));
+            )
+        );
+        binding.rowMasqueradeMode.setSummary(
+            getMasqueradeModeLabel(AppPrefs.getSharingMasqueradeMode(requireContext()))
+        );
         binding.rowCleanRoutes.setEnabled(rootModeReady && ProxyTunnelService.isActive());
     }
 
-    private void updateTetherToggle(SwitchItemView itemView,
-                                    TetherType type,
-                                    boolean rootModeReady) {
+    private void updateTetherToggle(SwitchItemView itemView, TetherType type, boolean rootModeReady) {
         boolean enabled = enabledTypes.contains(type);
         boolean interactive = rootModeReady && !operationInFlight;
-        updatingUi = true;
         itemView.setChecked(enabled);
-        updatingUi = false;
         itemView.setEnabled(interactive);
-        itemView.setSummary(rootModeReady
+        itemView.setSummary(
+            rootModeReady
                 ? getString(enabled ? R.string.sharing_state_on : R.string.sharing_state_off)
-                : getString(R.string.sharing_root_mode_required));
+                : getString(R.string.sharing_root_mode_required)
+        );
     }
 
     private void updateBooleanSetting(SwitchItemView itemView, boolean checked) {
-        updatingUi = true;
         itemView.setChecked(checked);
-        updatingUi = false;
     }
 
     private String summarizeInterfaceValue(String value, int autoSummaryRes) {
@@ -485,9 +494,11 @@ public class SharingFragment extends Fragment {
         if (backendType == BackendType.XRAY || backendType == BackendType.AMNEZIAWG) {
             return true;
         }
-        return backendType == BackendType.VK_TURN_WIREGUARD
-                && AppPrefs.isRootModeEnabled(context)
-                && !AppPrefs.isKernelWireGuardEnabled(context);
+        return (
+            backendType == BackendType.VK_TURN_WIREGUARD &&
+            AppPrefs.isRootModeEnabled(context) &&
+            !AppPrefs.isKernelWireGuardEnabled(context)
+        );
     }
 
     private boolean isInterfacePresent(@Nullable String interfaceName) {
@@ -528,9 +539,7 @@ public class SharingFragment extends Fragment {
         return getString(R.string.sharing_masquerade_netd);
     }
 
-    private void showInterfaceInputDialog(int titleRes,
-                                          @Nullable String initialValue,
-                                          StringPreferenceSetter setter) {
+    private void showInterfaceInputDialog(int titleRes, @Nullable String initialValue, StringPreferenceSetter setter) {
         Context context = requireContext();
         EditText editText = new EditText(context);
         editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -539,21 +548,23 @@ public class SharingFragment extends Fragment {
         editText.setSelection(editText.getText().length());
 
         new AlertDialog.Builder(context)
-                .setTitle(titleRes)
-                .setView(editText)
-                .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
-                    setter.set(context, editText.getText() == null ? "" : editText.getText().toString().trim());
-                    refreshUi();
-                })
-                .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-                .show();
+            .setTitle(titleRes)
+            .setView(editText)
+            .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
+                setter.set(context, editText.getText() == null ? "" : editText.getText().toString().trim());
+                refreshUi();
+            })
+            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
+            .show();
     }
 
-    private void showSingleChoiceDialog(int titleRes,
-                                        int entriesRes,
-                                        int valuesRes,
-                                        @Nullable String selectedValue,
-                                        ChoiceSetter setter) {
+    private void showSingleChoiceDialog(
+        int titleRes,
+        int entriesRes,
+        int valuesRes,
+        @Nullable String selectedValue,
+        ChoiceSetter setter
+    ) {
         Context context = requireContext();
         CharSequence[] entries = context.getResources().getTextArray(entriesRes);
         String[] values = context.getResources().getStringArray(valuesRes);
@@ -568,25 +579,23 @@ public class SharingFragment extends Fragment {
         }
 
         new AlertDialog.Builder(context)
-                .setTitle(titleRes)
-                .setSingleChoiceItems(entries, selectedIndex, (dialog, which) -> {
-                    if (which >= 0 && which < values.length) {
-                        setter.set(values[which]);
-                    }
-                    dialog.dismiss();
-                    refreshUi();
-                })
-                .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-                .show();
+            .setTitle(titleRes)
+            .setSingleChoiceItems(entries, selectedIndex, (dialog, which) -> {
+                if (which >= 0 && which < values.length) {
+                    setter.set(values[which]);
+                }
+                dialog.dismiss();
+                refreshUi();
+            })
+            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
+            .show();
     }
 
     private boolean isRootModeReady() {
-        return isAdded()
-                && AppPrefs.isRootModeEnabled(requireContext())
-                && RootUtils.isRootModeSupported(
-                requireContext(),
-                XrayStore.getBackendType(requireContext()),
-                false
+        return (
+            isAdded() &&
+            AppPrefs.isRootModeEnabled(requireContext()) &&
+            RootUtils.isRootModeSupported(requireContext(), XrayStore.getBackendType(requireContext()), false)
         );
     }
 
@@ -625,8 +634,7 @@ public class SharingFragment extends Fragment {
         }
         try {
             requireContext().unregisterReceiver(tetherStateReceiver);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         receiverRegistered = false;
     }
 }

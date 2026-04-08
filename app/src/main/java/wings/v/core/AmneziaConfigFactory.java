@@ -1,19 +1,17 @@
 package wings.v.core;
 
 import android.content.Context;
-
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import org.amnezia.awg.config.Config;
 import org.amnezia.awg.config.InetEndpoint;
 import org.amnezia.awg.config.Interface;
 import org.amnezia.awg.config.Peer;
 
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
-
 public final class AmneziaConfigFactory {
-    private AmneziaConfigFactory() {
-    }
+
+    private AmneziaConfigFactory() {}
 
     public static Config build(Context context, ProxySettings settings) throws Exception {
         if (settings == null || settings.backendType != BackendType.AMNEZIAWG) {
@@ -32,8 +30,7 @@ public final class AmneziaConfigFactory {
             throw new IllegalArgumentException("Локальный endpoint не заполнен");
         }
         Interface iface = parsed.getInterface();
-        Interface.Builder ifaceBuilder = new Interface.Builder()
-                .setKeyPair(iface.getKeyPair());
+        Interface.Builder ifaceBuilder = new Interface.Builder().setKeyPair(iface.getKeyPair());
         ifaceBuilder.addAddresses(iface.getAddresses());
         ifaceBuilder.addDnsServers(iface.getDnsServers());
         ifaceBuilder.addDnsSearchDomains(iface.getDnsSearchDomains());
@@ -67,13 +64,12 @@ public final class AmneziaConfigFactory {
             ifaceBuilder.includeApplications(iface.getIncludedApplications());
         }
 
-        Config.Builder configBuilder = new Config.Builder()
-                .setInterface(ifaceBuilder.build());
+        Config.Builder configBuilder = new Config.Builder().setInterface(ifaceBuilder.build());
         for (Peer peer : parsed.getPeers()) {
             Peer.Builder peerBuilder = new Peer.Builder()
-                    .setPublicKey(peer.getPublicKey())
-                    .addAllowedIps(peer.getAllowedIps())
-                    .setEndpoint(InetEndpoint.parse(localEndpoint));
+                .setPublicKey(peer.getPublicKey())
+                .addAllowedIps(peer.getAllowedIps())
+                .setEndpoint(InetEndpoint.parse(localEndpoint));
             if (peer.getPreSharedKey().isPresent()) {
                 peerBuilder.setPreSharedKey(peer.getPreSharedKey().get());
             }

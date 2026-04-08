@@ -3,11 +3,9 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
-
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -15,9 +13,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import wings.v.R;
-
+@SuppressWarnings("PMD.AvoidUsingHardCodedIP")
 public final class ByeDpiStore {
+
     public static final String KEY_OPEN_SETTINGS = "pref_open_bydpi_settings";
     public static final String KEY_AUTO_START_WITH_XRAY = "pref_bydpi_auto_start_with_xray";
     public static final String KEY_USE_COMMAND_SETTINGS = "pref_bydpi_use_command_settings";
@@ -66,8 +64,7 @@ public final class ByeDpiStore {
 
     private static final String STRATEGY_ASSET_PATH = "byedpi_proxytest_strategies.list";
 
-    private ByeDpiStore() {
-    }
+    private ByeDpiStore() {}
 
     @NonNull
     public static ByeDpiSettings getSettings(@Nullable Context context) {
@@ -77,9 +74,9 @@ public final class ByeDpiStore {
         }
         SharedPreferences prefs = prefs(context);
         SocksAuthCredentials.Pair credentials = SocksAuthCredentials.ensure(
-                prefs,
-                KEY_PROXY_USERNAME,
-                KEY_PROXY_PASSWORD
+            prefs,
+            KEY_PROXY_USERNAME,
+            KEY_PROXY_PASSWORD
         );
         settings.launchOnXrayStart = prefs.getBoolean(KEY_AUTO_START_WITH_XRAY, false);
         settings.useCommandLineSettings = prefs.getBoolean(KEY_USE_COMMAND_SETTINGS, false);
@@ -97,7 +94,7 @@ public final class ByeDpiStore {
         settings.hostsWhitelist = trim(prefs.getString(KEY_HOSTS_WHITELIST, ""));
         settings.defaultTtl = parseInt(prefs.getString(KEY_DEFAULT_TTL, "0"), 0);
         settings.desyncMethod = ByeDpiSettings.DesyncMethod.fromPrefValue(
-                prefs.getString(KEY_DESYNC_METHOD, ByeDpiSettings.DesyncMethod.OOB.prefValue)
+            prefs.getString(KEY_DESYNC_METHOD, ByeDpiSettings.DesyncMethod.OOB.prefValue)
         );
         settings.splitPosition = parseInt(prefs.getString(KEY_SPLIT_POSITION, "1"), 1);
         settings.splitAtHost = prefs.getBoolean(KEY_SPLIT_AT_HOST, false);
@@ -122,8 +119,7 @@ public final class ByeDpiStore {
         settings.proxyTestConcurrencyLimit = parseInt(prefs.getString(KEY_PROXYTEST_LIMIT, "20"), 20);
         settings.proxyTestTimeoutSeconds = parseInt(prefs.getString(KEY_PROXYTEST_TIMEOUT, "5"), 5);
         settings.proxyTestSni = trim(prefs.getString(KEY_PROXYTEST_SNI, "max.ru"));
-        settings.proxyTestUseCustomStrategies =
-                prefs.getBoolean(KEY_PROXYTEST_USE_CUSTOM_STRATEGIES, false);
+        settings.proxyTestUseCustomStrategies = prefs.getBoolean(KEY_PROXYTEST_USE_CUSTOM_STRATEGIES, false);
         settings.proxyTestCustomStrategies = trim(prefs.getString(KEY_PROXYTEST_CUSTOM_STRATEGIES, ""));
         return settings;
     }
@@ -157,18 +153,21 @@ public final class ByeDpiStore {
             }
             return result;
         }
-        try (InputStream inputStream = context.getAssets().open(STRATEGY_ASSET_PATH);
-             InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
-             BufferedReader reader = new BufferedReader(inputStreamReader)) {
+        try (
+            InputStream inputStream = context.getAssets().open(STRATEGY_ASSET_PATH);
+            InputStreamReader inputStreamReader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+            BufferedReader reader = new BufferedReader(inputStreamReader)
+        ) {
             String line;
-            while ((line = reader.readLine()) != null) {
+            line = reader.readLine();
+            while (line != null) {
                 String normalized = trim(line);
                 if (!TextUtils.isEmpty(normalized)) {
                     result.add(replaceStrategyPlaceholders(normalized, settings.proxyTestSni));
                 }
+                line = reader.readLine();
             }
-        } catch (Exception ignored) {
-        }
+        } catch (java.io.IOException ignored) {}
         return result;
     }
 
@@ -180,10 +179,7 @@ public final class ByeDpiStore {
         if (TextUtils.isEmpty(normalized)) {
             return;
         }
-        prefs(context).edit()
-                .putBoolean(KEY_USE_COMMAND_SETTINGS, true)
-                .putString(KEY_CMD_ARGS, normalized)
-                .apply();
+        prefs(context).edit().putBoolean(KEY_USE_COMMAND_SETTINGS, true).putString(KEY_CMD_ARGS, normalized).apply();
     }
 
     @NonNull
@@ -211,7 +207,7 @@ public final class ByeDpiStore {
     private static int parseInt(@Nullable String value, int defaultValue) {
         try {
             return Integer.parseInt(trim(value));
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return defaultValue;
         }
     }

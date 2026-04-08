@@ -317,8 +317,8 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 310
-        versionName = "3.1.0"
+        versionCode = 311
+        versionName = "3.1.1"
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

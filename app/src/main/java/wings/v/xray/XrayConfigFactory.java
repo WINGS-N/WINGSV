@@ -2,22 +2,28 @@ package wings.v.xray;
 
 import android.content.Context;
 import android.text.TextUtils;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-
+import org.json.JSONArray;
+import org.json.JSONObject;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
 import wings.v.core.XraySettings;
 
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.AvoidFileStream",
+    }
+)
 public final class XrayConfigFactory {
+
     private static final String TUN_TAG = "tun-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String PROXY_TAG = "proxy";
@@ -28,17 +34,19 @@ public final class XrayConfigFactory {
     private static final String BLOCK_TAG = "block";
     private static final int DEFAULT_MTU = 1500;
 
-    private XrayConfigFactory() {
-    }
+    private XrayConfigFactory() {}
 
     public static String buildConfigJson(Context context, ProxySettings settings) throws Exception {
-        if (settings == null || settings.activeXrayProfile == null
-                || TextUtils.isEmpty(settings.activeXrayProfile.rawLink)) {
+        if (
+            settings == null ||
+            settings.activeXrayProfile == null ||
+            TextUtils.isEmpty(settings.activeXrayProfile.rawLink)
+        ) {
             throw new IllegalArgumentException("Xray профиль не выбран");
         }
 
         JSONObject converted = new JSONObject(
-                XrayBridge.convertShareLinkToOutboundJson(settings.activeXrayProfile.rawLink)
+            XrayBridge.convertShareLinkToOutboundJson(settings.activeXrayProfile.rawLink)
         );
         JSONArray convertedOutbounds = converted.optJSONArray("outbounds");
         if (convertedOutbounds == null || convertedOutbounds.length() == 0) {
@@ -56,12 +64,7 @@ public final class XrayConfigFactory {
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
         root.put("inbounds", buildInbounds(xraySettings));
-        root.put("outbounds", buildOutbounds(
-                proxyOutbound,
-                xraySettings,
-                settings.activeXrayProfile,
-                settings.byeDpiSettings
-        ));
+        root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, settings.byeDpiSettings));
         root.put("routing", buildRouting(xraySettings));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
@@ -93,8 +96,7 @@ public final class XrayConfigFactory {
             }
             writeFile(new File(xrayDir, "config.json"), configJson);
             writeFile(new File(xrayDir, "proxy-outbound.json"), proxyOutbound.toString());
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static void writeFile(File file, String content) throws Exception {
@@ -112,14 +114,13 @@ public final class XrayConfigFactory {
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();
             }
-            if (file.exists() && !file.delete()) {
-                // fall through to overwrite if delete is blocked
+            if (file.exists()) {
+                file.delete();
             }
             try (FileOutputStream ignored = new FileOutputStream(file, false)) {
                 // recreate on each startup to keep xray logs session-scoped
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static JSONObject buildDns(XraySettings settings) throws Exception {
@@ -196,13 +197,13 @@ public final class XrayConfigFactory {
         return inbounds;
     }
 
-    private static JSONArray buildOutbounds(JSONObject proxyOutbound,
-                                            XraySettings xraySettings,
-                                            XrayProfile activeProfile,
-                                            ByeDpiSettings byeDpiSettings) throws Exception {
+    private static JSONArray buildOutbounds(
+        JSONObject proxyOutbound,
+        XraySettings xraySettings,
+        ByeDpiSettings byeDpiSettings
+    ) throws Exception {
         JSONArray outbounds = new JSONArray();
-        boolean useByeDpiFrontProxy = byeDpiSettings != null
-                && byeDpiSettings.launchOnXrayStart;
+        boolean useByeDpiFrontProxy = byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
         if (useByeDpiFrontProxy) {
             enableByeDpiFrontProxy(proxyOutbound, xraySettings);
         }
@@ -244,14 +245,8 @@ public final class XrayConfigFactory {
         return outbounds;
     }
 
-    static void enableByeDpiFrontProxy(JSONObject proxyOutbound,
-                                       XraySettings xraySettings) throws Exception {
-        proxyOutbound.put(
-                "proxySettings",
-                new JSONObject()
-                        .put("tag", BYEDPI_FRONT_TAG)
-                        .put("transportLayer", true)
-        );
+    static void enableByeDpiFrontProxy(JSONObject proxyOutbound, XraySettings xraySettings) throws Exception {
+        proxyOutbound.put("proxySettings", new JSONObject().put("tag", BYEDPI_FRONT_TAG).put("transportLayer", true));
 
         JSONObject streamSettings = proxyOutbound.optJSONObject("streamSettings");
         if (streamSettings == null) {
@@ -327,14 +322,21 @@ public final class XrayConfigFactory {
 
     static JSONObject buildSocksInboundSettings(XraySettings settings) throws Exception {
         JSONObject socksSettings = new JSONObject();
-        if (settings != null
-                && settings.localProxyAuthEnabled
-                && !TextUtils.isEmpty(trim(settings.localProxyUsername))
-                && !TextUtils.isEmpty(trim(settings.localProxyPassword))) {
+        if (
+            settings != null &&
+            settings.localProxyAuthEnabled &&
+            !TextUtils.isEmpty(trim(settings.localProxyUsername)) &&
+            !TextUtils.isEmpty(trim(settings.localProxyPassword))
+        ) {
             socksSettings.put("auth", "password");
-            socksSettings.put("accounts", new JSONArray().put(new JSONObject()
-                    .put("user", trim(settings.localProxyUsername))
-                    .put("pass", trim(settings.localProxyPassword))));
+            socksSettings.put(
+                "accounts",
+                new JSONArray().put(
+                    new JSONObject()
+                        .put("user", trim(settings.localProxyUsername))
+                        .put("pass", trim(settings.localProxyPassword))
+                )
+            );
         } else {
             socksSettings.put("auth", "noauth");
         }
@@ -351,9 +353,7 @@ public final class XrayConfigFactory {
         if (TextUtils.isEmpty(username) || TextUtils.isEmpty(password)) {
             return;
         }
-        server.put("users", new JSONArray().put(new JSONObject()
-                .put("user", username)
-                .put("pass", password)));
+        server.put("users", new JSONArray().put(new JSONObject().put("user", username).put("pass", password)));
     }
 
     static void applySecurityOverrides(JSONObject outbound, XraySettings settings) throws Exception {
@@ -387,8 +387,7 @@ public final class XrayConfigFactory {
         if (tlsSettings == null) {
             return;
         }
-        if (TextUtils.isEmpty(trim(tlsSettings.optString("serverName")))
-                && !TextUtils.isEmpty(fallbackServerName)) {
+        if (TextUtils.isEmpty(trim(tlsSettings.optString("serverName"))) && !TextUtils.isEmpty(fallbackServerName)) {
             tlsSettings.put("serverName", fallbackServerName);
         }
         pruneJsonObject(tlsSettings);
@@ -397,8 +396,7 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static void sanitizeRealitySettings(JSONObject streamSettings, String fallbackServerName)
-            throws Exception {
+    private static void sanitizeRealitySettings(JSONObject streamSettings, String fallbackServerName) throws Exception {
         JSONObject realitySettings = streamSettings.optJSONObject("realitySettings");
         if (realitySettings == null) {
             return;
@@ -407,25 +405,27 @@ public final class XrayConfigFactory {
         // libXray serializes client REALITY configs with server-only fields as null.
         // Xray-core treats dest/target json.RawMessage=null as present and switches to
         // server-side parsing, which then fails on missing serverNames/privateKey.
-        removeKeys(realitySettings,
-                "show",
-                "target",
-                "dest",
-                "type",
-                "xver",
-                "serverNames",
-                "privateKey",
-                "minClientVer",
-                "maxClientVer",
-                "maxTimeDiff",
-                "shortIds",
-                "mldsa65Seed",
-                "limitFallbackUpload",
-                "limitFallbackDownload",
-                "masterKeyLog"
+        removeKeys(
+            realitySettings,
+            "show",
+            "target",
+            "dest",
+            "type",
+            "xver",
+            "serverNames",
+            "privateKey",
+            "minClientVer",
+            "maxClientVer",
+            "maxTimeDiff",
+            "shortIds",
+            "mldsa65Seed",
+            "limitFallbackUpload",
+            "limitFallbackDownload",
+            "masterKeyLog"
         );
-        if (TextUtils.isEmpty(trim(realitySettings.optString("serverName")))
-                && !TextUtils.isEmpty(fallbackServerName)) {
+        if (
+            TextUtils.isEmpty(trim(realitySettings.optString("serverName"))) && !TextUtils.isEmpty(fallbackServerName)
+        ) {
             realitySettings.put("serverName", fallbackServerName);
         }
         pruneJsonObject(realitySettings);

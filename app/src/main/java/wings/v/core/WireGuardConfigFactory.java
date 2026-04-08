@@ -1,17 +1,15 @@
 package wings.v.core;
 
 import android.content.Context;
-
 import com.wireguard.config.Config;
-
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.TreeSet;
 
 public final class WireGuardConfigFactory {
-    private WireGuardConfigFactory() {
-    }
+
+    private WireGuardConfigFactory() {}
 
     public static Config build(Context context, ProxySettings settings) throws Exception {
         return build(context, settings, true);
@@ -26,9 +24,8 @@ public final class WireGuardConfigFactory {
             builder.append("DNS = ").append(settings.wgDns).append('\n');
         }
         if (includeAppRouting) {
-            Set<String> routedPackages = context != null
-                    ? new TreeSet<>(AppPrefs.getAppRoutingPackages(context))
-                    : new TreeSet<>();
+            Set<String> routedPackages =
+                context != null ? new TreeSet<>(AppPrefs.getAppRoutingPackages(context)) : new TreeSet<>();
             if (!routedPackages.isEmpty()) {
                 String joinedPackages = String.join(", ", routedPackages);
                 if (AppPrefs.isAppRoutingBypassEnabled(context)) {
@@ -47,12 +44,10 @@ public final class WireGuardConfigFactory {
         builder.append("AllowedIPs = ").append(settings.wgAllowedIps).append('\n');
         builder.append("Endpoint = ").append(settings.localEndpoint).append('\n');
 
-        return Config.parse(new ByteArrayInputStream(
-                builder.toString().getBytes(StandardCharsets.UTF_8)
-        ));
+        return Config.parse(new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8)));
     }
 
     private static boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
+        return value == null || value.isBlank();
     }
 }

@@ -3,8 +3,8 @@ package wings.v.core;
 import android.content.Intent;
 import android.net.TetheringManager;
 import android.os.Build;
-
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -39,7 +39,7 @@ public enum TetherType {
     }
 
     public static Set<TetherType> readEnabledTypes(Intent intent) {
-        Set<TetherType> types = new HashSet<>();
+        Set<TetherType> types = EnumSet.noneOf(TetherType.class);
         for (String iface : readEnabledInterfaces(intent)) {
             TetherType type = detectFromInterface(iface);
             if (type != null) {
@@ -57,7 +57,7 @@ public enum TetherType {
         ArrayList<String> tetheredList = intent.getStringArrayListExtra(EXTRA_ACTIVE_TETHER);
         if (tetheredList != null) {
             for (String iface : tetheredList) {
-                if (iface != null && !iface.trim().isEmpty()) {
+                if (iface != null && !iface.isBlank()) {
                     interfaces.add(iface.trim());
                 }
             }
@@ -70,7 +70,7 @@ public enum TetherType {
             return interfaces;
         }
         for (String iface : tetheredArray) {
-            if (iface != null && !iface.trim().isEmpty()) {
+            if (iface != null && !iface.isBlank()) {
                 interfaces.add(iface.trim());
             }
         }
@@ -90,25 +90,21 @@ public enum TetherType {
             return null;
         }
         String normalized = iface.toLowerCase(Locale.US);
-        if (normalized.startsWith("wlan")
-                || normalized.startsWith("swlan")
-                || normalized.startsWith("softap")
-                || normalized.startsWith("ap")) {
+        if (
+            normalized.startsWith("wlan") ||
+            normalized.startsWith("swlan") ||
+            normalized.startsWith("softap") ||
+            normalized.startsWith("ap")
+        ) {
             return WIFI;
         }
-        if (normalized.startsWith("rndis")
-                || normalized.startsWith("usb")
-                || normalized.startsWith("ncm")) {
+        if (normalized.startsWith("rndis") || normalized.startsWith("usb") || normalized.startsWith("ncm")) {
             return USB;
         }
-        if (normalized.startsWith("bnep")
-                || normalized.startsWith("bt-pan")
-                || normalized.startsWith("bt")) {
+        if (normalized.startsWith("bnep") || normalized.startsWith("bt-pan") || normalized.startsWith("bt")) {
             return BLUETOOTH;
         }
-        if (normalized.startsWith("eth")
-                || normalized.startsWith("en")
-                || normalized.contains("ether")) {
+        if (normalized.startsWith("eth") || normalized.startsWith("en") || normalized.contains("ether")) {
             return ETHERNET;
         }
         return null;

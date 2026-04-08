@@ -1,5 +1,6 @@
 package wings.v.qs;
 
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -8,7 +9,9 @@ import android.os.Build;
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public abstract class BaseQuickSettingsTileService extends TileService {
+
     private boolean refreshReceiverRegistered;
     private final BroadcastReceiver refreshReceiver = new BroadcastReceiver() {
         @Override
@@ -65,6 +68,7 @@ public abstract class BaseQuickSettingsTileService extends TileService {
 
     protected abstract void handleTileClick();
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void registerRefreshReceiverIfNeeded() {
         if (refreshReceiverRegistered) {
             return;
@@ -77,8 +81,7 @@ public abstract class BaseQuickSettingsTileService extends TileService {
                 registerReceiver(refreshReceiver, filter);
             }
             refreshReceiverRegistered = true;
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private void unregisterRefreshReceiver() {

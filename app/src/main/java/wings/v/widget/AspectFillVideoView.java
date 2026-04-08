@@ -4,10 +4,10 @@ import android.content.Context;
 import android.media.MediaPlayer;
 import android.util.AttributeSet;
 import android.widget.VideoView;
-
 import androidx.annotation.Nullable;
 
 public class AspectFillVideoView extends VideoView {
+
     private int videoWidth;
     private int videoHeight;
 

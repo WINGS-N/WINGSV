@@ -3,18 +3,15 @@ package wings.v.byedpi;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import wings.v.R;
 import wings.v.databinding.ItemByeDpiStrategyResultBinding;
 
-public final class ByeDpiStrategyResultAdapter
-        extends RecyclerView.Adapter<ByeDpiStrategyResultAdapter.ViewHolder> {
+public final class ByeDpiStrategyResultAdapter extends RecyclerView.Adapter<ByeDpiStrategyResultAdapter.ViewHolder> {
+
     public interface OnApplyListener {
         void onApply(ByeDpiStrategyResult result);
     }
@@ -44,9 +41,9 @@ public final class ByeDpiStrategyResultAdapter
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         ItemByeDpiStrategyResultBinding binding = ItemByeDpiStrategyResultBinding.inflate(
-                LayoutInflater.from(parent.getContext()),
-                parent,
-                false
+            LayoutInflater.from(parent.getContext()),
+            parent,
+            false
         );
         return new ViewHolder(binding);
     }
@@ -59,17 +56,19 @@ public final class ByeDpiStrategyResultAdapter
         holder.binding.progressStrategy.setProgress(Math.max(0, result.successCount));
         boolean hasProgress = result.totalRequests > 0;
         holder.binding.progressStrategy.setVisibility(hasProgress ? View.VISIBLE : View.GONE);
-        holder.binding.textStrategyResult.setText(hasProgress
-                ? holder.binding.getRoot().getContext().getString(
-                        R.string.byedpi_strategy_result_summary,
-                        result.successCount,
-                        result.totalRequests
-                )
-                : holder.binding.getRoot().getContext().getString(
-                        testing
-                                ? R.string.byedpi_strategy_result_waiting
-                                : R.string.byedpi_strategy_result_not_tested
-                ));
+        holder.binding.textStrategyResult.setText(
+            hasProgress
+                ? holder.binding
+                      .getRoot()
+                      .getContext()
+                      .getString(R.string.byedpi_strategy_result_summary, result.successCount, result.totalRequests)
+                : holder.binding
+                      .getRoot()
+                      .getContext()
+                      .getString(
+                          testing ? R.string.byedpi_strategy_result_waiting : R.string.byedpi_strategy_result_not_tested
+                      )
+        );
         holder.binding.buttonApplyStrategy.setEnabled(result.completed && !testing);
         holder.binding.buttonApplyStrategy.setOnClickListener(view -> {
             if (onApplyListener != null) {
@@ -84,6 +83,7 @@ public final class ByeDpiStrategyResultAdapter
     }
 
     static final class ViewHolder extends RecyclerView.ViewHolder {
+
         final ItemByeDpiStrategyResultBinding binding;
 
         ViewHolder(ItemByeDpiStrategyResultBinding binding) {
