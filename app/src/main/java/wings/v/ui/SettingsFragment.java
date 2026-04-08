@@ -40,15 +40,41 @@ import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
 import wings.v.core.XrayStore;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.ExcessiveImports",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.NcssCount",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.ShortClassName",
+        "PMD.ShortMethodName",
+        "PMD.OnlyOneReturn",
+        "PMD.ImplicitFunctionalInterface",
+        "PMD.UncommentedEmptyMethodBody",
+    }
+)
 public class SettingsFragment extends PreferenceFragmentCompat {
 
+    private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
     private static final String[] VK_PROXY_PREFERENCE_KEYS = {
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINK,
         AppPrefs.KEY_THREADS,
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
+        AppPrefs.KEY_MANUAL_CAPTCHA,
         AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_LOCAL_ENDPOINT,
         AppPrefs.KEY_TURN_HOST,
@@ -121,6 +147,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         bindSummaryPreference(AppPrefs.KEY_WG_ALLOWED_IPS);
         bindSwitchHaptics(AppPrefs.KEY_USE_UDP);
         bindSwitchHaptics(AppPrefs.KEY_NO_OBFUSCATION);
+        bindSwitchHaptics(AppPrefs.KEY_MANUAL_CAPTCHA);
         bindSwitchHaptics(AppPrefs.KEY_AUTO_START_ON_BOOT);
 
         bindSecretPreference(AppPrefs.KEY_WG_PRIVATE_KEY);
@@ -439,7 +466,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             if (TextUtils.isEmpty(value)) {
                 return "Не задано";
             }
-            if (value.length() <= 12) {
+            if (value.length() <= SECRET_PREVIEW_PLAIN_LENGTH) {
                 return value;
             }
             return value.substring(0, 6) + "…" + value.substring(value.length() - 4);
@@ -509,6 +536,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
         syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
         syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
+        syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
         syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
         syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
         syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);

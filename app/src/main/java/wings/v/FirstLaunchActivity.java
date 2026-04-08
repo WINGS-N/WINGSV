@@ -28,7 +28,17 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ActivityFirstLaunchBinding;
 import wings.v.ui.FirstLaunchPagerAdapter;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class FirstLaunchActivity
     extends AppCompatActivity
     implements

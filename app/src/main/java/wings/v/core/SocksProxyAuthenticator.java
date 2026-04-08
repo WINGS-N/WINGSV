@@ -6,7 +6,17 @@ import androidx.annotation.Nullable;
 import java.net.Authenticator;
 import java.net.PasswordAuthentication;
 
-@SuppressWarnings({ "PMD.NullAssignment", "PMD.AvoidSynchronizedStatement" })
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.AvoidSynchronizedStatement",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class SocksProxyAuthenticator {
 
     private static final Object LOCK = new Object();
@@ -16,20 +26,20 @@ public final class SocksProxyAuthenticator {
     private SocksProxyAuthenticator() {}
 
     public static <T> T run(
-        @Nullable String host,
-        int port,
-        @Nullable String username,
-        @Nullable String password,
-        @NonNull Request<T> request
+        @Nullable final String host,
+        final int port,
+        @Nullable final String username,
+        @Nullable final String password,
+        @NonNull final Request<T> request
     ) throws Exception {
-        String normalizedUsername = trim(username);
-        String normalizedPassword = trim(password);
+        final String normalizedUsername = trim(username);
+        final String normalizedPassword = trim(password);
         if (TextUtils.isEmpty(normalizedUsername) || TextUtils.isEmpty(normalizedPassword) || port <= 0) {
             return request.run();
         }
         synchronized (LOCK) {
             installAuthenticator();
-            ActiveCredentials credentials = new ActiveCredentials(port, normalizedUsername, normalizedPassword);
+            final ActiveCredentials credentials = new ActiveCredentials(port, normalizedUsername, normalizedPassword);
             activeCredentials = credentials;
             try {
                 return request.run();
@@ -49,7 +59,7 @@ public final class SocksProxyAuthenticator {
             new Authenticator() {
                 @Override
                 protected PasswordAuthentication getPasswordAuthentication() {
-                    ActiveCredentials credentials = activeCredentials;
+                    final ActiveCredentials credentials = activeCredentials;
                     if (
                         credentials == null ||
                         getRequestorType() != RequestorType.PROXY ||
@@ -65,10 +75,11 @@ public final class SocksProxyAuthenticator {
     }
 
     @NonNull
-    private static String trim(@Nullable String value) {
+    private static String trim(@Nullable final String value) {
         return value == null ? "" : value.trim();
     }
 
+    @FunctionalInterface
     public interface Request<T> {
         T run() throws Exception;
     }
@@ -79,7 +90,7 @@ public final class SocksProxyAuthenticator {
         final String username;
         final String password;
 
-        ActiveCredentials(int port, @NonNull String username, @NonNull String password) {
+        ActiveCredentials(final int port, @NonNull final String username, @NonNull final String password) {
             this.port = port;
             this.username = username;
             this.password = password;

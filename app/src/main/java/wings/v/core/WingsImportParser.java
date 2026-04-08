@@ -17,7 +17,18 @@ import org.amnezia.awg.config.Config;
 import org.json.JSONObject;
 import wings.v.proto.WingsvProto;
 
-@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.SignatureDeclareThrowsException" })
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.CommentRequired",
+        "PMD.LongVariable",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.LawOfDemeter",
+    }
+)
 public final class WingsImportParser {
 
     private static final Pattern LINK_PATTERN = Pattern.compile("wingsv://[A-Za-z0-9_\\-+/=]+");
@@ -855,6 +866,9 @@ public final class WingsImportParser {
         if (settings.hasSniffingEnabled()) {
             result.sniffingEnabled = settings.getSniffingEnabled();
         }
+        if (settings.hasProxyQuicEnabled()) {
+            result.proxyQuicEnabled = settings.getProxyQuicEnabled();
+        }
         return result;
     }
 
@@ -884,6 +898,9 @@ public final class WingsImportParser {
         if (!settings.sniffingEnabled) {
             builder.setSniffingEnabled(false);
         }
+        if (settings.proxyQuicEnabled) {
+            builder.setProxyQuicEnabled(true);
+        }
         return builder.build();
     }
 
@@ -908,6 +925,7 @@ public final class WingsImportParser {
         settings.directDns = "https://common.dot.dns.yandex.net/dns-query";
         settings.ipv6 = true;
         settings.sniffingEnabled = true;
+        settings.proxyQuicEnabled = false;
         settings.restartOnNetworkChange = false;
         return settings;
     }

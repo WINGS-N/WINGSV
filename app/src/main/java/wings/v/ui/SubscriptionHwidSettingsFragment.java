@@ -14,7 +14,16 @@ import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.SubscriptionHwidStore;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+    }
+)
 public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
 
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;

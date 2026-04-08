@@ -84,6 +84,12 @@
         android:title="Без обфускации"
         android:defaultValue="false" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_manual_captcha"
+        android:title="@string/manual_captcha_title"
+        android:summary="@string/manual_captcha_summary"
+        android:defaultValue="false" />
+
     <androidx.preference.DropDownPreference
         android:key="pref_turn_session_mode"
         android:title="@string/turn_session_mode_title"

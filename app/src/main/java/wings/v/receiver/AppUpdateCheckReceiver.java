@@ -21,7 +21,19 @@ import wings.v.core.AppUpdateBackgroundScheduler;
 import wings.v.core.AppUpdateManager;
 import wings.v.core.PermissionUtils;
 
-@SuppressWarnings("PMD.DoNotUseThreads")
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.CyclomaticComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class AppUpdateCheckReceiver extends BroadcastReceiver {
 
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();

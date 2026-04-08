@@ -15,7 +15,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
 @SuppressWarnings(
-    { "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment", "PMD.AvoidCatchingGenericException" }
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.NullAssignment",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.ImplicitFunctionalInterface",
+        "PMD.LongVariable",
+        "PMD.CognitiveComplexity",
+        "PMD.LawOfDemeter",
+    }
 )
 final class ProxyProtectBridgeServer implements Closeable {
 

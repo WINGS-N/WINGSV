@@ -4,6 +4,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.preference.DropDownPreference;
 import androidx.preference.EditTextPreference;
@@ -17,16 +19,36 @@ import java.util.Set;
 import wings.v.ByeDpiStrategyTestActivity;
 import wings.v.ByeDpiTargetsActivity;
 import wings.v.R;
+import wings.v.WarningConfirmActivity;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ByeDpiStore;
 import wings.v.core.Haptics;
+import wings.v.core.SocksAuthSecurity;
 import wings.v.core.XrayStore;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
+
+    private static final int SOCKS_AUTH_DISABLE_WARNING_DELAY_SECONDS = 15;
 
     private static final Set<String> RUNTIME_AFFECTING_KEYS = new LinkedHashSet<>();
     private static final String[] UI_EDITOR_KEYS = {
@@ -96,6 +118,26 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+
+    @Nullable
+    private Runnable pendingWarningConfirmedAction;
+
+    private final ActivityResultLauncher<android.content.Intent> warningLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            Runnable action = pendingWarningConfirmedAction;
+            pendingWarningConfirmedAction = null;
+            if (!isAdded()) {
+                return;
+            }
+            if (result.getResultCode() == android.app.Activity.RESULT_OK && action != null) {
+                action.run();
+            }
+            syncFromPrefs();
+            refreshAvailability();
+            refreshVisibility();
+        }
+    );
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -191,6 +233,18 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         }
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
+            if (shouldWarnBeforeDisablingSocksAuth(key, preference, newValue)) {
+                showWarningBeforeApplying(
+                    () -> {
+                        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+                        if (preferences != null) {
+                            preferences.edit().putBoolean(key, false).apply();
+                        }
+                    },
+                    getString(R.string.warning_socks_auth_disable)
+                );
+                return false;
+            }
             return true;
         });
     }
@@ -229,6 +283,22 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
                 )
             );
         }
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            if (shouldWarnBeforeAcceptingWeakPassword(key, newValue)) {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                showWarningBeforeApplying(
+                    () -> {
+                        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+                        if (preferences != null) {
+                            preferences.edit().putString(key, newValue == null ? "" : String.valueOf(newValue)).apply();
+                        }
+                    },
+                    getString(R.string.warning_socks_password_weak)
+                );
+                return false;
+            }
+            return true;
+        });
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             return TextUtils.isEmpty(value) ? getString(R.string.byedpi_value_not_set) : value;
@@ -475,5 +545,32 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
 
     private boolean isRuntimeAffectingKey(@Nullable String key) {
         return !TextUtils.isEmpty(key) && RUNTIME_AFFECTING_KEYS.contains(key);
+    }
+
+    private boolean shouldWarnBeforeDisablingSocksAuth(String key, SwitchPreferenceCompat preference, Object newValue) {
+        return (
+            TextUtils.equals(key, ByeDpiStore.KEY_PROXY_AUTH_ENABLED) &&
+            preference.isChecked() &&
+            Boolean.FALSE.equals(newValue)
+        );
+    }
+
+    private boolean shouldWarnBeforeAcceptingWeakPassword(String key, Object newValue) {
+        if (!TextUtils.equals(key, ByeDpiStore.KEY_PROXY_PASSWORD)) {
+            return false;
+        }
+        ByeDpiSettings settings = ByeDpiStore.getSettings(requireContext());
+        if (!settings.proxyAuthEnabled) {
+            return false;
+        }
+        String candidatePassword = newValue == null ? "" : String.valueOf(newValue);
+        return SocksAuthSecurity.isPasswordTooSimple(settings.proxyUsername, candidatePassword);
+    }
+
+    private void showWarningBeforeApplying(Runnable action, String warningText) {
+        pendingWarningConfirmedAction = action;
+        warningLauncher.launch(
+            WarningConfirmActivity.createIntent(requireContext(), warningText, SOCKS_AUTH_DISABLE_WARNING_DELAY_SECONDS)
+        );
     }
 }

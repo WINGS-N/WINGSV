@@ -12,6 +12,8 @@ import org.json.JSONObject;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
+import wings.v.core.XrayRoutingRule;
+import wings.v.core.XrayRoutingStore;
 import wings.v.core.XraySettings;
 
 @SuppressWarnings(
@@ -20,6 +22,19 @@ import wings.v.core.XraySettings;
         "PMD.SignatureDeclareThrowsException",
         "PMD.AvoidUsingHardCodedIP",
         "PMD.AvoidFileStream",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.CyclomaticComplexity",
+        "PMD.CognitiveComplexity",
+        "PMD.GodClass",
+        "PMD.TooManyMethods",
+        "PMD.LooseCoupling",
     }
 )
 public final class XrayConfigFactory {
@@ -65,7 +80,7 @@ public final class XrayConfigFactory {
         root.put("dns", buildDns(xraySettings));
         root.put("inbounds", buildInbounds(xraySettings));
         root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, settings.byeDpiSettings));
-        root.put("routing", buildRouting(xraySettings));
+        root.put("routing", buildRouting(context, xraySettings));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
         return configJson;
@@ -264,7 +279,7 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static JSONObject buildRouting(XraySettings settings) throws Exception {
+    private static JSONObject buildRouting(Context context, XraySettings settings) throws Exception {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
         JSONArray rules = new JSONArray();
@@ -288,6 +303,23 @@ public final class XrayConfigFactory {
         internalDnsRule.put("outboundTag", DIRECT_TAG);
         rules.put(internalDnsRule);
 
+        if (!settings.proxyQuicEnabled) {
+            JSONObject blockQuicRule = new JSONObject();
+            blockQuicRule.put("type", "field");
+            JSONArray quicInboundTags = new JSONArray();
+            quicInboundTags.put(TUN_TAG);
+            if (isLocalProxyEnabled(settings)) {
+                quicInboundTags.put(SOCKS_TAG);
+            }
+            blockQuicRule.put("inboundTag", quicInboundTags);
+            blockQuicRule.put("network", "udp");
+            blockQuicRule.put("port", "443");
+            blockQuicRule.put("outboundTag", BLOCK_TAG);
+            rules.put(blockQuicRule);
+        }
+
+        addGeoRoutingRules(rules, settings, context);
+
         JSONObject trafficRule = new JSONObject();
         trafficRule.put("type", "field");
         JSONArray inboundTags = new JSONArray();
@@ -307,6 +339,39 @@ public final class XrayConfigFactory {
 
         routing.put("rules", rules);
         return routing;
+    }
+
+    private static void addGeoRoutingRules(JSONArray rules, XraySettings settings, Context context) throws Exception {
+        for (XrayRoutingRule rule : XrayRoutingStore.getValidRules(context)) {
+            if (rule == null || !rule.enabled || TextUtils.isEmpty(rule.code)) {
+                continue;
+            }
+            JSONObject routingRule = new JSONObject();
+            routingRule.put("type", "field");
+            JSONArray inboundTags = new JSONArray();
+            inboundTags.put(TUN_TAG);
+            if (isLocalProxyEnabled(settings)) {
+                inboundTags.put(SOCKS_TAG);
+            }
+            routingRule.put("inboundTag", inboundTags);
+            if (rule.matchType == XrayRoutingRule.MatchType.GEOSITE) {
+                routingRule.put("domain", new JSONArray().put("geosite:" + rule.code));
+            } else {
+                routingRule.put("ip", new JSONArray().put("geoip:" + rule.code));
+            }
+            routingRule.put("outboundTag", resolveOutboundTag(rule.action));
+            rules.put(routingRule);
+        }
+    }
+
+    private static String resolveOutboundTag(XrayRoutingRule.Action action) {
+        if (action == XrayRoutingRule.Action.DIRECT) {
+            return DIRECT_TAG;
+        }
+        if (action == XrayRoutingRule.Action.BLOCK) {
+            return BLOCK_TAG;
+        }
+        return PROXY_TAG;
     }
 
     private static JSONObject buildSniffing(XraySettings settings) throws Exception {

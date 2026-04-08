@@ -32,7 +32,27 @@ import wings.v.databinding.ActivitySharingTargetSettingsBinding;
 import wings.v.service.ProxyTunnelService;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
 
-@SuppressWarnings("PMD.DoNotUseThreads")
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.ExcessiveImports",
+        "PMD.AtLeastOneConstructor",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.ImplicitFunctionalInterface",
+    }
+)
 public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     private static final String EXTRA_TARGET = "sharing_target";

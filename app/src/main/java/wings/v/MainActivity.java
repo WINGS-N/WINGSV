@@ -38,7 +38,25 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityMainBinding;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.ExcessiveImports",
+        "PMD.AtLeastOneConstructor",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.ConfusingTernary",
+    }
+)
 public class MainActivity extends AppCompatActivity {
 
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";

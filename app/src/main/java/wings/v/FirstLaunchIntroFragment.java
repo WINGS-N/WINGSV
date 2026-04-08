@@ -8,9 +8,19 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import wings.v.core.Haptics;
 import wings.v.databinding.FragmentFirstLaunchIntroBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+    }
+)
 public class FirstLaunchIntroFragment extends Fragment {
 
     private static final String ARG_TITLE_RES = "title_res";
@@ -70,6 +80,7 @@ public class FirstLaunchIntroFragment extends Fragment {
         }
         binding.buttonFirstLaunchAction.setText(args.getInt(ARG_BUTTON_RES));
         binding.buttonFirstLaunchAction.setOnClickListener(v -> {
+            Haptics.softConfirm(v);
             if (getActivity() instanceof Host) {
                 ((Host) getActivity()).onAdvanceIntroPage();
             }

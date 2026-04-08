@@ -30,10 +30,21 @@
         android:defaultValue="true" />
 
     <SwitchPreferenceCompat
+        android:key="pref_xray_proxy_quic_enabled"
+        android:title="@string/xray_settings_proxy_quic_title"
+        android:summary="@string/xray_settings_proxy_quic_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
         android:key="pref_xray_restart_on_network_change"
         android:title="@string/xray_settings_restart_on_network_change_title"
         android:summary="@string/xray_settings_restart_on_network_change_summary"
         android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_xray_routing_open"
+        android:title="@string/xray_settings_routing_title"
+        android:summary="@string/xray_settings_routing_summary" />
 
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
 

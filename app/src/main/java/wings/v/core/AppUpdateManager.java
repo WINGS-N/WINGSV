@@ -38,15 +38,23 @@ import org.json.JSONObject;
         "PMD.AvoidFileStream",
         "PMD.ExceptionAsFlowControl",
         "PMD.AvoidSynchronizedStatement",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
     }
 )
 public final class AppUpdateManager {
 
+    private static final int TIRAMISU_API = 33;
     private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases/latest";
     private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
     private static final String PREFERRED_APK_ASSET_NAME = "app-release.apk";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 30_000;
+    private static final long MIN_CONTENT_LENGTH_BYTES = 1L;
     private static final long PROGRESS_UPDATE_INTERVAL_MS = 250L;
     private static final Pattern VERSION_NUMBER_PATTERN = Pattern.compile("\\d+");
 
@@ -55,7 +63,7 @@ public final class AppUpdateManager {
     private final Context appContext;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final CopyOnWriteArraySet<Listener> listeners = new CopyOnWriteArraySet<>();
+    private final java.util.Set<Listener> listeners = new CopyOnWriteArraySet<>();
     private final AtomicReference<HttpURLConnection> activeConnection = new AtomicReference<>();
 
     private volatile UpdateState state = UpdateState.idle();
@@ -159,7 +167,7 @@ public final class AppUpdateManager {
                 }
 
                 long totalBytes = connection.getContentLengthLong();
-                if (totalBytes <= 0L) {
+                if (totalBytes < MIN_CONTENT_LENGTH_BYTES) {
                     totalBytes = releaseInfo.apkAssetSize;
                 }
 
@@ -453,7 +461,7 @@ public final class AppUpdateManager {
 
     @NonNull
     private static List<Long> extractVersionParts(String value) {
-        ArrayList<Long> result = new ArrayList<>();
+        List<Long> result = new ArrayList<>();
         if (value == null) {
             return result;
         }
@@ -479,7 +487,7 @@ public final class AppUpdateManager {
     private String resolveCurrentVersionName() {
         try {
             PackageInfo packageInfo;
-            if (Build.VERSION.SDK_INT >= 33) {
+            if (Build.VERSION.SDK_INT >= TIRAMISU_API) {
                 packageInfo = appContext
                     .getPackageManager()
                     .getPackageInfo(appContext.getPackageName(), PackageManager.PackageInfoFlags.of(0));

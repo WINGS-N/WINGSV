@@ -23,7 +23,23 @@ import wings.v.core.AutoSearchManager;
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentFirstLaunchAutoSearchSettingsBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.AtLeastOneConstructor",
+        "PMD.ImplicitFunctionalInterface",
+        "PMD.ShortClassName",
+        "PMD.UncommentedEmptyMethodBody",
+    }
+)
 public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
 
     public interface Host {

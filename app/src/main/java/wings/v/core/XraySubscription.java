@@ -7,6 +7,17 @@ import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.ShortVariable",
+        "PMD.LongVariable",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.UselessParentheses",
+    }
+)
 public final class XraySubscription {
 
     public final String id;

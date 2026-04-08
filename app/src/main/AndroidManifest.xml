@@ -83,6 +83,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".WarningConfirmActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".OpenSourceLicensesActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
@@ -109,6 +114,16 @@
 
         <activity
             android:name=".XraySettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".XrayRoutingSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".XrayRoutingRulesActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
 

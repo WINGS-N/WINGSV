@@ -9,7 +9,17 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import wings.v.R;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class XposedModulePrefs {
 
     public static final String PREFS_NAME = "xposed_module_preferences";

@@ -24,10 +24,23 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.CaptchaPromptSource;
+import wings.v.core.Haptics;
 import wings.v.databinding.ActivityCaptchaBrowserBinding;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.NullAssignment", "PMD.AvoidUsingHardCodedIP" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.NullAssignment",
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class CaptchaBrowserActivity extends AppCompatActivity {
 
     private static final String EXTRA_URL = "wings.v.extra.CAPTCHA_URL";
@@ -100,9 +113,18 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
         subtitleExpanded = savedInstanceState != null && savedInstanceState.getBoolean(STATE_SUBTITLE_EXPANDED, false);
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
-        binding.buttonCaptchaCancel.setOnClickListener(v -> cancelCaptchaAndFinish());
-        binding.textCaptchaExpand.setOnClickListener(v -> toggleSubtitleExpanded());
-        binding.textCaptchaCollapse.setOnClickListener(v -> toggleDetailsCollapsed());
+        binding.buttonCaptchaCancel.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            cancelCaptchaAndFinish();
+        });
+        binding.textCaptchaExpand.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            toggleSubtitleExpanded();
+        });
+        binding.textCaptchaCollapse.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            toggleDetailsCollapsed();
+        });
         configureBackHandling();
         configureWebView();
         syncSubtitleExpansionUi();

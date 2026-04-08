@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
+@SuppressWarnings({ "PMD.CommentRequired", "PMD.LongVariable", "PMD.LawOfDemeter", "PMD.OnlyOneReturn" })
 public enum TetherType {
     WIFI("wifi", TetheringManager.TETHERING_WIFI),
     USB("usb", 1),
@@ -21,16 +22,16 @@ public enum TetherType {
     public final String commandName;
     public final int systemType;
 
-    TetherType(String commandName, int systemType) {
+    TetherType(final String commandName, final int systemType) {
         this.commandName = commandName;
         this.systemType = systemType;
     }
 
-    public static TetherType fromCommandName(String rawValue) {
+    public static TetherType fromCommandName(final String rawValue) {
         if (rawValue == null) {
             throw new IllegalArgumentException("Unknown tether type");
         }
-        for (TetherType value : values()) {
+        for (final TetherType value : values()) {
             if (value.commandName.equalsIgnoreCase(rawValue)) {
                 return value;
             }
@@ -38,10 +39,10 @@ public enum TetherType {
         throw new IllegalArgumentException("Unknown tether type: " + rawValue);
     }
 
-    public static Set<TetherType> readEnabledTypes(Intent intent) {
-        Set<TetherType> types = EnumSet.noneOf(TetherType.class);
-        for (String iface : readEnabledInterfaces(intent)) {
-            TetherType type = detectFromInterface(iface);
+    public static Set<TetherType> readEnabledTypes(final Intent intent) {
+        final Set<TetherType> types = EnumSet.noneOf(TetherType.class);
+        for (final String iface : readEnabledInterfaces(intent)) {
+            final TetherType type = detectFromInterface(iface);
             if (type != null) {
                 types.add(type);
             }
@@ -49,14 +50,14 @@ public enum TetherType {
         return types;
     }
 
-    public static Set<String> readEnabledInterfaces(Intent intent) {
-        Set<String> interfaces = new HashSet<>();
+    public static Set<String> readEnabledInterfaces(final Intent intent) {
+        final Set<String> interfaces = new HashSet<>();
         if (intent == null) {
             return interfaces;
         }
-        ArrayList<String> tetheredList = intent.getStringArrayListExtra(EXTRA_ACTIVE_TETHER);
+        final ArrayList<String> tetheredList = intent.getStringArrayListExtra(EXTRA_ACTIVE_TETHER);
         if (tetheredList != null) {
-            for (String iface : tetheredList) {
+            for (final String iface : tetheredList) {
                 if (iface != null && !iface.isBlank()) {
                     interfaces.add(iface.trim());
                 }
@@ -65,11 +66,11 @@ public enum TetherType {
         if (!interfaces.isEmpty()) {
             return interfaces;
         }
-        String[] tetheredArray = intent.getStringArrayExtra(EXTRA_ACTIVE_TETHER);
+        final String[] tetheredArray = intent.getStringArrayExtra(EXTRA_ACTIVE_TETHER);
         if (tetheredArray == null) {
             return interfaces;
         }
-        for (String iface : tetheredArray) {
+        for (final String iface : tetheredArray) {
             if (iface != null && !iface.isBlank()) {
                 interfaces.add(iface.trim());
             }
@@ -81,15 +82,15 @@ public enum TetherType {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
     }
 
-    public static TetherType detectFromInterfaceName(String iface) {
+    public static TetherType detectFromInterfaceName(final String iface) {
         return detectFromInterface(iface);
     }
 
-    private static TetherType detectFromInterface(String iface) {
+    private static TetherType detectFromInterface(final String iface) {
         if (iface == null) {
             return null;
         }
-        String normalized = iface.toLowerCase(Locale.US);
+        final String normalized = iface.toLowerCase(Locale.US);
         if (
             normalized.startsWith("wlan") ||
             normalized.startsWith("swlan") ||

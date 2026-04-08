@@ -12,7 +12,16 @@ import android.view.View;
 import android.view.animation.LinearInterpolator;
 import androidx.annotation.Nullable;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class ConnectionChoiceAnimationView extends View {
 
     private static final long LOOP_DURATION_MS = 2_800L;

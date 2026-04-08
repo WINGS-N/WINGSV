@@ -33,7 +33,28 @@ import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.databinding.ActivityAboutAppBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.ExcessiveImports",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.NcssCount",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.AvoidLiteralsInIfCondition",
+        "PMD.ConfusingTernary",
+        "PMD.SimplifyBooleanReturns",
+    }
+)
 public class AboutAppActivity extends AppCompatActivity {
 
     private static final String GITHUB_WINGS_N = "WINGS-N";

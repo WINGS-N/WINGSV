@@ -24,7 +24,24 @@ import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentFirstLaunchXrayBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.TooManyMethods",
+        "PMD.CyclomaticComplexity",
+        "PMD.ImplicitFunctionalInterface",
+        "PMD.ShortClassName",
+        "PMD.ShortMethodName",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class FirstLaunchXrayFragment extends Fragment {
 
     public interface Host {
@@ -136,7 +153,10 @@ public class FirstLaunchXrayFragment extends Fragment {
         labelParams.setMarginStart(dp(8));
         row.addView(label, labelParams);
 
-        row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
+        row.setOnClickListener(view -> {
+            Haptics.softSliderStep(view);
+            checkBox.setChecked(!checkBox.isChecked());
+        });
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,

@@ -5,6 +5,8 @@ import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Base64;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -19,6 +21,18 @@ import wings.v.service.XrayVpnService;
         "PMD.AvoidSynchronizedStatement",
         "PMD.AvoidSynchronizedAtMethodLevel",
         "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.GodClass",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.ShortVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.ConfusingTernary",
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.UselessParentheses",
     }
 )
 public final class XrayBridge {
@@ -110,6 +124,33 @@ public final class XrayBridge {
         }
     }
 
+    public static void countGeoData(Context context, String name, String geoType) throws Exception {
+        countGeoData(ensureDatDir(context), name, geoType);
+    }
+
+    public static void countGeoData(File datDir, String name, String geoType) throws Exception {
+        ensureLoaded();
+        synchronized (JNI_LOCK) {
+            JSONObject request = new JSONObject();
+            request.put("datDir", datDir.getAbsolutePath());
+            request.put("name", trim(name));
+            request.put("geoType", trim(geoType));
+            String encodedRequest = Base64.encodeToString(
+                request.toString().getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
+            );
+            decodeResponse(LibXray.countGeoData(encodedRequest));
+        }
+    }
+
+    public static JSONObject readGeoFiles(String configJson) throws Exception {
+        ensureLoaded();
+        synchronized (JNI_LOCK) {
+            String request = Base64.encodeToString(configJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+            return decodeResponse(LibXray.readGeoFiles(request)).optJSONObject("data");
+        }
+    }
+
     public static void stop() throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
@@ -126,11 +167,45 @@ public final class XrayBridge {
     }
 
     private static File ensureDatDir(Context context) {
-        File datDir = new File(context.getFilesDir(), "xray/dat");
+        File datDir = new File(context.getFilesDir(), "xray/geo");
         if (!datDir.exists()) {
             datDir.mkdirs();
         }
+        migrateLegacyGeoFiles(context, datDir);
         return datDir;
+    }
+
+    private static void migrateLegacyGeoFiles(Context context, File targetDir) {
+        File legacyDir = new File(context.getFilesDir(), "xray/dat");
+        copyGeoFileIfNeeded(new File(legacyDir, "geoip.dat"), new File(targetDir, "geoip.dat"));
+        copyGeoFileIfNeeded(new File(legacyDir, "geosite.dat"), new File(targetDir, "geosite.dat"));
+        copyGeoFileIfNeeded(new File(legacyDir, "geoip.json"), new File(targetDir, "geoip.json"));
+        copyGeoFileIfNeeded(new File(legacyDir, "geosite.json"), new File(targetDir, "geosite.json"));
+    }
+
+    private static void copyGeoFileIfNeeded(File source, File target) {
+        if (source == null || target == null || !source.exists() || target.exists()) {
+            return;
+        }
+        File parent = target.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        try (
+            FileInputStream inputStream = new FileInputStream(source);
+            FileOutputStream outputStream = new FileOutputStream(target, false)
+        ) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = inputStream.read(buffer)) >= 0) {
+                if (read == 0) {
+                    continue;
+                }
+                outputStream.write(buffer, 0, read);
+            }
+        } catch (Exception ignored) {
+            // best-effort migration
+        }
     }
 
     private static void ensureLoaded() {

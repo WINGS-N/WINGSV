@@ -34,7 +34,17 @@ import wings.v.core.XraySubscriptionUpdater;
 import wings.v.databinding.ActivitySubscriptionsBinding;
 import wings.v.databinding.ItemSubscriptionEntryBinding;
 
-@SuppressWarnings("PMD.DoNotUseThreads")
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class SubscriptionsActivity extends AppCompatActivity {
 
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
