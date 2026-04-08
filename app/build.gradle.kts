@@ -1,58 +1,61 @@
 import java.util.Properties
 import java.io.File
+import org.gradle.api.file.Directory
+import org.gradle.api.provider.Provider
+import org.gradle.api.plugins.quality.Checkstyle
+import org.gradle.api.plugins.quality.Pmd
+import org.gradle.api.tasks.TaskProvider
 
 plugins {
     alias(libs.plugins.android.application)
+    checkstyle
+    pmd
 }
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties: Properties = Properties()
+val keystorePropertiesFile: File = rootProject.file("keystore.properties")
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use(keystoreProperties::load)
 }
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
+val localProperties: Properties = Properties()
+val localPropertiesFile: File = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use(localProperties::load)
 }
-val hasReleaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
+val hasReleaseSigning: Boolean = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
     !keystoreProperties.getProperty(it).isNullOrBlank()
 }
-val vkTurnRepoDir = rootProject.file("external/vk-turn-proxy")
-val vkTurnProtoSourceDir = vkTurnRepoDir.resolve("proto")
-val vkTurnGeneratedProtoGo = vkTurnRepoDir.resolve("sessionproto/session.pb.go")
-val generatedVkTurnJniLibsDir = layout.buildDirectory.dir("generated/vkturn/jniLibs")
-val generatedVkTurnBinary = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
-val byeDpiRepoDir = rootProject.file("external/byedpi")
-val byeDpiNativeSourceDir = project.file("src/main/byedpi")
-val generatedByeDpiJniLibsDir = layout.buildDirectory.dir("generated/byedpi/jniLibs")
-val generatedByeDpiBinary = generatedByeDpiJniLibsDir.map { File(it.asFile, "arm64-v8a/libbyedpi.so") }
-val libXrayRepoDir = rootProject.file("external/libXray")
-val generatedLibXrayDir = layout.buildDirectory.dir("generated/xray")
-val generatedLibXrayWorkDir = generatedLibXrayDir.map { File(it.asFile, "work") }
-val generatedLibXrayAar = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
-val protoSourceDir = project.file("src/main/proto")
-val generatedProtoJavaDir = layout.buildDirectory.dir("generated/source/proto/main/java")
+val vkTurnRepoDir: File = rootProject.file("external/vk-turn-proxy")
+val vkTurnProtoSourceDir: File = vkTurnRepoDir.resolve("proto")
+val vkTurnGeneratedProtoGo: File = vkTurnRepoDir.resolve("sessionproto/session.pb.go")
+val generatedVkTurnJniLibsDir: Provider<Directory> = layout.buildDirectory.dir("generated/jni/libs")
+val generatedVkTurnBinary: Provider<File> = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
+val libXrayRepoDir: File = rootProject.file("external/libXray")
+val generatedLibXrayDir: Provider<Directory> = layout.buildDirectory.dir("generated/xray")
+val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "work") }
+val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
+val protoSourceDir: File = project.file("src/main/proto")
+val generatedProtoJavaDir: Provider<Directory> = layout.buildDirectory.dir("generated/source/proto/main/java")
 
 fun resolveAndroidSdkDir(): File {
-    val candidates = listOf(
+    val candidates: List<File> = listOfNotNull(
         System.getenv("ANDROID_SDK_ROOT"),
         System.getenv("ANDROID_HOME"),
         localProperties.getProperty("sdk.dir")
-    ).filterNotNull().map(::File)
+    ).map(::File)
     return candidates.firstOrNull { it.isDirectory }
         ?: error("Android SDK not found. Set sdk.dir in local.properties or ANDROID_SDK_ROOT.")
 }
 
 fun resolveAndroidNdkDir(): File {
-    val direct = listOf(
+    val direct: List<File> = listOfNotNull(
         System.getenv("ANDROID_NDK_HOME"),
         System.getenv("ANDROID_NDK_ROOT"),
         localProperties.getProperty("ndk.dir")
-    ).filterNotNull().map(::File)
+    ).map(::File)
     direct.firstOrNull { it.isDirectory }?.let { return it }
 
-    val installed = resolveAndroidSdkDir()
+    val installed: List<File> = resolveAndroidSdkDir()
         .resolve("ndk")
         .listFiles()
         ?.filter { it.isDirectory }
@@ -63,33 +66,41 @@ fun resolveAndroidNdkDir(): File {
 }
 
 fun resolveVkTurnAndroidClang(): File {
-    val ndkDir = resolveAndroidNdkDir()
-    val prebuilt = ndkDir.resolve("toolchains/llvm/prebuilt/linux-x86_64/bin")
-    val clang = prebuilt.resolve("aarch64-linux-android21-clang")
+    val ndkDir: File = resolveAndroidNdkDir()
+    val prebuilt: File = ndkDir.resolve("toolchains/llvm/prebuilt/linux-x86_64/bin")
+    val clang: File = prebuilt.resolve("aarch64-linux-android21-clang")
     return clang.takeIf { it.isFile }
         ?: error("Android clang not found at ${clang.absolutePath}")
 }
 
 fun resolveGoBinary(toolName: String): String {
-    val userHome = System.getProperty("user.home")
-    val candidates = listOf(
+    val userHome: String = requireNotNull(System.getProperty("user.home")) {
+        "user.home system property is unavailable"
+    }
+    val candidates: List<File> = listOfNotNull(
         System.getenv("GOBIN"),
         "$userHome/go/bin",
         "/usr/local/go/bin",
         "/usr/bin"
-    ).filterNotNull().map { File(it, toolName) }
+    ).map { File(it, toolName) }
     return candidates.firstOrNull { it.isFile }
         ?.absolutePath
         ?: toolName
 }
 
 fun resolveToolBinDir(toolName: String, fallbackToolName: String = "go"): String {
-    val resolved = File(resolveGoBinary(toolName))
+    val resolved: File = File(resolveGoBinary(toolName))
     resolved.parentFile?.let { return it.absolutePath }
     return File(resolveGoBinary(fallbackToolName)).parentFile.absolutePath
 }
 
-val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
+fun isLintInvocation(): Boolean {
+    return gradle.startParameter.taskNames.any { taskName ->
+        taskName.substringAfterLast(':').startsWith("lint", ignoreCase = true)
+    }
+}
+
+val buildVkTurnProxyArm64: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "build"
     description = "Builds libvkturn.so from external/vk-turn-proxy for Android arm64 via Go + NDK."
 
@@ -105,9 +116,9 @@ val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
             "vk-turn-proxy submodule not found at ${vkTurnRepoDir.absolutePath}. Run git submodule update --init --recursive."
         }
 
-        val outputFile = generatedVkTurnBinary.get()
-        val goModCacheDir = rootProject.file(".gradle/vkturn/go-mod-cache")
-        val goCacheDir = rootProject.file(".gradle/vkturn/go-cache")
+        val outputFile: File = generatedVkTurnBinary.get()
+        val goModCacheDir: File = rootProject.file(".gradle/vkturn/go-mod-cache")
+        val goCacheDir: File = rootProject.file(".gradle/vkturn/go-cache")
         goModCacheDir.mkdirs()
         goCacheDir.mkdirs()
         outputFile.parentFile.mkdirs()
@@ -137,41 +148,7 @@ val buildVkTurnProxyArm64 by tasks.registering(Exec::class) {
     }
 }
 
-val buildByeDpiArm64 by tasks.registering(Exec::class) {
-    group = "build"
-    description = "Builds libbyedpi.so from external/byedpi for Android arm64 via ndk-build."
-
-    inputs.files(fileTree(byeDpiRepoDir) {
-        exclude(".git/**")
-        exclude("**/build/**")
-    })
-    inputs.files(fileTree(byeDpiNativeSourceDir) {
-        exclude("**/build/**")
-    })
-    outputs.file(generatedByeDpiBinary)
-
-    doFirst {
-        check(byeDpiRepoDir.isDirectory) {
-            "ByeDPI submodule not found at ${byeDpiRepoDir.absolutePath}. Run git submodule update --init --recursive."
-        }
-        check(byeDpiNativeSourceDir.isDirectory) {
-            "ByeDPI native sources not found at ${byeDpiNativeSourceDir.absolutePath}."
-        }
-
-        val outputDir = generatedByeDpiJniLibsDir.get().asFile
-        outputDir.mkdirs()
-        workingDir = projectDir
-        commandLine(
-            resolveAndroidNdkDir().resolve("ndk-build").absolutePath,
-            "NDK_PROJECT_PATH=${layout.buildDirectory.dir("intermediates/ndkBuildByeDpi").get().asFile.absolutePath}",
-            "NDK_LIBS_OUT=${outputDir.absolutePath}",
-            "APP_BUILD_SCRIPT=${byeDpiNativeSourceDir.resolve("Android.mk").absolutePath}",
-            "NDK_APPLICATION_MK=${byeDpiNativeSourceDir.resolve("Application.mk").absolutePath}"
-        )
-    }
-}
-
-val generateVkTurnProxyProtoGo by tasks.registering(Exec::class) {
+val generateVkTurnProxyProtoGo: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "build"
     description = "Generates Go protobuf sources for external/vk-turn-proxy."
 
@@ -193,7 +170,7 @@ buildVkTurnProxyArm64.configure {
     dependsOn(generateVkTurnProxyProtoGo)
 }
 
-val buildLibXrayAndroidAar by tasks.registering(Exec::class) {
+val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "build"
     description = "Builds libXray.aar from external/libXray via gomobile."
 
@@ -210,8 +187,8 @@ val buildLibXrayAndroidAar by tasks.registering(Exec::class) {
         check(libXrayRepoDir.isDirectory) {
             "libXray submodule not found at ${libXrayRepoDir.absolutePath}. Run git submodule update --init --recursive."
         }
-        val outputDir = generatedLibXrayDir.get().asFile
-        val workDir = generatedLibXrayWorkDir.get()
+        val outputDir: File = generatedLibXrayDir.get().asFile
+        val workDir: File = generatedLibXrayWorkDir.get()
         outputDir.mkdirs()
         delete(workDir)
         copy {
@@ -241,6 +218,7 @@ val buildLibXrayAndroidAar by tasks.registering(Exec::class) {
                 }
             )
         )
+        val shellDollar: String = "$"
         commandLine(
             "sh",
             "-lc",
@@ -251,7 +229,7 @@ val buildLibXrayAndroidAar by tasks.registering(Exec::class) {
               while true; do
                 "$@" && return 0
                 attempts=$((attempts + 1))
-                if [ "${'$'}attempts" -ge 3 ]; then
+                if [ "${shellDollar}attempts" -ge 3 ]; then
                   return 1
                 fi
                 sleep 2
@@ -260,19 +238,19 @@ val buildLibXrayAndroidAar by tasks.registering(Exec::class) {
             GO_BIN=${resolveGoBinary("go")}
             GOMOBILE_BIN=${resolveGoBinary("gomobile")}
             export GOPROXY=https://proxy.golang.org,direct
-            retry "${'$'}GO_BIN" install golang.org/x/mobile/cmd/gomobile@latest
-            retry "${'$'}GOMOBILE_BIN" init
-            retry "${'$'}GO_BIN" get golang.org/x/mobile/cmd/gomobile
-            retry "${'$'}GO_BIN" get golang.org/x/mobile/bind
-            retry "${'$'}GO_BIN" get google.golang.org/genproto
+            retry "${shellDollar}GO_BIN" install golang.org/x/mobile/cmd/gomobile@latest
+            retry "${shellDollar}GOMOBILE_BIN" init
+            retry "${shellDollar}GO_BIN" get golang.org/x/mobile/cmd/gomobile
+            retry "${shellDollar}GO_BIN" get golang.org/x/mobile/bind
+            retry "${shellDollar}GO_BIN" get google.golang.org/genproto
             rm -f libXray.aar libXray-sources.jar
-            "${'$'}GOMOBILE_BIN" bind -target android -androidapi 21 -o "${generatedLibXrayAar.get().absolutePath}" .
+            "${shellDollar}GOMOBILE_BIN" bind -target android -androidapi 21 -o "${generatedLibXrayAar.get().absolutePath}" .
             """.trimIndent()
         )
     }
 }
 
-val generateWingsProtoJava by tasks.registering(Exec::class) {
+val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "build"
     description = "Generates Java lite sources from app/src/main/proto via protoc."
 
@@ -282,7 +260,7 @@ val generateWingsProtoJava by tasks.registering(Exec::class) {
     outputs.dir(generatedProtoJavaDir)
 
     doFirst {
-        val outDir = generatedProtoJavaDir.get().asFile
+        val outDir: File = generatedProtoJavaDir.get().asFile
         outDir.mkdirs()
         workingDir = projectDir
         commandLine(
@@ -314,6 +292,19 @@ configurations.configureEach {
     exclude(group = "sesl.androidx.picker", module = "picker-color")
 }
 
+checkstyle {
+    toolVersion = "13.3.0"
+    configFile = rootProject.file("config/checkstyle/checkstyle.xml")
+    isIgnoreFailures = false
+}
+
+pmd {
+    toolVersion = "7.22.0"
+    ruleSetFiles = files(rootProject.file("config/pmd/pmd.xml"))
+    ruleSets = emptyList()
+    isIgnoreFailures = false
+}
+
 android {
     namespace = "wings.v"
     compileSdk {
@@ -332,11 +323,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        externalNativeBuild {
-            cmake {
-                abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-            }
-        }
+        ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
     }
 
     signingConfigs {
@@ -360,11 +347,10 @@ android {
     }
 
     sourceSets.getByName("main") {
-        jniLibs.setSrcDirs(listOf(
-            generatedVkTurnJniLibsDir.get().asFile,
-            generatedByeDpiJniLibsDir.get().asFile
-        ))
-        java.setSrcDirs(listOf("src/main/java", generatedProtoJavaDir.get().asFile))
+        jniLibs.directories.clear()
+        jniLibs.directories.add(generatedVkTurnJniLibsDir.get().asFile.absolutePath)
+        java.directories.clear()
+        java.directories.addAll(listOf("src/main/java", generatedProtoJavaDir.get().asFile.absolutePath))
     }
 
     packaging {
@@ -372,11 +358,7 @@ android {
         jniLibs.useLegacyPackaging = true
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-        }
-    }
+    externalNativeBuild.cmake.path = file("src/main/cpp/CMakeLists.txt")
 
     buildTypes {
         release {
@@ -396,14 +378,47 @@ android {
     }
 }
 
-tasks.named("preBuild") {
-    dependsOn(
-        generateVkTurnProxyProtoGo,
-        buildVkTurnProxyArm64,
-        buildByeDpiArm64,
-        generateWingsProtoJava,
-        buildLibXrayAndroidAar
-    )
+if (!isLintInvocation()) {
+    tasks.named("preBuild") {
+        dependsOn(
+            generateVkTurnProxyProtoGo,
+            buildVkTurnProxyArm64,
+            generateWingsProtoJava,
+            buildLibXrayAndroidAar
+        )
+    }
+}
+
+val checkstyleJava: TaskProvider<Checkstyle> by tasks.registering(Checkstyle::class) {
+    group = "verification"
+    description = "Runs Checkstyle against app Java sources."
+
+    source("src")
+    include("**/*.java")
+    exclude("**/R.java", "**/BuildConfig.java")
+    classpath = files()
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+val pmdJava: TaskProvider<Pmd> by tasks.registering(Pmd::class) {
+    group = "verification"
+    description = "Runs PMD against app Java sources."
+
+    source("src")
+    include("**/*.java")
+    exclude("**/R.java", "**/BuildConfig.java")
+    classpath = files()
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+tasks.named("check") {
+    dependsOn(checkstyleJava, pmdJava)
 }
 
 dependencies {
@@ -411,7 +426,7 @@ dependencies {
     implementation(libs.oneui.design)
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
-    implementation("dev.rikka.ndk.thirdparty:xhook:1.2.0")
+    implementation(libs.xhook)
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))

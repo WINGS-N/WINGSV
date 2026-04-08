@@ -1,5 +1,5 @@
 [versions]
-agp = "9.1.0"
+agp = "9.0.1"
 jdkCoroutines = "1.10.2"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -7,7 +7,8 @@ espressoCore = "3.5.1"
 kotlin = "2.2.20"
 protobuf = "4.34.0"
 librootkotlinx = "1.2.1"
-oneuiDesign = "0.9.4+oneui8"
+xhook = "1.2.0"
+oneuiDesign = "0.9.7+oneui8"
 wireguardTunnel = "1.0.20260102"
 sesl-core = "1.17.0+1.0.7-sesl8+rev1"
 sesl-coreKtx = "1.17.0+1.0.0-sesl8+rev0"
@@ -17,7 +18,7 @@ sesl-pickerColor = "1.0.2+1.0.3-sesl8+rev0"
 sesl-pickerBasic = "1.0.7+1.0.7-sesl8+rev2"
 sesl-pickerApp = "1.0.6+1.0.6-sesl8+rev0"
 sesl-preference = "1.2.1+1.0.0-sesl8+rev1"
-sesl-material = "1.12.0+1.0.32-sesl8+rev2"
+sesl-material = "1.12.0+1.0.32-sesl8+rev3"
 sesl-drawerlayout = "1.2.0+1.0.0-sesl8+rev0"
 sesl-customview = "1.2.0-rc01+1.0.0-sesl8+rev0"
 sesl-slidingpanelayout = "1.2.0+1.0.4-sesl8+rev0"
@@ -39,6 +40,7 @@ librootkotlinx = { module = "be.mygod.librootkotlinx:librootkotlinx", version.re
 oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneuiDesign" }
 wireguard-tunnel = { module = "com.wireguard.android:tunnel", version.ref = "wireguardTunnel" }
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
+xhook = { module = "dev.rikka.ndk.thirdparty:xhook", version.ref = "xhook" }
 sesl-appcompat = { module = "sesl.androidx.appcompat:appcompat", version.ref = "sesl-appcompat" }
 sesl-core = { module = "sesl.androidx.core:core", version.ref = "sesl-core" }
 sesl-coreKtx = { module = "sesl.androidx.core:core-ktx", version.ref = "sesl-coreKtx" }

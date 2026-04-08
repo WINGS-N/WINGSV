@@ -1,0 +1,11 @@
+.gradle/
+.idea/
+build/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+**/generated/
+**/node_modules/
+app/src/main/assets/
+external/
+tmp/
