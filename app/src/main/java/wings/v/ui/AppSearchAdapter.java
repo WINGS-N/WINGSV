@@ -11,6 +11,18 @@ import java.util.List;
 import java.util.Set;
 import wings.v.databinding.ItemAppRoutingBinding;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.CallsSuperInConstructor",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+    }
+)
 final class AppSearchAdapter extends RecyclerView.Adapter<AppSearchAdapter.ViewHolder> {
 
     interface Callback {

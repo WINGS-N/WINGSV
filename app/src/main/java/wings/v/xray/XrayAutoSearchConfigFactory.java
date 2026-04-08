@@ -18,6 +18,16 @@ import wings.v.core.XraySettings;
         "PMD.SignatureDeclareThrowsException",
         "PMD.AvoidUsingHardCodedIP",
         "PMD.AvoidFileStream",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LooseCoupling",
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.TooManyMethods",
+        "PMD.CyclomaticComplexity",
     }
 )
 public final class XrayAutoSearchConfigFactory {

@@ -8,7 +8,22 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.ConsecutiveAppendsShouldReuse",
+        "PMD.ConsecutiveLiteralAppends",
+        "PMD.SimplifyBooleanReturns",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidLiteralsInIfCondition",
+        "PMD.InsufficientStringBufferDeclaration",
+    }
+)
 public final class RootUtils {
 
     private RootUtils() {}

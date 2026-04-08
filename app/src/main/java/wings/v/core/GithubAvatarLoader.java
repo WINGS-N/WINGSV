@@ -19,7 +19,21 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidFileStream", "PMD.AvoidCatchingGenericException" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidFileStream",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.LawOfDemeter",
+        "PMD.ImplicitFunctionalInterface",
+        "PMD.CyclomaticComplexity",
+    }
+)
 public final class GithubAvatarLoader {
 
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());

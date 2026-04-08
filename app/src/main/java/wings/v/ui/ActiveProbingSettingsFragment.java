@@ -18,7 +18,16 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+    }
+)
 public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
 
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;

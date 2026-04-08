@@ -28,7 +28,24 @@ import wings.v.core.RootUtils;
 import wings.v.databinding.FragmentFirstLaunchPermissionsBinding;
 import wings.v.databinding.ItemPermissionStatusBinding;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.ShortClassName",
+        "PMD.OnlyOneReturn",
+        "PMD.ImplicitFunctionalInterface",
+    }
+)
 public class FirstLaunchPermissionsFragment extends Fragment {
 
     private static final String ARG_BUTTON_RES = "button_res";

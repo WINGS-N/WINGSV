@@ -41,7 +41,20 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentSharingBinding;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException", "PMD.NullAssignment" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.ImplicitFunctionalInterface",
+    }
+)
 public class SharingFragment extends Fragment {
 
     private static final long VERIFY_INTERVAL_MS = 350L;

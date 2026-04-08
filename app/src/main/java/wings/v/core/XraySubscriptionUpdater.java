@@ -13,7 +13,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.SignatureDeclareThrowsException" })
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.GodClass",
+        "PMD.CognitiveComplexity",
+        "PMD.CyclomaticComplexity",
+        "PMD.NPathComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LooseCoupling",
+        "PMD.AvoidInstantiatingObjectsInLoops",
+    }
+)
 public final class XraySubscriptionUpdater {
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;

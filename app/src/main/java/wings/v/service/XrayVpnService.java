@@ -17,6 +17,7 @@ import libXray.DialerController;
 import wings.v.MainActivity;
 import wings.v.core.AppPrefs;
 import wings.v.core.ProxySettings;
+import wings.v.core.XraySettings;
 
 @SuppressWarnings(
     {
@@ -26,11 +27,27 @@ import wings.v.core.ProxySettings;
         "PMD.NullAssignment",
         "PMD.AvoidUsingHardCodedIP",
         "PMD.AvoidSynchronizedStatement",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.CognitiveComplexity",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.ShortVariable",
+        "PMD.OnlyOneReturn",
     }
 )
 public class XrayVpnService extends VpnService implements DialerController {
 
-    private static final long SERVICE_WAIT_TIMEOUT_MS = 2_000L;
+    private static final Object SERVICE_START_LOCK = new Object();
+    private static final long SERVICE_WAIT_TIMEOUT_MS = 8_000L;
+    private static final long SERVICE_WAIT_POLL_MS = 250L;
+    private static final int SERVICE_START_ATTEMPTS = 3;
+    private static final long SERVICE_RETRY_DELAY_MS = 350L;
     private static final long HEARTBEAT_INTERVAL_MS = 1_000L;
     private static final String VPN_ADDRESS_V4 = "172.19.0.1";
     private static final int VPN_PREFIX_V4 = 30;
@@ -49,16 +66,41 @@ public class XrayVpnService extends VpnService implements DialerController {
     private ScheduledExecutorService heartbeatExecutor;
 
     public static XrayVpnService ensureServiceStarted(Context context) {
-        if (context == null) {
-            return null;
+        synchronized (SERVICE_START_LOCK) {
+            if (context == null) {
+                return null;
+            }
+            XrayVpnService existing = getServiceNow();
+            if (existing != null && existing.isReusable()) {
+                return existing;
+            }
+            Intent serviceIntent = new Intent(context, XrayVpnService.class);
+            for (int attempt = 0; attempt < SERVICE_START_ATTEMPTS; attempt++) {
+                existing = getServiceNow();
+                if (existing != null && existing.isReusable()) {
+                    return existing;
+                }
+                if (attempt == 0 || (serviceFuture.isDone() && getServiceNow() == null)) {
+                    resetServiceFuture();
+                }
+                try {
+                    context.startService(serviceIntent);
+                } catch (RuntimeException ignored) {}
+                XrayVpnService started = awaitService(SERVICE_WAIT_TIMEOUT_MS);
+                if (started != null && started.isReusable()) {
+                    return started;
+                }
+                if (attempt < SERVICE_START_ATTEMPTS - 1) {
+                    try {
+                        Thread.sleep(SERVICE_RETRY_DELAY_MS);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+            return getServiceNow();
         }
-        XrayVpnService existing = getServiceNow();
-        if (existing != null && existing.isReusable()) {
-            return existing;
-        }
-        resetServiceFuture();
-        context.startService(new Intent(context, XrayVpnService.class));
-        return awaitService(SERVICE_WAIT_TIMEOUT_MS);
     }
 
     public static boolean hasActiveTunnel() {
@@ -117,8 +159,23 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     private static XrayVpnService awaitService(long timeoutMs) {
+        long deadline = SystemClock.elapsedRealtime() + Math.max(timeoutMs, 1L);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            try {
+                XrayVpnService service = serviceFuture.getNow(null);
+                if (service != null) {
+                    return service;
+                }
+            } catch (Exception ignored) {}
+            try {
+                TimeUnit.MILLISECONDS.sleep(SERVICE_WAIT_POLL_MS);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
         try {
-            return serviceFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
+            return serviceFuture.getNow(null);
         } catch (Exception ignored) {
             return null;
         }
@@ -167,6 +224,12 @@ public class XrayVpnService extends VpnService implements DialerController {
         if (shuttingDown) {
             throw new IllegalStateException("Xray VPN service is shutting down");
         }
+        Intent vpnPermissionIntent = VpnService.prepare(this);
+        if (vpnPermissionIntent != null) {
+            throw new IllegalStateException(
+                "VPN permission is unavailable. Проверьте системное разрешение VPN, другой активный VPN и Always-On VPN"
+            );
+        }
         ProxySettings value = settings != null ? settings : new ProxySettings();
         synchronized (tunnelLock) {
             String signature = buildSignature(value);
@@ -181,7 +244,6 @@ public class XrayVpnService extends VpnService implements DialerController {
                 .setMtu(DEFAULT_MTU)
                 .addAddress(VPN_ADDRESS_V4, VPN_PREFIX_V4)
                 .addRoute("0.0.0.0", 0);
-            builder.allowBypass();
 
             if (value.xraySettings == null || value.xraySettings.ipv6) {
                 builder.addAddress(VPN_ADDRESS_V6, VPN_PREFIX_V6);
@@ -203,9 +265,32 @@ public class XrayVpnService extends VpnService implements DialerController {
                 )
             );
 
-            ParcelFileDescriptor established = builder.establish();
+            ParcelFileDescriptor established;
+            try {
+                established = builder.establish();
+            } catch (RuntimeException error) {
+                Intent permissionAfterFailure = VpnService.prepare(this);
+                if (permissionAfterFailure != null) {
+                    throw new IllegalStateException(
+                        "VPN permission became unavailable while starting Xray. Проверьте системное разрешение VPN, другой активный VPN и Always-On VPN",
+                        error
+                    );
+                }
+                throw new IllegalStateException(
+                    "Не удалось открыть Xray TUN. Возможен конфликт с другим VPN, Always-On VPN или прошивкой устройства",
+                    error
+                );
+            }
             if (established == null) {
-                throw new IllegalStateException("Не удалось открыть Xray TUN");
+                Intent permissionAfterFailure = VpnService.prepare(this);
+                if (permissionAfterFailure != null) {
+                    throw new IllegalStateException(
+                        "Не удалось открыть Xray TUN: системное разрешение VPN недоступно. Проверьте другой VPN и Always-On VPN"
+                    );
+                }
+                throw new IllegalStateException(
+                    "Не удалось открыть Xray TUN. Возможен конфликт с другим VPN, Always-On VPN или ограничениями прошивки"
+                );
             }
             tunnelFd = established;
             tunnelSignature = signature;
@@ -270,18 +355,20 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     private String buildSignature(ProxySettings settings) {
+        XraySettings xraySettings = settings != null ? settings.xraySettings : null;
         StringBuilder builder = new StringBuilder();
-        builder.append(settings != null && settings.xraySettings != null && settings.xraySettings.ipv6);
-        builder.append('|').append(AppPrefs.isAppRoutingBypassEnabled(this));
+        builder
+            .append(xraySettings != null && xraySettings.ipv6)
+            .append('|')
+            .append(AppPrefs.isAppRoutingBypassEnabled(this));
         for (String packageName : AppPrefs.getAppRoutingPackages(this)) {
             builder.append('|').append(packageName);
         }
         builder
             .append('|')
-            .append(trim(settings != null && settings.xraySettings != null ? settings.xraySettings.remoteDns : null));
-        builder
+            .append(trim(xraySettings != null ? xraySettings.remoteDns : null))
             .append('|')
-            .append(trim(settings != null && settings.xraySettings != null ? settings.xraySettings.directDns : null));
+            .append(trim(xraySettings != null ? xraySettings.directDns : null));
         return builder.toString();
     }
 

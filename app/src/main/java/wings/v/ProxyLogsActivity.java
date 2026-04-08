@@ -28,11 +28,23 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import wings.v.core.Haptics;
 import wings.v.databinding.ActivityProxyLogsBinding;
 import wings.v.databinding.ItemLogLineBinding;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.NullAssignment" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class ProxyLogsActivity extends AppCompatActivity {
 
     private static final long REFRESH_INTERVAL_MS = 500L;
@@ -102,11 +114,15 @@ public class ProxyLogsActivity extends AppCompatActivity {
         binding.switchLogsAutoScroll.setChecked(autoScrollEnabled);
         binding.switchLogsAutoScroll.setOnCheckedChangeListener((buttonView, isChecked) -> {
             autoScrollEnabled = isChecked;
+            Haptics.softSliderStep(buttonView);
             if (autoScrollEnabled) {
                 scrollToBottom();
             }
         });
-        binding.buttonCopyLogs.setOnClickListener(view -> copyCurrentLogText());
+        binding.buttonCopyLogs.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            copyCurrentLogText();
+        });
         refreshLogs();
     }
 

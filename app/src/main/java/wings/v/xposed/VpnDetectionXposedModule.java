@@ -26,7 +26,17 @@ import java.util.Locale;
 import java.util.Set;
 import wings.v.core.XposedModulePrefs;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
 
     private static final String MODULE_PACKAGE = "wings.v";

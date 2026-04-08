@@ -14,7 +14,18 @@ import java.net.URL;
 /**
  * Opens app control-plane HTTP connections outside the app-owned VPN.
  */
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.LongVariable",
+        "PMD.LawOfDemeter",
+        "PMD.UselessParentheses",
+    }
+)
 public final class DirectNetworkConnection {
 
     private DirectNetworkConnection() {}

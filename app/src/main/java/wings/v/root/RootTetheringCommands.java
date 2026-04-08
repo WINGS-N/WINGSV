@@ -9,7 +9,20 @@ import java.util.concurrent.Executor;
 import wings.v.core.TetherType;
 
 @SuppressLint("NewApi")
-@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.AvoidAccessibilityAlteration" })
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.AvoidAccessibilityAlteration",
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.LawOfDemeter",
+        "PMD.AvoidLiteralsInIfCondition",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.OnlyOneReturn",
+    }
+)
 final class RootTetheringCommands {
 
     private RootTetheringCommands() {}

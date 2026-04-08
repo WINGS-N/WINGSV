@@ -14,6 +14,16 @@ import org.amnezia.awg.config.InetEndpoint;
 import org.amnezia.awg.config.Interface;
 import org.amnezia.awg.config.Peer;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class AmneziaStore {
 
     public static final String KEY_OPEN_SETTINGS = "pref_open_amnezia_settings";

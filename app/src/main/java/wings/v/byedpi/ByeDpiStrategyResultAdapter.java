@@ -8,8 +8,22 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 import wings.v.R;
+import wings.v.core.Haptics;
 import wings.v.databinding.ItemByeDpiStrategyResultBinding;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.CallsSuperInConstructor",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LooseCoupling",
+        "PMD.ImplicitFunctionalInterface",
+    }
+)
 public final class ByeDpiStrategyResultAdapter extends RecyclerView.Adapter<ByeDpiStrategyResultAdapter.ViewHolder> {
 
     public interface OnApplyListener {
@@ -71,6 +85,7 @@ public final class ByeDpiStrategyResultAdapter extends RecyclerView.Adapter<ByeD
         );
         holder.binding.buttonApplyStrategy.setEnabled(result.completed && !testing);
         holder.binding.buttonApplyStrategy.setOnClickListener(view -> {
+            Haptics.softSelection(view);
             if (onApplyListener != null) {
                 onApplyListener.onApply(result);
             }

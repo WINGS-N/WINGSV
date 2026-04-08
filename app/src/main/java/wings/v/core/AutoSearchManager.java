@@ -53,10 +53,44 @@ import wings.v.xray.XrayBridge;
         "PMD.AvoidUsingHardCodedIP",
         "PMD.ExceptionAsFlowControl",
         "PMD.AvoidSynchronizedStatement",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.ExcessiveImports",
+        "PMD.CouplingBetweenObjects",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.NcssCount",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.UseConcurrentHashMap",
+        "PMD.ImplicitFunctionalInterface",
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.SingularField",
+        "PMD.SimplifyBooleanReturns",
     }
 )
 public final class AutoSearchManager {
 
+    private static final int SOCKS5_VERSION = 0x05;
+    private static final int SOCKS5_METHOD_NO_AUTH = 0x00;
+    private static final int SOCKS5_METHOD_USERNAME_PASSWORD = 0x02;
+    private static final int SOCKS5_METHOD_NOT_ACCEPTABLE = 0xff;
+    private static final int SOCKS5_AUTH_VERSION = 0x01;
+    private static final int SOCKS5_COMMAND_CONNECT = 0x01;
+    private static final int SOCKS5_ADDRESS_TYPE_IPV4 = 0x01;
+    private static final int SOCKS5_ADDRESS_TYPE_DOMAIN = 0x03;
+    private static final int SOCKS5_ADDRESS_TYPE_IPV6 = 0x04;
+    private static final int SOCKS5_HOST_MAX_LENGTH = 255;
+    private static final int IPV4_ADDRESS_LENGTH = 4;
+    private static final int IPV6_ADDRESS_LENGTH = 16;
+    private static final int HTTP_STATUS_PARTS_MIN = 2;
+    private static final int HTTP_STATUS_PARTS_LIMIT = 3;
     private static final String TAG = "WINGSV/AutoSearch";
 
     public static final String KEY_OPEN_SETTINGS = "pref_open_auto_search_settings";
@@ -86,6 +120,7 @@ public final class AutoSearchManager {
     private static final int DEFAULT_DOWNLOAD_ATTEMPTS = 3;
     private static final int DEFAULT_TARGET_COUNT = 5;
     private static final int DEFAULT_DOWNLOAD_SIZE_MB = 5;
+    private static final int FAILED_ATTEMPTS_LIMIT = 2;
     private static final long INTER_ATTEMPT_DELAY_MS = 3_000L;
     private static final long SERVICE_STOP_TIMEOUT_MS = 8_000L;
     private static final long SERVICE_STOP_POLL_MS = 200L;
@@ -96,6 +131,9 @@ public final class AutoSearchManager {
     private static final long BYEDPI_START_TIMEOUT_MS = 4_000L;
     private static final int BYEDPI_WARMUP_ATTEMPTS = 3;
     private static final long BYEDPI_WARMUP_DELAY_MS = 500L;
+    private static final long MIN_SKIPPED_BYTES = 1L;
+    private static final int LINE_FEED = '\n';
+    private static final int CARRIAGE_RETURN = '\r';
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
 
     private static volatile AutoSearchManager instance;
@@ -577,7 +615,7 @@ public final class AutoSearchManager {
 
     @NonNull
     private List<CandidateResult> runPingPhase(Mode mode, List<XrayProfile> profiles) throws Exception {
-        ArrayList<CandidateResult> candidates = new ArrayList<>();
+        List<CandidateResult> candidates = new ArrayList<>();
         int total = profiles.size();
         int completed = 0;
         try (ExecutorScope executorScope = new ExecutorScope(TCPING_PARALLELISM)) {
@@ -594,9 +632,9 @@ public final class AutoSearchManager {
                     candidate = future.get();
                 } catch (InterruptedException error) {
                     Thread.currentThread().interrupt();
-                    candidate = new CandidateResult(null);
+                    candidate = failedCandidate();
                 } catch (ExecutionException ignored) {
-                    candidate = new CandidateResult(null);
+                    candidate = failedCandidate();
                 }
                 completed++;
                 if (candidate.profile != null) {
@@ -669,8 +707,8 @@ public final class AutoSearchManager {
         XraySettings xraySettings,
         ByeDpiSettings byeDpiSettings
     ) throws Exception {
-        ArrayList<CandidateResult> stable = new ArrayList<>();
-        ArrayList<CandidateResult> live = new ArrayList<>();
+        List<CandidateResult> stable = new ArrayList<>();
+        List<CandidateResult> live = new ArrayList<>();
         int total = pingSuccess.size();
         int index = 0;
         for (CandidateResult candidate : pingSuccess) {
@@ -717,7 +755,12 @@ public final class AutoSearchManager {
                 break;
             }
         }
-        List<CandidateResult> result = !stable.isEmpty() ? stable : live;
+        List<CandidateResult> result;
+        if (stable.isEmpty()) {
+            result = live;
+        } else {
+            result = stable;
+        }
         result.sort((left, right) -> {
             int compareBytes = Long.compare(right.downloadedBytes, left.downloadedBytes);
             if (compareBytes != 0) {
@@ -786,7 +829,7 @@ public final class AutoSearchManager {
             long downloadSizeBytes = getDownloadSizeBytes(appContext);
             long stableBytes = downloadSizeBytes + downloadSizeBytes / 2L;
             for (int attempt = 1; attempt <= downloadAttempts; attempt++) {
-                if (failedAttempts >= 2) {
+                if (failedAttempts >= FAILED_ATTEMPTS_LIMIT) {
                     break;
                 }
                 DownloadResult result = downloadThroughProxy(
@@ -1140,15 +1183,21 @@ public final class AutoSearchManager {
         byte[] passwordBytes = bytesForSocksAuth(password);
         boolean auth = usernameBytes.length > 0 && passwordBytes.length > 0;
 
-        outputStream.write(new byte[] { 0x05, 0x01, (byte) (auth ? 0x02 : 0x00) });
+        outputStream.write(
+            new byte[] {
+                SOCKS5_VERSION,
+                SOCKS5_COMMAND_CONNECT,
+                (byte) (auth ? SOCKS5_METHOD_USERNAME_PASSWORD : SOCKS5_METHOD_NO_AUTH),
+            }
+        );
         outputStream.flush();
         int version = readByte(inputStream);
         int method = readByte(inputStream);
-        if (version != 0x05 || method == 0xff) {
+        if (version != SOCKS5_VERSION || method == SOCKS5_METHOD_NOT_ACCEPTABLE) {
             throw new IOException("SOCKS5 authentication method rejected");
         }
-        if (method == 0x02) {
-            outputStream.write(0x01);
+        if (method == SOCKS5_METHOD_USERNAME_PASSWORD) {
+            outputStream.write(SOCKS5_AUTH_VERSION);
             outputStream.write(usernameBytes.length);
             outputStream.write(usernameBytes);
             outputStream.write(passwordBytes.length);
@@ -1156,18 +1205,26 @@ public final class AutoSearchManager {
             outputStream.flush();
             int authVersion = readByte(inputStream);
             int authStatus = readByte(inputStream);
-            if (authVersion != 0x01 || authStatus != 0x00) {
+            if (authVersion != SOCKS5_AUTH_VERSION || authStatus != SOCKS5_METHOD_NO_AUTH) {
                 throw new IOException("SOCKS5 username/password rejected");
             }
-        } else if (method != 0x00) {
+        } else if (method != SOCKS5_METHOD_NO_AUTH) {
             throw new IOException("Unsupported SOCKS5 method: " + method);
         }
 
         byte[] hostBytes = targetHost.getBytes(StandardCharsets.UTF_8);
-        if (hostBytes.length == 0 || hostBytes.length > 255) {
+        if (hostBytes.length == 0 || hostBytes.length > SOCKS5_HOST_MAX_LENGTH) {
             throw new IOException("Invalid SOCKS target host");
         }
-        outputStream.write(new byte[] { 0x05, 0x01, 0x00, 0x03, (byte) hostBytes.length });
+        outputStream.write(
+            new byte[] {
+                SOCKS5_VERSION,
+                SOCKS5_COMMAND_CONNECT,
+                SOCKS5_METHOD_NO_AUTH,
+                SOCKS5_ADDRESS_TYPE_DOMAIN,
+                (byte) hostBytes.length,
+            }
+        );
         outputStream.write(hostBytes);
         outputStream.write((targetPort >>> 8) & 0xff);
         outputStream.write(targetPort & 0xff);
@@ -1177,15 +1234,15 @@ public final class AutoSearchManager {
         int replyCode = readByte(inputStream);
         readByte(inputStream); // RSV
         int addressType = readByte(inputStream);
-        if (replyVersion != 0x05 || replyCode != 0x00) {
+        if (replyVersion != SOCKS5_VERSION || replyCode != SOCKS5_METHOD_NO_AUTH) {
             throw new IOException("SOCKS5 connect failed: " + replyCode);
         }
         int addressBytes;
-        if (addressType == 0x01) {
-            addressBytes = 4;
-        } else if (addressType == 0x04) {
-            addressBytes = 16;
-        } else if (addressType == 0x03) {
+        if (addressType == SOCKS5_ADDRESS_TYPE_IPV4) {
+            addressBytes = IPV4_ADDRESS_LENGTH;
+        } else if (addressType == SOCKS5_ADDRESS_TYPE_IPV6) {
+            addressBytes = IPV6_ADDRESS_LENGTH;
+        } else if (addressType == SOCKS5_ADDRESS_TYPE_DOMAIN) {
             addressBytes = readByte(inputStream);
         } else {
             throw new IOException("Invalid SOCKS5 bind address type: " + addressType);
@@ -1217,10 +1274,10 @@ public final class AutoSearchManager {
             return new byte[0];
         }
         byte[] bytes = normalized.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length <= 255) {
+        if (bytes.length <= SOCKS5_HOST_MAX_LENGTH) {
             return bytes;
         }
-        byte[] truncated = new byte[255];
+        byte[] truncated = new byte[SOCKS5_HOST_MAX_LENGTH];
         System.arraycopy(bytes, 0, truncated, 0, truncated.length);
         return truncated;
     }
@@ -1237,9 +1294,9 @@ public final class AutoSearchManager {
         int remaining = Math.max(0, bytes);
         while (remaining > 0) {
             long skipped = inputStream.skip(remaining);
-            if (skipped <= 0L) {
+            if (skipped < MIN_SKIPPED_BYTES) {
                 readByte(inputStream);
-                skipped = 1L;
+                skipped = MIN_SKIPPED_BYTES;
             }
             remaining -= (int) skipped;
         }
@@ -1253,10 +1310,10 @@ public final class AutoSearchManager {
             if (value < 0) {
                 return builder.length() > 0 ? builder.toString() : null;
             }
-            if (value == '\n') {
+            if (value == LINE_FEED) {
                 break;
             }
-            if (value != '\r') {
+            if (value != CARRIAGE_RETURN) {
                 builder.append((char) value);
             }
         }
@@ -1267,8 +1324,8 @@ public final class AutoSearchManager {
         if (statusLine == null || !statusLine.startsWith("HTTP/")) {
             return -1;
         }
-        String[] parts = statusLine.split(" ", 3);
-        if (parts.length < 2) {
+        String[] parts = statusLine.split(" ", HTTP_STATUS_PARTS_LIMIT);
+        if (parts.length < HTTP_STATUS_PARTS_MIN) {
             return -1;
         }
         try {
@@ -1340,9 +1397,9 @@ public final class AutoSearchManager {
         List<XrayProfile> allProfiles,
         List<XrayProfile> originalProfiles
     ) {
-        ArrayList<XrayProfile> updatedProfiles = new ArrayList<>();
-        ArrayList<XrayProfile> baseProfiles = mergeProfileLists(allProfiles, originalProfiles);
-        LinkedHashMap<String, CandidateResult> candidateByKey = new LinkedHashMap<>();
+        List<XrayProfile> updatedProfiles = new ArrayList<>();
+        List<XrayProfile> baseProfiles = mergeProfileLists(allProfiles, originalProfiles);
+        java.util.Map<String, CandidateResult> candidateByKey = new LinkedHashMap<>();
         for (CandidateResult candidate : foundCandidates) {
             candidateByKey.put(candidate.profile.stableDedupKey(), candidate);
         }
@@ -1350,15 +1407,7 @@ public final class AutoSearchManager {
             String stableKey = profile.stableDedupKey();
             CandidateResult candidate = candidateByKey.get(stableKey);
             if (candidate != null) {
-                XrayProfile tagged = new XrayProfile(
-                    profile.id,
-                    profile.title,
-                    profile.rawLink,
-                    AUTOSEARCH_SUBSCRIPTION_ID,
-                    AUTOSEARCH_SUBSCRIPTION_TITLE,
-                    profile.address,
-                    profile.port
-                );
+                XrayProfile tagged = tagAutoSearchProfile(profile);
                 updatedProfiles.add(tagged);
                 XrayStore.putProfilePingResult(
                     appContext,
@@ -1375,12 +1424,25 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private static ArrayList<XrayProfile> mergeProfileLists(
+    private static XrayProfile tagAutoSearchProfile(@NonNull XrayProfile profile) {
+        return new XrayProfile(
+            profile.id,
+            profile.title,
+            profile.rawLink,
+            AUTOSEARCH_SUBSCRIPTION_ID,
+            AUTOSEARCH_SUBSCRIPTION_TITLE,
+            profile.address,
+            profile.port
+        );
+    }
+
+    @NonNull
+    private static List<XrayProfile> mergeProfileLists(
         @Nullable List<XrayProfile> primary,
         @Nullable List<XrayProfile> fallback
     ) {
-        ArrayList<XrayProfile> result = new ArrayList<>();
-        LinkedHashMap<String, XrayProfile> byKey = new LinkedHashMap<>();
+        List<XrayProfile> result = new ArrayList<>();
+        java.util.Map<String, XrayProfile> byKey = new LinkedHashMap<>();
         if (primary != null) {
             for (XrayProfile profile : primary) {
                 if (profile != null && !TextUtils.isEmpty(profile.rawLink)) {
@@ -1834,6 +1896,11 @@ public final class AutoSearchManager {
         CandidateResult(XrayProfile profile) {
             this.profile = profile;
         }
+    }
+
+    @NonNull
+    private static CandidateResult failedCandidate() {
+        return new CandidateResult(null);
     }
 
     private static final class DownloadResult {

@@ -24,6 +24,20 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ActivityByeDpiTargetsBinding;
 import wings.v.databinding.ItemByeDpiTargetBinding;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.TooManyMethods",
+        "PMD.CognitiveComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LooseCoupling",
+    }
+)
 public class ByeDpiTargetsActivity extends AppCompatActivity {
 
     private ActivityByeDpiTargetsBinding binding;

@@ -33,8 +33,23 @@ import wings.v.core.ProxySettings;
 import wings.v.core.WingsImportParser;
 import wings.v.databinding.FragmentFirstLaunchVkTurnBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class FirstLaunchVkTurnFragment extends Fragment {
+
+    private static final int IPV4_PART_COUNT = 4;
+    private static final int IPV4_PART_MAX = 255;
 
     public interface Host {
         void onVkTurnSettingsCompleted();
@@ -46,6 +61,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     private final List<InputField> inputFields = new ArrayList<>();
     private AppCompatCheckBox useUdpCheckBox;
     private AppCompatCheckBox noObfuscationCheckBox;
+    private AppCompatCheckBox manualCaptchaCheckBox;
     private boolean applyingValues;
     private boolean validationAttempted;
 
@@ -84,6 +100,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         inputFields.clear();
         useUdpCheckBox = null;
         noObfuscationCheckBox = null;
+        manualCaptchaCheckBox = null;
         binding = null;
         super.onDestroyView();
     }
@@ -102,7 +119,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
 
         useUdpCheckBox = addCheckBox(container, R.string.first_launch_vk_turn_use_udp);
         noObfuscationCheckBox = addCheckBox(container, R.string.first_launch_vk_turn_no_obfuscation);
-
+        manualCaptchaCheckBox = addCheckBox(container, R.string.manual_captcha_title);
         addSectionLabel(container, R.string.first_launch_vk_turn_wireguard_interface);
         addInput(container, AppPrefs.KEY_WG_PRIVATE_KEY, R.string.first_launch_vk_turn_wg_private_key, true, false);
         addInput(container, AppPrefs.KEY_WG_ADDRESSES, R.string.first_launch_vk_turn_wg_addresses, true, false);
@@ -285,7 +302,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         labelParams.setMarginStart(dp(8));
         row.addView(label, labelParams);
 
-        row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
+        row.setOnClickListener(view -> {
+            Haptics.softSliderStep(view);
+            checkBox.setChecked(!checkBox.isChecked());
+        });
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -320,6 +340,9 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         }
         if (noObfuscationCheckBox != null) {
             noObfuscationCheckBox.setChecked(settings.noObfuscation);
+        }
+        if (manualCaptchaCheckBox != null) {
+            manualCaptchaCheckBox.setChecked(settings.manualCaptcha);
         }
         setText(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
         setText(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
@@ -396,6 +419,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         settings.threads = parsePositiveInt(text(AppPrefs.KEY_THREADS), 8);
         settings.useUdp = useUdpCheckBox == null || useUdpCheckBox.isChecked();
         settings.noObfuscation = noObfuscationCheckBox != null && noObfuscationCheckBox.isChecked();
+        settings.manualCaptcha = manualCaptchaCheckBox != null && manualCaptchaCheckBox.isChecked();
         settings.turnSessionMode = "auto";
         settings.localEndpoint = "127.0.0.1:9000";
         settings.turnHost = "";
@@ -586,7 +610,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
 
     private boolean isValidIpv4(String host) {
         String[] parts = host.split("\\.", -1);
-        if (parts.length != 4) {
+        if (parts.length != IPV4_PART_COUNT) {
             return false;
         }
         for (String part : parts) {
@@ -600,7 +624,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
                 }
             }
             int value = Integer.parseInt(part);
-            if (value > 255) {
+            if (value > IPV4_PART_MAX) {
                 return false;
             }
         }

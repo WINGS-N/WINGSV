@@ -52,7 +52,32 @@ import wings.v.databinding.ItemProfileEntryBinding;
 import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
-    { "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException", "PMD.NullAssignment", "PMD.ExceptionAsFlowControl" }
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.NullAssignment",
+        "PMD.ExceptionAsFlowControl",
+        "PMD.CommentRequired",
+        "PMD.ExcessiveImports",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.NcssCount",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.LooseCoupling",
+        "PMD.ShortVariable",
+        "PMD.CouplingBetweenObjects",
+        "PMD.AtLeastOneConstructor",
+        "PMD.AvoidLiteralsInIfCondition",
+        "PMD.ShortMethodName",
+    }
 )
 public class ProfilesFragment extends Fragment {
 

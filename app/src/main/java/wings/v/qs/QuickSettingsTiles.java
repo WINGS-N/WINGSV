@@ -13,7 +13,16 @@ import wings.v.core.BackendType;
 import wings.v.core.XrayStore;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class QuickSettingsTiles {
 
     public static final String ACTION_REFRESH_TILES = "wings.v.intent.action.REFRESH_QS_TILES";

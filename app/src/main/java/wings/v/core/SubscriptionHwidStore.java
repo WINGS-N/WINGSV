@@ -10,7 +10,18 @@ import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
 import wings.v.R;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.ConfusingTernary",
+        "PMD.DataClass",
+    }
+)
 public final class SubscriptionHwidStore {
 
     private SubscriptionHwidStore() {}

@@ -36,6 +36,21 @@ val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.
 val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
 val protoSourceDir: File = project.file("src/main/proto")
 val generatedProtoJavaDir: Provider<Directory> = layout.buildDirectory.dir("generated/source/proto/main/java")
+val defaultAppVersionName = "3.2.0"
+val defaultAppVersionCode = 3200
+val configuredAppVersionSpec = providers.gradleProperty("ver").orNull
+require(configuredAppVersionSpec == null || Regex("""[^/\s]+/\d+""").matches(configuredAppVersionSpec)) {
+    "Property -Pver must use format <versionName>/<versionCode>, for example -Pver=3.2.0/3200"
+}
+val configuredAppVersionName: String = configuredAppVersionSpec
+    ?.substringBefore('/')
+    ?.takeIf { it.isNotBlank() }
+    ?: defaultAppVersionName
+val configuredAppVersionCode: Int = configuredAppVersionSpec
+    ?.substringAfter('/', missingDelimiterValue = "")
+    ?.takeIf { it.isNotBlank() }
+    ?.toIntOrNull()
+    ?: defaultAppVersionCode
 
 fun resolveAndroidSdkDir(): File {
     val candidates: List<File> = listOfNotNull(
@@ -317,8 +332,8 @@ android {
         applicationId = "wings.v"
         minSdk = 26
         targetSdk = 36
-        versionCode = 311
-        versionName = "3.1.1"
+        versionCode = configuredAppVersionCode
+        versionName = configuredAppVersionName
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

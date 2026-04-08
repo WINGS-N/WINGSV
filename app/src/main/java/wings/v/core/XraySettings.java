@@ -15,6 +15,7 @@ public final class XraySettings {
     public String directDns;
     public boolean ipv6;
     public boolean sniffingEnabled;
+    public boolean proxyQuicEnabled;
     public boolean restartOnNetworkChange;
 
     public XraySettings copy() {
@@ -30,6 +31,7 @@ public final class XraySettings {
         copy.directDns = directDns;
         copy.ipv6 = ipv6;
         copy.sniffingEnabled = sniffingEnabled;
+        copy.proxyQuicEnabled = proxyQuicEnabled;
         copy.restartOnNetworkChange = restartOnNetworkChange;
         return copy;
     }
@@ -51,6 +53,7 @@ public final class XraySettings {
             localProxyPort == that.localProxyPort &&
             ipv6 == that.ipv6 &&
             sniffingEnabled == that.sniffingEnabled &&
+            proxyQuicEnabled == that.proxyQuicEnabled &&
             restartOnNetworkChange == that.restartOnNetworkChange &&
             Objects.equals(localProxyUsername, that.localProxyUsername) &&
             Objects.equals(localProxyPassword, that.localProxyPassword) &&
@@ -73,6 +76,7 @@ public final class XraySettings {
             directDns,
             ipv6,
             sniffingEnabled,
+            proxyQuicEnabled,
             restartOnNetworkChange
         );
     }

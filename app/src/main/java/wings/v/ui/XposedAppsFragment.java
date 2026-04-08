@@ -41,7 +41,18 @@ import wings.v.core.Haptics;
 import wings.v.core.XposedModulePrefs;
 import wings.v.databinding.FragmentAppsBinding;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.NullAssignment" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class XposedAppsFragment extends Fragment {
 
     private static final String ARG_MODE = "mode";

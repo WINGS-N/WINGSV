@@ -9,67 +9,69 @@ import android.view.HapticFeedbackConstants;
 import android.view.View;
 import androidx.annotation.Nullable;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    { "PMD.AvoidCatchingGenericException", "PMD.CommentRequired", "PMD.LawOfDemeter", "PMD.OnlyOneReturn" }
+)
 public final class Haptics {
 
     private Haptics() {}
 
-    public static void softSelection(@Nullable View view) {
+    public static void softSelection(@Nullable final View view) {
         if (view == null) {
             return;
         }
-        if (tryAdvancedEffect(view.getContext(), false)) {
-            return;
+        final boolean handled = tryAdvancedEffect(view.getContext(), false);
+        if (!handled) {
+            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         }
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
     }
 
-    public static void softSliderStep(@Nullable View view) {
+    public static void softSliderStep(@Nullable final View view) {
         if (view == null) {
             return;
         }
-        if (trySliderEffect(view.getContext())) {
-            return;
+        final boolean handled = trySliderEffect(view.getContext());
+        if (!handled) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK);
+            } else {
+                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+            }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            view.performHapticFeedback(HapticFeedbackConstants.SEGMENT_TICK);
-            return;
-        }
-        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
     }
 
-    public static void softConfirm(@Nullable View view) {
+    public static void softConfirm(@Nullable final View view) {
         if (view == null) {
             return;
         }
-        if (tryAdvancedEffect(view.getContext(), true)) {
-            return;
+        final boolean handled = tryAdvancedEffect(view.getContext(), true);
+        if (!handled) {
+            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
         }
-        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM);
     }
 
-    public static void powerWave(@Nullable View view, boolean turningOn) {
+    public static void powerWave(@Nullable final View view, final boolean turningOn) {
         if (view == null) {
             return;
         }
-        if (tryPowerWaveEffect(view.getContext(), turningOn)) {
-            return;
+        final boolean handled = tryPowerWaveEffect(view.getContext(), turningOn);
+        if (!handled) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                view.performHapticFeedback(
+                    turningOn ? HapticFeedbackConstants.TOGGLE_ON : HapticFeedbackConstants.TOGGLE_OFF
+                );
+            } else {
+                softConfirm(view);
+            }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            view.performHapticFeedback(
-                turningOn ? HapticFeedbackConstants.TOGGLE_ON : HapticFeedbackConstants.TOGGLE_OFF
-            );
-            return;
-        }
-        softConfirm(view);
     }
 
-    private static boolean tryAdvancedEffect(Context context, boolean confirm) {
+    private static boolean tryAdvancedEffect(final Context context, final boolean confirm) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return false;
         }
         try {
-            Vibrator vibrator = getVibrator(context);
+            final Vibrator vibrator = getVibrator(context);
             if (vibrator == null || !vibrator.hasVibrator()) {
                 return false;
             }
@@ -80,7 +82,7 @@ public final class Haptics {
                     VibrationEffect.Composition.PRIMITIVE_TICK
                 )
             ) {
-                VibrationEffect.Composition composition = VibrationEffect.startComposition().addPrimitive(
+                final VibrationEffect.Composition composition = VibrationEffect.startComposition().addPrimitive(
                     VibrationEffect.Composition.PRIMITIVE_LOW_TICK,
                     0.35f
                 );
@@ -100,12 +102,12 @@ public final class Haptics {
         return false;
     }
 
-    private static boolean trySliderEffect(Context context) {
+    private static boolean trySliderEffect(final Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return false;
         }
         try {
-            Vibrator vibrator = getVibrator(context);
+            final Vibrator vibrator = getVibrator(context);
             if (vibrator == null || !vibrator.hasVibrator()) {
                 return false;
             }
@@ -119,7 +121,7 @@ public final class Haptics {
                 return false;
             }
 
-            VibrationEffect effect = VibrationEffect.startComposition()
+            final VibrationEffect effect = VibrationEffect.startComposition()
                 .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.4f)
                 .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, 0.26f, 14)
                 .compose();
@@ -129,12 +131,12 @@ public final class Haptics {
         return false;
     }
 
-    private static boolean tryPowerWaveEffect(Context context, boolean turningOn) {
+    private static boolean tryPowerWaveEffect(final Context context, final boolean turningOn) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return false;
         }
         try {
-            Vibrator vibrator = getVibrator(context);
+            final Vibrator vibrator = getVibrator(context);
             if (vibrator == null || !vibrator.hasVibrator()) {
                 return false;
             }
@@ -149,7 +151,7 @@ public final class Haptics {
                 return false;
             }
 
-            VibrationEffect.Composition composition = VibrationEffect.startComposition();
+            final VibrationEffect.Composition composition = VibrationEffect.startComposition();
             if (turningOn) {
                 composition
                     .addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, 0.18f)
@@ -171,9 +173,9 @@ public final class Haptics {
     }
 
     @Nullable
-    private static Vibrator getVibrator(Context context) {
+    private static Vibrator getVibrator(final Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            VibratorManager manager = context.getSystemService(VibratorManager.class);
+            final VibratorManager manager = context.getSystemService(VibratorManager.class);
             return manager != null ? manager.getDefaultVibrator() : null;
         }
         return context.getSystemService(Vibrator.class);

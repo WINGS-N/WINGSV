@@ -22,7 +22,26 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import wings.v.R;
 
-@SuppressWarnings("PMD.AvoidFileStream")
+@SuppressWarnings(
+    {
+        "PMD.AvoidFileStream",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LooseCoupling",
+        "PMD.ShortVariable",
+        "PMD.AvoidInstantiatingObjectsInLoops",
+        "PMD.CyclomaticComplexity",
+        "PMD.CognitiveComplexity",
+        "PMD.AvoidBranchingStatementAsLastInLoop",
+        "PMD.UnnecessaryFullyQualifiedName",
+        "PMD.GodClass",
+        "PMD.TooManyMethods",
+    }
+)
 public final class ByeDpiDomainListStore {
 
     private static final String FILE_NAME = "byedpi_domain_lists.json";

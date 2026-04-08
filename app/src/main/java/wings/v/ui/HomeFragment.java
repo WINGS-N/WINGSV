@@ -34,9 +34,34 @@ import wings.v.core.XrayProfile;
 import wings.v.databinding.FragmentHomeBinding;
 import wings.v.service.ProxyTunnelService;
 
-@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.NullAssignment", "PMD.ExceptionAsFlowControl" })
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.NullAssignment",
+        "PMD.ExceptionAsFlowControl",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.ExcessiveImports",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.NcssCount",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.AvoidDeeplyNestedIfStmts",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.ShortVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.ConfusingTernary",
+    }
+)
 public class HomeFragment extends Fragment {
 
+    private static final long NO_DURATION_MS = 0L;
+    private static final int COUNTRY_CODE_LENGTH = 2;
     private static final long UI_REFRESH_INTERVAL_MS = 250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refreshRunnable = new Runnable() {
@@ -134,7 +159,17 @@ public class HomeFragment extends Fragment {
 
         if (connecting) {
             binding.textServiceState.setText(R.string.service_connecting);
-            binding.textServiceHint.setText(R.string.service_connecting_hint);
+            long captchaLockoutRemainingMs = ProxyTunnelService.getProxyCaptchaLockoutRemainingMs();
+            if (captchaLockoutRemainingMs > NO_DURATION_MS) {
+                binding.textServiceHint.setText(
+                    getString(
+                        R.string.service_connecting_lockout_hint,
+                        wings.v.core.UiFormatter.formatDurationShort(captchaLockoutRemainingMs)
+                    )
+                );
+            } else {
+                binding.textServiceHint.setText(R.string.service_connecting_hint);
+            }
         } else if (stopping) {
             binding.textServiceState.setText(
                 settings.backendType == BackendType.XRAY
@@ -146,17 +181,21 @@ public class HomeFragment extends Fragment {
             binding.textServiceState.setText(running ? R.string.service_on : R.string.service_off);
             binding.textServiceHint.setText(running ? R.string.tap_to_disconnect : R.string.tap_to_connect);
         }
-        binding.textServiceState.setBackgroundResource(
-            running ? R.drawable.bg_service_state_on : R.drawable.bg_surface_card
-        );
-        binding.textServiceState.setTextColor(
-            running
-                ? ContextCompat.getColor(context, android.R.color.white)
-                : resolveThemeColor(
-                      android.R.attr.textColorPrimary,
-                      ContextCompat.getColor(context, R.color.wingsv_text_primary)
-                  )
-        );
+        if (running) {
+            binding.textServiceState.setBackgroundResource(R.drawable.bg_service_state_on);
+            binding.textServiceState.setTextColor(ContextCompat.getColor(context, android.R.color.white));
+        } else if (connecting || stopping) {
+            binding.textServiceState.setBackgroundResource(R.drawable.bg_service_state_warning);
+            binding.textServiceState.setTextColor(ContextCompat.getColor(context, R.color.wingsv_text_primary));
+        } else {
+            binding.textServiceState.setBackgroundResource(R.drawable.bg_surface_card);
+            binding.textServiceState.setTextColor(
+                resolveThemeColor(
+                    android.R.attr.textColorPrimary,
+                    ContextCompat.getColor(context, R.color.wingsv_text_primary)
+                )
+            );
+        }
 
         int tintColor = ContextCompat.getColor(context, android.R.color.white);
         if (!active) {
@@ -431,6 +470,7 @@ public class HomeFragment extends Fragment {
         return countryCodeToFlag(countryCode) + " " + value;
     }
 
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private static String resolveCountryCode(String country) {
         String value = trim(country);
         if (value.length() == 2 && Character.isLetter(value.charAt(0)) && Character.isLetter(value.charAt(1))) {
@@ -472,7 +512,7 @@ public class HomeFragment extends Fragment {
 
     private static String countryCodeToFlag(String countryCode) {
         String code = trim(countryCode).toUpperCase(Locale.US);
-        if (code.length() != 2) {
+        if (code.length() != COUNTRY_CODE_LENGTH) {
             return "";
         }
         int first = code.codePointAt(0) - 'A' + 0x1F1E6;

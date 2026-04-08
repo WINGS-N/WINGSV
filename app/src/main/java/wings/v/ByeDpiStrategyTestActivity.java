@@ -26,7 +26,22 @@ import wings.v.databinding.ActivityByeDpiStrategyTestBinding;
 import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
-    { "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment", "PMD.AvoidCatchingGenericException" }
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.NullAssignment",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.CognitiveComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LooseCoupling",
+        "PMD.AvoidInstantiatingObjectsInLoops",
+    }
 )
 public class ByeDpiStrategyTestActivity extends AppCompatActivity {
 

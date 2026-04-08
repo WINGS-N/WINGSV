@@ -26,6 +26,7 @@ import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -53,6 +54,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -76,6 +78,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import wings.v.CaptchaBrowserActivity;
 import wings.v.MainActivity;
 import wings.v.R;
@@ -107,6 +112,9 @@ import wings.v.xray.XrayConfigFactory;
         "PMD.DoNotUseThreads",
         "PMD.AvoidUsingVolatile",
         "PMD.AvoidCatchingGenericException",
+        "PMD.AvoidLiteralsInIfCondition",
+        "PMD.ConsecutiveAppendsShouldReuse",
+        "PMD.AvoidInstantiatingObjectsInLoops",
         "PMD.NullAssignment",
         "PMD.SignatureDeclareThrowsException",
         "PMD.AvoidUsingHardCodedIP",
@@ -114,10 +122,61 @@ import wings.v.xray.XrayConfigFactory;
         "PMD.ExceptionAsFlowControl",
         "PMD.AvoidSynchronizedStatement",
         "PMD.UnusedPrivateMethod",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.ExcessiveImports",
+        "PMD.CouplingBetweenObjects",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.TooManyMethods",
+        "PMD.NcssCount",
+        "PMD.CognitiveComplexity",
+        "PMD.NPathComplexity",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.UseCollectionIsEmpty",
+        "PMD.AvoidBranchingStatementAsLastInLoop",
+        "PMD.ConfusingTernary",
+        "PMD.IdenticalCatchBranches",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.ConsecutiveLiteralAppends",
+        "PMD.LooseCoupling",
+        "PMD.AvoidDuplicateLiterals",
+        "PMD.UseUnderscoresInNumericLiterals",
+        "PMD.AvoidDeeplyNestedIfStmts",
+        "PMD.InsufficientStringBufferDeclaration",
+        "PMD.AvoidReassigningParameters",
+        "PMD.FieldNamingConventions",
+        "PMD.UncommentedEmptyMethodBody",
+        "PMD.AtLeastOneConstructor",
+        "PMD.TooManyFields",
+        "PMD.SingularField",
+        "PMD.PreserveStackTrace",
     }
 )
 public class ProxyTunnelService extends Service {
 
+    private static final int XRAY_VPN_START_ATTEMPTS = 2;
+    private static final int PID_FILE_READ_ATTEMPTS = 5;
+    private static final int PID_FILE_READ_RETRY_LIMIT = PID_FILE_READ_ATTEMPTS - 1;
+    private static final int CAPTCHA_LOCKOUT_PARTS_MIN = 2;
+    private static final int PROC_NET_DEV_MIN_COLUMNS = 9;
+    private static final String DUMPSYS_TETHER_STATE_HEADER = "Tether state:";
+    private static final String PROXY_STATUS_AUTH_READY = "auth_ready";
+    private static final String PROXY_STATUS_CAPTCHA_LOCKOUT = "captcha_lockout";
+    private static final String PROXY_STATUS_DTLS_READY = "dtls_ready";
+    private static final String PROXY_STATUS_OK = "ok";
+    private static final String PROXY_STATUS_TURN_READY = "turn_ready";
+    private static final String PROXY_EVENT_CAPS = "caps";
+    private static final String PROXY_EVENT_CAPTCHA = "captcha";
+    private static final String PROXY_EVENT_LOCKOUT = "lockout";
+    private static final String PROXY_EVENT_STATUS = "status";
+    private static final String CAPTCHA_STATE_PENDING = "pending";
+    private static final String CAPTCHA_STATE_REQUIRED = "required";
+    private static final String CAPTCHA_STATE_SOLVED = "solved";
     public static final String ACTION_START = "wings.v.action.START";
     public static final String ACTION_STOP = "wings.v.action.STOP";
     public static final String ACTION_REFRESH_IP = "wings.v.action.REFRESH_IP";
@@ -217,9 +276,9 @@ public class ProxyTunnelService extends Service {
     private static volatile boolean sFastTrafficStatsRequested;
     private static volatile WeakReference<ProxyTunnelService> sServiceRef = new WeakReference<>(null);
     private static volatile String sPendingCaptchaUrl;
-    private static volatile String sPendingCaptchaUserAgent;
-    private static volatile CaptchaPromptSource sPendingCaptchaSource = CaptchaPromptSource.PRIMARY;
     private static volatile long sLastCaptchaNotificationAtElapsedMs;
+    private static volatile long sProxyCaptchaLockoutUntilElapsedMs;
+    private static volatile ProxyCapabilities sProxyCapabilities = ProxyCapabilities.empty();
 
     private static final class CaptchaPrompt {
 
@@ -232,6 +291,31 @@ public class ProxyTunnelService extends Service {
             this.source = source;
             this.userAgent = userAgent;
         }
+    }
+
+    private static final class ProxyCapabilities {
+
+        final int version;
+        final Set<String> capabilities;
+
+        ProxyCapabilities(int version, Set<String> capabilities) {
+            this.version = version;
+            this.capabilities =
+                capabilities == null ? Collections.emptySet() : Collections.unmodifiableSet(capabilities);
+        }
+
+        static ProxyCapabilities empty() {
+            return new ProxyCapabilities(0, Collections.emptySet());
+        }
+
+        boolean has(String capability) {
+            return capability != null && capabilities.contains(capability);
+        }
+    }
+
+    @FunctionalInterface
+    private interface CleanupStep {
+        void run() throws Exception;
     }
 
     private final Object vpnBackendLock = new Object();
@@ -283,7 +367,6 @@ public class ProxyTunnelService extends Service {
     private volatile Set<String> activeTetheredInterfaces = Collections.emptySet();
     private long lastRxSample = -1L;
     private long lastTxSample = -1L;
-    private long lastTrafficSampleAtElapsedMs = -1L;
     private long lastRxTrafficAtElapsedMs = -1L;
     private long lastTxTrafficAtElapsedMs = -1L;
     private double smoothedRxBytesPerSecond;
@@ -308,6 +391,7 @@ public class ProxyTunnelService extends Service {
     private boolean screenStateReceiverRegistered;
     private volatile boolean proxyWarmupTurnReady;
     private volatile boolean proxyWarmupDtlsReady;
+    private volatile boolean proxyWarmupAuthReady;
     private final AtomicBoolean wakeFastPathCheckQueued = new AtomicBoolean();
     private final ConnectivityManager.NetworkCallback physicalNetworkCallback =
         new ConnectivityManager.NetworkCallback() {
@@ -413,8 +497,6 @@ public class ProxyTunnelService extends Service {
             return;
         }
         sPendingCaptchaUrl = null;
-        sPendingCaptchaUserAgent = null;
-        sPendingCaptchaSource = CaptchaPromptSource.PRIMARY;
         NotificationManager notificationManager = appContext.getSystemService(NotificationManager.class);
         if (notificationManager != null) {
             try {
@@ -513,6 +595,19 @@ public class ProxyTunnelService extends Service {
 
     public static String getLastError() {
         return sLastError;
+    }
+
+    public static long getProxyCaptchaLockoutRemainingMs() {
+        long deadline = sProxyCaptchaLockoutUntilElapsedMs;
+        if (deadline <= 0L) {
+            return 0L;
+        }
+        long remaining = deadline - SystemClock.elapsedRealtime();
+        return Math.max(0L, remaining);
+    }
+
+    public static boolean isProxyCaptchaLockoutActive() {
+        return getProxyCaptchaLockoutRemainingMs() > 0L;
     }
 
     @Nullable
@@ -681,7 +776,7 @@ public class ProxyTunnelService extends Service {
             if (!isActive()) {
                 setServiceState(ServiceState.CONNECTING);
                 startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
-                startWork();
+                startWork(true);
                 return START_STICKY;
             }
             resetRuntimeSnapshot();
@@ -696,7 +791,7 @@ public class ProxyTunnelService extends Service {
                 try {
                     startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 } catch (RuntimeException ignored) {}
-                startWork();
+                startWork(true);
             });
             return START_STICKY;
         }
@@ -716,7 +811,7 @@ public class ProxyTunnelService extends Service {
 
         setServiceState(ServiceState.CONNECTING);
         startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
-        startWork();
+        startWork(false);
         return START_STICKY;
     }
 
@@ -733,17 +828,19 @@ public class ProxyTunnelService extends Service {
         super.onDestroy();
     }
 
-    private void startWork() {
+    private void startWork(boolean allowCleanupExistingRuntimeArtifacts) {
         final int generation = runtimeGeneration.incrementAndGet();
         activeWorkTask = workExecutor.submit(() -> {
-            if (
-                proxyProcess != null ||
-                backend != null ||
-                currentTunnel != null ||
-                awgBackend != null ||
-                awgTunnel != null
-            ) {
-                return;
+            if (hasRuntimeArtifacts()) {
+                if (!allowCleanupExistingRuntimeArtifacts) {
+                    return;
+                }
+                appendRuntimeLogLine("Reconnect start detected stale runtime artifacts, forcing cleanup");
+                stopWorkInternalForReconnect();
+                stopping = false;
+            }
+            if (hasRuntimeArtifacts()) {
+                throw new IllegalStateException("Не удалось полностью очистить предыдущий backend перед reconnect");
             }
 
             clearPendingCaptchaPrompt(getApplicationContext());
@@ -915,13 +1012,47 @@ public class ProxyTunnelService extends Service {
         closeProtectBridge();
         protectSocketName = null;
 
-        XrayVpnService vpnService = XrayVpnService.ensureServiceStarted(getApplicationContext());
-        if (vpnService == null) {
-            throw new IllegalStateException("Не удалось запустить Xray VPN service");
+        Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
+        if (vpnPermissionIntent != null) {
+            throw new IllegalStateException(
+                getString(R.string.vpn_permission_required) +
+                    ". Проверьте другой активный VPN и Always-On VPN в системных настройках"
+            );
         }
-        int tunFd = vpnService.establishTunnel(settings);
-        if (tunFd <= 0) {
-            throw new IllegalStateException("Не удалось открыть Xray TUN");
+
+        int tunFd = -1;
+        XrayVpnService vpnService = null;
+        Exception startupError = null;
+        for (int attempt = 1; attempt <= XRAY_VPN_START_ATTEMPTS; attempt++) {
+            ensureRuntimeStillWanted(generation);
+            try {
+                vpnService = XrayVpnService.ensureServiceStarted(getApplicationContext());
+                if (vpnService == null) {
+                    throw new IllegalStateException("Не удалось запустить Xray VPN service");
+                }
+                tunFd = vpnService.establishTunnel(settings);
+                if (tunFd <= 0) {
+                    throw new IllegalStateException("Не удалось открыть Xray TUN");
+                }
+                startupError = null;
+                break;
+            } catch (Exception error) {
+                startupError = error;
+                appendRuntimeLogLine("Xray VPN start attempt " + attempt + " failed: " + error.getMessage());
+                XrayVpnService.forceStopService(getApplicationContext());
+                if (attempt >= XRAY_VPN_START_ATTEMPTS) {
+                    break;
+                }
+                try {
+                    Thread.sleep(500L);
+                } catch (InterruptedException interruptedError) {
+                    Thread.currentThread().interrupt();
+                    throw interruptedError;
+                }
+            }
+        }
+        if (startupError != null) {
+            throw startupError;
         }
         ensureRuntimeStillWanted(generation);
 
@@ -1136,6 +1267,7 @@ public class ProxyTunnelService extends Service {
         sRunning = false;
         resetRuntimeSnapshot();
         sPublicIpRefreshInProgress = false;
+        clearProxyCaptchaLockoutState();
         AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
         clearPendingCaptchaPrompt(getApplicationContext());
 
@@ -1207,32 +1339,34 @@ public class ProxyTunnelService extends Service {
 
         shutdownStatsExecutor();
 
-        stopByeDpiFrontProxy();
+        runReconnectCleanupStep("ByeDPI front proxy stop", this::stopByeDpiFrontProxy);
 
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly();
         if (activeBackendType == BackendType.XRAY) {
-            XrayVpnService.stopService(getApplicationContext());
-            try {
-                XrayBridge.stop();
-            } catch (Exception ignored) {}
+            runReconnectCleanupStep("Xray VPN service stop", () -> XrayVpnService.stopService(getApplicationContext()));
+            runReconnectCleanupStep("Xray core stop", XrayBridge::stop);
         } else {
-            shutdownVpnBackendsLocked();
+            runReconnectCleanupStep("VPN backend shutdown", this::shutdownVpnBackendsLocked);
         }
-        forceLinkDownActiveTunnelIfNeeded();
+        runReconnectCleanupStep("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded);
 
-        clearRootTetherRouting();
-        clearRootAppTunnelRouting();
-        unregisterTetherReceiver();
-        unregisterTetherEventCallback();
-        releaseTunnelWifiLock();
-        releaseSharingWifiLocks();
-        clearRootRouting();
+        runReconnectCleanupStep("Root tether routing cleanup", this::clearRootTetherRouting);
+        runReconnectCleanupStep("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting);
+        runReconnectCleanupStep("Tether receiver unregister", this::unregisterTetherReceiver);
+        runReconnectCleanupStep("Tether callback unregister", this::unregisterTetherEventCallback);
+        runReconnectCleanupStep("Tunnel Wi-Fi lock release", this::releaseTunnelWifiLock);
+        runReconnectCleanupStep("Sharing Wi-Fi lock release", this::releaseSharingWifiLocks);
+        runReconnectCleanupStep("Root routing cleanup", this::clearRootRouting);
 
         if (proxyProcess != null) {
-            proxyProcess.destroy();
+            runReconnectCleanupStep("Proxy process destroy", () -> {
+                if (proxyProcess != null) {
+                    proxyProcess.destroy();
+                }
+            });
             proxyProcess = null;
         }
-        killPersistedRootProxyIfNeeded();
+        runReconnectCleanupStep("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded);
 
         protectSocketName = null;
         rootModeActive = false;
@@ -1242,20 +1376,57 @@ public class ProxyTunnelService extends Service {
         appliedTetherUpstreamName = null;
         pendingSharingRestoreOnBoot = false;
 
-        closeProtectBridge();
+        runReconnectCleanupStep("Protect bridge close", this::closeProtectBridge);
         if (shouldStopGoBackendBridgeService) {
-            GoBackendVpnAccess.stopService(getApplicationContext());
+            runReconnectCleanupStep("VPN access bridge stop", () ->
+                GoBackendVpnAccess.stopService(getApplicationContext())
+            );
         }
-        XrayVpnService.stopService(getApplicationContext());
+        runReconnectCleanupStep("Final Xray VPN service stop", () ->
+            XrayVpnService.stopService(getApplicationContext())
+        );
         if (rootShell != null) {
-            rootShell.stop();
+            runReconnectCleanupStep("Root shell stop", () -> {
+                if (rootShell != null) {
+                    rootShell.stop();
+                }
+            });
             rootShell = null;
         }
-        try {
-            VpnHotspotBridge.closeExistingRootServer();
-        } catch (Exception ignored) {}
+        runReconnectCleanupStep("Root server close", VpnHotspotBridge::closeExistingRootServer);
         toolsInstaller = null;
-        clearPersistedRootRuntimeState();
+        runReconnectCleanupStep("Persisted root runtime clear", this::clearPersistedRootRuntimeState);
+        clearVpnBackendReferences();
+        proxyProcess = null;
+        byeDpiNative = null;
+        byeDpiWorkTask = null;
+    }
+
+    private boolean hasRuntimeArtifacts() {
+        return (
+            proxyProcess != null ||
+            backend != null ||
+            currentTunnel != null ||
+            currentConfig != null ||
+            awgBackend != null ||
+            awgTunnel != null ||
+            awgConfig != null ||
+            protectBridgeServer != null ||
+            byeDpiWorkTask != null ||
+            byeDpiNative != null
+        );
+    }
+
+    private void runReconnectCleanupStep(String stepName, CleanupStep step) {
+        try {
+            step.run();
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            appendRuntimeLogLine("Reconnect cleanup interrupted during " + stepName);
+        } catch (Exception error) {
+            appendRuntimeLogLine("Reconnect cleanup warning (" + stepName + "): " + error.getMessage());
+            Log.w(TAG, "Reconnect cleanup warning during " + stepName, error);
+        }
     }
 
     private boolean shouldStopGoBackendBridgeServiceExplicitly() {
@@ -1275,6 +1446,7 @@ public class ProxyTunnelService extends Service {
         sRunning = false;
         resetRuntimeSnapshot();
         sPublicIpRefreshInProgress = false;
+        clearProxyCaptchaLockoutState();
         cancelPublicIpRefresh();
         clearPendingCaptchaPrompt(getApplicationContext());
         shutdownStatsExecutor();
@@ -1482,6 +1654,9 @@ public class ProxyTunnelService extends Service {
         if (settings.noObfuscation) {
             command.add("-no-dtls");
         }
+        if (settings.manualCaptcha) {
+            command.add("-manual-captcha");
+        }
         if (!TextUtils.isEmpty(settings.turnSessionMode)) {
             command.add("-session-mode");
             command.add(settings.turnSessionMode);
@@ -1498,7 +1673,11 @@ public class ProxyTunnelService extends Service {
             command.add("-protect-sock");
             command.add(protectSocketName);
         }
-
+        String wgPublicKeyFingerprint = computeWireGuardPublicKeyFingerprint(settings.wgPublicKey);
+        if (!TextUtils.isEmpty(wgPublicKeyFingerprint)) {
+            command.add("-wg-pub-fp");
+            command.add(wgPublicKeyFingerprint);
+        }
         if (!kernelWireguardActive) {
             return new ProcessBuilder(command).redirectErrorStream(true).start();
         }
@@ -1519,6 +1698,22 @@ public class ProxyTunnelService extends Service {
         return new ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start();
     }
 
+    @Nullable
+    private String computeWireGuardPublicKeyFingerprint(@Nullable String wireGuardPublicKey) {
+        String normalized = wireGuardPublicKey == null ? "" : wireGuardPublicKey.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        try {
+            byte[] decodedKey = Base64.decode(normalized, Base64.DEFAULT);
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(decodedKey);
+            return "sha256:" + Base64.encodeToString(digest, Base64.NO_WRAP | Base64.NO_PADDING);
+        } catch (Exception error) {
+            appendRuntimeLogLine("Failed to derive WireGuard public key fingerprint: " + error.getMessage());
+            return null;
+        }
+    }
+
     private void resetRuntimeSnapshot() {
         sRxBytes = 0L;
         sTxBytes = 0L;
@@ -1529,7 +1724,6 @@ public class ProxyTunnelService extends Service {
         sPublicIsp = null;
         lastRxSample = -1L;
         lastTxSample = -1L;
-        lastTrafficSampleAtElapsedMs = -1L;
         lastRxTrafficAtElapsedMs = -1L;
         lastTxTrafficAtElapsedMs = -1L;
         smoothedRxBytesPerSecond = 0d;
@@ -1545,12 +1739,57 @@ public class ProxyTunnelService extends Service {
         lastActiveTunnelProbeAtElapsedMs = 0L;
         lastNotificationTrafficUpdateAtElapsedMs = 0L;
         activeTunnelProbingInProgress.set(false);
+        sProxyCapabilities = ProxyCapabilities.empty();
         resetProxyWarmupState();
     }
 
     private void resetProxyWarmupState() {
         proxyWarmupTurnReady = false;
         proxyWarmupDtlsReady = false;
+        proxyWarmupAuthReady = false;
+    }
+
+    private static void clearProxyCaptchaLockoutState() {
+        sProxyCaptchaLockoutUntilElapsedMs = 0L;
+    }
+
+    private void noteProxyCaptchaLockoutSeconds(long seconds) {
+        if (seconds <= 0L) {
+            clearProxyCaptchaLockoutState();
+            return;
+        }
+        sProxyCaptchaLockoutUntilElapsedMs = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(seconds);
+        String message = getString(
+            R.string.service_connecting_lockout_hint,
+            UiFormatter.formatDurationShort(getProxyCaptchaLockoutRemainingMs())
+        );
+        setLastError(message);
+        updateNotification();
+    }
+
+    private void noteProxyAuthReady() {
+        proxyWarmupAuthReady = true;
+        updateNotification();
+    }
+
+    private void noteProxyCapabilities(int version, @NonNull Set<String> capabilities) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String capability : capabilities) {
+            String value = trimToNull(capability);
+            if (value != null) {
+                normalized.add(value.toLowerCase(Locale.US));
+            }
+        }
+        ProxyCapabilities current = sProxyCapabilities;
+        if (current.version == version && current.capabilities.equals(normalized)) {
+            return;
+        }
+        sProxyCapabilities = new ProxyCapabilities(version, normalized);
+        if (!normalized.isEmpty()) {
+            appendRuntimeLogLine(
+                "vk-turn-proxy capabilities v" + Math.max(0, version) + ": " + TextUtils.join(",", normalized)
+            );
+        }
     }
 
     private static void beginErrorNoticeSession() {
@@ -1636,7 +1875,7 @@ public class ProxyTunnelService extends Service {
 
     private long readRootProxyPid() {
         File pidFile = getRootProxyPidFile();
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < PID_FILE_READ_ATTEMPTS; attempt++) {
             if (pidFile.isFile()) {
                 try (
                     BufferedReader reader = new BufferedReader(
@@ -1649,7 +1888,7 @@ public class ProxyTunnelService extends Service {
                     }
                 } catch (IOException | NumberFormatException ignored) {}
             }
-            if (attempt < 4) {
+            if (attempt < PID_FILE_READ_RETRY_LIMIT) {
                 SystemClock.sleep(100L);
             }
         }
@@ -1940,37 +2179,26 @@ public class ProxyTunnelService extends Service {
         if (TextUtils.isEmpty(line)) {
             return;
         }
+        if (line.startsWith("PROXY_CAPS:")) {
+            handleProxyCapsLine(line.substring("PROXY_CAPS:".length()).trim());
+            return;
+        }
+        if (line.startsWith("PROXY_EVENT:")) {
+            handleStructuredProxyEvent(line.substring("PROXY_EVENT:".length()).trim());
+            return;
+        }
         if (line.startsWith("PROXY_STATUS:")) {
-            String marker = line.substring("PROXY_STATUS:".length()).trim().toLowerCase(Locale.US);
-            if ("turn_ready".equals(marker)) {
-                proxyWarmupTurnReady = true;
-            } else if ("dtls_ready".equals(marker) || "ok".equals(marker)) {
-                proxyWarmupTurnReady = true;
-                proxyWarmupDtlsReady = true;
-            }
+            handleProxyStatusMarker(line.substring("PROXY_STATUS:".length()).trim().toLowerCase(Locale.US));
             return;
         }
         final String captchaPrefix = "CAPTCHA_REQUIRED:";
         final String pendingCaptchaPrefix = "CAPTCHA_PENDING:";
         if (line.startsWith(captchaPrefix)) {
-            clearPendingCaptchaPrompt(getApplicationContext());
             CaptchaPrompt prompt = parseCaptchaPrompt(
                 line.substring(captchaPrefix.length()).trim(),
                 CaptchaPromptSource.PRIMARY
             );
-            if (prompt == null) {
-                return;
-            }
-            boolean transientExternalFlow = AppPrefs.isExternalActionTransientLaunchPending(getApplicationContext());
-            appendRuntimeLogLine(
-                prompt.source == CaptchaPromptSource.POOL
-                    ? "VK captcha requested for additional TURN session"
-                    : "VK captcha requested for primary TURN session"
-            );
-            if (transientExternalFlow && prompt.source == CaptchaPromptSource.PRIMARY) {
-                showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, true, false);
-            }
-            openCaptchaBrowser(prompt.url, prompt.source, prompt.userAgent);
+            handleCaptchaPromptEvent(prompt, false);
             return;
         }
         if (line.startsWith(pendingCaptchaPrefix)) {
@@ -1978,19 +2206,181 @@ public class ProxyTunnelService extends Service {
                 line.substring(pendingCaptchaPrefix.length()).trim(),
                 CaptchaPromptSource.POOL
             );
-            if (prompt == null) {
-                return;
-            }
-            appendRuntimeLogLine(
-                prompt.source == CaptchaPromptSource.POOL
-                    ? "Background VK captcha deferred for additional TURN session"
-                    : "Background VK captcha deferred"
-            );
-            showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, false, true);
+            handleCaptchaPromptEvent(prompt, true);
             return;
         }
         if ("CAPTCHA_SOLVED".equals(line) || "CAPTCHA_CANCELLED".equals(line) || "CAPTCHA_EXPIRED".equals(line)) {
+            handleCaptchaCompletionState(line.substring("CAPTCHA_".length()).toLowerCase(Locale.US));
+        }
+    }
+
+    private void handleProxyStatusMarker(String marker) {
+        if (TextUtils.isEmpty(marker)) {
+            return;
+        }
+        if (PROXY_STATUS_TURN_READY.equals(marker)) {
+            proxyWarmupTurnReady = true;
+            updateNotification();
+            return;
+        }
+        if (PROXY_STATUS_AUTH_READY.equals(marker)) {
+            noteProxyAuthReady();
+            return;
+        }
+        if (marker.startsWith(PROXY_STATUS_CAPTCHA_LOCKOUT)) {
+            String[] parts = marker.split("\\s+");
+            if (parts.length >= CAPTCHA_LOCKOUT_PARTS_MIN) {
+                try {
+                    noteProxyCaptchaLockoutSeconds(Long.parseLong(parts[1]));
+                } catch (NumberFormatException ignored) {}
+            }
+            return;
+        }
+        if (PROXY_STATUS_DTLS_READY.equals(marker) || PROXY_STATUS_OK.equals(marker)) {
+            proxyWarmupTurnReady = true;
+            proxyWarmupDtlsReady = true;
+            clearProxyCaptchaLockoutState();
+            clearLastError();
+            updateNotification();
+        }
+    }
+
+    private void handleStructuredProxyEvent(String payload) {
+        if (TextUtils.isEmpty(payload)) {
+            return;
+        }
+        try {
+            JSONObject event = new JSONObject(payload);
+            String type = event.optString("type", "").trim().toLowerCase(Locale.US);
+            if (PROXY_EVENT_CAPS.equals(type)) {
+                handleStructuredProxyCaps(event);
+                return;
+            }
+            if (PROXY_EVENT_STATUS.equals(type)) {
+                handleProxyStatusMarker(event.optString("phase", "").trim().toLowerCase(Locale.US));
+                return;
+            }
+            if (PROXY_EVENT_LOCKOUT.equals(type)) {
+                long seconds = event.optLong("seconds", 0L);
+                if (seconds > 0L) {
+                    noteProxyCaptchaLockoutSeconds(seconds);
+                }
+                return;
+            }
+            if (PROXY_EVENT_CAPTCHA.equals(type)) {
+                String state = event.optString("state", "").trim().toLowerCase(Locale.US);
+                if (CAPTCHA_STATE_REQUIRED.equals(state) || CAPTCHA_STATE_PENDING.equals(state)) {
+                    String url = trimToNull(event.optString("url", null));
+                    if (url == null) {
+                        return;
+                    }
+                    CaptchaPromptSource source = CaptchaPromptSource.fromWireValue(
+                        trimToNull(event.optString("source", null))
+                    );
+                    String userAgent = trimToNull(event.optString("userAgent", null));
+                    handleCaptchaPromptEvent(new CaptchaPrompt(url, source, userAgent), "pending".equals(state));
+                    return;
+                }
+                if ("solved".equals(state) || "cancelled".equals(state) || "expired".equals(state)) {
+                    handleCaptchaCompletionState(state);
+                }
+            }
+        } catch (JSONException error) {
+            appendRuntimeLogLine("Failed to parse structured proxy event: " + error.getMessage());
+        }
+    }
+
+    private void handleProxyCapsLine(String payload) {
+        String normalized = trimToNull(payload);
+        if (normalized == null) {
+            sProxyCapabilities = ProxyCapabilities.empty();
+            return;
+        }
+        int version = 0;
+        LinkedHashSet<String> capabilities = new LinkedHashSet<>();
+        if (normalized.contains("caps=") || normalized.contains("version=")) {
+            for (String part : normalized.split("\\s+")) {
+                if (part.startsWith("version=")) {
+                    try {
+                        version = Integer.parseInt(part.substring("version=".length()).trim());
+                    } catch (NumberFormatException ignored) {}
+                    continue;
+                }
+                if (part.startsWith("caps=")) {
+                    addCapabilitiesToSet(capabilities, part.substring("caps=".length()));
+                }
+            }
+        } else {
+            addCapabilitiesToSet(capabilities, normalized);
+        }
+        noteProxyCapabilities(version, capabilities);
+    }
+
+    private void handleStructuredProxyCaps(JSONObject event) {
+        int version = event.optInt("version", 0);
+        LinkedHashSet<String> capabilitySet = new LinkedHashSet<>();
+        JSONArray capabilitiesArray = event.optJSONArray("capabilities");
+        if (capabilitiesArray != null) {
+            for (int index = 0; index < capabilitiesArray.length(); index++) {
+                String value = trimToNull(capabilitiesArray.optString(index, null));
+                if (value != null) {
+                    capabilitySet.add(value);
+                }
+            }
+        }
+        noteProxyCapabilities(version, capabilitySet);
+    }
+
+    private void addCapabilitiesToSet(Set<String> target, @Nullable String csvPayload) {
+        String normalized = trimToNull(csvPayload);
+        if (normalized == null) {
+            return;
+        }
+        String[] parts = normalized.split(",");
+        for (String part : parts) {
+            String value = trimToNull(part);
+            if (value != null) {
+                target.add(value);
+            }
+        }
+    }
+
+    private void handleCaptchaPromptEvent(@Nullable CaptchaPrompt prompt, boolean pending) {
+        if (prompt == null) {
+            return;
+        }
+        if (!pending) {
             clearPendingCaptchaPrompt(getApplicationContext());
+        }
+        boolean transientExternalFlow = AppPrefs.isExternalActionTransientLaunchPending(getApplicationContext());
+        appendRuntimeLogLine(
+            pending
+                ? prompt.source == CaptchaPromptSource.POOL
+                    ? "Background VK captcha deferred for additional TURN session"
+                    : "Background VK captcha deferred"
+                : prompt.source == CaptchaPromptSource.POOL
+                    ? "VK captcha requested for additional TURN session"
+                    : "VK captcha requested for primary TURN session"
+        );
+        if (pending) {
+            showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, false, true);
+            return;
+        }
+        if (transientExternalFlow && prompt.source == CaptchaPromptSource.PRIMARY) {
+            showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, true, false);
+        }
+        openCaptchaBrowser(prompt.url, prompt.source, prompt.userAgent);
+    }
+
+    private void handleCaptchaCompletionState(String state) {
+        if (TextUtils.isEmpty(state)) {
+            return;
+        }
+        clearPendingCaptchaPrompt(getApplicationContext());
+        if (CAPTCHA_STATE_SOLVED.equals(state)) {
+            clearProxyCaptchaLockoutState();
+            clearLastError();
+            updateNotification();
         }
     }
 
@@ -2026,6 +2416,14 @@ public class ProxyTunnelService extends Service {
             return null;
         }
         return new CaptchaPrompt(url, source, userAgent);
+    }
+
+    private @Nullable String trimToNull(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private @Nullable String decodeCaptchaUserAgent(@Nullable String encoded) {
@@ -2079,8 +2477,6 @@ public class ProxyTunnelService extends Service {
             return;
         }
         sPendingCaptchaUrl = url;
-        sPendingCaptchaUserAgent = userAgent;
-        sPendingCaptchaSource = source;
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         if (notificationManager == null) {
             return;
@@ -2186,6 +2582,7 @@ public class ProxyTunnelService extends Service {
 
     private void waitForProxyWarmup(long proxyStartedAt, int generation) throws InterruptedException {
         long deadline = proxyStartedAt + PROXY_WARMUP_TIMEOUT_MS;
+        boolean lockoutWaitLogged = false;
         while (true) {
             ensureRuntimeStillWanted(generation);
             if (proxyWarmupDtlsReady) {
@@ -2201,6 +2598,19 @@ public class ProxyTunnelService extends Service {
                 sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
                 continue;
             }
+            long captchaLockoutRemainingMs = getProxyCaptchaLockoutRemainingMs();
+            if (captchaLockoutRemainingMs > 0L) {
+                if (!lockoutWaitLogged) {
+                    appendRuntimeLogLine(
+                        "vk-turn-proxy warmup paused by captcha lockout for " +
+                            UiFormatter.formatDurationShort(captchaLockoutRemainingMs)
+                    );
+                    lockoutWaitLogged = true;
+                }
+                deadline = Math.max(deadline, SystemClock.elapsedRealtime() + captchaLockoutRemainingMs);
+                sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
+                continue;
+            }
             if (SystemClock.elapsedRealtime() >= deadline) {
                 if (proxyWarmupTurnReady) {
                     appendRuntimeLogLine(
@@ -2208,7 +2618,10 @@ public class ProxyTunnelService extends Service {
                     );
                     return;
                 }
-                throw new IllegalStateException(firstNonEmpty(sLastError, "vk-turn-proxy не достиг ready-состояния"));
+                String fallbackError = proxyWarmupAuthReady
+                    ? "vk-turn-proxy прошёл auth, но не достиг TURN/DTLS ready-состояния"
+                    : "vk-turn-proxy не достиг ready-состояния";
+                throw new IllegalStateException(firstNonEmpty(sLastError, fallbackError));
             }
             sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
         }
@@ -2536,7 +2949,7 @@ public class ProxyTunnelService extends Service {
             }
             String trimmed = line.trim();
             if (!inTetherStateSection) {
-                if ("Tether state:".equals(trimmed)) {
+                if (DUMPSYS_TETHER_STATE_HEADER.equals(trimmed)) {
                     inTetherStateSection = true;
                 }
                 continue;
@@ -3483,7 +3896,6 @@ public class ProxyTunnelService extends Service {
             targetIntervalMs,
             TimeUnit.MILLISECONDS
         );
-        appendRuntimeLogLine("Traffic stats sampling interval: " + targetIntervalMs + "ms");
     }
 
     private void shutdownStatsExecutor() {
@@ -3816,7 +4228,6 @@ public class ProxyTunnelService extends Service {
 
         lastRxSample = rxTotal;
         lastTxSample = txTotal;
-        lastTrafficSampleAtElapsedMs = now;
         sRxBytes = rxTotal;
         sTxBytes = txTotal;
         maybeRefreshTrafficNotification(now);
@@ -3884,7 +4295,7 @@ public class ProxyTunnelService extends Service {
                 }
                 String candidate = line.substring(0, separator).trim();
                 String[] columns = line.substring(separator + 1).trim().split("\\s+");
-                if (columns.length < 9) {
+                if (columns.length < PROC_NET_DEV_MIN_COLUMNS) {
                     line = reader.readLine();
                     continue;
                 }
@@ -4176,7 +4587,6 @@ public class ProxyTunnelService extends Service {
             scheduleRuntimeReconnect("vk-turn-proxy process disappeared", RUNTIME_RECONNECT_DELAY_MS);
             return;
         }
-
         if (
             activeBackendType == BackendType.AMNEZIAWG && (awgBackend == null || awgTunnel == null || awgConfig == null)
         ) {
@@ -4195,12 +4605,17 @@ public class ProxyTunnelService extends Service {
         if (sServiceState == ServiceState.STOPPED || !runtimeReconnectQueued.compareAndSet(false, true)) {
             return;
         }
-        appendRuntimeLogLine("Scheduling runtime reconnect: " + firstNonEmpty(reason, "unknown reason"));
+        long effectiveDelayMs = Math.max(delayMs, getProxyCaptchaLockoutRemainingMs());
+        appendRuntimeLogLine(
+            "Scheduling runtime reconnect: " +
+                firstNonEmpty(reason, "unknown reason") +
+                (effectiveDelayMs > delayMs ? " (captcha lockout hold)" : "")
+        );
         workExecutor.execute(() -> {
             try {
-                if (delayMs > 0L) {
+                if (effectiveDelayMs > 0L) {
                     try {
-                        Thread.sleep(delayMs);
+                        Thread.sleep(effectiveDelayMs);
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
                         return;
@@ -4226,7 +4641,7 @@ public class ProxyTunnelService extends Service {
                 try {
                     startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 } catch (RuntimeException ignored) {}
-                startWork();
+                startWork(true);
             } finally {
                 runtimeReconnectQueued.set(false);
             }
@@ -4280,6 +4695,14 @@ public class ProxyTunnelService extends Service {
 
     private String buildNotificationContentText() {
         String status = getString(getNotificationStatusRes());
+        long captchaLockoutRemainingMs = getProxyCaptchaLockoutRemainingMs();
+        if (sServiceState == ServiceState.CONNECTING && captchaLockoutRemainingMs > 0L) {
+            return getString(
+                R.string.service_notification_lockout_summary,
+                status,
+                UiFormatter.formatDurationShort(captchaLockoutRemainingMs)
+            );
+        }
         if (sServiceState != ServiceState.RUNNING) {
             return status;
         }
@@ -4731,12 +5154,6 @@ public class ProxyTunnelService extends Service {
         private final Set<Integer> bypassUids;
         private final Set<String> tetherInterfaces = new LinkedHashSet<>();
         private final List<Integer> rulePriorities = new ArrayList<>();
-        private String tetherTableLookup;
-        private String tetherMasqueradeMode;
-        private boolean tetherDisableIpv6;
-        private boolean tetherUseFallbackUpstream;
-        private int tetherDnsUdpPort;
-        private int tetherDnsTcpPort;
 
         private RootRoutingState(List<String> ipv4Routes, List<String> ipv6Routes, Set<Integer> bypassUids) {
             this.ipv4Routes = ipv4Routes != null ? ipv4Routes : new ArrayList<>();

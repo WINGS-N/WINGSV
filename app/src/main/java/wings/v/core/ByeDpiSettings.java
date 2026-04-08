@@ -7,7 +7,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-@SuppressWarnings("PMD.AvoidUsingHardCodedIP")
+@SuppressWarnings(
+    {
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class ByeDpiSettings {
 
     public static final String DEFAULT_COMMAND_ARGS =

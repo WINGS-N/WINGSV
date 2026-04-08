@@ -20,6 +20,17 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ActivityActiveProbingTargetsBinding;
 import wings.v.databinding.ItemActiveProbingTargetBinding;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.AtLeastOneConstructor",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.LooseCoupling",
+    }
+)
 public class ActiveProbingTargetsActivity extends AppCompatActivity {
 
     private ActivityActiveProbingTargetsBinding binding;

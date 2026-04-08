@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/xray_routing_rule_type_title"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary" />
+
+        <FrameLayout
+            android:id="@+id/field_match_type"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_xray_routing_field"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:minHeight="54dp"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="14dp">
+
+            <TextView
+                android:id="@+id/text_match_type_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:paddingEnd="28dp"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:textColor="?android:textColorPrimary" />
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="end|center_vertical"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_sesl_arrow_enabled_down" />
+        </FrameLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/xray_routing_rule_code_title"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary" />
+
+        <androidx.appcompat.widget.AppCompatEditText
+            android:id="@+id/input_rule_code"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_xray_routing_field"
+            android:gravity="center_vertical"
+            android:hint="@string/xray_routing_rule_code_hint"
+            android:imeOptions="actionDone"
+            android:inputType="textNoSuggestions"
+            android:maxLines="1"
+            android:minHeight="54dp"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="14dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/xray_routing_rule_action_title"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary" />
+
+        <FrameLayout
+            android:id="@+id/field_rule_action"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_xray_routing_field"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:minHeight="54dp"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="14dp">
+
+            <TextView
+                android:id="@+id/text_rule_action_value"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:paddingEnd="28dp"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:textColor="?android:textColorPrimary" />
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="end|center_vertical"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_sesl_arrow_enabled_down" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp">
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_rule_enabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/xray_routing_rule_enabled" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/xray_routing_rule_status_title"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary" />
+
+            <TextView
+                android:id="@+id/text_validation_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_profile_ping_good"
+                android:ellipsize="end"
+                android:maxEms="18"
+                android:maxLines="2"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="@android:color/white"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

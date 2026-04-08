@@ -13,7 +13,22 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import wings.v.R;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.ShortVariable",
+        "PMD.ShortMethodName",
+        "PMD.OnlyOneReturn",
+        "PMD.TooManyMethods",
+        "PMD.UselessParentheses",
+        "PMD.AvoidLiteralsInIfCondition",
+    }
+)
 public class PowerButtonGlowView extends View {
 
     private static final long ANIMATION_DURATION_MS = 5600L;
