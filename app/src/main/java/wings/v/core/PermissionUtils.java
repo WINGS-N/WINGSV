@@ -6,19 +6,20 @@ import android.content.pm.PackageManager;
 import android.net.VpnService;
 import android.os.Build;
 import android.os.PowerManager;
-
 import androidx.core.content.ContextCompat;
 
 public final class PermissionUtils {
-    private PermissionUtils() {
-    }
+
+    private PermissionUtils() {}
 
     public static boolean isNotificationGranted(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return true;
         }
-        return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-                == PackageManager.PERMISSION_GRANTED;
+        return (
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        );
     }
 
     public static boolean isIgnoringBatteryOptimizations(Context context) {
@@ -35,8 +36,7 @@ public final class PermissionUtils {
     }
 
     public static boolean areBasePermissionsGranted(Context context) {
-        return isNotificationGranted(context)
-                && isIgnoringBatteryOptimizations(context);
+        return isNotificationGranted(context) && isIgnoringBatteryOptimizations(context);
     }
 
     public static boolean areCorePermissionsGranted(Context context) {
@@ -44,17 +44,15 @@ public final class PermissionUtils {
         boolean rootModeEnabled = AppPrefs.isRootModeEnabled(context);
         boolean kernelWireGuardEnabled = AppPrefs.isKernelWireGuardEnabled(context);
         if (!rootModeEnabled) {
-            return areBasePermissionsGranted(context)
-                    && isVpnPermissionGranted(context);
+            return areBasePermissionsGranted(context) && isVpnPermissionGranted(context);
         }
 
         if (backendType == BackendType.VK_TURN_WIREGUARD && kernelWireGuardEnabled) {
-            return areBasePermissionsGranted(context)
-                    && isRootPermissionGranted(context);
+            return areBasePermissionsGranted(context) && isRootPermissionGranted(context);
         }
-        return areBasePermissionsGranted(context)
-                && isRootPermissionGranted(context)
-                && isVpnPermissionGranted(context);
+        return (
+            areBasePermissionsGranted(context) && isRootPermissionGranted(context) && isVpnPermissionGranted(context)
+        );
     }
 
     public static boolean shouldShowOnboarding(Context context) {

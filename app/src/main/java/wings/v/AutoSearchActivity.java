@@ -9,15 +9,12 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.appcompat.app.AppCompatActivity;
-
+import androidx.appcompat.widget.AppCompatCheckBox;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-
 import wings.v.core.AppPrefs;
 import wings.v.core.AutoSearchManager;
 import wings.v.core.Haptics;
@@ -25,7 +22,9 @@ import wings.v.core.UiFormatter;
 import wings.v.databinding.ActivityAutoSearchBinding;
 import wings.v.databinding.ItemProfileEntryBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class AutoSearchActivity extends AppCompatActivity {
+
     private static final String EXTRA_EXECUTION_MODE = "wings.v.extra.AUTO_SEARCH_EXECUTION_MODE";
     private static final int PING_GOOD_THRESHOLD_MS = 150;
     private static final int PING_WARNING_THRESHOLD_MS = 350;
@@ -51,8 +50,7 @@ public class AutoSearchActivity extends AppCompatActivity {
     }
 
     public static Intent createRunIntent(Context context) {
-        return new Intent(context, AutoSearchActivity.class)
-                .putExtra(EXTRA_EXECUTION_MODE, true);
+        return new Intent(context, AutoSearchActivity.class).putExtra(EXTRA_EXECUTION_MODE, true);
     }
 
     @Override
@@ -66,48 +64,58 @@ public class AutoSearchActivity extends AppCompatActivity {
         if (executionMode && savedInstanceState == null) {
             manager.resetFinishedState();
         }
-        executionSearchStarted = savedInstanceState != null
-                && savedInstanceState.getBoolean("execution_search_started", false);
+        executionSearchStarted =
+            savedInstanceState != null && savedInstanceState.getBoolean("execution_search_started", false);
 
         binding.rowStartAutoSearch.setOnClickListener(view -> {
             Haptics.softSelection(view);
             startActivity(createRunIntent(this));
         });
-        binding.rowAutoSearchTargetCount.setOnClickListener(view -> showNumberSettingDialog(
+        binding.rowAutoSearchTargetCount.setOnClickListener(view ->
+            showNumberSettingDialog(
                 R.string.auto_search_setting_target_count,
                 AutoSearchManager.getTargetProfileCount(this),
                 1,
                 20,
                 value -> AutoSearchManager.setTargetProfileCount(this, value)
-        ));
-        binding.rowAutoSearchTcpingTimeout.setOnClickListener(view -> showNumberSettingDialog(
+            )
+        );
+        binding.rowAutoSearchTcpingTimeout.setOnClickListener(view ->
+            showNumberSettingDialog(
                 R.string.auto_search_setting_tcping_timeout,
                 AutoSearchManager.getTcpingTimeoutMs(this),
                 300,
                 10_000,
                 value -> AutoSearchManager.setTcpingTimeoutMs(this, value)
-        ));
-        binding.rowAutoSearchDownloadSize.setOnClickListener(view -> showNumberSettingDialog(
+            )
+        );
+        binding.rowAutoSearchDownloadSize.setOnClickListener(view ->
+            showNumberSettingDialog(
                 R.string.auto_search_setting_download_size,
                 AutoSearchManager.getDownloadSizeMb(this),
                 1,
                 100,
                 value -> AutoSearchManager.setDownloadSizeMb(this, value)
-        ));
-        binding.rowAutoSearchDownloadTimeout.setOnClickListener(view -> showNumberSettingDialog(
+            )
+        );
+        binding.rowAutoSearchDownloadTimeout.setOnClickListener(view ->
+            showNumberSettingDialog(
                 R.string.auto_search_setting_download_timeout,
                 AutoSearchManager.getDownloadTimeoutSeconds(this),
                 3,
                 120,
                 value -> AutoSearchManager.setDownloadTimeoutSeconds(this, value)
-        ));
-        binding.rowAutoSearchDownloadAttempts.setOnClickListener(view -> showNumberSettingDialog(
+            )
+        );
+        binding.rowAutoSearchDownloadAttempts.setOnClickListener(view ->
+            showNumberSettingDialog(
                 R.string.auto_search_setting_download_attempts,
                 AutoSearchManager.getDownloadAttempts(this),
                 1,
                 10,
                 value -> AutoSearchManager.setDownloadAttempts(this, value)
-        ));
+            )
+        );
     }
 
     @Override
@@ -145,17 +153,19 @@ public class AutoSearchActivity extends AppCompatActivity {
         binding.layoutAutoSearchRunContent.setVisibility(executionMode ? View.VISIBLE : View.GONE);
 
         boolean running = state.status == AutoSearchManager.Status.RUNNING;
-        boolean awaitingAction = state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION
-                || state.status == AutoSearchManager.Status.AWAITING_APPLY;
-        boolean startEnabled = state.status == AutoSearchManager.Status.IDLE
-                || state.status == AutoSearchManager.Status.COMPLETED
-                || state.status == AutoSearchManager.Status.FAILED;
+        boolean awaitingAction =
+            state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION ||
+            state.status == AutoSearchManager.Status.AWAITING_APPLY;
+        boolean startEnabled =
+            state.status == AutoSearchManager.Status.IDLE ||
+            state.status == AutoSearchManager.Status.COMPLETED ||
+            state.status == AutoSearchManager.Status.FAILED;
 
         binding.rowStartAutoSearch.setEnabled(!executionMode || startEnabled);
         binding.rowStartAutoSearch.setSummary(
-                running || awaitingAction
-                        ? getString(R.string.auto_search_running_summary)
-                        : getString(R.string.auto_search_start_summary)
+            running || awaitingAction
+                ? getString(R.string.auto_search_running_summary)
+                : getString(R.string.auto_search_start_summary)
         );
         binding.progressStartAutoSearch.setVisibility(running ? View.VISIBLE : View.GONE);
         renderSettingsRows();
@@ -201,24 +211,24 @@ public class AutoSearchActivity extends AppCompatActivity {
         }
 
         if (!state.indeterminate && state.progressMax > 0) {
-            binding.textAutoSearchProgressValue.setText(getString(
-                    R.string.auto_search_progress_value,
-                    state.progressCurrent,
-                    state.progressMax
-            ));
+            binding.textAutoSearchProgressValue.setText(
+                getString(R.string.auto_search_progress_value, state.progressCurrent, state.progressMax)
+            );
         } else {
             binding.textAutoSearchProgressValue.setText(getString(R.string.auto_search_metric_empty));
         }
 
         binding.textAutoSearchMetricValue.setText(
-                state.currentMetric == null || state.currentMetric.trim().isEmpty()
-                        ? getString(R.string.auto_search_metric_empty)
-                        : state.currentMetric
+            state.currentMetric == null || state.currentMetric.trim().isEmpty()
+                ? getString(R.string.auto_search_metric_empty)
+                : state.currentMetric
         );
         if (state.currentSpeedBytesPerSecond > 0L) {
-            binding.textAutoSearchSpeedValue.setText(getString(R.string.auto_search_speed_label)
-                    + ": "
-                    + UiFormatter.formatBytesPerSecond(this, state.currentSpeedBytesPerSecond));
+            binding.textAutoSearchSpeedValue.setText(
+                getString(R.string.auto_search_speed_label) +
+                    ": " +
+                    UiFormatter.formatBytesPerSecond(this, state.currentSpeedBytesPerSecond)
+            );
             binding.textAutoSearchSpeedValue.setVisibility(View.VISIBLE);
         } else if (state.currentSpeedBytesPerSecond < 0L) {
             binding.textAutoSearchSpeedValue.setText(R.string.auto_search_speed_waiting);
@@ -227,11 +237,13 @@ public class AutoSearchActivity extends AppCompatActivity {
             binding.textAutoSearchSpeedValue.setText("");
             binding.textAutoSearchSpeedValue.setVisibility(View.GONE);
         }
-        binding.textAutoSearchFoundValue.setText(getString(
+        binding.textAutoSearchFoundValue.setText(
+            getString(
                 R.string.auto_search_found_value,
                 state.foundProfilesCount,
                 AutoSearchManager.getTargetProfileCount(this)
-        ));
+            )
+        );
 
         if (executionMode) {
             updateProfileChain(state);
@@ -246,8 +258,10 @@ public class AutoSearchActivity extends AppCompatActivity {
             return;
         }
         AutoSearchManager.State state = manager.getState();
-        if (state.status == AutoSearchManager.Status.AWAITING_APPLY
-                || state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION) {
+        if (
+            state.status == AutoSearchManager.Status.AWAITING_APPLY ||
+            state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION
+        ) {
             executionSearchStarted = true;
             return;
         }
@@ -266,29 +280,26 @@ public class AutoSearchActivity extends AppCompatActivity {
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setPadding(padding, 0, padding, 0);
-        container.addView(builtinSubscriptionCheckbox, new LinearLayout.LayoutParams(
+        container.addView(
+            builtinSubscriptionCheckbox,
+            new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+            )
+        );
         new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.auto_search_mode_prompt_title)
-                .setMessage(R.string.auto_search_mode_prompt_message)
-                .setView(container)
-                .setPositiveButton(R.string.auto_search_mode_standard_title, (dialog, which) ->
-                        startExecutionSearch(
-                                AutoSearchManager.Mode.STANDARD,
-                                builtinSubscriptionCheckbox.isChecked()
-                        )
-                )
-                .setNegativeButton(R.string.auto_search_mode_whitelist_title, (dialog, which) ->
-                        startExecutionSearch(
-                                AutoSearchManager.Mode.WHITELIST,
-                                builtinSubscriptionCheckbox.isChecked()
-                        )
-                )
-                .setNeutralButton(R.string.auto_search_cancel_action, (dialog, which) -> finish())
-                .setOnCancelListener(dialog -> finish())
-                .show();
+            .setTitle(R.string.auto_search_mode_prompt_title)
+            .setMessage(R.string.auto_search_mode_prompt_message)
+            .setView(container)
+            .setPositiveButton(R.string.auto_search_mode_standard_title, (dialog, which) ->
+                startExecutionSearch(AutoSearchManager.Mode.STANDARD, builtinSubscriptionCheckbox.isChecked())
+            )
+            .setNegativeButton(R.string.auto_search_mode_whitelist_title, (dialog, which) ->
+                startExecutionSearch(AutoSearchManager.Mode.WHITELIST, builtinSubscriptionCheckbox.isChecked())
+            )
+            .setNeutralButton(R.string.auto_search_cancel_action, (dialog, which) -> finish())
+            .setOnCancelListener(dialog -> finish())
+            .show();
     }
 
     private void startExecutionSearch(@NonNull AutoSearchManager.Mode mode, boolean useBuiltInSubscription) {
@@ -300,32 +311,35 @@ public class AutoSearchActivity extends AppCompatActivity {
     }
 
     private void renderSettingsRows() {
-        binding.rowAutoSearchTargetCount.setSummary(getString(
-                R.string.auto_search_setting_target_count_summary,
-                AutoSearchManager.getTargetProfileCount(this)
-        ));
-        binding.rowAutoSearchTcpingTimeout.setSummary(getString(
-                R.string.auto_search_setting_tcping_timeout_summary,
-                AutoSearchManager.getTcpingTimeoutMs(this)
-        ));
-        binding.rowAutoSearchDownloadSize.setSummary(getString(
-                R.string.auto_search_setting_download_size_summary,
-                AutoSearchManager.getDownloadSizeMb(this)
-        ));
-        binding.rowAutoSearchDownloadTimeout.setSummary(getString(
+        binding.rowAutoSearchTargetCount.setSummary(
+            getString(R.string.auto_search_setting_target_count_summary, AutoSearchManager.getTargetProfileCount(this))
+        );
+        binding.rowAutoSearchTcpingTimeout.setSummary(
+            getString(R.string.auto_search_setting_tcping_timeout_summary, AutoSearchManager.getTcpingTimeoutMs(this))
+        );
+        binding.rowAutoSearchDownloadSize.setSummary(
+            getString(R.string.auto_search_setting_download_size_summary, AutoSearchManager.getDownloadSizeMb(this))
+        );
+        binding.rowAutoSearchDownloadTimeout.setSummary(
+            getString(
                 R.string.auto_search_setting_download_timeout_summary,
                 AutoSearchManager.getDownloadTimeoutSeconds(this)
-        ));
-        binding.rowAutoSearchDownloadAttempts.setSummary(getString(
+            )
+        );
+        binding.rowAutoSearchDownloadAttempts.setSummary(
+            getString(
                 R.string.auto_search_setting_download_attempts_summary,
                 AutoSearchManager.getDownloadAttempts(this)
-        ));
+            )
+        );
     }
 
     private void updateProfileChain(@NonNull AutoSearchManager.State state) {
-        if (state.status != AutoSearchManager.Status.RUNNING
-                && state.status != AutoSearchManager.Status.AWAITING_APPLY
-                && state.status != AutoSearchManager.Status.COMPLETED) {
+        if (
+            state.status != AutoSearchManager.Status.RUNNING &&
+            state.status != AutoSearchManager.Status.AWAITING_APPLY &&
+            state.status != AutoSearchManager.Status.COMPLETED
+        ) {
             return;
         }
         String title = state.currentProfileTitle == null ? "" : state.currentProfileTitle.trim();
@@ -336,9 +350,9 @@ public class AutoSearchActivity extends AppCompatActivity {
         boolean newRow = false;
         if (rowBinding == null) {
             rowBinding = ItemProfileEntryBinding.inflate(
-                    LayoutInflater.from(this),
-                    binding.containerAutoSearchProfileChain,
-                    false
+                LayoutInflater.from(this),
+                binding.containerAutoSearchProfileChain,
+                false
             );
             rowBinding.rowProfileEntry.setClickable(false);
             rowBinding.rowProfileEntry.setFocusable(false);
@@ -354,8 +368,9 @@ public class AutoSearchActivity extends AppCompatActivity {
         }
         rowBinding.textProfileTitle.setText(title);
         rowBinding.textProfileSummary.setText(
-                TextUtils.isEmpty(state.currentMetric) ? safe(state.stepTitle, R.string.auto_search_step_download)
-                        : state.currentMetric
+            TextUtils.isEmpty(state.currentMetric)
+                ? safe(state.stepTitle, R.string.auto_search_step_download)
+                : state.currentMetric
         );
         if (state.currentLatencyMs > 0) {
             rowBinding.progressProfilePing.setVisibility(View.GONE);
@@ -372,11 +387,7 @@ public class AutoSearchActivity extends AppCompatActivity {
         if (newRow) {
             rowBinding.getRoot().setAlpha(0f);
             rowBinding.getRoot().setTranslationY(-dp(10));
-            rowBinding.getRoot().animate()
-                    .alpha(1f)
-                    .translationY(0f)
-                    .setDuration(180L)
-                    .start();
+            rowBinding.getRoot().animate().alpha(1f).translationY(0f).setDuration(180L).start();
         }
         if (isFailedProfileState(state)) {
             scheduleFailedProfileRemoval(title);
@@ -414,34 +425,43 @@ public class AutoSearchActivity extends AppCompatActivity {
 
     private boolean isFailedProfileState(@NonNull AutoSearchManager.State state) {
         String metric = state.currentMetric == null ? "" : state.currentMetric.trim();
-        return TextUtils.equals(metric, getString(R.string.auto_search_ping_failed_metric))
-                || TextUtils.equals(metric, getString(R.string.auto_search_preflight_failed_metric))
-                || TextUtils.equals(metric, getString(R.string.auto_search_download_failed_metric));
+        return (
+            TextUtils.equals(metric, getString(R.string.auto_search_ping_failed_metric)) ||
+            TextUtils.equals(metric, getString(R.string.auto_search_preflight_failed_metric)) ||
+            TextUtils.equals(metric, getString(R.string.auto_search_download_failed_metric))
+        );
     }
 
     private void scheduleFailedProfileRemoval(@NonNull String title) {
         if (!pendingFailedProfileRemoval.add(title)) {
             return;
         }
-        binding.getRoot().postDelayed(() -> {
-            if (binding == null || !pendingFailedProfileRemoval.remove(title)) {
-                return;
-            }
-            ItemProfileEntryBinding rowBinding = profileChainRows.remove(title);
-            if (rowBinding == null) {
-                return;
-            }
-            rowBinding.getRoot().animate()
-                    .alpha(0f)
-                    .translationY(-dp(10))
-                    .setDuration(220L)
-                    .withEndAction(() -> {
-                        if (binding != null) {
-                            binding.containerAutoSearchProfileChain.removeView(rowBinding.getRoot());
-                        }
-                    })
-                    .start();
-        }, FAILED_PROFILE_REMOVE_DELAY_MS);
+        binding
+            .getRoot()
+            .postDelayed(
+                () -> {
+                    if (binding == null || !pendingFailedProfileRemoval.remove(title)) {
+                        return;
+                    }
+                    ItemProfileEntryBinding rowBinding = profileChainRows.remove(title);
+                    if (rowBinding == null) {
+                        return;
+                    }
+                    rowBinding
+                        .getRoot()
+                        .animate()
+                        .alpha(0f)
+                        .translationY(-dp(10))
+                        .setDuration(220L)
+                        .withEndAction(() -> {
+                            if (binding != null) {
+                                binding.containerAutoSearchProfileChain.removeView(rowBinding.getRoot());
+                            }
+                        })
+                        .start();
+                },
+                FAILED_PROFILE_REMOVE_DELAY_MS
+            );
     }
 
     private String statusLabel(@NonNull AutoSearchManager.State state) {
@@ -462,9 +482,11 @@ public class AutoSearchActivity extends AppCompatActivity {
     }
 
     private void maybeContinueWithRequestedMode(@NonNull AutoSearchManager.State state) {
-        if (state.status != AutoSearchManager.Status.AWAITING_MODE_SELECTION
-                || state.token == 0L
-                || state.token == lastModeDialogToken) {
+        if (
+            state.status != AutoSearchManager.Status.AWAITING_MODE_SELECTION ||
+            state.token == 0L ||
+            state.token == lastModeDialogToken
+        ) {
             return;
         }
         lastModeDialogToken = state.token;
@@ -475,46 +497,50 @@ public class AutoSearchActivity extends AppCompatActivity {
             return;
         }
         new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.auto_search_mode_prompt_title)
-                .setMessage(state.stepSummary)
-                .setPositiveButton(R.string.auto_search_mode_standard_title, (dialog, which) ->
-                        manager.continueSearch(AutoSearchManager.Mode.STANDARD)
-                )
-                .setNegativeButton(R.string.auto_search_mode_whitelist_title, (dialog, which) ->
-                        manager.continueSearch(AutoSearchManager.Mode.WHITELIST)
-                )
-                .setNeutralButton(R.string.auto_search_cancel_action, (dialog, which) ->
-                        manager.cancelPendingModeSelection()
-                )
-                .setOnCancelListener(dialog -> manager.cancelPendingModeSelection())
-                .show();
+            .setTitle(R.string.auto_search_mode_prompt_title)
+            .setMessage(state.stepSummary)
+            .setPositiveButton(R.string.auto_search_mode_standard_title, (dialog, which) ->
+                manager.continueSearch(AutoSearchManager.Mode.STANDARD)
+            )
+            .setNegativeButton(R.string.auto_search_mode_whitelist_title, (dialog, which) ->
+                manager.continueSearch(AutoSearchManager.Mode.WHITELIST)
+            )
+            .setNeutralButton(R.string.auto_search_cancel_action, (dialog, which) ->
+                manager.cancelPendingModeSelection()
+            )
+            .setOnCancelListener(dialog -> manager.cancelPendingModeSelection())
+            .show();
     }
 
     private void maybeShowApplyDialog(@NonNull AutoSearchManager.State state) {
-        if (state.status != AutoSearchManager.Status.AWAITING_APPLY
-                || state.token == 0L
-                || state.token == lastApplyDialogToken) {
+        if (
+            state.status != AutoSearchManager.Status.AWAITING_APPLY ||
+            state.token == 0L ||
+            state.token == lastApplyDialogToken
+        ) {
             return;
         }
         lastApplyDialogToken = state.token;
         new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.auto_search_apply_prompt_title)
-                .setMessage(state.stepSummary)
-                .setPositiveButton(R.string.auto_search_apply_action, (dialog, which) ->
-                        manager.applyPendingConfiguration(true)
-                )
-                .setNegativeButton(R.string.auto_search_restore_action, (dialog, which) ->
-                        manager.applyPendingConfiguration(false)
-                )
-                .setOnCancelListener(dialog -> manager.applyPendingConfiguration(false))
-                .show();
+            .setTitle(R.string.auto_search_apply_prompt_title)
+            .setMessage(state.stepSummary)
+            .setPositiveButton(R.string.auto_search_apply_action, (dialog, which) ->
+                manager.applyPendingConfiguration(true)
+            )
+            .setNegativeButton(R.string.auto_search_restore_action, (dialog, which) ->
+                manager.applyPendingConfiguration(false)
+            )
+            .setOnCancelListener(dialog -> manager.applyPendingConfiguration(false))
+            .show();
     }
 
     private void maybeNavigateToProfiles(@NonNull AutoSearchManager.State state) {
-        if (navigatedToProfiles
-                || manager.isRunning()
-                || state.status != AutoSearchManager.Status.COMPLETED
-                || state.foundProfilesCount <= 0) {
+        if (
+            navigatedToProfiles ||
+            manager.isRunning() ||
+            state.status != AutoSearchManager.Status.COMPLETED ||
+            state.foundProfilesCount <= 0
+        ) {
             return;
         }
         navigatedToProfiles = true;
@@ -524,17 +550,19 @@ public class AutoSearchActivity extends AppCompatActivity {
     private void navigateToAutoSearchProfiles() {
         AppPrefs.setPendingProfilesFilterId(this, AutoSearchManager.AUTOSEARCH_FILTER_ID);
         Intent intent = new Intent(this, MainActivity.class)
-                .putExtra(MainActivity.EXTRA_FORCE_CURRENT_TAB_ID, R.id.menu_profiles)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            .putExtra(MainActivity.EXTRA_FORCE_CURRENT_TAB_ID, R.id.menu_profiles)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         startActivity(intent);
         finish();
     }
 
-    private void showNumberSettingDialog(int titleRes,
-                                         int currentValue,
-                                         int minValue,
-                                         int maxValue,
-                                         @NonNull IntSettingSetter setter) {
+    private void showNumberSettingDialog(
+        int titleRes,
+        int currentValue,
+        int minValue,
+        int maxValue,
+        @NonNull IntSettingSetter setter
+    ) {
         EditText input = new EditText(this);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
         input.setSingleLine(true);
@@ -543,26 +571,29 @@ public class AutoSearchActivity extends AppCompatActivity {
         int padding = dp(20);
         LinearLayout container = new LinearLayout(this);
         container.setPadding(padding, 0, padding, 0);
-        container.addView(input, new LinearLayout.LayoutParams(
+        container.addView(
+            input,
+            new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
+            )
+        );
         new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(titleRes)
-                .setView(container)
-                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
-                    int value = parseInt(input.getText() != null ? input.getText().toString() : "", currentValue);
-                    setter.set(Math.max(minValue, Math.min(maxValue, value)));
-                    renderSettingsRows();
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+            .setTitle(titleRes)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                int value = parseInt(input.getText() != null ? input.getText().toString() : "", currentValue);
+                setter.set(Math.max(minValue, Math.min(maxValue, value)));
+                renderSettingsRows();
+            })
+            .setNegativeButton(android.R.string.cancel, null)
+            .show();
     }
 
     private int parseInt(@Nullable String value, int fallback) {
         try {
             return Integer.parseInt(value == null ? "" : value.trim());
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return fallback;
         }
     }
@@ -572,9 +603,7 @@ public class AutoSearchActivity extends AppCompatActivity {
     }
 
     private String safe(@Nullable String value, int fallbackResId) {
-        return value == null || value.trim().isEmpty()
-                ? getString(fallbackResId)
-                : value;
+        return value == null || value.isBlank() ? getString(fallbackResId) : value;
     }
 
     private interface IntSettingSetter {

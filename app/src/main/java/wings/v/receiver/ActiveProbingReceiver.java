@@ -4,12 +4,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
-
 import androidx.core.content.ContextCompat;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.ActiveProbingManager;
 import wings.v.core.AppPrefs;
@@ -18,7 +15,9 @@ import wings.v.core.ProxySettings;
 import wings.v.core.XrayStore;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException" })
 public class ActiveProbingReceiver extends BroadcastReceiver {
+
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
     @Override
@@ -38,29 +37,22 @@ public class ActiveProbingReceiver extends BroadcastReceiver {
                 if (!settings.backgroundEnabled || ProxyTunnelService.isActive()) {
                     return;
                 }
-                ActiveProbingManager.ProbeResult result =
-                        ActiveProbingManager.runDirectProbes(appContext, settings);
-                if (!result.allFailed()) {
+                ActiveProbingManager.ProbeResult result = ActiveProbingManager.runDirectProbes(appContext, settings);
+                if (!result.shouldFallback()) {
                     return;
                 }
-                BackendType fallbackBackend =
-                        ActiveProbingManager.normalizeXrayFallbackBackend(settings.xrayFallbackBackend);
+                BackendType fallbackBackend = ActiveProbingManager.normalizeXrayFallbackBackend(
+                    settings.xrayFallbackBackend
+                );
                 ProxySettings fallbackSettings = AppPrefs.getSettings(appContext);
                 fallbackSettings.backendType = fallbackBackend;
                 if (!TextUtils.isEmpty(fallbackSettings.validate())) {
                     return;
                 }
                 triggered = true;
-                ActiveProbingManager.showBackgroundFallbackNotification(
-                        appContext,
-                        result,
-                        fallbackBackend
-                );
+                ActiveProbingManager.showBackgroundFallbackNotification(appContext, result, fallbackBackend);
                 XrayStore.setBackendType(appContext, fallbackBackend);
-                ContextCompat.startForegroundService(
-                        appContext,
-                        ProxyTunnelService.createStartIntent(appContext)
-                );
+                ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
                 ActiveProbingBackgroundScheduler.cancel(appContext);
             } catch (Exception ignored) {
             } finally {

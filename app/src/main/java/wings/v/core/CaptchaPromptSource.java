@@ -2,6 +2,7 @@ package wings.v.core;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import java.util.Locale;
 
 public enum CaptchaPromptSource {
     PRIMARY("primary"),
@@ -18,7 +19,7 @@ public enum CaptchaPromptSource {
         if (rawValue == null) {
             return PRIMARY;
         }
-        String normalized = rawValue.trim().toLowerCase();
+        String normalized = rawValue.trim().toLowerCase(Locale.ROOT);
         if (POOL.wireValue.equals(normalized) || "background".equals(normalized)) {
             return POOL;
         }

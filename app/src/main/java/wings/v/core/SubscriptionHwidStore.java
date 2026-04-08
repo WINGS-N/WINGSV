@@ -5,16 +5,15 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.provider.Settings;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
-
 import wings.v.R;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public final class SubscriptionHwidStore {
-    private SubscriptionHwidStore() {
-    }
+
+    private SubscriptionHwidStore() {}
 
     public static SettingsModel getSettings(@Nullable Context context) {
         SettingsModel settings = new SettingsModel();
@@ -23,17 +22,11 @@ public final class SubscriptionHwidStore {
         }
         SharedPreferences preferences = prefs(context);
         settings.enabled = preferences.getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, false);
-        settings.manualValues = preferences.getBoolean(
-                AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED,
-                false
-        );
+        settings.manualValues = preferences.getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
         settings.hwid = trim(preferences.getString(AppPrefs.KEY_SUBSCRIPTION_HWID_VALUE, ""));
         settings.deviceOs = trim(preferences.getString(AppPrefs.KEY_SUBSCRIPTION_HWID_DEVICE_OS, ""));
         settings.verOs = trim(preferences.getString(AppPrefs.KEY_SUBSCRIPTION_HWID_VER_OS, ""));
-        settings.deviceModel = trim(preferences.getString(
-                AppPrefs.KEY_SUBSCRIPTION_HWID_DEVICE_MODEL,
-                ""
-        ));
+        settings.deviceModel = trim(preferences.getString(AppPrefs.KEY_SUBSCRIPTION_HWID_DEVICE_MODEL, ""));
         return settings;
     }
 
@@ -45,20 +38,14 @@ public final class SubscriptionHwidStore {
         }
         String androidId = "";
         try {
-            androidId = trim(Settings.Secure.getString(
-                    context.getContentResolver(),
-                    Settings.Secure.ANDROID_ID
-            ));
-        } catch (Exception ignored) {
-        }
+            androidId = trim(Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID));
+        } catch (Exception ignored) {}
         payload.hwid = !TextUtils.isEmpty(androidId) ? androidId : trim(Build.FINGERPRINT);
         payload.deviceOs = "Android";
         payload.verOs = !TextUtils.isEmpty(trim(Build.VERSION.RELEASE))
-                ? trim(Build.VERSION.RELEASE)
-                : String.valueOf(Build.VERSION.SDK_INT);
-        payload.deviceModel = !TextUtils.isEmpty(trim(Build.MODEL))
-                ? trim(Build.MODEL)
-                : trim(Build.DEVICE);
+            ? trim(Build.VERSION.RELEASE)
+            : String.valueOf(Build.VERSION.SDK_INT);
+        payload.deviceModel = !TextUtils.isEmpty(trim(Build.MODEL)) ? trim(Build.MODEL) : trim(Build.DEVICE);
         return payload;
     }
 
@@ -76,11 +63,7 @@ public final class SubscriptionHwidStore {
         effective.hwid = resolveValue(settings.manualValues, settings.hwid, automatic.hwid);
         effective.deviceOs = resolveValue(settings.manualValues, settings.deviceOs, automatic.deviceOs);
         effective.verOs = resolveValue(settings.manualValues, settings.verOs, automatic.verOs);
-        effective.deviceModel = resolveValue(
-                settings.manualValues,
-                settings.deviceModel,
-                automatic.deviceModel
-        );
+        effective.deviceModel = resolveValue(settings.manualValues, settings.deviceModel, automatic.deviceModel);
         return effective;
     }
 
@@ -94,17 +77,14 @@ public final class SubscriptionHwidStore {
             return context.getString(R.string.subscription_hwid_row_summary_off);
         }
         return context.getString(
-                settings.manualValues
-                        ? R.string.subscription_hwid_row_summary_manual
-                        : R.string.subscription_hwid_row_summary_auto
+            settings.manualValues
+                ? R.string.subscription_hwid_row_summary_manual
+                : R.string.subscription_hwid_row_summary_auto
         );
     }
 
     @NonNull
-    public static String getDisplayedValue(
-            @Nullable Context context,
-            @NonNull String preferenceKey
-    ) {
+    public static String getDisplayedValue(@Nullable Context context, @NonNull String preferenceKey) {
         SettingsModel settings = getSettings(context);
         Payload automatic = getAutomaticPayload(context);
         if (AppPrefs.KEY_SUBSCRIPTION_HWID_VALUE.equals(preferenceKey)) {
@@ -140,6 +120,7 @@ public final class SubscriptionHwidStore {
     }
 
     public static final class SettingsModel {
+
         public boolean enabled;
         public boolean manualValues;
         public String hwid = "";
@@ -149,6 +130,7 @@ public final class SubscriptionHwidStore {
     }
 
     public static final class Payload {
+
         public String hwid = "";
         public String deviceOs = "";
         public String verOs = "";

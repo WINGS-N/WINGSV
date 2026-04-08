@@ -1,13 +1,13 @@
 package wings.v.core;
 
 import android.text.TextUtils;
-
-import org.amnezia.awg.config.Config;
-
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import org.amnezia.awg.config.Config;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public class ProxySettings {
+
     public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
     public String endpoint;
     public String vkLink;

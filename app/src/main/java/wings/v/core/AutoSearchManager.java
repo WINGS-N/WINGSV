@@ -2,16 +2,16 @@ package wings.v.core;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.text.TextUtils;
-
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
-
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -25,18 +25,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
 import javax.net.ssl.SNIHostName;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-
 import wings.v.R;
 import wings.v.byedpi.ByeDpiLocalRunner;
 import wings.v.service.ProxyTunnelService;
@@ -44,7 +44,21 @@ import wings.v.service.XrayVpnService;
 import wings.v.xray.XrayAutoSearchConfigFactory;
 import wings.v.xray.XrayBridge;
 
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.NullAssignment",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.ExceptionAsFlowControl",
+        "PMD.AvoidSynchronizedStatement",
+    }
+)
 public final class AutoSearchManager {
+
+    private static final String TAG = "WINGSV/AutoSearch";
+
     public static final String KEY_OPEN_SETTINGS = "pref_open_auto_search_settings";
     public static final String AUTOSEARCH_SUBSCRIPTION_ID = "__autosearch__";
     public static final String AUTOSEARCH_FILTER_ID = "sub:" + AUTOSEARCH_SUBSCRIPTION_ID;
@@ -56,10 +70,10 @@ public final class AutoSearchManager {
 
     private static final String AUTOSEARCH_SUBSCRIPTION_TITLE = "Автопоиск";
     private static final String DOWNLOAD_TEST_URL_PREFIX = "https://speed.cloudflare.com/__down?bytes=";
-    private static final String[] TRAFFIC_PROBE_URLS = new String[]{
-            "https://cp.cloudflare.com/generate_204",
-            "https://cloudflare.com/cdn-cgi/trace",
-            "https://1.1.1.1/cdn-cgi/trace"
+    private static final String[] TRAFFIC_PROBE_URLS = {
+        "https://cp.cloudflare.com/generate_204",
+        "https://cloudflare.com/cdn-cgi/trace",
+        "https://1.1.1.1/cdn-cgi/trace",
     };
     private static final int DEFAULT_TCPING_TIMEOUT_MS = 1_000;
     private static final int TCPING_PARALLELISM = 5;
@@ -170,11 +184,7 @@ public final class AutoSearchManager {
     }
 
     public static int getDownloadTimeoutSeconds(@NonNull Context context) {
-        return clamp(
-                settings(context).getInt(KEY_DOWNLOAD_TIMEOUT_SECONDS, DEFAULT_DOWNLOAD_TIMEOUT_SECONDS),
-                3,
-                120
-        );
+        return clamp(settings(context).getInt(KEY_DOWNLOAD_TIMEOUT_SECONDS, DEFAULT_DOWNLOAD_TIMEOUT_SECONDS), 3, 120);
     }
 
     public static void setDownloadTimeoutSeconds(@NonNull Context context, int value) {
@@ -213,7 +223,8 @@ public final class AutoSearchManager {
         pendingResult = null;
         pendingActionToken = 0L;
         running = true;
-        updateState(State.running(
+        updateState(
+            State.running(
                 null,
                 appContext.getString(R.string.auto_search_step_prepare),
                 appContext.getString(R.string.auto_search_prepare_summary),
@@ -225,7 +236,8 @@ public final class AutoSearchManager {
                 0L,
                 0,
                 0
-        ));
+            )
+        );
         executor.execute(() -> prepareSearch(useBuiltInSubscription));
     }
 
@@ -235,13 +247,14 @@ public final class AutoSearchManager {
             return;
         }
         preparedSearch = null;
-        updateState(State.running(
+        updateState(
+            State.running(
                 mode,
                 appContext.getString(R.string.auto_search_step_prepare_mode),
                 appContext.getString(
-                        mode == Mode.WHITELIST
-                                ? R.string.auto_search_mode_whitelist_summary
-                                : R.string.auto_search_mode_standard_summary
+                    mode == Mode.WHITELIST
+                        ? R.string.auto_search_mode_whitelist_summary
+                        : R.string.auto_search_mode_standard_summary
                 ),
                 true,
                 0,
@@ -251,10 +264,12 @@ public final class AutoSearchManager {
                 0L,
                 0,
                 0
-        ));
+            )
+        );
         executor.execute(() -> continuePreparedSearch(pending, mode));
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void cancelPendingModeSelection() {
         PreparedSearch pending = preparedSearch;
         preparedSearch = null;
@@ -265,26 +280,24 @@ public final class AutoSearchManager {
         executor.execute(() -> {
             try {
                 restoreOriginalConfiguration(pending.session);
-                updateState(State.completed(
-                        null,
-                        appContext.getString(R.string.auto_search_cancelled),
-                        0,
-                        ""
-                ));
-            } catch (Exception error) {
-                updateState(State.failed(
+                updateState(State.completed(null, appContext.getString(R.string.auto_search_cancelled), 0, ""));
+            } catch (RuntimeException error) {
+                updateState(
+                    State.failed(
                         null,
                         appContext.getString(
-                                R.string.auto_search_failed_detail,
-                                firstNonEmpty(error.getMessage(), "unknown error")
+                            R.string.auto_search_failed_detail,
+                            firstNonEmpty(error.getMessage(), "unknown error")
                         )
-                ));
+                    )
+                );
             } finally {
                 running = false;
             }
         });
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void applyPendingConfiguration(boolean apply) {
         PendingResult result = pendingResult;
         pendingResult = null;
@@ -294,12 +307,13 @@ public final class AutoSearchManager {
             return;
         }
         try {
-            updateState(State.running(
+            updateState(
+                State.running(
                     result.mode,
                     appContext.getString(R.string.auto_search_step_apply),
                     apply
-                            ? appContext.getString(R.string.auto_search_apply_summary)
-                            : appContext.getString(R.string.auto_search_restore_summary),
+                        ? appContext.getString(R.string.auto_search_apply_summary)
+                        : appContext.getString(R.string.auto_search_restore_summary),
                     true,
                     0,
                     0,
@@ -308,33 +322,39 @@ public final class AutoSearchManager {
                     0L,
                     result.foundProfiles.size(),
                     0
-            ));
+                )
+            );
             applyOrRestoreConfiguration(result, apply);
             String message = apply
-                    ? appContext.getString(
-                    R.string.auto_search_complete_applied,
-                    result.bestProfile != null ? safeProfileTitle(result.bestProfile.profile) : ""
-            )
-                    : appContext.getString(R.string.auto_search_complete_not_applied);
-            updateState(State.completed(
+                ? appContext.getString(
+                      R.string.auto_search_complete_applied,
+                      result.bestProfile != null ? safeProfileTitle(result.bestProfile.profile) : ""
+                  )
+                : appContext.getString(R.string.auto_search_complete_not_applied);
+            updateState(
+                State.completed(
                     result.mode,
                     message,
                     result.foundProfiles.size(),
                     result.bestProfile != null ? safeProfileTitle(result.bestProfile.profile) : ""
-            ));
-        } catch (Exception error) {
-            updateState(State.failed(
+                )
+            );
+        } catch (RuntimeException error) {
+            updateState(
+                State.failed(
                     result.mode,
                     appContext.getString(
-                            R.string.auto_search_failed_detail,
-                            firstNonEmpty(error.getMessage(), "unknown error")
+                        R.string.auto_search_failed_detail,
+                        firstNonEmpty(error.getMessage(), "unknown error")
                     )
-            ));
+                )
+            );
         } finally {
             running = false;
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void prepareSearch(boolean useBuiltInSubscription) {
         SearchSession session = new SearchSession();
         session.originalBackend = XrayStore.getBackendType(appContext);
@@ -350,7 +370,8 @@ public final class AutoSearchManager {
                 XrayStore.ensureDefaultSubscriptionPresent(appContext);
             }
 
-            updateState(State.running(
+            updateState(
+                State.running(
                     null,
                     appContext.getString(R.string.auto_search_step_refresh),
                     appContext.getString(R.string.auto_search_refresh_summary),
@@ -362,7 +383,8 @@ public final class AutoSearchManager {
                     0L,
                     0,
                     0
-            ));
+                )
+            );
             XraySubscriptionUpdater.refreshAll(appContext, null, useBuiltInSubscription);
             List<XrayProfile> availableProfiles = new ArrayList<>(XrayStore.getProfiles(appContext));
             if (availableProfiles.isEmpty()) {
@@ -373,42 +395,45 @@ public final class AutoSearchManager {
             }
 
             preparedSearch = new PreparedSearch(
-                    session,
-                    availableProfiles,
-                    XrayStore.getXraySettings(appContext),
-                    ByeDpiStore.getSettings(appContext)
+                session,
+                availableProfiles,
+                XrayStore.getXraySettings(appContext),
+                ByeDpiStore.getSettings(appContext)
             );
             pendingActionToken = SystemClock.elapsedRealtime();
             preparedSearch.token = pendingActionToken;
-            updateState(State.awaitingModeSelection(
+            updateState(
+                State.awaitingModeSelection(
                     appContext.getString(R.string.auto_search_mode_prompt_message),
                     availableProfiles.size(),
                     pendingActionToken
-            ));
+                )
+            );
         } catch (Exception error) {
             preparedSearch = null;
-            try {
-                restoreOriginalConfiguration(session);
-            } catch (Exception ignored) {
-            }
-            updateState(State.failed(
+            restoreOriginalConfigurationQuietly(session);
+            updateState(
+                State.failed(
                     null,
                     appContext.getString(
-                            R.string.auto_search_failed_detail,
-                            firstNonEmpty(error.getMessage(), "unknown error")
+                        R.string.auto_search_failed_detail,
+                        firstNonEmpty(error.getMessage(), "unknown error")
                     )
-            ));
+                )
+            );
             running = false;
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void continuePreparedSearch(@NonNull PreparedSearch prepared, @NonNull Mode mode) {
         SearchSession session = prepared.session;
         session.mode = mode;
         ByeDpiLocalRunner byeDpiRunner = null;
         try {
             if (mode == Mode.WHITELIST) {
-                updateState(State.running(
+                updateState(
+                    State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_bydpi),
                         appContext.getString(R.string.auto_search_bydpi_summary),
@@ -420,28 +445,27 @@ public final class AutoSearchManager {
                         0L,
                         0,
                         0
-                ));
+                    )
+                );
                 byeDpiRunner = startTemporaryByeDpi(prepared.byeDpiSettings);
                 warmUpTemporaryByeDpi(mode, byeDpiRunner);
             }
 
-            List<CandidateResult> pingCandidates = runPingPhase(
-                    mode,
-                    prepared.availableProfiles
-            );
+            List<CandidateResult> pingCandidates = runPingPhase(mode, prepared.availableProfiles);
 
             List<CandidateResult> rankedCandidates = runDownloadPhase(
-                    mode,
-                    pingCandidates,
-                    prepared.xraySettings,
-                    prepared.byeDpiSettings
+                mode,
+                pingCandidates,
+                prepared.xraySettings,
+                prepared.byeDpiSettings
             );
             if (rankedCandidates.isEmpty()) {
                 throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_stable));
             }
 
             int targetCount = getTargetProfileCount(appContext);
-            List<CandidateResult> selectedCandidates = rankedCandidates.size() > targetCount
+            List<CandidateResult> selectedCandidates =
+                rankedCandidates.size() > targetCount
                     ? new ArrayList<>(rankedCandidates.subList(0, targetCount))
                     : rankedCandidates;
             CandidateResult bestCandidate = chooseBestCandidate(selectedCandidates);
@@ -459,41 +483,40 @@ public final class AutoSearchManager {
             pendingActionToken = SystemClock.elapsedRealtime();
             pending.token = pendingActionToken;
             pendingResult = pending;
-            updateState(State.awaitingApply(
+            updateState(
+                State.awaitingApply(
                     mode,
                     appContext.getString(
-                            R.string.auto_search_apply_prompt_message,
-                            safeProfileTitle(bestCandidate.profile)
+                        R.string.auto_search_apply_prompt_message,
+                        safeProfileTitle(bestCandidate.profile)
                     ),
                     selectedCandidates.size(),
                     safeProfileTitle(bestCandidate.profile),
                     pendingActionToken
-            ));
+                )
+            );
         } catch (Exception error) {
             preparedSearch = null;
-            try {
-                restoreOriginalConfiguration(session);
-            } catch (Exception ignored) {
-            }
-            updateState(State.failed(
+            restoreOriginalConfigurationQuietly(session);
+            updateState(
+                State.failed(
                     mode,
                     appContext.getString(
-                            R.string.auto_search_failed_detail,
-                            firstNonEmpty(error.getMessage(), "unknown error")
+                        R.string.auto_search_failed_detail,
+                        firstNonEmpty(error.getMessage(), "unknown error")
                     )
-            ));
+                )
+            );
             running = false;
         } finally {
             stopTemporaryByeDpi(byeDpiRunner);
-            try {
-                XrayBridge.stop();
-            } catch (Exception ignored) {
-            }
+            stopXrayQuietly();
         }
     }
 
     private void stopCurrentRuntime(SearchSession session) throws Exception {
-        updateState(State.running(
+        updateState(
+            State.running(
                 session.mode,
                 appContext.getString(R.string.auto_search_step_stop),
                 appContext.getString(R.string.auto_search_stop_summary),
@@ -505,13 +528,11 @@ public final class AutoSearchManager {
                 0L,
                 0,
                 0
-        ));
+            )
+        );
         ProxyTunnelService.requestStop(appContext);
         XrayVpnService.stopService(appContext);
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {
-        }
+        stopXrayQuietly();
         long deadline = SystemClock.elapsedRealtime() + SERVICE_STOP_TIMEOUT_MS;
         while (isRuntimeStillStopping(true) && SystemClock.elapsedRealtime() < deadline) {
             SystemClock.sleep(SERVICE_STOP_POLL_MS);
@@ -529,70 +550,68 @@ public final class AutoSearchManager {
         SystemClock.sleep(VPN_RELEASE_GRACE_MS);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private boolean isRuntimeStillStopping(boolean includeProxyServiceState) {
         boolean xrayRunning = false;
         try {
             xrayRunning = XrayBridge.isRunning();
-        } catch (Exception ignored) {
-        }
-        boolean realRuntimeActive = XrayVpnService.hasActiveTunnel()
-                || XrayVpnService.getServiceNow() != null
-                || xrayRunning;
+        } catch (RuntimeException ignored) {}
+        boolean realRuntimeActive =
+            XrayVpnService.hasActiveTunnel() || XrayVpnService.getServiceNow() != null || xrayRunning;
         if (realRuntimeActive) {
             return true;
         }
         return includeProxyServiceState && ProxyTunnelService.isRunning();
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void forceStopXrayRuntime() {
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {
-        }
+        stopXrayQuietly();
         try {
             XrayVpnService.forceStopService(appContext);
-        } catch (Exception ignored) {
-        }
+        } catch (RuntimeException ignored) {}
         try {
             ProxyTunnelService.requestStop(appContext);
-        } catch (Exception ignored) {
-        }
+        } catch (RuntimeException ignored) {}
     }
 
     @NonNull
-    private List<CandidateResult> runPingPhase(Mode mode,
-                                               List<XrayProfile> profiles) throws Exception {
+    private List<CandidateResult> runPingPhase(Mode mode, List<XrayProfile> profiles) throws Exception {
         ArrayList<CandidateResult> candidates = new ArrayList<>();
         int total = profiles.size();
-        ExecutorService tcpingExecutor = Executors.newFixedThreadPool(TCPING_PARALLELISM);
-        ExecutorCompletionService<CandidateResult> completionService =
-                new ExecutorCompletionService<>(tcpingExecutor);
-        for (XrayProfile profile : profiles) {
-            completionService.submit(() -> tcpingCandidate(profile));
-        }
         int completed = 0;
-        try {
+        try (ExecutorScope executorScope = new ExecutorScope(TCPING_PARALLELISM)) {
+            ExecutorCompletionService<CandidateResult> completionService = new ExecutorCompletionService<>(
+                executorScope.executor
+            );
+            for (XrayProfile profile : profiles) {
+                completionService.submit(() -> tcpingCandidate(profile));
+            }
             while (completed < total) {
                 Future<CandidateResult> future = completionService.take();
                 CandidateResult candidate;
                 try {
                     candidate = future.get();
-                } catch (Exception ignored) {
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    candidate = new CandidateResult(null);
+                } catch (ExecutionException ignored) {
                     candidate = new CandidateResult(null);
                 }
                 completed++;
                 if (candidate.profile != null) {
                     XrayStore.putProfilePingResult(
-                            appContext,
-                            XrayStore.getProfilePingKey(candidate.profile),
-                            candidate.pingResponsive,
-                            candidate.latencyMs
+                        appContext,
+                        XrayStore.getProfilePingKey(candidate.profile),
+                        candidate.pingResponsive,
+                        candidate.latencyMs
                     );
                     if (candidate.pingResponsive) {
                         candidates.add(candidate);
                     }
                 }
-                updateState(State.running(
+                updateState(
+                    State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_ping),
                         appContext.getString(R.string.auto_search_ping_summary),
@@ -601,15 +620,14 @@ public final class AutoSearchManager {
                         total,
                         safeProfileTitle(candidate.profile),
                         candidate.pingResponsive
-                                ? appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs)
-                                : appContext.getString(R.string.auto_search_ping_failed_metric),
+                            ? appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs)
+                            : appContext.getString(R.string.auto_search_ping_failed_metric),
                         0L,
                         0,
                         candidate.latencyMs
-                ));
+                    )
+                );
             }
-        } finally {
-            tcpingExecutor.shutdownNow();
         }
         candidates.sort((left, right) -> {
             int compareLatency = Integer.compare(left.latencyMs, right.latencyMs);
@@ -637,7 +655,7 @@ public final class AutoSearchManager {
             candidate.latencyMs = Math.max(elapsedMs, 1);
             candidate.pingResponsive = true;
             candidate.live = true;
-        } catch (Exception ignored) {
+        } catch (IOException | IllegalArgumentException | SecurityException ignored) {
             candidate.latencyMs = 0;
             candidate.pingResponsive = false;
         }
@@ -645,17 +663,20 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private List<CandidateResult> runDownloadPhase(Mode mode,
-                                                   List<CandidateResult> pingSuccess,
-                                                   XraySettings xraySettings,
-                                                   ByeDpiSettings byeDpiSettings) throws Exception {
+    private List<CandidateResult> runDownloadPhase(
+        Mode mode,
+        List<CandidateResult> pingSuccess,
+        XraySettings xraySettings,
+        ByeDpiSettings byeDpiSettings
+    ) throws Exception {
         ArrayList<CandidateResult> stable = new ArrayList<>();
         ArrayList<CandidateResult> live = new ArrayList<>();
         int total = pingSuccess.size();
         int index = 0;
         for (CandidateResult candidate : pingSuccess) {
             index++;
-            updateState(State.running(
+            updateState(
+                State.running(
                     mode,
                     appContext.getString(R.string.auto_search_step_download),
                     appContext.getString(R.string.auto_search_download_summary),
@@ -667,12 +688,14 @@ public final class AutoSearchManager {
                     0L,
                     stable.size(),
                     candidate.latencyMs
-            ));
+                )
+            );
             runCandidateDownloadTest(mode, candidate, xraySettings, byeDpiSettings, stable.size());
             if (candidate.live) {
                 live.add(candidate);
             } else {
-                updateState(State.running(
+                updateState(
+                    State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_download),
                         appContext.getString(R.string.auto_search_download_summary),
@@ -684,7 +707,8 @@ public final class AutoSearchManager {
                         0L,
                         stable.size(),
                         candidate.latencyMs
-                ));
+                    )
+                );
             }
             if (candidate.stable) {
                 stable.add(candidate);
@@ -708,36 +732,36 @@ public final class AutoSearchManager {
         return result;
     }
 
-    private void runCandidateDownloadTest(Mode mode,
-                                          CandidateResult candidate,
-                                          XraySettings xraySettings,
-                                          ByeDpiSettings byeDpiSettings,
-                                          int stableFoundCount) throws Exception {
+    private void runCandidateDownloadTest(
+        Mode mode,
+        CandidateResult candidate,
+        XraySettings xraySettings,
+        ByeDpiSettings byeDpiSettings,
+        int stableFoundCount
+    ) throws Exception {
         int localPort = findAvailableTcpPort();
         String configJson = XrayAutoSearchConfigFactory.buildConfigJson(
-                appContext,
-                candidate.profile,
-                xraySettings,
-                localPort,
-                byeDpiSettings,
-                mode == Mode.WHITELIST
+            appContext,
+            candidate.profile,
+            xraySettings,
+            localPort,
+            byeDpiSettings,
+            mode == Mode.WHITELIST
         );
         int failedAttempts = 0;
         try {
-            try {
-                XrayBridge.stop();
-            } catch (Exception ignored) {
-            }
+            stopXrayQuietly();
             XrayBridge.prepareRuntimeDirect(
-                    xraySettings != null ? xraySettings.remoteDns : null,
-                    xraySettings != null ? xraySettings.directDns : null
+                xraySettings != null ? xraySettings.remoteDns : null,
+                xraySettings != null ? xraySettings.directDns : null
             );
             XrayBridge.runFromJson(appContext, configJson, 0);
             waitForLocalProxy(localPort);
             SystemClock.sleep(XRAY_PROXY_WARMUP_MS);
             if (candidate.pingResponsive) {
                 candidate.live = true;
-                updateState(State.running(
+                updateState(
+                    State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_preflight),
                         appContext.getString(R.string.auto_search_preflight_summary),
@@ -749,7 +773,8 @@ public final class AutoSearchManager {
                         0L,
                         stableFoundCount,
                         candidate.latencyMs
-                ));
+                    )
+                );
             } else {
                 ProbeResult probeResult = ensureTrafficUp(mode, candidate, xraySettings, localPort, stableFoundCount);
                 candidate.live = probeResult.success;
@@ -765,20 +790,19 @@ public final class AutoSearchManager {
                     break;
                 }
                 DownloadResult result = downloadThroughProxy(
-                        mode,
-                        candidate,
-                        xraySettings,
-                        localPort,
-                        stableFoundCount,
-                        attempt,
-                        downloadAttempts,
-                        stableBytes
+                    mode,
+                    candidate,
+                    xraySettings,
+                    localPort,
+                    stableFoundCount,
+                    attempt,
+                    downloadAttempts,
+                    stableBytes
                 );
                 candidate.downloadedBytes += result.bytesRead;
                 candidate.successfulAttempts += result.success ? 1 : 0;
                 candidate.live = candidate.live || result.bytesRead > 0L;
-                candidate.stable = candidate.downloadedBytes >= stableBytes
-                        && candidate.successfulAttempts > 0;
+                candidate.stable = candidate.downloadedBytes >= stableBytes && candidate.successfulAttempts > 0;
                 if (!result.success) {
                     failedAttempts++;
                 }
@@ -790,21 +814,21 @@ public final class AutoSearchManager {
                 }
             }
         } finally {
-            try {
-                XrayBridge.stop();
-            } catch (Exception ignored) {
-            }
+            stopXrayQuietly();
         }
     }
 
     @NonNull
-    private ProbeResult ensureTrafficUp(Mode mode,
-                                        CandidateResult candidate,
-                                        XraySettings xraySettings,
-                                        int localPort,
-                                        int stableFoundCount) {
+    private ProbeResult ensureTrafficUp(
+        Mode mode,
+        CandidateResult candidate,
+        XraySettings xraySettings,
+        int localPort,
+        int stableFoundCount
+    ) {
         for (String url : TRAFFIC_PROBE_URLS) {
-            updateState(State.running(
+            updateState(
+                State.running(
                     mode,
                     appContext.getString(R.string.auto_search_step_preflight),
                     appContext.getString(R.string.auto_search_preflight_summary),
@@ -816,15 +840,12 @@ public final class AutoSearchManager {
                     0L,
                     stableFoundCount,
                     candidate.latencyMs
-            ));
-            ProbeResult result = probeTrafficThroughProxy(
-                    xraySettings,
-                    localPort,
-                    url,
-                    candidate.pingResponsive
+                )
             );
+            ProbeResult result = probeTrafficThroughProxy(xraySettings, localPort, url, candidate.pingResponsive);
             if (result.success) {
-                updateState(State.running(
+                updateState(
+                    State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_preflight),
                         appContext.getString(R.string.auto_search_preflight_summary),
@@ -836,11 +857,13 @@ public final class AutoSearchManager {
                         0L,
                         stableFoundCount,
                         candidate.latencyMs
-                ));
+                    )
+                );
                 return result;
             }
         }
-        updateState(State.running(
+        updateState(
+            State.running(
                 mode,
                 appContext.getString(R.string.auto_search_step_preflight),
                 appContext.getString(R.string.auto_search_preflight_summary),
@@ -852,44 +875,39 @@ public final class AutoSearchManager {
                 0L,
                 stableFoundCount,
                 candidate.latencyMs
-        ));
+            )
+        );
         return ProbeResult.failed();
     }
 
     @NonNull
-    private ProbeResult probeTrafficThroughProxy(XraySettings xraySettings,
-                                                 int localPort,
-                                                 @NonNull String url,
-                                                 boolean responsiveCandidate) {
-        return probeTrafficThroughSocks(
-                xraySettings,
-                "127.0.0.1",
-                localPort,
-                url,
-                responsiveCandidate
-        );
+    private ProbeResult probeTrafficThroughProxy(
+        XraySettings xraySettings,
+        int localPort,
+        @NonNull String url,
+        boolean responsiveCandidate
+    ) {
+        return probeTrafficThroughSocks(xraySettings, "127.0.0.1", localPort, url, responsiveCandidate);
     }
 
     @NonNull
-    private ProbeResult probeTrafficThroughSocks(XraySettings xraySettings,
-                                                 @NonNull String host,
-                                                 int port,
-                                                 @NonNull String url,
-                                                 boolean responsiveCandidate) {
+    private ProbeResult probeTrafficThroughSocks(
+        XraySettings xraySettings,
+        @NonNull String host,
+        int port,
+        @NonNull String url,
+        boolean responsiveCandidate
+    ) {
         SocksHttpResult result = requestHttpViaSocks(
-                host,
-                port,
-                resolveLocalSocksUsername(xraySettings),
-                resolveLocalSocksPassword(xraySettings),
-                url,
-                responsiveCandidate
-                        ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS
-                        : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS,
-                responsiveCandidate
-                        ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS
-                        : TRAFFIC_PROBE_READ_TIMEOUT_MS,
-                TRAFFIC_PROBE_MAX_BYTES,
-                null
+            host,
+            port,
+            resolveLocalSocksUsername(xraySettings),
+            resolveLocalSocksPassword(xraySettings),
+            url,
+            responsiveCandidate ? TRAFFIC_PROBE_RESPONSIVE_CONNECT_TIMEOUT_MS : TRAFFIC_PROBE_CONNECT_TIMEOUT_MS,
+            responsiveCandidate ? TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS : TRAFFIC_PROBE_READ_TIMEOUT_MS,
+            TRAFFIC_PROBE_MAX_BYTES,
+            null
         );
         if (!result.success || result.responseCode < 200 || result.responseCode >= 400) {
             return ProbeResult.failed();
@@ -898,18 +916,21 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private DownloadResult downloadThroughProxy(Mode mode,
-                                                CandidateResult candidate,
-                                                XraySettings xraySettings,
-                                                int localPort,
-                                                int stableFoundCount,
-                                                int attempt,
-                                                int attemptCount,
-                                                long targetBytes) {
+    private DownloadResult downloadThroughProxy(
+        Mode mode,
+        CandidateResult candidate,
+        XraySettings xraySettings,
+        int localPort,
+        int stableFoundCount,
+        int attempt,
+        int attemptCount,
+        long targetBytes
+    ) {
         final long baseTotalBytes = candidate.downloadedBytes;
         final long startedAtMs = SystemClock.elapsedRealtime();
         final long singleSuccessBytes = getDownloadSizeBytes(appContext);
-        updateState(State.running(
+        updateState(
+            State.running(
                 mode,
                 appContext.getString(R.string.auto_search_step_download),
                 appContext.getString(R.string.auto_search_download_summary),
@@ -917,78 +938,80 @@ public final class AutoSearchManager {
                 attempt - 1,
                 attemptCount,
                 safeProfileTitle(candidate.profile),
-                appContext.getString(
-                        R.string.auto_search_download_connecting_metric,
-                        attempt,
-                        attemptCount
-                ),
+                appContext.getString(R.string.auto_search_download_connecting_metric, attempt, attemptCount),
                 -1L,
                 stableFoundCount,
                 candidate.latencyMs
-        ));
+            )
+        );
         int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
         long readLimitBytes = Math.min(singleSuccessBytes, Math.max(1L, targetBytes - baseTotalBytes));
         SocksHttpResult result = requestHttpViaSocks(
-                "127.0.0.1",
-                localPort,
-                resolveLocalSocksUsername(xraySettings),
-                resolveLocalSocksPassword(xraySettings),
-                DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes,
-                timeoutMs,
-                timeoutMs,
-                readLimitBytes,
-                (attemptBytes, totalAttemptLimitIgnored) -> {
-                    long totalBytes = baseTotalBytes + attemptBytes;
-                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
-                    long speed = attemptBytes * 1000L / elapsedMs;
-                    updateState(State.running(
-                            mode,
-                            appContext.getString(R.string.auto_search_step_download),
-                            appContext.getString(R.string.auto_search_download_summary),
-                            false,
-                            candidate.successfulAttempts,
-                            getDownloadAttempts(appContext),
-                            safeProfileTitle(candidate.profile),
-                            appContext.getString(
-                                    R.string.auto_search_download_metric,
-                                    attempt,
-                                    attemptCount,
-                                    UiFormatter.formatBytes(appContext, totalBytes),
-                                    UiFormatter.formatBytes(appContext, targetBytes),
-                                    UiFormatter.formatBytesPerSecond(appContext, speed)
-                            ),
-                            speed,
-                            stableFoundCount,
-                            candidate.latencyMs
-                    ));
-                }
+            "127.0.0.1",
+            localPort,
+            resolveLocalSocksUsername(xraySettings),
+            resolveLocalSocksPassword(xraySettings),
+            DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes,
+            timeoutMs,
+            timeoutMs,
+            readLimitBytes,
+            (attemptBytes, totalAttemptLimitIgnored) -> {
+                long totalBytes = baseTotalBytes + attemptBytes;
+                long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
+                long speed = (attemptBytes * 1000L) / elapsedMs;
+                updateState(
+                    State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_download),
+                        appContext.getString(R.string.auto_search_download_summary),
+                        false,
+                        candidate.successfulAttempts,
+                        getDownloadAttempts(appContext),
+                        safeProfileTitle(candidate.profile),
+                        appContext.getString(
+                            R.string.auto_search_download_metric,
+                            attempt,
+                            attemptCount,
+                            UiFormatter.formatBytes(appContext, totalBytes),
+                            UiFormatter.formatBytes(appContext, targetBytes),
+                            UiFormatter.formatBytesPerSecond(appContext, speed)
+                        ),
+                        speed,
+                        stableFoundCount,
+                        candidate.latencyMs
+                    )
+                );
+            }
         );
-        boolean success = result.success
-                && result.responseCode >= 200
-                && result.responseCode < 400
-                && result.bytesRead >= readLimitBytes;
+        boolean success =
+            result.success &&
+            result.responseCode >= 200 &&
+            result.responseCode < 400 &&
+            result.bytesRead >= readLimitBytes;
         return new DownloadResult(success, result.bytesRead);
     }
 
     @NonNull
-    private SocksHttpResult requestHttpViaSocks(@NonNull String proxyHost,
-                                                int proxyPort,
-                                                @Nullable String username,
-                                                @Nullable String password,
-                                                @NonNull String urlValue,
-                                                int connectTimeoutMs,
-                                                int readTimeoutMs,
-                                                long maxBodyBytes,
-                                                @Nullable DownloadProgress progress) {
-        Socket socket = null;
+    private SocksHttpResult requestHttpViaSocks(
+        @NonNull String proxyHost,
+        int proxyPort,
+        @Nullable String username,
+        @Nullable String password,
+        @NonNull String urlValue,
+        int connectTimeoutMs,
+        int readTimeoutMs,
+        long maxBodyBytes,
+        @Nullable DownloadProgress progress
+    ) {
         try {
             URL url = new URL(urlValue);
-            String scheme = url.getProtocol() == null ? "" : url.getProtocol().toLowerCase();
+            String scheme = url.getProtocol() == null ? "" : url.getProtocol().toLowerCase(Locale.ROOT);
             boolean tls = TextUtils.equals(scheme, "https");
             String targetHost = url.getHost();
-            int targetPort = url.getPort() > 0 ? url.getPort() : (tls ? 443 : 80);
+            int targetPort = url.getPort() > 0 ? url.getPort() : tls ? 443 : 80;
             String path = TextUtils.isEmpty(url.getFile()) ? "/" : url.getFile();
-            socket = openSocksTunnel(
+            try (
+                Socket socket = openPreparedSocksSocket(
                     proxyHost,
                     proxyPort,
                     targetHost,
@@ -996,75 +1019,118 @@ public final class AutoSearchManager {
                     username,
                     password,
                     connectTimeoutMs,
-                    readTimeoutMs
+                    readTimeoutMs,
+                    tls
+                );
+                BufferedOutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+                BufferedInputStream inputStream = new BufferedInputStream(socket.getInputStream())
+            ) {
+                String request =
+                    "GET " +
+                    path +
+                    " HTTP/1.1\r\n" +
+                    "Host: " +
+                    targetHost +
+                    "\r\n" +
+                    "User-Agent: " +
+                    resolveUserAgent() +
+                    "\r\n" +
+                    "Accept: */*\r\n" +
+                    "Accept-Encoding: identity\r\n" +
+                    "Connection: close\r\n" +
+                    "\r\n";
+                outputStream.write(request.getBytes(StandardCharsets.US_ASCII));
+                outputStream.flush();
+
+                String statusLine = readAsciiLine(inputStream, 4096);
+                int responseCode = parseHttpStatusCode(statusLine);
+                if (responseCode <= 0) {
+                    return SocksHttpResult.failed();
+                }
+                while (true) {
+                    String header = readAsciiLine(inputStream, 16 * 1024);
+                    if (header == null || header.length() == 0) {
+                        break;
+                    }
+                }
+                if (maxBodyBytes <= 0 || responseCode == 204 || responseCode == 304) {
+                    return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, 0L);
+                }
+
+                byte[] buffer = new byte[16 * 1024];
+                long bytesRead = 0L;
+                while (bytesRead < maxBodyBytes) {
+                    int limit = (int) Math.min(buffer.length, maxBodyBytes - bytesRead);
+                    int read;
+                    try {
+                        read = inputStream.read(buffer, 0, limit);
+                    } catch (SocketTimeoutException timeout) {
+                        return new SocksHttpResult(false, responseCode, bytesRead);
+                    }
+                    if (read == -1) {
+                        break;
+                    }
+                    bytesRead += read;
+                    if (progress != null) {
+                        progress.onBytesRead(bytesRead, maxBodyBytes);
+                    }
+                }
+                return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, bytesRead);
+            }
+        } catch (IOException | IllegalArgumentException ignored) {
+            return SocksHttpResult.failed();
+        }
+    }
+
+    @NonNull
+    @SuppressWarnings({ "PMD.CloseResource", "PMD.UseTryWithResources" })
+    private Socket openPreparedSocksSocket(
+        @NonNull String proxyHost,
+        int proxyPort,
+        @NonNull String targetHost,
+        int targetPort,
+        @Nullable String username,
+        @Nullable String password,
+        int connectTimeoutMs,
+        int readTimeoutMs,
+        boolean tls
+    ) throws IOException {
+        Socket socket = null;
+        try {
+            socket = openSocksTunnel(
+                proxyHost,
+                proxyPort,
+                targetHost,
+                targetPort,
+                username,
+                password,
+                connectTimeoutMs,
+                readTimeoutMs
             );
             if (tls) {
                 socket = wrapTlsSocket(socket, targetHost, targetPort);
                 socket.setSoTimeout(readTimeoutMs);
             }
-
-            BufferedOutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-            BufferedInputStream inputStream = new BufferedInputStream(socket.getInputStream());
-            String request = "GET " + path + " HTTP/1.1\r\n"
-                    + "Host: " + targetHost + "\r\n"
-                    + "User-Agent: " + resolveUserAgent() + "\r\n"
-                    + "Accept: */*\r\n"
-                    + "Accept-Encoding: identity\r\n"
-                    + "Connection: close\r\n"
-                    + "\r\n";
-            outputStream.write(request.getBytes(StandardCharsets.US_ASCII));
-            outputStream.flush();
-
-            String statusLine = readAsciiLine(inputStream, 4096);
-            int responseCode = parseHttpStatusCode(statusLine);
-            if (responseCode <= 0) {
-                return SocksHttpResult.failed();
-            }
-            while (true) {
-                String header = readAsciiLine(inputStream, 16 * 1024);
-                if (header == null || header.length() == 0) {
-                    break;
-                }
-            }
-            if (maxBodyBytes <= 0 || responseCode == 204 || responseCode == 304) {
-                return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, 0L);
-            }
-
-            byte[] buffer = new byte[16 * 1024];
-            long bytesRead = 0L;
-            while (bytesRead < maxBodyBytes) {
-                int limit = (int) Math.min(buffer.length, maxBodyBytes - bytesRead);
-                int read;
-                try {
-                    read = inputStream.read(buffer, 0, limit);
-                } catch (SocketTimeoutException timeout) {
-                    return new SocksHttpResult(false, responseCode, bytesRead);
-                }
-                if (read == -1) {
-                    break;
-                }
-                bytesRead += read;
-                if (progress != null) {
-                    progress.onBytesRead(bytesRead, maxBodyBytes);
-                }
-            }
-            return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, bytesRead);
-        } catch (Exception ignored) {
-            return SocksHttpResult.failed();
+            Socket preparedSocket = socket;
+            socket = null;
+            return preparedSocket;
         } finally {
             closeQuietly(socket);
         }
     }
 
     @NonNull
-    private Socket openSocksTunnel(@NonNull String proxyHost,
-                                   int proxyPort,
-                                   @NonNull String targetHost,
-                                   int targetPort,
-                                   @Nullable String username,
-                                   @Nullable String password,
-                                   int connectTimeoutMs,
-                                   int readTimeoutMs) throws Exception {
+    @SuppressWarnings("PMD.CloseResource")
+    private Socket openSocksTunnel(
+        @NonNull String proxyHost,
+        int proxyPort,
+        @NonNull String targetHost,
+        int targetPort,
+        @Nullable String username,
+        @Nullable String password,
+        int connectTimeoutMs,
+        int readTimeoutMs
+    ) throws IOException {
         Socket socket = new Socket();
         socket.connect(new InetSocketAddress(proxyHost, proxyPort), connectTimeoutMs);
         socket.setSoTimeout(readTimeoutMs);
@@ -1074,7 +1140,7 @@ public final class AutoSearchManager {
         byte[] passwordBytes = bytesForSocksAuth(password);
         boolean auth = usernameBytes.length > 0 && passwordBytes.length > 0;
 
-        outputStream.write(new byte[]{0x05, 0x01, (byte) (auth ? 0x02 : 0x00)});
+        outputStream.write(new byte[] { 0x05, 0x01, (byte) (auth ? 0x02 : 0x00) });
         outputStream.flush();
         int version = readByte(inputStream);
         int method = readByte(inputStream);
@@ -1101,7 +1167,7 @@ public final class AutoSearchManager {
         if (hostBytes.length == 0 || hostBytes.length > 255) {
             throw new IOException("Invalid SOCKS target host");
         }
-        outputStream.write(new byte[]{0x05, 0x01, 0x00, 0x03, (byte) hostBytes.length});
+        outputStream.write(new byte[] { 0x05, 0x01, 0x00, 0x03, (byte) hostBytes.length });
         outputStream.write(hostBytes);
         outputStream.write((targetPort >>> 8) & 0xff);
         outputStream.write(targetPort & 0xff);
@@ -1129,9 +1195,7 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private Socket wrapTlsSocket(@NonNull Socket socket,
-                                 @NonNull String host,
-                                 int port) throws Exception {
+    private Socket wrapTlsSocket(@NonNull Socket socket, @NonNull String host, int port) throws IOException {
         SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
         SSLSocket sslSocket = (SSLSocket) factory.createSocket(socket, host, port, true);
         try {
@@ -1141,8 +1205,7 @@ public final class AutoSearchManager {
                 parameters.setServerNames(Collections.singletonList(new SNIHostName(host)));
             }
             sslSocket.setSSLParameters(parameters);
-        } catch (Exception ignored) {
-        }
+        } catch (IllegalArgumentException | UnsupportedOperationException ignored) {}
         sslSocket.startHandshake();
         return sslSocket;
     }
@@ -1210,7 +1273,7 @@ public final class AutoSearchManager {
         }
         try {
             return Integer.parseInt(parts[1]);
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return -1;
         }
     }
@@ -1222,14 +1285,14 @@ public final class AutoSearchManager {
     @NonNull
     private String resolveUserAgent() {
         try {
-            String versionName = appContext.getPackageManager()
-                    .getPackageInfo(appContext.getPackageName(), 0)
-                    .versionName;
+            String versionName = appContext
+                .getPackageManager()
+                .getPackageInfo(appContext.getPackageName(), 0)
+                .versionName;
             if (!TextUtils.isEmpty(versionName)) {
                 return "WINGSV/" + versionName;
             }
-        } catch (Exception ignored) {
-        }
+        } catch (PackageManager.NameNotFoundException ignored) {}
         return "WINGSV";
     }
 
@@ -1239,7 +1302,20 @@ public final class AutoSearchManager {
         }
         try {
             socket.close();
-        } catch (Exception ignored) {
+        } catch (IOException ignored) {}
+    }
+
+    private static final class ExecutorScope implements AutoCloseable {
+
+        private final ExecutorService executor;
+
+        private ExecutorScope(int threadCount) {
+            this.executor = Executors.newFixedThreadPool(Math.max(1, threadCount));
+        }
+
+        @Override
+        public void close() {
+            executor.shutdownNow();
         }
     }
 
@@ -1259,9 +1335,11 @@ public final class AutoSearchManager {
         return TextUtils.isEmpty(settings.localProxyPassword) ? "" : settings.localProxyPassword;
     }
 
-    private void persistAutoSearchProfiles(List<CandidateResult> foundCandidates,
-                                           List<XrayProfile> allProfiles,
-                                           List<XrayProfile> originalProfiles) {
+    private void persistAutoSearchProfiles(
+        List<CandidateResult> foundCandidates,
+        List<XrayProfile> allProfiles,
+        List<XrayProfile> originalProfiles
+    ) {
         ArrayList<XrayProfile> updatedProfiles = new ArrayList<>();
         ArrayList<XrayProfile> baseProfiles = mergeProfileLists(allProfiles, originalProfiles);
         LinkedHashMap<String, CandidateResult> candidateByKey = new LinkedHashMap<>();
@@ -1273,20 +1351,20 @@ public final class AutoSearchManager {
             CandidateResult candidate = candidateByKey.get(stableKey);
             if (candidate != null) {
                 XrayProfile tagged = new XrayProfile(
-                        profile.id,
-                        profile.title,
-                        profile.rawLink,
-                        AUTOSEARCH_SUBSCRIPTION_ID,
-                        AUTOSEARCH_SUBSCRIPTION_TITLE,
-                        profile.address,
-                        profile.port
+                    profile.id,
+                    profile.title,
+                    profile.rawLink,
+                    AUTOSEARCH_SUBSCRIPTION_ID,
+                    AUTOSEARCH_SUBSCRIPTION_TITLE,
+                    profile.address,
+                    profile.port
                 );
                 updatedProfiles.add(tagged);
                 XrayStore.putProfilePingResult(
-                        appContext,
-                        XrayStore.getProfilePingKey(tagged),
-                        true,
-                        candidate.latencyMs
+                    appContext,
+                    XrayStore.getProfilePingKey(tagged),
+                    true,
+                    candidate.latencyMs
                 );
                 candidate.profile = tagged;
             } else {
@@ -1297,8 +1375,10 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private static ArrayList<XrayProfile> mergeProfileLists(@Nullable List<XrayProfile> primary,
-                                                            @Nullable List<XrayProfile> fallback) {
+    private static ArrayList<XrayProfile> mergeProfileLists(
+        @Nullable List<XrayProfile> primary,
+        @Nullable List<XrayProfile> fallback
+    ) {
         ArrayList<XrayProfile> result = new ArrayList<>();
         LinkedHashMap<String, XrayProfile> byKey = new LinkedHashMap<>();
         if (primary != null) {
@@ -1310,8 +1390,11 @@ public final class AutoSearchManager {
         }
         if (fallback != null) {
             for (XrayProfile profile : fallback) {
-                if (profile != null && !TextUtils.isEmpty(profile.rawLink)
-                        && !byKey.containsKey(profile.stableDedupKey())) {
+                if (
+                    profile != null &&
+                    !TextUtils.isEmpty(profile.rawLink) &&
+                    !byKey.containsKey(profile.stableDedupKey())
+                ) {
                     byKey.put(profile.stableDedupKey(), profile);
                 }
             }
@@ -1320,9 +1403,11 @@ public final class AutoSearchManager {
         return result;
     }
 
-    private PendingResult buildPendingResult(SearchSession session,
-                                             List<CandidateResult> foundCandidates,
-                                             CandidateResult bestCandidate) {
+    private PendingResult buildPendingResult(
+        SearchSession session,
+        List<CandidateResult> foundCandidates,
+        CandidateResult bestCandidate
+    ) {
         PendingResult result = new PendingResult();
         result.mode = session.mode;
         result.serviceWasActive = session.serviceWasActive;
@@ -1334,9 +1419,10 @@ public final class AutoSearchManager {
         result.targetBackend = BackendType.XRAY;
         result.targetActiveProfileId = bestCandidate.profile.id;
         result.targetByeDpiAutoStart = session.mode == Mode.WHITELIST;
-        result.configurationChanged = session.originalBackend != result.targetBackend
-                || !TextUtils.equals(session.originalActiveProfileId, result.targetActiveProfileId)
-                || session.originalByeDpiAutoStart != result.targetByeDpiAutoStart;
+        result.configurationChanged =
+            session.originalBackend != result.targetBackend ||
+            !TextUtils.equals(session.originalActiveProfileId, result.targetActiveProfileId) ||
+            session.originalByeDpiAutoStart != result.targetByeDpiAutoStart;
         return result;
     }
 
@@ -1350,9 +1436,7 @@ public final class AutoSearchManager {
             XrayStore.setActiveProfileId(appContext, activeProfileId);
         }
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(appContext);
-        preferences.edit()
-                .putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, byeDpiEnabled)
-                .apply();
+        preferences.edit().putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, byeDpiEnabled).apply();
 
         if (result.serviceWasActive) {
             startProxyTunnelService();
@@ -1365,9 +1449,9 @@ public final class AutoSearchManager {
             XrayStore.setActiveProfileId(appContext, session.originalActiveProfileId);
         }
         PreferenceManager.getDefaultSharedPreferences(appContext)
-                .edit()
-                .putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, session.originalByeDpiAutoStart)
-                .apply();
+            .edit()
+            .putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, session.originalByeDpiAutoStart)
+            .apply();
         if (session.serviceWasActive) {
             startProxyTunnelService();
         }
@@ -1376,14 +1460,16 @@ public final class AutoSearchManager {
     private void startProxyTunnelService() {
         try {
             ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
-        } catch (Exception ignored) {
+        } catch (IllegalStateException | SecurityException ignored) {
             try {
                 appContext.startService(ProxyTunnelService.createStartIntent(appContext));
-            } catch (Exception ignoredAgain) {
+            } catch (IllegalStateException | SecurityException ignoredAgain) {
+                Log.w(TAG, "Unable to start ProxyTunnelService for autosearch", ignoredAgain);
             }
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private ByeDpiLocalRunner startTemporaryByeDpi(ByeDpiSettings settings) throws Exception {
         ByeDpiLocalRunner runner = new ByeDpiLocalRunner();
         try {
@@ -1391,22 +1477,19 @@ public final class AutoSearchManager {
             return runner;
         } catch (Exception error) {
             runner.close();
-            throw new IllegalStateException(
-                    appContext.getString(R.string.auto_search_failed_bydpi),
-                    error
-            );
+            throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_bydpi), error);
         }
     }
 
-    private void warmUpTemporaryByeDpi(Mode mode,
-                                       @Nullable ByeDpiLocalRunner runner) throws Exception {
+    private void warmUpTemporaryByeDpi(Mode mode, @Nullable ByeDpiLocalRunner runner) throws Exception {
         if (runner == null || !runner.isRunning()) {
             throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_bydpi));
         }
         String host = runner.getDialHost();
         int port = runner.getDialPort();
         for (int attempt = 1; attempt <= BYEDPI_WARMUP_ATTEMPTS; attempt++) {
-            updateState(State.running(
+            updateState(
+                State.running(
                     mode,
                     appContext.getString(R.string.auto_search_step_bydpi),
                     appContext.getString(R.string.auto_search_bydpi_summary),
@@ -1418,7 +1501,8 @@ public final class AutoSearchManager {
                     0L,
                     0,
                     0
-            ));
+                )
+            );
             if (isLocalTcpPortReady(host, port)) {
                 return;
             }
@@ -1429,14 +1513,14 @@ public final class AutoSearchManager {
         throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_bydpi));
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void stopTemporaryByeDpi(@Nullable ByeDpiLocalRunner runner) {
         if (runner == null) {
             return;
         }
         try {
             runner.close();
-        } catch (Exception ignored) {
-        }
+        } catch (RuntimeException ignored) {}
     }
 
     private void waitForLocalProxy(int port) throws Exception {
@@ -1457,16 +1541,30 @@ public final class AutoSearchManager {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, port), 300);
             return true;
-        } catch (Exception ignored) {
+        } catch (IOException ignored) {
             return false;
         }
     }
 
-    private int findAvailableTcpPort() throws Exception {
+    private int findAvailableTcpPort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             socket.setReuseAddress(true);
             return socket.getLocalPort();
         }
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void restoreOriginalConfigurationQuietly(@NonNull SearchSession session) {
+        try {
+            restoreOriginalConfiguration(session);
+        } catch (RuntimeException ignored) {}
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void stopXrayQuietly() {
+        try {
+            XrayBridge.stop();
+        } catch (Exception ignored) {}
     }
 
     private CandidateResult chooseBestCandidate(List<CandidateResult> candidates) {
@@ -1517,7 +1615,7 @@ public final class AutoSearchManager {
 
     public enum Mode {
         STANDARD,
-        WHITELIST
+        WHITELIST,
     }
 
     public enum Status {
@@ -1526,10 +1624,11 @@ public final class AutoSearchManager {
         AWAITING_MODE_SELECTION,
         AWAITING_APPLY,
         COMPLETED,
-        FAILED
+        FAILED,
     }
 
     public static final class State {
+
         public final Status status;
         public final Mode mode;
         public final String stepTitle;
@@ -1544,19 +1643,21 @@ public final class AutoSearchManager {
         public final int currentLatencyMs;
         public final long token;
 
-        private State(Status status,
-                      Mode mode,
-                      String stepTitle,
-                      String stepSummary,
-                      boolean indeterminate,
-                      int progressCurrent,
-                      int progressMax,
-                      String currentProfileTitle,
-                      String currentMetric,
-                      long currentSpeedBytesPerSecond,
-                      int foundProfilesCount,
-                      int currentLatencyMs,
-                      long token) {
+        private State(
+            Status status,
+            Mode mode,
+            String stepTitle,
+            String stepSummary,
+            boolean indeterminate,
+            int progressCurrent,
+            int progressMax,
+            String currentProfileTitle,
+            String currentMetric,
+            long currentSpeedBytesPerSecond,
+            int foundProfilesCount,
+            int currentLatencyMs,
+            long token
+        ) {
             this.status = status;
             this.mode = mode;
             this.stepTitle = stepTitle;
@@ -1576,117 +1677,104 @@ public final class AutoSearchManager {
             return new State(Status.IDLE, Mode.STANDARD, "", "", true, 0, 0, "", "", 0L, 0, 0, 0L);
         }
 
-        static State running(Mode mode,
-                             String stepTitle,
-                             String stepSummary,
-                             boolean indeterminate,
-                             int progressCurrent,
-                             int progressMax,
-                             String currentProfileTitle,
-                             String currentMetric,
-                             long currentSpeedBytesPerSecond,
-                             int foundProfilesCount,
-                             int currentLatencyMs) {
+        @SuppressWarnings("PMD.ExcessiveParameterList")
+        static State running(
+            Mode mode,
+            String stepTitle,
+            String stepSummary,
+            boolean indeterminate,
+            int progressCurrent,
+            int progressMax,
+            String currentProfileTitle,
+            String currentMetric,
+            long currentSpeedBytesPerSecond,
+            int foundProfilesCount,
+            int currentLatencyMs
+        ) {
             return new State(
-                    Status.RUNNING,
-                    mode,
-                    stepTitle,
-                    stepSummary,
-                    indeterminate,
-                    progressCurrent,
-                    progressMax,
-                    currentProfileTitle,
-                    currentMetric,
-                    currentSpeedBytesPerSecond,
-                    foundProfilesCount,
-                    currentLatencyMs,
-                    0L
+                Status.RUNNING,
+                mode,
+                stepTitle,
+                stepSummary,
+                indeterminate,
+                progressCurrent,
+                progressMax,
+                currentProfileTitle,
+                currentMetric,
+                currentSpeedBytesPerSecond,
+                foundProfilesCount,
+                currentLatencyMs,
+                0L
             );
         }
 
-        static State awaitingApply(Mode mode,
-                                   String message,
-                                   int foundProfilesCount,
-                                   String currentProfileTitle,
-                                   long token) {
+        static State awaitingApply(
+            Mode mode,
+            String message,
+            int foundProfilesCount,
+            String currentProfileTitle,
+            long token
+        ) {
             return new State(
-                    Status.AWAITING_APPLY,
-                    mode,
-                    "",
-                    message,
-                    true,
-                    0,
-                    0,
-                    currentProfileTitle,
-                    "",
-                    0L,
-                    foundProfilesCount,
-                    0,
-                    token
+                Status.AWAITING_APPLY,
+                mode,
+                "",
+                message,
+                true,
+                0,
+                0,
+                currentProfileTitle,
+                "",
+                0L,
+                foundProfilesCount,
+                0,
+                token
             );
         }
 
-        static State awaitingModeSelection(String message,
-                                           int foundProfilesCount,
-                                           long token) {
+        static State awaitingModeSelection(String message, int foundProfilesCount, long token) {
             return new State(
-                    Status.AWAITING_MODE_SELECTION,
-                    null,
-                    "",
-                    message,
-                    true,
-                    0,
-                    0,
-                    "",
-                    "",
-                    0L,
-                    foundProfilesCount,
-                    0,
-                    token
+                Status.AWAITING_MODE_SELECTION,
+                null,
+                "",
+                message,
+                true,
+                0,
+                0,
+                "",
+                "",
+                0L,
+                foundProfilesCount,
+                0,
+                token
             );
         }
 
-        static State completed(Mode mode,
-                               String message,
-                               int foundProfilesCount,
-                               String currentProfileTitle) {
+        static State completed(Mode mode, String message, int foundProfilesCount, String currentProfileTitle) {
             return new State(
-                    Status.COMPLETED,
-                    mode,
-                    "",
-                    message,
-                    true,
-                    0,
-                    0,
-                    currentProfileTitle,
-                    "",
-                    0L,
-                    foundProfilesCount,
-                    0,
-                    0L
+                Status.COMPLETED,
+                mode,
+                "",
+                message,
+                true,
+                0,
+                0,
+                currentProfileTitle,
+                "",
+                0L,
+                foundProfilesCount,
+                0,
+                0L
             );
         }
 
         static State failed(Mode mode, String message) {
-            return new State(
-                    Status.FAILED,
-                    mode,
-                    "",
-                    message,
-                    true,
-                    0,
-                    0,
-                    "",
-                    "",
-                    0L,
-                    0,
-                    0,
-                    0L
-            );
+            return new State(Status.FAILED, mode, "", message, true, 0, 0, "", "", 0L, 0, 0, 0L);
         }
     }
 
     private static final class SearchSession {
+
         Mode mode;
         BackendType originalBackend;
         String originalActiveProfileId;
@@ -1696,26 +1784,29 @@ public final class AutoSearchManager {
     }
 
     private static final class PreparedSearch {
+
         final SearchSession session;
         final List<XrayProfile> availableProfiles;
         final XraySettings xraySettings;
         final ByeDpiSettings byeDpiSettings;
         long token;
 
-        PreparedSearch(SearchSession session,
-                       List<XrayProfile> availableProfiles,
-                       XraySettings xraySettings,
-                       ByeDpiSettings byeDpiSettings) {
+        PreparedSearch(
+            SearchSession session,
+            List<XrayProfile> availableProfiles,
+            XraySettings xraySettings,
+            ByeDpiSettings byeDpiSettings
+        ) {
             this.session = session;
-            this.availableProfiles = availableProfiles != null
-                    ? new ArrayList<>(availableProfiles)
-                    : Collections.emptyList();
+            this.availableProfiles =
+                availableProfiles != null ? new ArrayList<>(availableProfiles) : Collections.emptyList();
             this.xraySettings = xraySettings != null ? xraySettings : new XraySettings();
             this.byeDpiSettings = byeDpiSettings != null ? byeDpiSettings : new ByeDpiSettings();
         }
     }
 
     private static final class PendingResult {
+
         Mode mode;
         boolean serviceWasActive;
         BackendType originalBackend;
@@ -1731,6 +1822,7 @@ public final class AutoSearchManager {
     }
 
     private static final class CandidateResult {
+
         XrayProfile profile;
         int latencyMs;
         boolean pingResponsive;
@@ -1745,6 +1837,7 @@ public final class AutoSearchManager {
     }
 
     private static final class DownloadResult {
+
         final boolean success;
         final long bytesRead;
 
@@ -1759,6 +1852,7 @@ public final class AutoSearchManager {
     }
 
     private static final class SocksHttpResult {
+
         final boolean success;
         final int responseCode;
         final long bytesRead;
@@ -1775,6 +1869,7 @@ public final class AutoSearchManager {
     }
 
     private static final class ProbeResult {
+
         final boolean success;
         final int responseCode;
         final long bytesRead;

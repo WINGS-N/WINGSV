@@ -10,14 +10,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-
 import wings.v.core.AutoSearchManager;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
@@ -25,7 +22,9 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentFirstLaunchAutoSearchRunBinding;
 import wings.v.databinding.ItemFirstLaunchAutoSearchProfileBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchAutoSearchRunFragment extends Fragment {
+
     public interface Host {
         @Nullable
         AutoSearchManager.Mode getFirstLaunchAutoSearchMode();
@@ -46,6 +45,7 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
 
     @Nullable
     private FragmentFirstLaunchAutoSearchRunBinding binding;
+
     private AutoSearchManager manager;
     private AutoSearchManager.Mode mode;
     private boolean started;
@@ -64,9 +64,11 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchAutoSearchRunBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -75,15 +77,14 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         manager = AutoSearchManager.getInstance(requireContext());
-        mode = getActivity() instanceof Host
+        mode =
+            getActivity() instanceof Host
                 ? ((Host) getActivity()).getFirstLaunchAutoSearchMode()
                 : AutoSearchManager.Mode.STANDARD;
         if (mode == null) {
             mode = AutoSearchManager.Mode.STANDARD;
         }
-        generation = getActivity() instanceof Host
-                ? ((Host) getActivity()).getFirstLaunchAutoSearchGeneration()
-                : 0L;
+        generation = getActivity() instanceof Host ? ((Host) getActivity()).getFirstLaunchAutoSearchGeneration() : 0L;
     }
 
     @Override
@@ -146,9 +147,11 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        if (state.status == AutoSearchManager.Status.RUNNING
-                || state.status == AutoSearchManager.Status.IDLE
-                || state.status == AutoSearchManager.Status.COMPLETED) {
+        if (
+            state.status == AutoSearchManager.Status.RUNNING ||
+            state.status == AutoSearchManager.Status.IDLE ||
+            state.status == AutoSearchManager.Status.COMPLETED
+        ) {
             hideActions();
         }
         binding.layoutAutoSearchProgress.setVisibility(View.VISIBLE);
@@ -158,34 +161,38 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         binding.textAutoSearchTitle.setText(titleFor(state));
         binding.textAutoSearchSummary.setText(summaryFor(state));
         binding.progressAutoSearchState.setVisibility(
-                state.status == AutoSearchManager.Status.RUNNING ? View.VISIBLE : View.GONE
+            state.status == AutoSearchManager.Status.RUNNING ? View.VISIBLE : View.GONE
         );
 
         binding.progressAutoSearch.setIndeterminate(state.indeterminate);
         if (!state.indeterminate && state.progressMax > 0) {
             binding.progressAutoSearch.setMax(state.progressMax);
             binding.progressAutoSearch.setProgress(Math.max(0, state.progressCurrent));
-            binding.textAutoSearchProgress.setText(getString(
-                    R.string.auto_search_progress_value,
-                    state.progressCurrent,
-                    state.progressMax
-            ) + " · " + getString(
-                    R.string.auto_search_found_value,
-                    state.foundProfilesCount,
-                    AutoSearchManager.getTargetProfileCount(requireContext())
-            ));
+            binding.textAutoSearchProgress.setText(
+                getString(R.string.auto_search_progress_value, state.progressCurrent, state.progressMax) +
+                    " · " +
+                    getString(
+                        R.string.auto_search_found_value,
+                        state.foundProfilesCount,
+                        AutoSearchManager.getTargetProfileCount(requireContext())
+                    )
+            );
         } else {
-            binding.textAutoSearchProgress.setText(getString(
+            binding.textAutoSearchProgress.setText(
+                getString(
                     R.string.auto_search_found_value,
                     state.foundProfilesCount,
                     AutoSearchManager.getTargetProfileCount(requireContext())
-            ));
+                )
+            );
         }
 
         if (state.currentSpeedBytesPerSecond > 0L) {
-            binding.textAutoSearchSpeed.setText(getString(R.string.auto_search_speed_label)
-                    + ": "
-                    + UiFormatter.formatBytesPerSecond(requireContext(), state.currentSpeedBytesPerSecond));
+            binding.textAutoSearchSpeed.setText(
+                getString(R.string.auto_search_speed_label) +
+                    ": " +
+                    UiFormatter.formatBytesPerSecond(requireContext(), state.currentSpeedBytesPerSecond)
+            );
             binding.textAutoSearchSpeed.setVisibility(View.VISIBLE);
         } else if (state.currentSpeedBytesPerSecond < 0L) {
             binding.textAutoSearchSpeed.setText(R.string.auto_search_speed_waiting);
@@ -202,25 +209,31 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        if (state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION
-                && state.token != 0L
-                && mode == AutoSearchManager.Mode.WHITELIST) {
+        if (
+            state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION &&
+            state.token != 0L &&
+            mode == AutoSearchManager.Mode.WHITELIST
+        ) {
             if (!whitelistConfirmed) {
                 lastModeToken = state.token;
                 showWhitelistWait();
             }
             return;
         }
-        if (state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION
-                && state.token != 0L
-                && state.token != lastModeToken) {
+        if (
+            state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION &&
+            state.token != 0L &&
+            state.token != lastModeToken
+        ) {
             lastModeToken = state.token;
             manager.continueSearch(AutoSearchManager.Mode.STANDARD);
             return;
         }
-        if (state.status == AutoSearchManager.Status.AWAITING_APPLY
-                && state.token != 0L
-                && state.token != lastApplyToken) {
+        if (
+            state.status == AutoSearchManager.Status.AWAITING_APPLY &&
+            state.token != 0L &&
+            state.token != lastApplyToken
+        ) {
             lastApplyToken = state.token;
             showApplyActions();
             return;
@@ -229,15 +242,18 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
             showRetryActions();
             return;
         }
-        if (state.status == AutoSearchManager.Status.COMPLETED
-                && state.foundProfilesCount > 0
-                && !finishedDispatched) {
+        if (state.status == AutoSearchManager.Status.COMPLETED && state.foundProfilesCount > 0 && !finishedDispatched) {
             finishedDispatched = true;
-            binding.getRoot().postDelayed(() -> {
-                if (getActivity() instanceof Host) {
-                    ((Host) getActivity()).onFirstLaunchAutoSearchFinished();
-                }
-            }, 650L);
+            binding
+                .getRoot()
+                .postDelayed(
+                    () -> {
+                        if (getActivity() instanceof Host) {
+                            ((Host) getActivity()).onFirstLaunchAutoSearchFinished();
+                        }
+                    },
+                    650L
+                );
         }
     }
 
@@ -252,18 +268,18 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         binding.layoutAutoSearchProgress.setVisibility(View.GONE);
         binding.containerAutoSearchProfiles.removeAllViews();
         showTwoActions(
-                R.string.first_launch_auto_search_retry,
-                R.string.first_launch_auto_search_back,
-                view -> {
-                    Haptics.softConfirm(view);
-                    maybeStart();
-                },
-                view -> {
-                    Haptics.softSelection(view);
-                    if (getActivity() instanceof Host) {
-                        ((Host) getActivity()).onFirstLaunchAutoSearchBackToMode();
-                    }
+            R.string.first_launch_auto_search_retry,
+            R.string.first_launch_auto_search_back,
+            view -> {
+                Haptics.softConfirm(view);
+                maybeStart();
+            },
+            view -> {
+                Haptics.softSelection(view);
+                if (getActivity() instanceof Host) {
+                    ((Host) getActivity()).onFirstLaunchAutoSearchBackToMode();
                 }
+            }
         );
     }
 
@@ -272,21 +288,21 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
             return;
         }
         showTwoActions(
-                R.string.first_launch_auto_search_whitelist_ready,
-                R.string.auto_search_cancel_action,
-                view -> {
-                    Haptics.softConfirm(view);
-                    whitelistConfirmed = true;
-                    manager.continueSearch(AutoSearchManager.Mode.WHITELIST);
-                    hideActions();
-                },
-                view -> {
-                    Haptics.softSelection(view);
-                    manager.cancelPendingModeSelection();
-                    if (getActivity() instanceof Host) {
-                        ((Host) getActivity()).onFirstLaunchAutoSearchBackToMode();
-                    }
+            R.string.first_launch_auto_search_whitelist_ready,
+            R.string.auto_search_cancel_action,
+            view -> {
+                Haptics.softConfirm(view);
+                whitelistConfirmed = true;
+                manager.continueSearch(AutoSearchManager.Mode.WHITELIST);
+                hideActions();
+            },
+            view -> {
+                Haptics.softSelection(view);
+                manager.cancelPendingModeSelection();
+                if (getActivity() instanceof Host) {
+                    ((Host) getActivity()).onFirstLaunchAutoSearchBackToMode();
                 }
+            }
         );
         binding.textAutoSearchTitle.setText(R.string.first_launch_auto_search_whitelist_wait_title);
         binding.textAutoSearchSummary.setText(R.string.first_launch_auto_search_whitelist_wait_summary);
@@ -296,43 +312,45 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
 
     private void showApplyActions() {
         showTwoActions(
-                R.string.auto_search_apply_action,
-                R.string.auto_search_restore_action,
-                view -> {
-                    Haptics.softConfirm(view);
-                    manager.applyPendingConfiguration(true);
-                    hideActions();
-                },
-                view -> {
-                    Haptics.softSelection(view);
-                    manager.applyPendingConfiguration(false);
-                    hideActions();
-                }
+            R.string.auto_search_apply_action,
+            R.string.auto_search_restore_action,
+            view -> {
+                Haptics.softConfirm(view);
+                manager.applyPendingConfiguration(true);
+                hideActions();
+            },
+            view -> {
+                Haptics.softSelection(view);
+                manager.applyPendingConfiguration(false);
+                hideActions();
+            }
         );
     }
 
     private void showRetryActions() {
         showTwoActions(
-                R.string.first_launch_auto_search_retry,
-                R.string.first_launch_auto_search_back,
-                view -> {
-                    Haptics.softConfirm(view);
-                    started = false;
-                    maybeStart();
-                },
-                view -> {
-                    Haptics.softSelection(view);
-                    if (getActivity() instanceof Host) {
-                        ((Host) getActivity()).onFirstLaunchAutoSearchBackToMode();
-                    }
+            R.string.first_launch_auto_search_retry,
+            R.string.first_launch_auto_search_back,
+            view -> {
+                Haptics.softConfirm(view);
+                started = false;
+                maybeStart();
+            },
+            view -> {
+                Haptics.softSelection(view);
+                if (getActivity() instanceof Host) {
+                    ((Host) getActivity()).onFirstLaunchAutoSearchBackToMode();
                 }
+            }
         );
     }
 
-    private void showTwoActions(int primaryText,
-                                int secondaryText,
-                                View.OnClickListener primaryClick,
-                                View.OnClickListener secondaryClick) {
+    private void showTwoActions(
+        int primaryText,
+        int secondaryText,
+        View.OnClickListener primaryClick,
+        View.OnClickListener secondaryClick
+    ) {
         if (binding == null) {
             return;
         }
@@ -382,13 +400,13 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         boolean newRow = false;
         if (row == null) {
             row = ItemFirstLaunchAutoSearchProfileBinding.inflate(
-                    LayoutInflater.from(requireContext()),
-                    binding.containerAutoSearchProfiles,
-                    false
+                LayoutInflater.from(requireContext()),
+                binding.containerAutoSearchProfiles,
+                false
             );
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             );
             params.setMargins(0, 0, 0, dp(8));
             binding.containerAutoSearchProfiles.addView(row.getRoot(), 0, params);
@@ -397,9 +415,9 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
             newRow = true;
         }
         row.textAutoSearchProfileTitle.setText(title);
-        row.textAutoSearchProfileSummary.setText(TextUtils.isEmpty(state.currentMetric)
-                ? titleFor(state)
-                : state.currentMetric);
+        row.textAutoSearchProfileSummary.setText(
+            TextUtils.isEmpty(state.currentMetric) ? titleFor(state) : state.currentMetric
+        );
         boolean failedProfileState = isFailedProfileState(state);
         if (failedProfileState) {
             row.progressAutoSearchProfile.setVisibility(View.GONE);
@@ -451,32 +469,41 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         if (binding == null || !pendingRemoval.add(title)) {
             return;
         }
-        binding.getRoot().postDelayed(() -> {
-            if (binding == null || !pendingRemoval.remove(title)) {
-                return;
-            }
-            ItemFirstLaunchAutoSearchProfileBinding row = rows.remove(title);
-            if (row == null) {
-                return;
-            }
-            row.getRoot().animate()
-                    .alpha(0f)
-                    .translationY(-dp(10))
-                    .setDuration(220L)
-                    .withEndAction(() -> {
-                        if (binding != null) {
-                            binding.containerAutoSearchProfiles.removeView(row.getRoot());
-                        }
-                    })
-                    .start();
-        }, FAILED_PROFILE_REMOVE_DELAY_MS);
+        binding
+            .getRoot()
+            .postDelayed(
+                () -> {
+                    if (binding == null || !pendingRemoval.remove(title)) {
+                        return;
+                    }
+                    ItemFirstLaunchAutoSearchProfileBinding row = rows.remove(title);
+                    if (row == null) {
+                        return;
+                    }
+                    row
+                        .getRoot()
+                        .animate()
+                        .alpha(0f)
+                        .translationY(-dp(10))
+                        .setDuration(220L)
+                        .withEndAction(() -> {
+                            if (binding != null) {
+                                binding.containerAutoSearchProfiles.removeView(row.getRoot());
+                            }
+                        })
+                        .start();
+                },
+                FAILED_PROFILE_REMOVE_DELAY_MS
+            );
     }
 
     private boolean isFailedProfileState(@NonNull AutoSearchManager.State state) {
         String metric = state.currentMetric == null ? "" : state.currentMetric.trim();
-        return TextUtils.equals(metric, getString(R.string.auto_search_ping_failed_metric))
-                || TextUtils.equals(metric, getString(R.string.auto_search_preflight_failed_metric))
-                || TextUtils.equals(metric, getString(R.string.auto_search_download_failed_metric));
+        return (
+            TextUtils.equals(metric, getString(R.string.auto_search_ping_failed_metric)) ||
+            TextUtils.equals(metric, getString(R.string.auto_search_preflight_failed_metric)) ||
+            TextUtils.equals(metric, getString(R.string.auto_search_download_failed_metric))
+        );
     }
 
     private int pingBackground(int latencyMs) {
@@ -516,8 +543,10 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
         if (state.status == AutoSearchManager.Status.COMPLETED) {
             return getString(R.string.auto_search_state_completed_title);
         }
-        if (state.status == AutoSearchManager.Status.AWAITING_APPLY
-                || state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION) {
+        if (
+            state.status == AutoSearchManager.Status.AWAITING_APPLY ||
+            state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION
+        ) {
             return getString(R.string.auto_search_state_waiting_title);
         }
         return getString(R.string.auto_search_state_idle_title);
@@ -540,9 +569,11 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
             return false;
         }
         NetworkCapabilities capabilities = manager.getNetworkCapabilities(network);
-        return capabilities != null
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        return (
+            capabilities != null &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        );
     }
 
     private int dp(int value) {
@@ -550,7 +581,6 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
     }
 
     private boolean isRunPageActive() {
-        return getActivity() instanceof Host
-                && ((Host) getActivity()).isFirstLaunchAutoSearchRunPageActive();
+        return getActivity() instanceof Host && ((Host) getActivity()).isFirstLaunchAutoSearchRunPageActive();
     }
 }

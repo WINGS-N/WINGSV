@@ -7,21 +7,29 @@ import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import android.text.TextUtils;
-
 import androidx.annotation.Nullable;
-
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
 import libXray.DialerController;
 import wings.v.MainActivity;
 import wings.v.core.AppPrefs;
 import wings.v.core.ProxySettings;
 
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.NullAssignment",
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.AvoidSynchronizedStatement",
+    }
+)
 public class XrayVpnService extends VpnService implements DialerController {
+
     private static final long SERVICE_WAIT_TIMEOUT_MS = 2_000L;
     private static final long HEARTBEAT_INTERVAL_MS = 1_000L;
     private static final String VPN_ADDRESS_V4 = "172.19.0.1";
@@ -88,8 +96,7 @@ public class XrayVpnService extends VpnService implements DialerController {
                 service.shutdown();
             }
             context.stopService(new Intent(context, XrayVpnService.class));
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     public static void forceStopService(Context context) {
@@ -106,8 +113,7 @@ public class XrayVpnService extends VpnService implements DialerController {
             resetServiceFuture();
             context.stopService(new Intent(context, XrayVpnService.class));
             updateHeartbeat(false);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static XrayVpnService awaitService(long timeoutMs) {
@@ -138,15 +144,12 @@ public class XrayVpnService extends VpnService implements DialerController {
         boolean unexpectedShutdown = !shuttingDown;
         shuttingDown = true;
         shutdownTunnel();
-        if (getServiceNow() == this) {
+        if (this.equals(getServiceNow())) {
             resetServiceFuture();
         }
         super.onDestroy();
         if (unexpectedShutdown && ProxyTunnelService.isActive()) {
-            ProxyTunnelService.requestReconnect(
-                    getApplicationContext(),
-                    "Xray VPN service destroyed unexpectedly"
-            );
+            ProxyTunnelService.requestReconnect(getApplicationContext(), "Xray VPN service destroyed unexpectedly");
         }
     }
 
@@ -156,10 +159,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         shutdown();
         super.onRevoke();
         if (unexpectedRevoke && ProxyTunnelService.isActive()) {
-            ProxyTunnelService.requestReconnect(
-                    getApplicationContext(),
-                    "Xray VPN service revoked unexpectedly"
-            );
+            ProxyTunnelService.requestReconnect(getApplicationContext(), "Xray VPN service revoked unexpectedly");
         }
     }
 
@@ -177,10 +177,10 @@ public class XrayVpnService extends VpnService implements DialerController {
             closeTunnelLocked();
 
             Builder builder = new Builder()
-                    .setSession("WINGSV Xray")
-                    .setMtu(DEFAULT_MTU)
-                    .addAddress(VPN_ADDRESS_V4, VPN_PREFIX_V4)
-                    .addRoute("0.0.0.0", 0);
+                .setSession("WINGSV Xray")
+                .setMtu(DEFAULT_MTU)
+                .addAddress(VPN_ADDRESS_V4, VPN_PREFIX_V4)
+                .addRoute("0.0.0.0", 0);
             builder.allowBypass();
 
             if (value.xraySettings == null || value.xraySettings.ipv6) {
@@ -189,16 +189,19 @@ public class XrayVpnService extends VpnService implements DialerController {
             }
 
             addDnsServers(builder, value);
-            applyAppRouting(builder, value);
+            applyAppRouting(builder);
 
-            Intent configureIntent = new Intent(this, MainActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            builder.setConfigureIntent(PendingIntent.getActivity(
+            Intent configureIntent = new Intent(this, MainActivity.class).addFlags(
+                Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP
+            );
+            builder.setConfigureIntent(
+                PendingIntent.getActivity(
                     this,
                     201,
                     configureIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            ));
+                )
+            );
 
             ParcelFileDescriptor established = builder.establish();
             if (established == null) {
@@ -217,7 +220,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         return protect((int) fd);
     }
 
-    private void applyAppRouting(Builder builder, ProxySettings settings) {
+    private void applyAppRouting(Builder builder) {
         Set<String> packages = AppPrefs.getAppRoutingPackages(this);
         if (packages.isEmpty()) {
             return;
@@ -263,8 +266,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         }
         try {
             builder.addDnsServer(normalized);
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private String buildSignature(ProxySettings settings) {
@@ -274,8 +276,12 @@ public class XrayVpnService extends VpnService implements DialerController {
         for (String packageName : AppPrefs.getAppRoutingPackages(this)) {
             builder.append('|').append(packageName);
         }
-        builder.append('|').append(trim(settings != null && settings.xraySettings != null ? settings.xraySettings.remoteDns : null));
-        builder.append('|').append(trim(settings != null && settings.xraySettings != null ? settings.xraySettings.directDns : null));
+        builder
+            .append('|')
+            .append(trim(settings != null && settings.xraySettings != null ? settings.xraySettings.remoteDns : null));
+        builder
+            .append('|')
+            .append(trim(settings != null && settings.xraySettings != null ? settings.xraySettings.directDns : null));
         return builder.toString();
     }
 
@@ -283,8 +289,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         if (tunnelFd != null) {
             try {
                 tunnelFd.close();
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
             tunnelFd = null;
             tunnelSignature = null;
         }
@@ -313,11 +318,16 @@ public class XrayVpnService extends VpnService implements DialerController {
             thread.setDaemon(true);
             return thread;
         });
-        heartbeatExecutor.scheduleAtFixedRate(() -> {
-            synchronized (tunnelLock) {
-                updateHeartbeat(tunnelFd != null && !shuttingDown);
-            }
-        }, 0L, HEARTBEAT_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        heartbeatExecutor.scheduleAtFixedRate(
+            () -> {
+                synchronized (tunnelLock) {
+                    updateHeartbeat(tunnelFd != null && !shuttingDown);
+                }
+            },
+            0L,
+            HEARTBEAT_INTERVAL_MS,
+            TimeUnit.MILLISECONDS
+        );
     }
 
     private void stopHeartbeatLoopLocked() {
@@ -340,10 +350,12 @@ public class XrayVpnService extends VpnService implements DialerController {
         if (TextUtils.isEmpty(value)) {
             return "";
         }
-        if (value.startsWith("https://")
-                || value.startsWith("tls://")
-                || value.startsWith("quic://")
-                || value.startsWith("h3://")) {
+        if (
+            value.startsWith("https://") ||
+            value.startsWith("tls://") ||
+            value.startsWith("quic://") ||
+            value.startsWith("h3://")
+        ) {
             return "";
         }
         if (value.startsWith("[")) {

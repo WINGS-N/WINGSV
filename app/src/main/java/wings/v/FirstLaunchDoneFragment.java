@@ -4,15 +4,15 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentFirstLaunchDoneBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchDoneFragment extends Fragment {
+
     public interface Host {
         void onFirstLaunchDone();
     }
@@ -26,9 +26,11 @@ public class FirstLaunchDoneFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchDoneBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }

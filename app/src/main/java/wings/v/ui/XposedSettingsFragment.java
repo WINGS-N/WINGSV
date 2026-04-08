@@ -2,18 +2,18 @@ package wings.v.ui;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;
-
 import androidx.annotation.Nullable;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-
 import wings.v.R;
 import wings.v.XposedAppsActivity;
 import wings.v.core.Haptics;
 import wings.v.core.XposedModulePrefs;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class XposedSettingsFragment extends PreferenceFragmentCompat {
+
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
 
     @Override
@@ -44,14 +44,8 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(XposedModulePrefs.KEY_ALL_APPS);
         bindSwitchHaptics(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED);
         bindSwitchHaptics(XposedModulePrefs.KEY_HIDE_VPN_APPS);
-        bindPackagePicker(
-                XposedModulePrefs.KEY_TARGET_PACKAGES,
-                XposedAppsActivity.MODE_TARGET_APPS
-        );
-        bindPackagePicker(
-                XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES,
-                XposedAppsActivity.MODE_HIDDEN_VPN_APPS
-        );
+        bindPackagePicker(XposedModulePrefs.KEY_TARGET_PACKAGES, XposedAppsActivity.MODE_TARGET_APPS);
+        bindPackagePicker(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES, XposedAppsActivity.MODE_HIDDEN_VPN_APPS);
         updatePackageSummaries();
     }
 
@@ -106,8 +100,9 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         if (preferencesChangeListener == null) {
             return;
         }
-        getPreferenceManager().getSharedPreferences()
-                .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        getPreferenceManager()
+            .getSharedPreferences()
+            .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         preferencesChangeListener = null;
     }
 }

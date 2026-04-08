@@ -1,14 +1,14 @@
 package wings.v.core;
 
 import android.text.TextUtils;
-
+import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.Objects;
-import java.util.UUID;
-
 public final class XrayProfile {
+
     public final String id;
     public final String title;
     public final String rawLink;
@@ -17,13 +17,15 @@ public final class XrayProfile {
     public final String address;
     public final int port;
 
-    public XrayProfile(String id,
-                       String title,
-                       String rawLink,
-                       String subscriptionId,
-                       String subscriptionTitle,
-                       String address,
-                       int port) {
+    public XrayProfile(
+        String id,
+        String title,
+        String rawLink,
+        String subscriptionId,
+        String subscriptionTitle,
+        String address,
+        int port
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.rawLink = emptyIfNull(rawLink);
@@ -35,23 +37,23 @@ public final class XrayProfile {
 
     public String stableDedupKey() {
         if (!TextUtils.isEmpty(rawLink)) {
-            return rawLink.trim().toLowerCase();
+            return rawLink.trim().toLowerCase(Locale.ROOT);
         }
-        return (address + ":" + port + ":" + title).trim().toLowerCase();
+        return (address + ":" + port + ":" + title).trim().toLowerCase(Locale.ROOT);
     }
 
     public boolean usesXtlsVisionFlow() {
         if (TextUtils.isEmpty(rawLink)) {
             return false;
         }
-        return rawLink.trim().toLowerCase().contains("flow=xtls-rprx-vision");
+        return rawLink.trim().toLowerCase(Locale.ROOT).contains("flow=xtls-rprx-vision");
     }
 
     public boolean usesRealitySecurity() {
         if (TextUtils.isEmpty(rawLink)) {
             return false;
         }
-        return rawLink.trim().toLowerCase().contains("security=reality");
+        return rawLink.trim().toLowerCase(Locale.ROOT).contains("security=reality");
     }
 
     public JSONObject toJson() throws JSONException {
@@ -71,13 +73,13 @@ public final class XrayProfile {
             return null;
         }
         return new XrayProfile(
-                object.optString("id"),
-                object.optString("title"),
-                object.optString("raw_link"),
-                object.optString("subscription_id"),
-                object.optString("subscription_title"),
-                object.optString("address"),
-                object.optInt("port")
+            object.optString("id"),
+            object.optString("title"),
+            object.optString("raw_link"),
+            object.optString("subscription_id"),
+            object.optString("subscription_title"),
+            object.optString("address"),
+            object.optInt("port")
         );
     }
 
@@ -90,13 +92,15 @@ public final class XrayProfile {
             return false;
         }
         XrayProfile profile = (XrayProfile) other;
-        return port == profile.port
-                && Objects.equals(id, profile.id)
-                && Objects.equals(title, profile.title)
-                && Objects.equals(rawLink, profile.rawLink)
-                && Objects.equals(subscriptionId, profile.subscriptionId)
-                && Objects.equals(subscriptionTitle, profile.subscriptionTitle)
-                && Objects.equals(address, profile.address);
+        return (
+            port == profile.port &&
+            Objects.equals(id, profile.id) &&
+            Objects.equals(title, profile.title) &&
+            Objects.equals(rawLink, profile.rawLink) &&
+            Objects.equals(subscriptionId, profile.subscriptionId) &&
+            Objects.equals(subscriptionTitle, profile.subscriptionTitle) &&
+            Objects.equals(address, profile.address)
+        );
     }
 
     @Override

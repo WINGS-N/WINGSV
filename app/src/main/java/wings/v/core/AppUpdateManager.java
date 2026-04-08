@@ -7,16 +7,12 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -30,8 +26,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidFileStream",
+        "PMD.ExceptionAsFlowControl",
+        "PMD.AvoidSynchronizedStatement",
+    }
+)
 public final class AppUpdateManager {
+
     private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases/latest";
     private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
     private static final String PREFERRED_APK_ASSET_NAME = "app-release.apk";
@@ -129,14 +139,9 @@ public final class AppUpdateManager {
 
         downloadInFlight = true;
         cancelRequested = false;
-        updateState(UpdateState.downloading(
-                releaseInfo,
-                0L,
-                releaseInfo.apkAssetSize,
-                0L,
-                releaseInfo.apkAssetSize,
-                0
-        ));
+        updateState(
+            UpdateState.downloading(releaseInfo, 0L, releaseInfo.apkAssetSize, 0L, releaseInfo.apkAssetSize, 0)
+        );
         executor.execute(() -> {
             File tempFile = buildTempApkFile(releaseInfo);
             File targetFile = buildTargetApkFile(releaseInfo);
@@ -162,11 +167,14 @@ public final class AppUpdateManager {
                 long lastPublishedAt = 0L;
                 long downloadedBytes = 0L;
 
-                try (InputStream inputStream = connection.getInputStream();
-                     FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+                try (
+                    InputStream inputStream = connection.getInputStream();
+                    FileOutputStream outputStream = new FileOutputStream(tempFile)
+                ) {
                     byte[] buffer = new byte[16 * 1024];
                     int read;
-                    while ((read = inputStream.read(buffer)) != -1) {
+                    read = inputStream.read(buffer);
+                    while (read != -1) {
                         if (cancelRequested) {
                             throw new DownloadCancelledException();
                         }
@@ -176,23 +184,23 @@ public final class AppUpdateManager {
                         long now = System.currentTimeMillis();
                         if (now - lastPublishedAt >= PROGRESS_UPDATE_INTERVAL_MS) {
                             long elapsedMs = Math.max(1L, now - startedAt);
-                            long speedBytesPerSecond = downloadedBytes * 1000L / elapsedMs;
-                            long remainingBytes = totalBytes > 0L
-                                    ? Math.max(0L, totalBytes - downloadedBytes)
-                                    : -1L;
-                            int progressPercent = totalBytes > 0L
-                                    ? (int) Math.min(100L, downloadedBytes * 100L / totalBytes)
-                                    : 0;
-                            updateState(UpdateState.downloading(
+                            long speedBytesPerSecond = (downloadedBytes * 1000L) / elapsedMs;
+                            long remainingBytes = totalBytes > 0L ? Math.max(0L, totalBytes - downloadedBytes) : -1L;
+                            int progressPercent =
+                                totalBytes > 0L ? (int) Math.min(100L, (downloadedBytes * 100L) / totalBytes) : 0;
+                            updateState(
+                                UpdateState.downloading(
                                     releaseInfo,
                                     downloadedBytes,
                                     totalBytes,
                                     speedBytesPerSecond,
                                     remainingBytes,
                                     progressPercent
-                            ));
+                                )
+                            );
                             lastPublishedAt = now;
                         }
+                        read = inputStream.read(buffer);
                     }
                     outputStream.flush();
                 }
@@ -261,8 +269,7 @@ public final class AppUpdateManager {
         if (!releaseInfo.hasInstallableAsset()) {
             return UpdateState.error("В релизе не найден APK-артефакт", releaseInfo);
         }
-        boolean releaseIsNewer =
-                isRemoteVersionNewer(releaseInfo.versionName, resolveCurrentVersionName());
+        boolean releaseIsNewer = isRemoteVersionNewer(releaseInfo.versionName, resolveCurrentVersionName());
         if (!releaseIsNewer) {
             return UpdateState.upToDate(releaseInfo);
         }
@@ -320,14 +327,14 @@ public final class AppUpdateManager {
             }
 
             return new ReleaseInfo(
-                    root.optString("tag_name", ""),
-                    root.optString("name", ""),
-                    root.optString("html_url", ""),
-                    root.optString("body", ""),
-                    root.optString("published_at", ""),
-                    selectedAssetName,
-                    selectedAssetUrl,
-                    selectedAssetSize
+                root.optString("tag_name", ""),
+                root.optString("name", ""),
+                root.optString("html_url", ""),
+                root.optString("body", ""),
+                root.optString("published_at", ""),
+                selectedAssetName,
+                selectedAssetUrl,
+                selectedAssetSize
             );
         } finally {
             connection.disconnect();
@@ -338,24 +345,32 @@ public final class AppUpdateManager {
     }
 
     private static String readResponseBody(HttpURLConnection connection) throws Exception {
-        InputStream stream = null;
-        try {
-            stream = connection.getResponseCode() >= 200 && connection.getResponseCode() < 400
-                    ? connection.getInputStream()
-                    : connection.getErrorStream();
-        } catch (Exception ignored) {
-            stream = connection.getErrorStream();
-        }
-        if (stream == null) {
-            return "";
-        }
-        try (InputStream inputStream = stream; ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+        try (
+            InputStream inputStream = openResponseStream(connection);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream()
+        ) {
+            if (inputStream == null) {
+                return "";
+            }
             byte[] buffer = new byte[4096];
             int read;
-            while ((read = inputStream.read(buffer)) != -1) {
+            read = inputStream.read(buffer);
+            while (read != -1) {
                 outputStream.write(buffer, 0, read);
+                read = inputStream.read(buffer);
             }
             return outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    @Nullable
+    private static InputStream openResponseStream(HttpURLConnection connection) throws IOException {
+        try {
+            return connection.getResponseCode() >= 200 && connection.getResponseCode() < 400
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+        } catch (IOException ignored) {
+            return connection.getErrorStream();
         }
     }
 
@@ -366,7 +381,7 @@ public final class AppUpdateManager {
         try {
             JSONObject object = new JSONObject(body);
             return object.optString("message", "");
-        } catch (Exception ignored) {
+        } catch (org.json.JSONException ignored) {
             return "";
         }
     }
@@ -446,7 +461,7 @@ public final class AppUpdateManager {
         while (matcher.find()) {
             try {
                 result.add(Long.parseLong(matcher.group()));
-            } catch (Exception ignored) {
+            } catch (NumberFormatException ignored) {
                 result.add(0L);
             }
         }
@@ -465,17 +480,16 @@ public final class AppUpdateManager {
         try {
             PackageInfo packageInfo;
             if (Build.VERSION.SDK_INT >= 33) {
-                packageInfo = appContext.getPackageManager().getPackageInfo(
-                        appContext.getPackageName(),
-                        PackageManager.PackageInfoFlags.of(0)
-                );
+                packageInfo = appContext
+                    .getPackageManager()
+                    .getPackageInfo(appContext.getPackageName(), PackageManager.PackageInfoFlags.of(0));
             } else {
                 packageInfo = appContext.getPackageManager().getPackageInfo(appContext.getPackageName(), 0);
             }
             if (packageInfo.versionName != null) {
                 return packageInfo.versionName;
             }
-        } catch (Exception ignored) {
+        } catch (PackageManager.NameNotFoundException ignored) {
             // No-op.
         }
         return "0";
@@ -492,36 +506,47 @@ public final class AppUpdateManager {
         UPDATE_AVAILABLE,
         DOWNLOADING,
         DOWNLOADED,
-        ERROR
+        ERROR,
     }
 
     public static final class ReleaseInfo {
+
         @NonNull
         public final String tagName;
+
         @NonNull
         public final String releaseName;
+
         @NonNull
         public final String releaseUrl;
+
         @NonNull
         public final String releaseBody;
+
         @NonNull
         public final String publishedAt;
+
         @NonNull
         public final String apkAssetName;
+
         @NonNull
         public final String apkAssetUrl;
+
         public final long apkAssetSize;
+
         @NonNull
         public final String versionName;
 
-        ReleaseInfo(@Nullable String tagName,
-                    @Nullable String releaseName,
-                    @Nullable String releaseUrl,
-                    @Nullable String releaseBody,
-                    @Nullable String publishedAt,
-                    @Nullable String apkAssetName,
-                    @Nullable String apkAssetUrl,
-                    long apkAssetSize) {
+        ReleaseInfo(
+            @Nullable String tagName,
+            @Nullable String releaseName,
+            @Nullable String releaseUrl,
+            @Nullable String releaseBody,
+            @Nullable String publishedAt,
+            @Nullable String apkAssetName,
+            @Nullable String apkAssetUrl,
+            long apkAssetSize
+        ) {
             this.tagName = safe(tagName);
             this.releaseName = safe(releaseName);
             this.releaseUrl = safe(releaseUrl);
@@ -553,29 +578,36 @@ public final class AppUpdateManager {
     }
 
     public static final class UpdateState {
+
         @NonNull
         public final Status status;
+
         @Nullable
         public final ReleaseInfo releaseInfo;
+
         @Nullable
         public final String message;
+
         public final long downloadedBytes;
         public final long totalBytes;
         public final long speedBytesPerSecond;
         public final long remainingBytes;
         public final int progressPercent;
+
         @Nullable
         public final File downloadedFile;
 
-        private UpdateState(@NonNull Status status,
-                            @Nullable ReleaseInfo releaseInfo,
-                            @Nullable String message,
-                            long downloadedBytes,
-                            long totalBytes,
-                            long speedBytesPerSecond,
-                            long remainingBytes,
-                            int progressPercent,
-                            @Nullable File downloadedFile) {
+        private UpdateState(
+            @NonNull Status status,
+            @Nullable ReleaseInfo releaseInfo,
+            @Nullable String message,
+            long downloadedBytes,
+            long totalBytes,
+            long speedBytesPerSecond,
+            long remainingBytes,
+            int progressPercent,
+            @Nullable File downloadedFile
+        ) {
             this.status = status;
             this.releaseInfo = releaseInfo;
             this.message = message;
@@ -607,36 +639,38 @@ public final class AppUpdateManager {
             return new UpdateState(Status.UPDATE_AVAILABLE, releaseInfo, message, 0L, 0L, 0L, 0L, 0, null);
         }
 
-        static UpdateState downloading(@NonNull ReleaseInfo releaseInfo,
-                                       long downloadedBytes,
-                                       long totalBytes,
-                                       long speedBytesPerSecond,
-                                       long remainingBytes,
-                                       int progressPercent) {
+        static UpdateState downloading(
+            @NonNull ReleaseInfo releaseInfo,
+            long downloadedBytes,
+            long totalBytes,
+            long speedBytesPerSecond,
+            long remainingBytes,
+            int progressPercent
+        ) {
             return new UpdateState(
-                    Status.DOWNLOADING,
-                    releaseInfo,
-                    null,
-                    downloadedBytes,
-                    totalBytes,
-                    speedBytesPerSecond,
-                    remainingBytes,
-                    progressPercent,
-                    null
+                Status.DOWNLOADING,
+                releaseInfo,
+                null,
+                downloadedBytes,
+                totalBytes,
+                speedBytesPerSecond,
+                remainingBytes,
+                progressPercent,
+                null
             );
         }
 
         static UpdateState downloaded(@NonNull ReleaseInfo releaseInfo, @NonNull File downloadedFile) {
             return new UpdateState(
-                    Status.DOWNLOADED,
-                    releaseInfo,
-                    null,
-                    downloadedFile.length(),
-                    downloadedFile.length(),
-                    0L,
-                    0L,
-                    100,
-                    downloadedFile
+                Status.DOWNLOADED,
+                releaseInfo,
+                null,
+                downloadedFile.length(),
+                downloadedFile.length(),
+                0L,
+                0L,
+                100,
+                downloadedFile
             );
         }
 
@@ -646,5 +680,7 @@ public final class AppUpdateManager {
     }
 
     private static final class DownloadCancelledException extends Exception {
+
+        private static final long serialVersionUID = 1L;
     }
 }

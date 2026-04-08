@@ -4,11 +4,10 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
-
-import wings.v.FirstLaunchConnectionFragment;
 import wings.v.FirstLaunchAutoSearchModeFragment;
 import wings.v.FirstLaunchAutoSearchRunFragment;
 import wings.v.FirstLaunchAutoSearchSettingsFragment;
+import wings.v.FirstLaunchConnectionFragment;
 import wings.v.FirstLaunchDoneFragment;
 import wings.v.FirstLaunchIntroFragment;
 import wings.v.FirstLaunchPermissionsFragment;
@@ -17,10 +16,10 @@ import wings.v.FirstLaunchXrayFragment;
 import wings.v.R;
 
 public class FirstLaunchPagerAdapter extends FragmentStateAdapter {
+
     private final boolean permissionsOnlyMode;
 
-    public FirstLaunchPagerAdapter(@NonNull FragmentActivity fragmentActivity,
-                                   boolean permissionsOnlyMode) {
+    public FirstLaunchPagerAdapter(@NonNull FragmentActivity fragmentActivity, boolean permissionsOnlyMode) {
         super(fragmentActivity);
         this.permissionsOnlyMode = permissionsOnlyMode;
     }
@@ -30,9 +29,9 @@ public class FirstLaunchPagerAdapter extends FragmentStateAdapter {
     public Fragment createFragment(int position) {
         if (position == 0) {
             return FirstLaunchIntroFragment.create(
-                    R.string.first_launch_page_welcome_title,
-                    R.string.first_launch_page_welcome_subtitle,
-                    R.string.first_launch_start
+                R.string.first_launch_page_welcome_title,
+                R.string.first_launch_page_welcome_subtitle,
+                R.string.first_launch_start
             );
         }
         if (position == 1) {

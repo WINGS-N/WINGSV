@@ -3,10 +3,9 @@ package wings.v;
 import android.content.Context;
 import android.content.Intent;
 import android.text.TextUtils;
-
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
-
+import java.util.Locale;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.XrayStore;
@@ -14,6 +13,7 @@ import wings.v.qs.QuickSettingsTiles;
 import wings.v.service.ProxyTunnelService;
 
 public final class ExternalActions {
+
     public static final String ACTION_START_TUNNEL = "wings.v.intent.action.START_TUNNEL";
     public static final String ACTION_STOP_TUNNEL = "wings.v.intent.action.STOP_TUNNEL";
     public static final String ACTION_SET_BACKEND = "wings.v.intent.action.SET_BACKEND";
@@ -26,8 +26,7 @@ public final class ExternalActions {
     public static final String BACKEND_XRAY = "xray";
     public static final String BACKEND_VK = "vk";
 
-    private ExternalActions() {
-    }
+    private ExternalActions() {}
 
     public static void handleIntent(Context context, @Nullable Intent intent) {
         if (context == null || intent == null) {
@@ -65,10 +64,7 @@ public final class ExternalActions {
         if (transientLaunch) {
             AppPrefs.setExternalActionTransientLaunchPending(appContext, true);
         }
-        ContextCompat.startForegroundService(
-                appContext,
-                ProxyTunnelService.createStartIntent(appContext)
-        );
+        ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
         QuickSettingsTiles.requestRefresh(appContext);
     }
 
@@ -78,10 +74,12 @@ public final class ExternalActions {
         QuickSettingsTiles.requestRefresh(appContext);
     }
 
-    public static boolean setBackend(Context context,
-                                     BackendType targetBackend,
-                                     boolean reconnectIfActive,
-                                     boolean transientLaunch) {
+    public static boolean setBackend(
+        Context context,
+        BackendType targetBackend,
+        boolean reconnectIfActive,
+        boolean transientLaunch
+    ) {
         Context appContext = context.getApplicationContext();
         BackendType currentBackend = XrayStore.getBackendType(appContext);
         boolean changed = currentBackend != targetBackend;
@@ -92,10 +90,7 @@ public final class ExternalActions {
             if (transientLaunch) {
                 AppPrefs.setExternalActionTransientLaunchPending(appContext, true);
             }
-            ContextCompat.startForegroundService(
-                    appContext,
-                    ProxyTunnelService.createReconnectIntent(appContext)
-            );
+            ContextCompat.startForegroundService(appContext, ProxyTunnelService.createReconnectIntent(appContext));
         }
         QuickSettingsTiles.requestRefresh(appContext);
         return changed;
@@ -103,16 +98,18 @@ public final class ExternalActions {
 
     @Nullable
     public static BackendType parseBackend(@Nullable String rawBackend) {
-        String value = rawBackend != null ? rawBackend.trim().toLowerCase() : "";
+        String value = rawBackend != null ? rawBackend.trim().toLowerCase(Locale.ROOT) : "";
         if (TextUtils.isEmpty(value)) {
             return null;
         }
         if (BACKEND_XRAY.equals(value) || BackendType.XRAY.prefValue.equals(value)) {
             return BackendType.XRAY;
         }
-        if (BACKEND_VK.equals(value)
-                || "vk_turn_wireguard".equals(value)
-                || BackendType.VK_TURN_WIREGUARD.prefValue.equals(value)) {
+        if (
+            BACKEND_VK.equals(value) ||
+            "vk_turn_wireguard".equals(value) ||
+            BackendType.VK_TURN_WIREGUARD.prefValue.equals(value)
+        ) {
             return BackendType.VK_TURN_WIREGUARD;
         }
         return null;

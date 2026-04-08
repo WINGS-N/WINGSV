@@ -1,7 +1,6 @@
 package wings.v.core;
 
 import android.text.TextUtils;
-
 import wings.v.proto.WingsvProto;
 
 public enum BackendType {

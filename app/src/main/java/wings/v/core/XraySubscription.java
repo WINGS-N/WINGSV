@@ -1,14 +1,14 @@
 package wings.v.core;
 
 import android.text.TextUtils;
-
+import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.Objects;
-import java.util.UUID;
-
 public final class XraySubscription {
+
     public final String id;
     public final String title;
     public final String url;
@@ -17,13 +17,15 @@ public final class XraySubscription {
     public final boolean autoUpdate;
     public final long lastUpdatedAt;
 
-    public XraySubscription(String id,
-                            String title,
-                            String url,
-                            String formatHint,
-                            int refreshIntervalHours,
-                            boolean autoUpdate,
-                            long lastUpdatedAt) {
+    public XraySubscription(
+        String id,
+        String title,
+        String url,
+        String formatHint,
+        int refreshIntervalHours,
+        boolean autoUpdate,
+        long lastUpdatedAt
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.url = emptyIfNull(url);
@@ -50,18 +52,18 @@ public final class XraySubscription {
             return null;
         }
         return new XraySubscription(
-                object.optString("id"),
-                object.optString("title"),
-                object.optString("url"),
-                object.optString("format_hint"),
-                object.optInt("refresh_interval_hours"),
-                object.optBoolean("auto_update"),
-                object.optLong("last_updated_at")
+            object.optString("id"),
+            object.optString("title"),
+            object.optString("url"),
+            object.optString("format_hint"),
+            object.optInt("refresh_interval_hours"),
+            object.optBoolean("auto_update"),
+            object.optLong("last_updated_at")
         );
     }
 
     public String stableDedupKey() {
-        return url.trim().toLowerCase();
+        return url.trim().toLowerCase(Locale.ROOT);
     }
 
     @Override
@@ -73,13 +75,15 @@ public final class XraySubscription {
             return false;
         }
         XraySubscription that = (XraySubscription) other;
-        return refreshIntervalHours == that.refreshIntervalHours
-                && autoUpdate == that.autoUpdate
-                && lastUpdatedAt == that.lastUpdatedAt
-                && Objects.equals(id, that.id)
-                && Objects.equals(title, that.title)
-                && Objects.equals(url, that.url)
-                && Objects.equals(formatHint, that.formatHint);
+        return (
+            refreshIntervalHours == that.refreshIntervalHours &&
+            autoUpdate == that.autoUpdate &&
+            lastUpdatedAt == that.lastUpdatedAt &&
+            Objects.equals(id, that.id) &&
+            Objects.equals(title, that.title) &&
+            Objects.equals(url, that.url) &&
+            Objects.equals(formatHint, that.formatHint)
+        );
     }
 
     @Override

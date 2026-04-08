@@ -18,17 +18,14 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.appcompat.widget.AppCompatEditText;
 import androidx.fragment.app.Fragment;
-
 import java.net.IDN;
 import java.util.ArrayList;
 import java.util.List;
-
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
@@ -36,13 +33,16 @@ import wings.v.core.ProxySettings;
 import wings.v.core.WingsImportParser;
 import wings.v.databinding.FragmentFirstLaunchVkTurnBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchVkTurnFragment extends Fragment {
+
     public interface Host {
         void onVkTurnSettingsCompleted();
     }
 
     @Nullable
     private FragmentFirstLaunchVkTurnBinding binding;
+
     private final List<InputField> inputFields = new ArrayList<>();
     private AppCompatCheckBox useUdpCheckBox;
     private AppCompatCheckBox noObfuscationCheckBox;
@@ -55,9 +55,11 @@ public class FirstLaunchVkTurnFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchVkTurnBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -109,7 +111,13 @@ public class FirstLaunchVkTurnFragment extends Fragment {
 
         addSectionLabel(container, R.string.first_launch_vk_turn_wireguard_peer);
         addInput(container, AppPrefs.KEY_WG_PUBLIC_KEY, R.string.first_launch_vk_turn_wg_public_key, true, false);
-        addInput(container, AppPrefs.KEY_WG_PRESHARED_KEY, R.string.first_launch_vk_turn_wg_preshared_key, false, false);
+        addInput(
+            container,
+            AppPrefs.KEY_WG_PRESHARED_KEY,
+            R.string.first_launch_vk_turn_wg_preshared_key,
+            false,
+            false
+        );
         addInput(container, AppPrefs.KEY_WG_ALLOWED_IPS, R.string.first_launch_vk_turn_wg_allowed_ips, true, false);
     }
 
@@ -132,17 +140,16 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             return;
         }
         boolean primaryStyle = shouldUsePrimaryImportButtonStyle();
-        binding.buttonImportWingsv.setBackgroundResource(primaryStyle
-                ? R.drawable.bg_first_launch_primary_button
-                : R.drawable.bg_first_launch_inline_button);
+        binding.buttonImportWingsv.setBackgroundResource(
+            primaryStyle ? R.drawable.bg_first_launch_primary_button : R.drawable.bg_first_launch_inline_button
+        );
         binding.buttonImportWingsv.setTextColor(primaryStyle ? 0xFF010102 : 0xFF0B2239);
     }
 
     private boolean shouldUsePrimaryImportButtonStyle() {
         try {
             Context context = requireContext();
-            ClipboardManager clipboardManager = (ClipboardManager)
-                    context.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboardManager == null) {
                 return true;
             }
@@ -160,7 +167,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
                 }
             }
             return false;
-        } catch (Exception ignored) {
+        } catch (SecurityException ignored) {
             return true;
         }
     }
@@ -178,10 +185,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         label.setIncludeFontPadding(false);
-        row.addView(label, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        row.addView(
+            label,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
 
         AppCompatEditText editText = new AppCompatEditText(requireContext());
         editText.setSingleLine(!multiline);
@@ -191,13 +198,15 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         if (isNumericField(key)) {
             editText.setInputType(InputType.TYPE_CLASS_NUMBER);
             editText.setKeyListener(DigitsKeyListener.getInstance("0123456789"));
-            editText.setFilters(new InputFilter[]{
-                    new InputFilter.LengthFilter(AppPrefs.KEY_THREADS.equals(key) ? 3 : 5)
-            });
+            editText.setFilters(
+                new InputFilter[] { new InputFilter.LengthFilter(AppPrefs.KEY_THREADS.equals(key) ? 3 : 5) }
+            );
         } else {
-            editText.setInputType(InputType.TYPE_CLASS_TEXT
-                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                    | (multiline ? InputType.TYPE_TEXT_FLAG_MULTI_LINE : 0));
+            editText.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                    InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS |
+                    (multiline ? InputType.TYPE_TEXT_FLAG_MULTI_LINE : 0)
+            );
         }
         editText.setTextColor(0xFFFFFFFF);
         editText.setHintTextColor(0x99FFFFFF);
@@ -205,40 +214,40 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         editText.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         editText.setBackgroundColor(0x00000000);
         editText.setPadding(0, dp(9), 0, 0);
-        row.addView(editText, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        row.addView(
+            editText,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
         params.setMargins(0, inputFields.isEmpty() ? 0 : dp(10), 0, 0);
         container.addView(row, params);
 
         InputField field = new InputField(key, editText, required);
         inputFields.add(field);
-        editText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence value, int start, int count, int after) {
-            }
+        editText.addTextChangedListener(
+            new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
 
-            @Override
-            public void onTextChanged(CharSequence value, int start, int before, int count) {
-            }
+                @Override
+                public void onTextChanged(CharSequence value, int start, int before, int count) {}
 
-            @Override
-            public void afterTextChanged(Editable value) {
-                if (applyingValues) {
-                    return;
-                }
-                validateField(field);
-                if (validationAttempted) {
-                    validateSettings(collectSettings(), false);
+                @Override
+                public void afterTextChanged(Editable value) {
+                    if (applyingValues) {
+                        return;
+                    }
+                    validateField(field);
+                    if (validationAttempted) {
+                        validateSettings(collectSettings(), false);
+                    }
                 }
             }
-        });
+        );
         return field;
     }
 
@@ -254,7 +263,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         checkBox.setGravity(Gravity.CENTER_VERTICAL);
         checkBox.setButtonTintList(android.content.res.ColorStateList.valueOf(0xEAF9FBFF));
         checkBox.setPadding(0, 0, 0, 0);
-        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT);
+        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(
+            dp(48),
+            ViewGroup.LayoutParams.MATCH_PARENT
+        );
         checkParams.setMarginStart(dp(22));
         row.addView(checkBox, checkParams);
 
@@ -265,15 +277,19 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         label.setGravity(Gravity.CENTER_VERTICAL);
         label.setIncludeFontPadding(false);
         label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
-        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            1f
+        );
         labelParams.setMarginStart(dp(8));
         row.addView(label, labelParams);
 
         row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
         params.setMargins(0, dp(10), 0, 0);
         container.addView(row, params);
@@ -288,10 +304,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
         label.setIncludeFontPadding(false);
         label.setPadding(dp(4), dp(18), dp(4), dp(8));
-        container.addView(label, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
+        container.addView(
+            label,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
     }
 
     private void loadSettings(ProxySettings settings) {
@@ -307,15 +323,14 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         }
         setText(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
         setText(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
-        setText(AppPrefs.KEY_WG_DNS, TextUtils.isEmpty(settings.wgDns)
-                ? "1.1.1.1, 1.0.0.1"
-                : settings.wgDns);
+        setText(AppPrefs.KEY_WG_DNS, TextUtils.isEmpty(settings.wgDns) ? "1.1.1.1, 1.0.0.1" : settings.wgDns);
         setText(AppPrefs.KEY_WG_MTU, String.valueOf(settings.wgMtu > 0 ? settings.wgMtu : 1280));
         setText(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
         setText(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
-        setText(AppPrefs.KEY_WG_ALLOWED_IPS, TextUtils.isEmpty(settings.wgAllowedIps)
-                ? "0.0.0.0/0, ::/0"
-                : settings.wgAllowedIps);
+        setText(
+            AppPrefs.KEY_WG_ALLOWED_IPS,
+            TextUtils.isEmpty(settings.wgAllowedIps) ? "0.0.0.0/0, ::/0" : settings.wgAllowedIps
+        );
         applyingValues = false;
         clearErrors();
     }
@@ -334,10 +349,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void importWingsvFromClipboard() {
         Context context = requireContext();
-        ClipboardManager clipboardManager = (ClipboardManager)
-                context.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
             Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
             return;
@@ -431,8 +446,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             field.editText.setError(getString(R.string.first_launch_vk_turn_field_required));
             return false;
         }
-        if ((AppPrefs.KEY_THREADS.equals(field.key) || AppPrefs.KEY_WG_MTU.equals(field.key))
-                && !isPositiveInt(text(field.key))) {
+        if (
+            (AppPrefs.KEY_THREADS.equals(field.key) || AppPrefs.KEY_WG_MTU.equals(field.key)) &&
+            !isPositiveInt(text(field.key))
+        ) {
             field.editText.setError(getString(R.string.first_launch_vk_turn_field_number_error));
             return false;
         }
@@ -526,7 +543,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         try {
             int port = Integer.parseInt(rawPort.trim());
             return port > 0 && port <= 65535;
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return false;
         }
     }
@@ -549,23 +566,20 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             }
             String[] labels = asciiHost.split("\\.");
             for (String label : labels) {
-                if (label.isEmpty() || label.length() > 63
-                        || label.startsWith("-") || label.endsWith("-")) {
+                if (label.isEmpty() || label.length() > 63 || label.startsWith("-") || label.endsWith("-")) {
                     return false;
                 }
                 for (int i = 0; i < label.length(); i++) {
                     char ch = label.charAt(i);
-                    boolean valid = (ch >= 'a' && ch <= 'z')
-                            || (ch >= 'A' && ch <= 'Z')
-                            || (ch >= '0' && ch <= '9')
-                            || ch == '-';
+                    boolean valid =
+                        (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-';
                     if (!valid) {
                         return false;
                     }
                 }
             }
             return true;
-        } catch (Exception ignored) {
+        } catch (IllegalArgumentException ignored) {
             return false;
         }
     }
@@ -597,20 +611,17 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         try {
             int value = Integer.parseInt(rawValue.trim());
             return value > 0 ? value : fallback;
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return fallback;
         }
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                value,
-                getResources().getDisplayMetrics()
-        );
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
     }
 
     private static final class InputField {
+
         final String key;
         final AppCompatEditText editText;
         final boolean required;
@@ -623,6 +634,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     }
 
     private static final class HostPort {
+
         final String host;
         final String port;
 

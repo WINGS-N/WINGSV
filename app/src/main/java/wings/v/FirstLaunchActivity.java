@@ -13,7 +13,6 @@ import android.util.TypedValue;
 import android.view.View;
 import android.view.animation.PathInterpolator;
 import android.widget.Toast;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -23,15 +22,17 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager2.widget.ViewPager2;
-
 import wings.v.core.AppPrefs;
 import wings.v.core.AutoSearchManager;
 import wings.v.core.Haptics;
 import wings.v.databinding.ActivityFirstLaunchBinding;
 import wings.v.ui.FirstLaunchPagerAdapter;
 
-public class FirstLaunchActivity extends AppCompatActivity
-        implements FirstLaunchPermissionsFragment.Host,
+@SuppressWarnings("PMD.NullAssignment")
+public class FirstLaunchActivity
+    extends AppCompatActivity
+    implements
+        FirstLaunchPermissionsFragment.Host,
         FirstLaunchIntroFragment.Host,
         FirstLaunchConnectionFragment.Host,
         FirstLaunchVkTurnFragment.Host,
@@ -39,7 +40,9 @@ public class FirstLaunchActivity extends AppCompatActivity
         FirstLaunchAutoSearchSettingsFragment.Host,
         FirstLaunchAutoSearchModeFragment.Host,
         FirstLaunchAutoSearchRunFragment.Host,
-        FirstLaunchDoneFragment.Host {
+        FirstLaunchDoneFragment.Host
+{
+
     private static final String EXTRA_START_AT_PERMISSIONS = "extra_start_at_permissions";
     private static final long PAGE_TRANSITION_OUT_MS = 1_000L;
     private static final long PAGE_TRANSITION_IN_MS = 1_000L;
@@ -66,12 +69,13 @@ public class FirstLaunchActivity extends AppCompatActivity
     private boolean introMusicLoopFromStart;
     private float introMusicCurrentVolume;
     private boolean introVideoStarted;
+
     @Nullable
     private AutoSearchManager.Mode firstLaunchAutoSearchMode;
+
     private long firstLaunchAutoSearchGeneration;
     private final AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = focusChange -> {
-        if (focusChange == AudioManager.AUDIOFOCUS_LOSS
-                || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+        if (focusChange == AudioManager.AUDIOFOCUS_LOSS || focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
             pauseIntroMusicInternal();
             return;
         }
@@ -85,8 +89,7 @@ public class FirstLaunchActivity extends AppCompatActivity
     }
 
     public static Intent createPermissionsIntent(Context context) {
-        return new Intent(context, FirstLaunchActivity.class)
-                .putExtra(EXTRA_START_AT_PERMISSIONS, true);
+        return new Intent(context, FirstLaunchActivity.class).putExtra(EXTRA_START_AT_PERMISSIONS, true);
     }
 
     @Override
@@ -96,14 +99,8 @@ public class FirstLaunchActivity extends AppCompatActivity
         startAtPermissions = getIntent().getBooleanExtra(EXTRA_START_AT_PERMISSIONS, false);
 
         if (savedInstanceState != null) {
-            introMusicPositionMs = savedInstanceState.getInt(
-                    STATE_INTRO_MUSIC_POSITION_MS,
-                    INTRO_MUSIC_OFFSET_MS
-            );
-            introMusicLoopFromStart = savedInstanceState.getBoolean(
-                    STATE_INTRO_MUSIC_LOOP_FROM_START,
-                    false
-            );
+            introMusicPositionMs = savedInstanceState.getInt(STATE_INTRO_MUSIC_POSITION_MS, INTRO_MUSIC_OFFSET_MS);
+            introMusicLoopFromStart = savedInstanceState.getBoolean(STATE_INTRO_MUSIC_LOOP_FROM_START, false);
         }
 
         binding = ActivityFirstLaunchBinding.inflate(getLayoutInflater());
@@ -157,8 +154,7 @@ public class FirstLaunchActivity extends AppCompatActivity
         if (exitTransitionRunning) {
             return;
         }
-        if (!startAtPermissions && binding != null
-                && binding.firstLaunchPager.getCurrentItem() < getLastPagerIndex()) {
+        if (!startAtPermissions && binding != null && binding.firstLaunchPager.getCurrentItem() < getLastPagerIndex()) {
             Haptics.softConfirm(binding.firstLaunchPager);
             animateToPage(binding.firstLaunchPager.getCurrentItem() + 1);
             return;
@@ -267,12 +263,7 @@ public class FirstLaunchActivity extends AppCompatActivity
     private void applyInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            binding.firstLaunchPager.setPadding(
-                    0,
-                    systemBars.top,
-                    0,
-                    systemBars.bottom
-            );
+            binding.firstLaunchPager.setPadding(0, systemBars.top, 0, systemBars.bottom);
             return insets;
         });
     }
@@ -282,20 +273,22 @@ public class FirstLaunchActivity extends AppCompatActivity
         binding.firstLaunchPager.setAdapter(adapter);
         binding.firstLaunchPager.setOffscreenPageLimit(2);
         binding.firstLaunchPager.setUserInputEnabled(false);
-        binding.firstLaunchPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override
-            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-                if (!pageTransitionRunning) {
-                    backgroundProgress = position + positionOffset;
-                    binding.backgroundFirstLaunch.setPagerProgress(backgroundProgress);
+        binding.firstLaunchPager.registerOnPageChangeCallback(
+            new ViewPager2.OnPageChangeCallback() {
+                @Override
+                public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+                    if (!pageTransitionRunning) {
+                        backgroundProgress = position + positionOffset;
+                        binding.backgroundFirstLaunch.setPagerProgress(backgroundProgress);
+                    }
+                }
+
+                @Override
+                public void onPageSelected(int position) {
+                    updateForPage(position);
                 }
             }
-
-            @Override
-            public void onPageSelected(int position) {
-                updateForPage(position);
-            }
-        });
+        );
         if (startAtPermissions) {
             binding.firstLaunchPager.setCurrentItem(Math.min(1, adapter.getItemCount() - 1), false);
         }
@@ -306,16 +299,18 @@ public class FirstLaunchActivity extends AppCompatActivity
         binding.backgroundFirstLaunch.setPagerProgress(page);
     }
 
-    private void configureButtons() {
-    }
+    private void configureButtons() {}
 
     private void configureBackHandling() {
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                handleFirstLaunchBackPressed();
+        getOnBackPressedDispatcher().addCallback(
+            this,
+            new OnBackPressedCallback(true) {
+                @Override
+                public void handleOnBackPressed() {
+                    handleFirstLaunchBackPressed();
+                }
             }
-        });
+        );
     }
 
     private void handleFirstLaunchBackPressed() {
@@ -324,8 +319,7 @@ public class FirstLaunchActivity extends AppCompatActivity
         }
         if (startAtPermissions) {
             setResult(RESULT_CANCELED);
-            finish();
-            overridePendingTransition(0, 0);
+            finishWithoutAnimation();
             return;
         }
         int page = binding.firstLaunchPager.getCurrentItem();
@@ -347,9 +341,11 @@ public class FirstLaunchActivity extends AppCompatActivity
         }
         if (page == 7) {
             AutoSearchManager.State state = AutoSearchManager.getInstance(this).getState();
-            if (state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION
-                    || state.status == AutoSearchManager.Status.FAILED
-                    || state.status == AutoSearchManager.Status.IDLE) {
+            if (
+                state.status == AutoSearchManager.Status.AWAITING_MODE_SELECTION ||
+                state.status == AutoSearchManager.Status.FAILED ||
+                state.status == AutoSearchManager.Status.IDLE
+            ) {
                 animateToPage(6);
                 return;
             }
@@ -365,11 +361,11 @@ public class FirstLaunchActivity extends AppCompatActivity
         }
         binding.contentFirstLaunch.animate().cancel();
         binding.contentFirstLaunch
-                .animate()
-                .alpha(1f)
-                .setDuration(ENTRY_FADE_MS)
-                .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
-                .start();
+            .animate()
+            .alpha(1f)
+            .setDuration(ENTRY_FADE_MS)
+            .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
+            .start();
     }
 
     private void playIntroVideo() {
@@ -385,19 +381,19 @@ public class FirstLaunchActivity extends AppCompatActivity
             binding.videoFirstLaunchIntro.setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE);
         }
         binding.videoFirstLaunchIntro.setVisibility(View.VISIBLE);
-        binding.videoFirstLaunchIntro.setVideoURI(Uri.parse(
-                "android.resource://" + getPackageName() + "/" + R.raw.suw_intro_in
-        ));
+        binding.videoFirstLaunchIntro.setVideoURI(
+            Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.suw_intro_in)
+        );
         binding.videoFirstLaunchIntro.setOnPreparedListener(player -> {
             player.setVolume(0f, 0f);
             binding.videoFirstLaunchIntro.setVideoSize(player);
             binding.videoFirstLaunchIntro.animate().cancel();
             binding.videoFirstLaunchIntro
-                    .animate()
-                    .alpha(1f)
-                    .setDuration(300L)
-                    .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
-                    .start();
+                .animate()
+                .alpha(1f)
+                .setDuration(300L)
+                .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
+                .start();
             if (binding != null) {
                 binding.videoFirstLaunchIntro.start();
             }
@@ -425,14 +421,12 @@ public class FirstLaunchActivity extends AppCompatActivity
         }
         try {
             binding.videoFirstLaunchIntro.stopPlayback();
-        } catch (RuntimeException ignored) {
-        }
+        } catch (IllegalStateException ignored) {}
     }
 
     private void animateExitAndFinish() {
         if (binding == null) {
-            finish();
-            overridePendingTransition(0, 0);
+            finishWithoutAnimation();
             return;
         }
         exitTransitionRunning = true;
@@ -449,15 +443,21 @@ public class FirstLaunchActivity extends AppCompatActivity
         });
         audioFade.start();
 
-        root.animate()
-                .alpha(0f)
-                .setDuration(EXIT_FADE_MS)
-                .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
-                .withEndAction(() -> {
-                    finish();
-                    overridePendingTransition(0, 0);
-                })
-                .start();
+        root
+            .animate()
+            .alpha(0f)
+            .setDuration(EXIT_FADE_MS)
+            .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
+            .withEndAction(() -> {
+                finishWithoutAnimation();
+            })
+            .start();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void finishWithoutAnimation() {
+        finish();
+        overridePendingTransition(0, 0);
     }
 
     private void resumeIntroMusic() {
@@ -474,8 +474,8 @@ public class FirstLaunchActivity extends AppCompatActivity
         }
         introMusicPlayer.setLooping(introMusicLoopFromStart);
         int targetPositionMs = introMusicLoopFromStart
-                ? Math.max(introMusicPositionMs, 0)
-                : Math.max(introMusicPositionMs, INTRO_MUSIC_OFFSET_MS);
+            ? Math.max(introMusicPositionMs, 0)
+            : Math.max(introMusicPositionMs, INTRO_MUSIC_OFFSET_MS);
         introMusicPlayer.seekTo(targetPositionMs);
         setIntroMusicVolume(0f);
         if (!introMusicPlayer.isPlaying()) {
@@ -537,21 +537,12 @@ public class FirstLaunchActivity extends AppCompatActivity
         if (audioManager == null) {
             return true;
         }
-        int result;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            if (introAudioFocusRequest == null) {
-                introAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
-                        .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                        .build();
-            }
-            result = audioManager.requestAudioFocus(introAudioFocusRequest);
-        } else {
-            result = audioManager.requestAudioFocus(
-                    audioFocusChangeListener,
-                    AudioManager.STREAM_MUSIC,
-                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
-            );
+        if (introAudioFocusRequest == null) {
+            introAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build();
         }
+        int result = audioManager.requestAudioFocus(introAudioFocusRequest);
         introAudioFocusHeld = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         return introAudioFocusHeld;
     }
@@ -560,14 +551,8 @@ public class FirstLaunchActivity extends AppCompatActivity
         if (!introAudioFocusHeld) {
             return;
         }
-        if (audioManager != null) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                if (introAudioFocusRequest != null) {
-                    audioManager.abandonAudioFocusRequest(introAudioFocusRequest);
-                }
-            } else {
-                audioManager.abandonAudioFocus(audioFocusChangeListener);
-            }
+        if (audioManager != null && introAudioFocusRequest != null) {
+            audioManager.abandonAudioFocusRequest(introAudioFocusRequest);
         }
         introAudioFocusHeld = false;
     }
@@ -618,24 +603,26 @@ public class FirstLaunchActivity extends AppCompatActivity
         pageTransitionRunning = true;
         View pager = binding.firstLaunchPager;
         PathInterpolator interpolator = new PathInterpolator(0.22f, 0.25f, 0f, 1f);
-        pager.animate()
-                .alpha(0f)
-                .translationY(-dp(PAGE_TRANSITION_OFFSET_DP))
-                .setDuration(PAGE_TRANSITION_OUT_MS)
-                .setInterpolator(interpolator)
-                .withEndAction(() -> {
-                    binding.firstLaunchPager.setCurrentItem(targetPage, false);
-                    pager.setTranslationY(-dp(PAGE_TRANSITION_OFFSET_DP));
-                    animateBackgroundProgress(backgroundProgress, targetPage);
-                    pager.animate()
-                            .alpha(1f)
-                            .translationY(0f)
-                            .setDuration(PAGE_TRANSITION_IN_MS)
-                            .setInterpolator(interpolator)
-                            .withEndAction(() -> pageTransitionRunning = false)
-                            .start();
-                })
-                .start();
+        pager
+            .animate()
+            .alpha(0f)
+            .translationY(-dp(PAGE_TRANSITION_OFFSET_DP))
+            .setDuration(PAGE_TRANSITION_OUT_MS)
+            .setInterpolator(interpolator)
+            .withEndAction(() -> {
+                binding.firstLaunchPager.setCurrentItem(targetPage, false);
+                pager.setTranslationY(-dp(PAGE_TRANSITION_OFFSET_DP));
+                animateBackgroundProgress(backgroundProgress, targetPage);
+                pager
+                    .animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(PAGE_TRANSITION_IN_MS)
+                    .setInterpolator(interpolator)
+                    .withEndAction(() -> pageTransitionRunning = false)
+                    .start();
+            })
+            .start();
     }
 
     private int getLastPagerIndex() {
@@ -657,10 +644,6 @@ public class FirstLaunchActivity extends AppCompatActivity
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                value,
-                getResources().getDisplayMetrics()
-        );
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
     }
 }

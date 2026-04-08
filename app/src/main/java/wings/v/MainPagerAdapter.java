@@ -4,10 +4,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import wings.v.ui.AppsFragment;
 import wings.v.ui.HomeFragment;
 import wings.v.ui.ProfilesFragment;
@@ -15,6 +13,7 @@ import wings.v.ui.SettingsFragment;
 import wings.v.ui.SharingFragment;
 
 public class MainPagerAdapter extends FragmentStateAdapter {
+
     public static final long ITEM_HOME = 100L;
     public static final long ITEM_PROFILES = 101L;
     public static final long ITEM_APPS = 102L;
@@ -23,9 +22,7 @@ public class MainPagerAdapter extends FragmentStateAdapter {
 
     private final List<Long> items = new ArrayList<>();
 
-    public MainPagerAdapter(@NonNull AppCompatActivity activity,
-                            boolean hasProfilesTab,
-                            boolean hasSharingTab) {
+    public MainPagerAdapter(@NonNull AppCompatActivity activity, boolean hasProfilesTab, boolean hasSharingTab) {
         super(activity);
         items.add(ITEM_HOME);
         if (hasProfilesTab) {

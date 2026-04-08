@@ -8,9 +8,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -21,20 +18,25 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.json.JSONObject;
 
+@SuppressWarnings(
+    { "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.AvoidCatchingGenericException", "PMD.NullAssignment" }
+)
 public final class PublicIpFetcher {
+
     private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool();
     private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
-    private static final Endpoint[] ENDPOINTS = new Endpoint[]{
-            new Endpoint("https://ipwho.is/", EndpointType.IPWHO_IS),
-            new Endpoint("https://ipapi.co/json/", EndpointType.IPAPI_CO),
-            new Endpoint("https://ipinfo.io/json", EndpointType.IPINFO_IO)
+    private static final Endpoint[] ENDPOINTS = {
+        new Endpoint("https://ipwho.is/", EndpointType.IPWHO_IS),
+        new Endpoint("https://ipapi.co/json/", EndpointType.IPAPI_CO),
+        new Endpoint("https://ipinfo.io/json", EndpointType.IPINFO_IO),
     };
 
-    private PublicIpFetcher() {
-    }
+    private PublicIpFetcher() {}
 
     public static final class IpInfo {
+
         public final String ip;
         public final String country;
         public final String isp;
@@ -50,7 +52,7 @@ public final class PublicIpFetcher {
                 return null;
             }
             String trimmed = value.trim();
-            return trimmed.isEmpty() ? null : trimmed;
+            return trimmed.isBlank() ? null : trimmed;
         }
     }
 
@@ -65,10 +67,11 @@ public final class PublicIpFetcher {
     private enum EndpointType {
         IPWHO_IS,
         IPAPI_CO,
-        IPINFO_IO
+        IPINFO_IO,
     }
 
     private static final class Endpoint {
+
         private final String url;
         private final EndpointType type;
 
@@ -111,10 +114,12 @@ public final class PublicIpFetcher {
         return fetchInfoSyncInternal(context != null ? context.getApplicationContext() : null, preferVpn, null, null);
     }
 
-    private static IpInfo fetchInfoSyncInternal(Context context,
-                                                boolean preferVpn,
-                                                AtomicReference<HttpURLConnection> connectionRef,
-                                                AtomicBoolean cancelled) {
+    private static IpInfo fetchInfoSyncInternal(
+        Context context,
+        boolean preferVpn,
+        AtomicReference<HttpURLConnection> connectionRef,
+        AtomicBoolean cancelled
+    ) {
         String resolvedIp = null;
         String resolvedCountry = null;
         String resolvedIsp = null;
@@ -136,26 +141,26 @@ public final class PublicIpFetcher {
             if (TextUtils.isEmpty(resolvedIsp) && !TextUtils.isEmpty(candidate.isp)) {
                 resolvedIsp = candidate.isp;
             }
-            if (!TextUtils.isEmpty(resolvedIp)
-                    && !TextUtils.isEmpty(resolvedCountry)
-                    && !TextUtils.isEmpty(resolvedIsp)) {
+            if (
+                !TextUtils.isEmpty(resolvedIp) && !TextUtils.isEmpty(resolvedCountry) && !TextUtils.isEmpty(resolvedIsp)
+            ) {
                 break;
             }
         }
 
-        if (TextUtils.isEmpty(resolvedIp)
-                && TextUtils.isEmpty(resolvedCountry)
-                && TextUtils.isEmpty(resolvedIsp)) {
+        if (TextUtils.isEmpty(resolvedIp) && TextUtils.isEmpty(resolvedCountry) && TextUtils.isEmpty(resolvedIsp)) {
             return null;
         }
         return new IpInfo(resolvedIp, resolvedCountry, resolvedIsp);
     }
 
-    private static IpInfo fetchFromEndpoint(Context context,
-                                            boolean preferVpn,
-                                            Endpoint endpoint,
-                                            AtomicReference<HttpURLConnection> connectionRef,
-                                            AtomicBoolean cancelled) {
+    private static IpInfo fetchFromEndpoint(
+        Context context,
+        boolean preferVpn,
+        Endpoint endpoint,
+        AtomicReference<HttpURLConnection> connectionRef,
+        AtomicBoolean cancelled
+    ) {
         HttpURLConnection connection = null;
         try {
             URL url = new URL(endpoint.url);
@@ -169,15 +174,19 @@ public final class PublicIpFetcher {
             connection.setUseCaches(false);
 
             StringBuilder response = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    connection.getInputStream(), StandardCharsets.UTF_8
-            ))) {
+            try (
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)
+                )
+            ) {
                 String line;
-                while ((line = reader.readLine()) != null) {
+                line = reader.readLine();
+                while (line != null) {
                     if (isCancelled(cancelled)) {
                         return null;
                     }
                     response.append(line);
+                    line = reader.readLine();
                 }
             }
             return parseIpInfo(endpoint.type, new JSONObject(response.toString()));
@@ -204,28 +213,24 @@ public final class PublicIpFetcher {
                 }
                 JSONObject connectionObject = jsonObject.optJSONObject("connection");
                 return new IpInfo(
-                        jsonObject.optString("ip", null),
-                        jsonObject.optString("country", null),
-                        connectionObject != null ? connectionObject.optString("isp", null) : null
+                    jsonObject.optString("ip", null),
+                    jsonObject.optString("country", null),
+                    connectionObject != null ? connectionObject.optString("isp", null) : null
                 );
             case IPAPI_CO:
                 return new IpInfo(
-                        jsonObject.optString("ip", null),
-                        jsonObject.optString("country_name", null),
-                        firstNonEmpty(
-                                jsonObject.optString("org", null),
-                                jsonObject.optString("asn_org", null)
-                        )
+                    jsonObject.optString("ip", null),
+                    jsonObject.optString("country_name", null),
+                    firstNonEmpty(jsonObject.optString("org", null), jsonObject.optString("asn_org", null))
                 );
             case IPINFO_IO:
                 return new IpInfo(
-                        jsonObject.optString("ip", null),
-                        jsonObject.optString("country", null),
-                        jsonObject.optString("org", null)
+                    jsonObject.optString("ip", null),
+                    jsonObject.optString("country", null),
+                    jsonObject.optString("org", null)
                 );
-            default:
-                return null;
         }
+        return null;
     }
 
     private static boolean isCancelled(AtomicBoolean cancelled) {
@@ -244,6 +249,7 @@ public final class PublicIpFetcher {
         return (HttpURLConnection) url.openConnection();
     }
 
+    @SuppressWarnings("deprecation")
     private static Network findVpnNetwork(Context context) {
         if (context == null) {
             return null;
@@ -275,14 +281,17 @@ public final class PublicIpFetcher {
         if (capabilities == null) {
             return false;
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-                && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED)
+        ) {
             return false;
         }
         return true;
     }
 
     private static final class AsyncRequest implements Request, Runnable {
+
         private final Callback callback;
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private final AtomicReference<HttpURLConnection> connectionRef = new AtomicReference<>();

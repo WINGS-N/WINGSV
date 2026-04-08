@@ -4,18 +4,25 @@ import android.content.Context;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Base64;
-
-import org.json.JSONObject;
-
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import libXray.DialerController;
 import libXray.LibXray;
+import org.json.JSONObject;
 import wings.v.service.XrayVpnService;
 
+@SuppressWarnings(
+    {
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidSynchronizedStatement",
+        "PMD.AvoidSynchronizedAtMethodLevel",
+        "PMD.AvoidCatchingGenericException",
+    }
+)
 public final class XrayBridge {
+
     private static final AtomicBoolean LOADED = new AtomicBoolean();
     private static final Object JNI_LOCK = new Object();
     private static final DialerController DIRECT_NETWORK_CONTROLLER = new DialerController() {
@@ -25,12 +32,9 @@ public final class XrayBridge {
         }
     };
 
-    private XrayBridge() {
-    }
+    private XrayBridge() {}
 
-    public static synchronized void prepareRuntime(XrayVpnService vpnService,
-                                                   String remoteDns,
-                                                   String directDns) {
+    public static synchronized void prepareRuntime(XrayVpnService vpnService, String remoteDns, String directDns) {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             if (vpnService == null) {
@@ -64,10 +68,7 @@ public final class XrayBridge {
     public static String convertShareLinkToOutboundJson(String rawLink) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            String request = Base64.encodeToString(
-                    rawLink.getBytes(StandardCharsets.UTF_8),
-                    Base64.NO_WRAP
-            );
+            String request = Base64.encodeToString(rawLink.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
             JSONObject response = decodeResponse(LibXray.convertShareLinksToXrayJson(request));
             Object data = response.opt("data");
             if (data instanceof JSONObject) {
@@ -84,21 +85,13 @@ public final class XrayBridge {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             File datDir = ensureDatDir(context);
-            String request = LibXray.newXrayRunFromJSONRequest(
-                    datDir.getAbsolutePath(),
-                    "",
-                    configJson,
-                    tunFd
-            );
+            String request = LibXray.newXrayRunFromJSONRequest(datDir.getAbsolutePath(), "", configJson, tunFd);
             decodeResponse(LibXray.runXrayFromJSON(request));
         }
     }
 
-    public static long pingConfig(Context context,
-                                  File configFile,
-                                  int timeoutSeconds,
-                                  String url,
-                                  String proxy) throws Exception {
+    public static long pingConfig(Context context, File configFile, int timeoutSeconds, String url, String proxy)
+        throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             File datDir = ensureDatDir(context);
@@ -109,8 +102,8 @@ public final class XrayBridge {
             request.put("url", url);
             request.put("proxy", proxy);
             String encodedRequest = Base64.encodeToString(
-                    request.toString().getBytes(StandardCharsets.UTF_8),
-                    Base64.NO_WRAP
+                request.toString().getBytes(StandardCharsets.UTF_8),
+                Base64.NO_WRAP
             );
             JSONObject response = decodeResponse(LibXray.ping(encodedRequest));
             return response.optLong("data", 0L);
@@ -219,11 +212,13 @@ public final class XrayBridge {
         if (TextUtils.isEmpty(value)) {
             return false;
         }
-        String normalized = value.toLowerCase();
-        return normalized.startsWith("https://")
-                || normalized.startsWith("tls://")
-                || normalized.startsWith("quic://")
-                || normalized.startsWith("h3://");
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return (
+            normalized.startsWith("https://") ||
+            normalized.startsWith("tls://") ||
+            normalized.startsWith("quic://") ||
+            normalized.startsWith("h3://")
+        );
     }
 
     private static boolean looksLikeIpLiteral(String host) {

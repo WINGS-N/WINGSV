@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:paddingStart="24dp"
@@ -23,7 +24,7 @@
             android:contentDescription="@null"
             android:padding="6dp"
             android:src="@drawable/ic_first_launch_done_check"
-            android:tint="#F4F9FBFF" />
+            app:tint="#F4F9FBFF" />
 
         <TextView
             android:id="@+id/text_first_launch_done_title"

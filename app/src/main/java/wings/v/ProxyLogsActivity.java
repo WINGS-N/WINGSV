@@ -13,28 +13,28 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import wings.v.databinding.ActivityProxyLogsBinding;
 import wings.v.databinding.ItemLogLineBinding;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.NullAssignment" })
 public class ProxyLogsActivity extends AppCompatActivity {
+
     private static final long REFRESH_INTERVAL_MS = 500L;
     private static final String EXTRA_LOG_MODE = "wings.v.extra.LOG_MODE";
     private static final String STATE_AUTO_SCROLL = "state.auto_scroll";
@@ -81,8 +81,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityProxyLogsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        autoScrollEnabled = savedInstanceState != null
-                && savedInstanceState.getBoolean(STATE_AUTO_SCROLL, false);
+        autoScrollEnabled = savedInstanceState != null && savedInstanceState.getBoolean(STATE_AUTO_SCROLL, false);
 
         String requestedMode = getIntent().getStringExtra(EXTRA_LOG_MODE);
         if (!TextUtils.isEmpty(requestedMode)) {
@@ -174,8 +173,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
             File logDir = new File(getFilesDir(), "xray/log");
             File errorLog = new File(logDir, "error.log");
             File accessLog = new File(logDir, "access.log");
-            return errorLog.lastModified() ^ accessLog.lastModified()
-                    ^ errorLog.length() ^ accessLog.length();
+            return errorLog.lastModified() ^ accessLog.lastModified() ^ errorLog.length() ^ accessLog.length();
         }
         return ProxyTunnelService.getProxyLogVersion();
     }
@@ -285,9 +283,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
             return lines;
         }
         String[] rawLines = snapshot.split("\\r?\\n", -1);
-        for (String line : rawLines) {
-            lines.add(line);
-        }
+        lines.addAll(Arrays.asList(rawLines));
         return lines;
     }
 
@@ -364,7 +360,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
                 input.readFully(bytes);
                 return new String(bytes, StandardCharsets.UTF_8);
             }
-        } catch (Exception ignored) {
+        } catch (java.io.IOException ignored) {
             return "";
         }
     }
@@ -432,6 +428,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
     }
 
     private static final class LogsAdapter extends RecyclerView.Adapter<LogsAdapter.LogLineViewHolder> {
+
         private final List<String> lines;
 
         LogsAdapter(List<String> lines) {
@@ -456,6 +453,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
         }
 
         static final class LogLineViewHolder extends RecyclerView.ViewHolder {
+
             final TextView textView;
 
             LogLineViewHolder(ItemLogLineBinding binding) {

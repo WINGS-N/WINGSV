@@ -5,37 +5,37 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.net.ConnectivityManager;
-import android.net.Network;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.Uri;
-import android.os.Bundle;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
-
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
-
 import dev.oneuiproject.oneui.widget.CardItemView;
 import java.io.File;
-import wings.v.core.AvatarDrawableFactory;
 import wings.v.core.AppUpdateManager;
+import wings.v.core.AvatarDrawableFactory;
 import wings.v.core.BrowserLauncher;
 import wings.v.core.GithubAvatarLoader;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.databinding.ActivityAboutAppBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class AboutAppActivity extends AppCompatActivity {
+
     private static final String GITHUB_WINGS_N = "WINGS-N";
     private static final String GITHUB_MYGOD = "Mygod";
     private static final String GITHUB_TRIBALFS = "tribalfs";
@@ -60,22 +60,21 @@ public class AboutAppActivity extends AppCompatActivity {
     private long firstLaunchTriggerStartedAtMs;
 
     private final AppUpdateManager.Listener updateStateListener = this::renderUpdateState;
-    private final ActivityResultLauncher<Intent> unknownSourcesLauncher =
-            registerForActivityResult(
-                    new ActivityResultContracts.StartActivityForResult(),
-                    result -> {
-                        if (TextUtils.isEmpty(pendingInstallFilePath)) {
-                            return;
-                        }
-                        File downloadedFile = new File(pendingInstallFilePath);
-                        pendingInstallFilePath = "";
-                        if (canInstallUnknownApps()) {
-                            launchInstaller(downloadedFile);
-                            return;
-                        }
-                        Toast.makeText(this, R.string.about_updates_permission_denied, Toast.LENGTH_SHORT).show();
-                    }
-            );
+    private final ActivityResultLauncher<Intent> unknownSourcesLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (TextUtils.isEmpty(pendingInstallFilePath)) {
+                return;
+            }
+            File downloadedFile = new File(pendingInstallFilePath);
+            pendingInstallFilePath = "";
+            if (canInstallUnknownApps()) {
+                launchInstaller(downloadedFile);
+                return;
+            }
+            Toast.makeText(this, R.string.about_updates_permission_denied, Toast.LENGTH_SHORT).show();
+        }
+    );
 
     public static Intent createIntent(Context context) {
         return new Intent(context, AboutAppActivity.class);
@@ -133,23 +132,24 @@ public class AboutAppActivity extends AppCompatActivity {
     private void handleFirstLaunchTriggerTap(View view) {
         long now = SystemClock.elapsedRealtime();
         if (now - firstLaunchTriggerStartedAtMs > FIRST_LAUNCH_TRIGGER_WINDOW_MS) {
-            firstLaunchTriggerStartedAtMs = now;
             firstLaunchTriggerTapCount = 0;
         }
         firstLaunchTriggerTapCount++;
+        if (firstLaunchTriggerTapCount == 1) {
+            firstLaunchTriggerStartedAtMs = now;
+        }
         Haptics.softSelection(view);
         if (firstLaunchTriggerTapCount < FIRST_LAUNCH_TRIGGER_TAPS) {
             return;
         }
         firstLaunchTriggerTapCount = 0;
-        firstLaunchTriggerStartedAtMs = 0L;
         startActivity(FirstLaunchActivity.createIntent(this));
     }
 
     private Drawable loadAppIcon() {
         try {
             return getPackageManager().getApplicationIcon(getPackageName());
-        } catch (Exception ignored) {
+        } catch (PackageManager.NameNotFoundException ignored) {
             return getDrawable(R.mipmap.ic_launcher_round);
         }
     }
@@ -159,8 +159,8 @@ public class AboutAppActivity extends AppCompatActivity {
             PackageInfo packageInfo;
             if (Build.VERSION.SDK_INT >= 33) {
                 packageInfo = getPackageManager().getPackageInfo(
-                        getPackageName(),
-                        PackageManager.PackageInfoFlags.of(0)
+                    getPackageName(),
+                    PackageManager.PackageInfoFlags.of(0)
                 );
             } else {
                 packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -168,7 +168,7 @@ public class AboutAppActivity extends AppCompatActivity {
             if (packageInfo.versionName != null) {
                 return packageInfo.versionName;
             }
-        } catch (Exception ignored) {
+        } catch (PackageManager.NameNotFoundException ignored) {
             // No-op.
         }
         return "1.0";
@@ -176,84 +176,80 @@ public class AboutAppActivity extends AppCompatActivity {
 
     private void bindCards() {
         configureGithubCard(
-                binding.cardDeveloperWingsN,
-                GITHUB_WINGS_N,
-                "WN",
-                Color.parseColor("#2D6BE5"),
-                "https://github.com/WINGS-N"
+            binding.cardDeveloperWingsN,
+            GITHUB_WINGS_N,
+            "WN",
+            Color.parseColor("#2D6BE5"),
+            "https://github.com/WINGS-N"
         );
 
         configureGithubCard(
-                binding.cardSpecialTribalfs,
-                GITHUB_TRIBALFS,
-                "TF",
-                Color.parseColor("#1E8E5A"),
-                "https://github.com/tribalfs"
+            binding.cardSpecialTribalfs,
+            GITHUB_TRIBALFS,
+            "TF",
+            Color.parseColor("#1E8E5A"),
+            "https://github.com/tribalfs"
         );
         configureGithubCard(
-                binding.cardSpecialYanndroid,
-                GITHUB_YANNDROID,
-                "YN",
-                Color.parseColor("#F18A27"),
-                "https://github.com/Yanndroid"
+            binding.cardSpecialYanndroid,
+            GITHUB_YANNDROID,
+            "YN",
+            Color.parseColor("#F18A27"),
+            "https://github.com/Yanndroid"
         );
         configureGithubCard(
-                binding.cardSpecialSalvogiangri,
-                GITHUB_SALVOGIANGRI,
-                "SG",
-                Color.parseColor("#9A5C2F"),
-                "https://github.com/salvogiangri"
+            binding.cardSpecialSalvogiangri,
+            GITHUB_SALVOGIANGRI,
+            "SG",
+            Color.parseColor("#9A5C2F"),
+            "https://github.com/salvogiangri"
         );
         configureStaticCard(
-                binding.cardSpecialSamsung,
-                AvatarDrawableFactory.createCircularBanner(
-                        this,
-                        getDrawable(R.drawable.samsung_black_wtext),
-                        Color.BLACK
-                ),
-                SAMSUNG_URL
+            binding.cardSpecialSamsung,
+            AvatarDrawableFactory.createCircularBanner(this, getDrawable(R.drawable.samsung_black_wtext), Color.BLACK),
+            SAMSUNG_URL
         );
         configureGithubCard(
-                binding.cardSpecialMygod,
-                GITHUB_MYGOD,
-                "MG",
-                Color.parseColor("#4D7F53"),
-                "https://github.com/Mygod"
+            binding.cardSpecialMygod,
+            GITHUB_MYGOD,
+            "MG",
+            Color.parseColor("#4D7F53"),
+            "https://github.com/Mygod"
         );
         configureGithubCard(
-                binding.cardSpecialZx2c4,
-                GITHUB_ZX2C4,
-                "ZX",
-                Color.parseColor("#51657A"),
-                "https://github.com/zx2c4"
+            binding.cardSpecialZx2c4,
+            GITHUB_ZX2C4,
+            "ZX",
+            Color.parseColor("#51657A"),
+            "https://github.com/zx2c4"
         );
         configureGithubCard(
-                binding.cardSpecialCacggghp,
-                GITHUB_CACGGGHP,
-                "CC",
-                Color.parseColor("#685ACF"),
-                "https://github.com/cacggghp"
+            binding.cardSpecialCacggghp,
+            GITHUB_CACGGGHP,
+            "CC",
+            Color.parseColor("#685ACF"),
+            "https://github.com/cacggghp"
         );
         configureGithubCard(
-                binding.cardSpecialXtls,
-                GITHUB_XTLS,
-                "XT",
-                Color.parseColor("#2F7DBB"),
-                "https://github.com/XTLS"
+            binding.cardSpecialXtls,
+            GITHUB_XTLS,
+            "XT",
+            Color.parseColor("#2F7DBB"),
+            "https://github.com/XTLS"
         );
         configureGithubCard(
-                binding.cardSpecialAmnezia,
-                GITHUB_AMNEZIA_VPN,
-                "AW",
-                Color.parseColor("#1B8B73"),
-                "https://github.com/amnezia-vpn"
+            binding.cardSpecialAmnezia,
+            GITHUB_AMNEZIA_VPN,
+            "AW",
+            Color.parseColor("#1B8B73"),
+            "https://github.com/amnezia-vpn"
         );
         configureGithubCard(
-                binding.cardSpecialMoroka8,
-                GITHUB_MOROKA8,
-                "M8",
-                Color.parseColor("#8E5A2B"),
-                "https://github.com/Moroka8"
+            binding.cardSpecialMoroka8,
+            GITHUB_MOROKA8,
+            "M8",
+            Color.parseColor("#8E5A2B"),
+            "https://github.com/Moroka8"
         );
 
         binding.cardSourceCode.setOnClickListener(view -> {
@@ -296,16 +292,17 @@ public class AboutAppActivity extends AppCompatActivity {
             appUpdateManager.checkForUpdates();
             return;
         }
-        if (state.status == AppUpdateManager.Status.CHECKING
-                || state.status == AppUpdateManager.Status.DOWNLOADING) {
+        if (state.status == AppUpdateManager.Status.CHECKING || state.status == AppUpdateManager.Status.DOWNLOADING) {
             return;
         }
         if (state.status == AppUpdateManager.Status.DOWNLOADED && state.downloadedFile != null) {
             beginInstallFlow(state.downloadedFile);
             return;
         }
-        if (state.status == AppUpdateManager.Status.UPDATE_AVAILABLE
-                || (state.status == AppUpdateManager.Status.ERROR && state.releaseInfo != null)) {
+        if (
+            state.status == AppUpdateManager.Status.UPDATE_AVAILABLE ||
+            (state.status == AppUpdateManager.Status.ERROR && state.releaseInfo != null)
+        ) {
             appUpdateManager.startDownload();
             return;
         }
@@ -329,15 +326,15 @@ public class AboutAppActivity extends AppCompatActivity {
             case UP_TO_DATE:
                 title = getString(R.string.about_updates_up_to_date_title);
                 summary = getString(
-                        R.string.about_updates_up_to_date_summary,
-                        safeVersion(state.releaseInfo, loadVersionName())
+                    R.string.about_updates_up_to_date_summary,
+                    safeVersion(state.releaseInfo, loadVersionName())
                 );
                 break;
             case UPDATE_AVAILABLE:
                 title = getString(R.string.about_updates_available_title, safeVersion(state.releaseInfo, ""));
                 summary = !TextUtils.isEmpty(state.message)
-                        ? state.message
-                        : getString(R.string.about_updates_available_summary);
+                    ? state.message
+                    : getString(R.string.about_updates_available_summary);
                 break;
             case DOWNLOADING:
                 title = getString(R.string.about_updates_downloading_title, safeVersion(state.releaseInfo, ""));
@@ -350,8 +347,8 @@ public class AboutAppActivity extends AppCompatActivity {
             case ERROR:
                 title = getString(R.string.about_updates_error_title);
                 summary = getString(
-                        R.string.about_updates_error_summary,
-                        TextUtils.isEmpty(state.message) ? getString(R.string.about_updates_check_summary) : state.message
+                    R.string.about_updates_error_summary,
+                    TextUtils.isEmpty(state.message) ? getString(R.string.about_updates_check_summary) : state.message
                 );
                 break;
             case IDLE:
@@ -371,49 +368,54 @@ public class AboutAppActivity extends AppCompatActivity {
         if (showProgress) {
             long downloadedBytes = Math.max(0L, state.downloadedBytes);
             long totalBytes = Math.max(0L, state.totalBytes);
-            binding.textUpdateProgressSize.setText(totalBytes > 0L
+            binding.textUpdateProgressSize.setText(
+                totalBytes > 0L
                     ? getString(
-                    R.string.about_updates_download_size,
-                    UiFormatter.formatBytes(this, downloadedBytes),
-                    UiFormatter.formatBytes(this, totalBytes)
-            )
+                          R.string.about_updates_download_size,
+                          UiFormatter.formatBytes(this, downloadedBytes),
+                          UiFormatter.formatBytes(this, totalBytes)
+                      )
                     : getString(
-                    R.string.about_updates_download_size_unknown,
-                    UiFormatter.formatBytes(this, downloadedBytes)
-            ));
+                          R.string.about_updates_download_size_unknown,
+                          UiFormatter.formatBytes(this, downloadedBytes)
+                      )
+            );
             if (state.status == AppUpdateManager.Status.DOWNLOADED) {
                 binding.textUpdateProgressSpeed.setText(R.string.about_updates_download_ready);
                 binding.textUpdateProgressRemaining.setText(R.string.about_updates_download_ready);
                 binding.progressUpdateDownload.setIndeterminate(false);
                 binding.progressUpdateDownload.setProgress(100);
                 configureProgressActionButton(
-                        binding.buttonCancelUpdateDownload,
-                        R.drawable.ic_arrow_down,
-                        R.string.about_updates_install_downloaded
+                    binding.buttonCancelUpdateDownload,
+                    R.drawable.ic_arrow_down,
+                    R.string.about_updates_install_downloaded
                 );
             } else {
-                binding.textUpdateProgressSpeed.setText(getString(
+                binding.textUpdateProgressSpeed.setText(
+                    getString(
                         R.string.about_updates_download_speed,
                         UiFormatter.formatBytesPerSecond(this, Math.max(0L, state.speedBytesPerSecond))
-                ));
-                binding.textUpdateProgressRemaining.setText(state.remainingBytes > 0L
+                    )
+                );
+                binding.textUpdateProgressRemaining.setText(
+                    state.remainingBytes > 0L
                         ? getString(
-                        R.string.about_updates_download_remaining,
-                        UiFormatter.formatBytes(this, state.remainingBytes)
-                )
-                        : getString(R.string.about_updates_download_remaining_unknown));
+                              R.string.about_updates_download_remaining,
+                              UiFormatter.formatBytes(this, state.remainingBytes)
+                          )
+                        : getString(R.string.about_updates_download_remaining_unknown)
+                );
                 binding.progressUpdateDownload.setIndeterminate(totalBytes <= 0L);
                 if (totalBytes > 0L) {
                     binding.progressUpdateDownload.setProgress(Math.max(0, Math.min(100, state.progressPercent)));
                 }
                 configureProgressActionButton(
-                        binding.buttonCancelUpdateDownload,
-                        R.drawable.ic_close_circle,
-                        R.string.about_updates_cancel_download
+                    binding.buttonCancelUpdateDownload,
+                    R.drawable.ic_close_circle,
+                    R.string.about_updates_cancel_download
                 );
             }
         }
-
     }
 
     private void beginInstallFlow(File downloadedFile) {
@@ -425,8 +427,8 @@ public class AboutAppActivity extends AppCompatActivity {
             pendingInstallFilePath = downloadedFile.getAbsolutePath();
             Toast.makeText(this, R.string.about_updates_install_permission_hint, Toast.LENGTH_SHORT).show();
             Intent settingsIntent = new Intent(
-                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:" + getPackageName())
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:" + getPackageName())
             );
             unknownSourcesLauncher.launch(settingsIntent);
             return;
@@ -457,27 +459,23 @@ public class AboutAppActivity extends AppCompatActivity {
             return;
         }
         try {
-            Uri contentUri = FileProvider.getUriForFile(
-                    this,
-                    getPackageName() + ".fileprovider",
-                    downloadedFile
-            );
+            Uri contentUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", downloadedFile);
             Intent installIntent = new Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(contentUri, AppUpdateManager.getApkMimeType())
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                .setDataAndType(contentUri, AppUpdateManager.getApkMimeType())
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(installIntent);
-        } catch (ActivityNotFoundException ignored) {
-            Toast.makeText(this, R.string.about_updates_install_failed, Toast.LENGTH_SHORT).show();
-        } catch (Exception ignored) {
+        } catch (ActivityNotFoundException | SecurityException ignored) {
             Toast.makeText(this, R.string.about_updates_install_failed, Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void configureGithubCard(CardItemView cardItemView,
-                                     String username,
-                                     String initials,
-                                     int backgroundColor,
-                                     String url) {
+    private void configureGithubCard(
+        CardItemView cardItemView,
+        String username,
+        String initials,
+        int backgroundColor,
+        String url
+    ) {
         cardItemView.setTag(username);
         cardItemView.setIcon(resolveGithubAvatar(username, initials, backgroundColor));
         cardItemView.setOnClickListener(view -> {
@@ -486,9 +484,7 @@ public class AboutAppActivity extends AppCompatActivity {
         });
     }
 
-    private void configureStaticCard(CardItemView cardItemView,
-                                     Drawable icon,
-                                     String url) {
+    private void configureStaticCard(CardItemView cardItemView, Drawable icon, String url) {
         cardItemView.setIcon(icon);
         cardItemView.setOnClickListener(view -> {
             Haptics.softSelection(view);
@@ -542,7 +538,7 @@ public class AboutAppActivity extends AppCompatActivity {
         };
         try {
             connectivityManager.registerDefaultNetworkCallback(networkCallback);
-        } catch (Exception ignored) {
+        } catch (SecurityException ignored) {
             networkCallback = null;
         }
     }
@@ -553,7 +549,7 @@ public class AboutAppActivity extends AppCompatActivity {
         }
         try {
             connectivityManager.unregisterNetworkCallback(networkCallback);
-        } catch (Exception ignored) {
+        } catch (IllegalArgumentException ignored) {
             // No-op.
         }
         networkCallback = null;

@@ -3,18 +3,16 @@ package wings.v.ui;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
 import wings.v.databinding.ItemAppRoutingBinding;
 
 final class AppSearchAdapter extends RecyclerView.Adapter<AppSearchAdapter.ViewHolder> {
+
     interface Callback {
         void onPackageToggled(String packageName, boolean enabled, View sourceView);
     }
@@ -74,6 +72,7 @@ final class AppSearchAdapter extends RecyclerView.Adapter<AppSearchAdapter.ViewH
     }
 
     final class ViewHolder extends RecyclerView.ViewHolder {
+
         private final ItemAppRoutingBinding binding;
 
         ViewHolder(ItemAppRoutingBinding binding) {
@@ -92,12 +91,14 @@ final class AppSearchAdapter extends RecyclerView.Adapter<AppSearchAdapter.ViewH
                     callback.onPackageToggled(item.packageName, isChecked, buttonView);
                 }
             });
-            binding.getRoot().setOnClickListener(v -> {
-                boolean nextValue = !binding.switchAppRule.isChecked();
-                if (callback != null) {
-                    callback.onPackageToggled(item.packageName, nextValue, binding.getRoot());
-                }
-            });
+            binding
+                .getRoot()
+                .setOnClickListener(v -> {
+                    boolean nextValue = !binding.switchAppRule.isChecked();
+                    if (callback != null) {
+                        callback.onPackageToggled(item.packageName, nextValue, binding.getRoot());
+                    }
+                });
         }
     }
 }

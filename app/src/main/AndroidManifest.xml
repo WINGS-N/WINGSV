@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="PackageVisibilityPolicy" />
+        tools:ignore="PackageVisibilityPolicy,QueryAllPackagesPermission" />
 
     <uses-sdk tools:overrideLibrary="dev.oneuiproject.oneui" />
 

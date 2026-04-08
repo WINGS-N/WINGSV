@@ -280,7 +280,7 @@
     <string name="kernel_wireguard_title">Kernel WireGuard</string>
     <string name="kernel_wireguard_summary">Для VK TURN + WireGuard использует kernel WireGuard вместо Android VpnService</string>
     <string name="kernel_wireguard_unavailable">Kernel WireGuard недоступен: %1$s</string>
-    <string name="xposed_module_description">Скрытие Android VPN сигналов от выбранных приложений</string>
+    <string name="xposed_module_description">Скрытие Android VPN сигналов для выбранных приложений</string>
     <string name="xposed_settings_title">Настройки Xposed</string>
     <string name="xposed_settings_open_summary">Скрытие VpnService сигналов через Xposed/LSPosed</string>
     <string name="xposed_settings_category_detection">Скрытие VPN детекта</string>

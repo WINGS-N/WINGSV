@@ -1,8 +1,8 @@
 package wings.v;
 
+import android.Manifest;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
-import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.res.ColorStateList;
@@ -15,23 +15,22 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
-
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 import wings.v.core.Haptics;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
 import wings.v.databinding.FragmentFirstLaunchPermissionsBinding;
 import wings.v.databinding.ItemPermissionStatusBinding;
 
+@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.NullAssignment" })
 public class FirstLaunchPermissionsFragment extends Fragment {
+
     private static final String ARG_BUTTON_RES = "button_res";
     private static final long CONTINUE_BUTTON_STATE_ANIMATION_MS = 1_000L;
     private static final int CONTINUE_BUTTON_ACTIVE_BG = 0xCCFAFAFF;
@@ -45,29 +44,30 @@ public class FirstLaunchPermissionsFragment extends Fragment {
 
     @Nullable
     private FragmentFirstLaunchPermissionsBinding binding;
+
     private final ExecutorService rootExecutor = Executors.newSingleThreadExecutor();
     private volatile boolean rootCheckInProgress;
+
     @Nullable
     private Boolean continueButtonEnabledState;
+
     @Nullable
     private ValueAnimator continueButtonStateAnimator;
 
-    private final ActivityResultLauncher<String> notificationPermissionLauncher =
-            registerForActivityResult(
-                    new ActivityResultContracts.RequestPermission(),
-                    granted -> refreshRows()
-            );
+    private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
+        new ActivityResultContracts.RequestPermission(),
+        granted -> refreshRows()
+    );
 
-    private final ActivityResultLauncher<Intent> vpnPermissionLauncher =
-            registerForActivityResult(
-                    new ActivityResultContracts.StartActivityForResult(),
-                    result -> {
-                        refreshRows();
-                        if (isAdded() && !PermissionUtils.isVpnPermissionGranted(requireContext())) {
-                            openVpnSettingsForAlwaysOn();
-                        }
-                    }
-            );
+    private final ActivityResultLauncher<Intent> vpnPermissionLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            refreshRows();
+            if (isAdded() && !PermissionUtils.isVpnPermissionGranted(requireContext())) {
+                openVpnSettingsForAlwaysOn();
+            }
+        }
+    );
 
     public static FirstLaunchPermissionsFragment create(int buttonRes) {
         FirstLaunchPermissionsFragment fragment = new FirstLaunchPermissionsFragment();
@@ -79,9 +79,11 @@ public class FirstLaunchPermissionsFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchPermissionsBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -90,31 +92,23 @@ public class FirstLaunchPermissionsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         configureRow(
-                binding.rowNotifications,
-                R.string.permission_notifications,
-                R.string.permission_notifications_summary,
-                v -> requestNotificationsPermission()
+            binding.rowNotifications,
+            R.string.permission_notifications,
+            R.string.permission_notifications_summary,
+            v -> requestNotificationsPermission()
         );
-        configureRow(
-                binding.rowBattery,
-                R.string.permission_battery,
-                R.string.permission_battery_summary,
-                v -> requestBatteryOptimizationExclusion()
+        configureRow(binding.rowBattery, R.string.permission_battery, R.string.permission_battery_summary, v ->
+            requestBatteryOptimizationExclusion()
         );
-        configureRow(
-                binding.rowVpn,
-                R.string.permission_vpn,
-                R.string.permission_vpn_summary,
-                v -> requestVpnPermission()
+        configureRow(binding.rowVpn, R.string.permission_vpn, R.string.permission_vpn_summary, v ->
+            requestVpnPermission()
         );
-        configureRow(
-                binding.rowRoot,
-                R.string.permission_root,
-                R.string.permission_root_summary,
-                v -> requestRootPermission()
+        configureRow(binding.rowRoot, R.string.permission_root, R.string.permission_root_summary, v ->
+            requestRootPermission()
         );
         binding.rowRoot.permissionAction.setText(R.string.check_label);
-        int buttonRes = requireArguments() != null
+        int buttonRes =
+            requireArguments() != null
                 ? requireArguments().getInt(ARG_BUTTON_RES, R.string.first_launch_continue)
                 : R.string.first_launch_continue;
         binding.buttonFirstLaunchContinue.setText(buttonRes);
@@ -147,10 +141,12 @@ public class FirstLaunchPermissionsFragment extends Fragment {
         super.onDestroy();
     }
 
-    private void configureRow(ItemPermissionStatusBinding rowBinding,
-                              int titleRes,
-                              int summaryRes,
-                              View.OnClickListener listener) {
+    private void configureRow(
+        ItemPermissionStatusBinding rowBinding,
+        int titleRes,
+        int summaryRes,
+        View.OnClickListener listener
+    ) {
         rowBinding.permissionTitle.setText(titleRes);
         rowBinding.permissionSummary.setText(summaryRes);
         rowBinding.permissionAction.setOnClickListener(v -> {
@@ -164,34 +160,20 @@ public class FirstLaunchPermissionsFragment extends Fragment {
             return;
         }
         updateRow(
-                binding.rowNotifications,
-                PermissionUtils.isNotificationGranted(requireContext()),
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            binding.rowNotifications,
+            PermissionUtils.isNotificationGranted(requireContext()),
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
         );
-        updateRow(
-                binding.rowBattery,
-                PermissionUtils.isIgnoringBatteryOptimizations(requireContext()),
-                true
-        );
-        updateRow(
-                binding.rowVpn,
-                PermissionUtils.isVpnPermissionGranted(requireContext()),
-                true
-        );
-        updateRow(
-                binding.rowRoot,
-                PermissionUtils.isRootPermissionGranted(requireContext()),
-                !rootCheckInProgress
-        );
-        binding.rowRoot.permissionAction.setText(
-                rootCheckInProgress ? R.string.checking_label : R.string.check_label
-        );
+        updateRow(binding.rowBattery, PermissionUtils.isIgnoringBatteryOptimizations(requireContext()), true);
+        updateRow(binding.rowVpn, PermissionUtils.isVpnPermissionGranted(requireContext()), true);
+        updateRow(binding.rowRoot, PermissionUtils.isRootPermissionGranted(requireContext()), !rootCheckInProgress);
+        binding.rowRoot.permissionAction.setText(rootCheckInProgress ? R.string.checking_label : R.string.check_label);
         updateContinueButtonState(PermissionUtils.areCorePermissionsGranted(requireContext()));
     }
 
     private void updateRow(ItemPermissionStatusBinding rowBinding, boolean granted, boolean actionable) {
         rowBinding.permissionStatusIcon.setImageResource(
-                granted ? R.drawable.ic_check_circle : R.drawable.ic_close_circle
+            granted ? R.drawable.ic_check_circle : R.drawable.ic_close_circle
         );
         rowBinding.permissionAction.setVisibility(!granted && actionable ? View.VISIBLE : View.GONE);
     }
@@ -203,8 +185,9 @@ public class FirstLaunchPermissionsFragment extends Fragment {
     }
 
     private void requestBatteryOptimizationExclusion() {
-        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                .setData(Uri.parse("package:" + requireContext().getPackageName()));
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(
+            Uri.parse("package:" + requireContext().getPackageName())
+        );
         try {
             startActivity(intent);
         } catch (ActivityNotFoundException ignored) {
@@ -212,6 +195,7 @@ public class FirstLaunchPermissionsFragment extends Fragment {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void requestVpnPermission() {
         Intent intent;
         try {
@@ -267,15 +251,16 @@ public class FirstLaunchPermissionsFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        boolean animate = continueButtonEnabledState != null
-                && continueButtonEnabledState.booleanValue() != enabled;
+        boolean animate = continueButtonEnabledState != null && continueButtonEnabledState != enabled;
         continueButtonEnabledState = enabled;
         binding.buttonFirstLaunchContinue.setEnabled(enabled);
         if (animate) {
             animateContinueButtonState(enabled);
         } else {
-            applyContinueButtonColors(enabled ? CONTINUE_BUTTON_ACTIVE_BG : CONTINUE_BUTTON_DISABLED_BG,
-                    enabled ? CONTINUE_BUTTON_ACTIVE_TEXT : CONTINUE_BUTTON_DISABLED_TEXT);
+            applyContinueButtonColors(
+                enabled ? CONTINUE_BUTTON_ACTIVE_BG : CONTINUE_BUTTON_DISABLED_BG,
+                enabled ? CONTINUE_BUTTON_ACTIVE_TEXT : CONTINUE_BUTTON_DISABLED_TEXT
+            );
         }
     }
 

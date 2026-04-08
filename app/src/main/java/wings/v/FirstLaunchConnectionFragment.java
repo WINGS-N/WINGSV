@@ -4,15 +4,15 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentFirstLaunchConnectionBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchConnectionFragment extends Fragment {
+
     public static final String CHOICE_VK_TURN = "vk_turn";
     public static final String CHOICE_XRAY = "xray";
     public static final String CHOICE_AUTO_SEARCH = "auto_search";
@@ -30,9 +30,11 @@ public class FirstLaunchConnectionFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchConnectionBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }

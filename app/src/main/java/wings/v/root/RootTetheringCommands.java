@@ -1,19 +1,20 @@
 package wings.v.root;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.TetheringManager;
 import android.os.Build;
-
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
-
 import wings.v.core.TetherType;
 
+@SuppressLint("NewApi")
+@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.AvoidAccessibilityAlteration" })
 final class RootTetheringCommands {
-    private RootTetheringCommands() {
-    }
 
-    static void handle(Context context, String[] args) throws Exception {
+    private RootTetheringCommands() {}
+
+    static void handle(Context context, String... args) throws Exception {
         if (args == null || args.length < 2) {
             throw new IllegalArgumentException("Usage: tether <start|stop> <wifi|usb|bluetooth|ethernet>");
         }
@@ -41,10 +42,9 @@ final class RootTetheringCommands {
 
         Executor directExecutor = Runnable::run;
         tetheringManager.startTethering(
-                buildRequest(tetherType),
-                directExecutor,
-                new TetheringManager.StartTetheringCallback() {
-                }
+            buildRequest(tetherType),
+            directExecutor,
+            new TetheringManager.StartTetheringCallback() {}
         );
     }
 
@@ -58,32 +58,33 @@ final class RootTetheringCommands {
         }
         Executor directExecutor = Runnable::run;
         tetheringManager.stopTethering(
-                buildRequest(tetherType),
-                directExecutor,
-                new TetheringManager.StopTetheringCallback() {
-                }
+            buildRequest(tetherType),
+            directExecutor,
+            new TetheringManager.StopTetheringCallback() {}
         );
     }
 
     private static TetheringManager.TetheringRequest buildRequest(TetherType tetherType) throws Exception {
-        TetheringManager.TetheringRequest.Builder builder =
-                new TetheringManager.TetheringRequest.Builder(tetherType.systemType);
+        TetheringManager.TetheringRequest.Builder builder = new TetheringManager.TetheringRequest.Builder(
+            tetherType.systemType
+        );
         invokeBooleanBuilderMethod(builder, "setShouldShowEntitlementUi", false);
         invokeBooleanBuilderMethod(builder, "setExemptFromEntitlementCheck", true);
         return builder.build();
     }
 
-    private static void invokeBooleanBuilderMethod(TetheringManager.TetheringRequest.Builder builder,
-                                                   String methodName,
-                                                   boolean value) {
+    private static void invokeBooleanBuilderMethod(
+        TetheringManager.TetheringRequest.Builder builder,
+        String methodName,
+        boolean value
+    ) {
         try {
-            Method method = TetheringManager.TetheringRequest.Builder.class
-                    .getDeclaredMethod(methodName, boolean.class);
+            Method method = TetheringManager.TetheringRequest
+                .Builder.class.getDeclaredMethod(methodName, boolean.class);
             method.setAccessible(true);
             method.invoke(builder, value);
         } catch (Exception ignored) {
             // Method is OEM/API dependent. Ignore when unavailable.
         }
     }
-
 }

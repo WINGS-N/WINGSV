@@ -10,15 +10,17 @@ import android.graphics.Typeface;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
-
 import androidx.annotation.Nullable;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class ConnectionChoiceAnimationView extends View {
+
     private static final long LOOP_DURATION_MS = 2_800L;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
     private float progress;
+
     @Nullable
     private ValueAnimator animator;
 
@@ -30,9 +32,7 @@ public class ConnectionChoiceAnimationView extends View {
         super(context, attrs);
     }
 
-    public ConnectionChoiceAnimationView(Context context,
-                                         @Nullable AttributeSet attrs,
-                                         int defStyleAttr) {
+    public ConnectionChoiceAnimationView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
     }
 
@@ -83,10 +83,10 @@ public class ConnectionChoiceAnimationView extends View {
         float phoneHeight = size * 0.42f;
         float bob = size * 0.018f * (float) Math.sin(phase);
         rect.set(
-                centerX - phoneWidth * 0.5f,
-                centerY - phoneHeight * 0.5f + bob,
-                centerX + phoneWidth * 0.5f,
-                centerY + phoneHeight * 0.5f + bob
+            centerX - phoneWidth * 0.5f,
+            centerY - phoneHeight * 0.5f + bob,
+            centerX + phoneWidth * 0.5f,
+            centerY + phoneHeight * 0.5f + bob
         );
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(0x2EFFFFFF);
@@ -99,13 +99,13 @@ public class ConnectionChoiceAnimationView extends View {
         paint.setStyle(Paint.Style.FILL);
         paint.setColor(0x66FFFFFF);
         canvas.drawRoundRect(
-                centerX - phoneWidth * 0.16f,
-                rect.top + phoneHeight * 0.08f,
-                centerX + phoneWidth * 0.16f,
-                rect.top + phoneHeight * 0.1f,
-                size * 0.01f,
-                size * 0.01f,
-                paint
+            centerX - phoneWidth * 0.16f,
+            rect.top + phoneHeight * 0.08f,
+            centerX + phoneWidth * 0.16f,
+            rect.top + phoneHeight * 0.1f,
+            size * 0.01f,
+            size * 0.01f,
+            paint
         );
         canvas.drawCircle(centerX, rect.bottom - phoneHeight * 0.08f, size * 0.012f, paint);
     }

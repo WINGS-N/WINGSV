@@ -3,22 +3,23 @@ package wings.v.core;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.util.Base64;
-
 import androidx.annotation.NonNull;
-
 import java.io.FileInputStream;
 import java.security.SecureRandom;
 
+@SuppressWarnings({ "PMD.AvoidFileStream", "PMD.AvoidCatchingGenericException" })
 public final class SocksAuthCredentials {
+
     private static final int RANDOM_BYTES = 32;
 
-    private SocksAuthCredentials() {
-    }
+    private SocksAuthCredentials() {}
 
     @NonNull
-    public static Pair ensure(@NonNull SharedPreferences preferences,
-                              @NonNull String usernameKey,
-                              @NonNull String passwordKey) {
+    public static Pair ensure(
+        @NonNull SharedPreferences preferences,
+        @NonNull String usernameKey,
+        @NonNull String passwordKey
+    ) {
         String username = trim(preferences.getString(usernameKey, ""));
         String password = trim(preferences.getString(passwordKey, ""));
         if (!TextUtils.isEmpty(username) && !TextUtils.isEmpty(password)) {
@@ -30,19 +31,13 @@ public final class SocksAuthCredentials {
         if (TextUtils.isEmpty(password)) {
             password = generateToken();
         }
-        preferences.edit()
-                .putString(usernameKey, username)
-                .putString(passwordKey, password)
-                .apply();
+        preferences.edit().putString(usernameKey, username).putString(passwordKey, password).apply();
         return new Pair(username, password);
     }
 
     @NonNull
     private static String generateToken() {
-        return Base64.encodeToString(
-                readUrandom(RANDOM_BYTES),
-                Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING
-        );
+        return Base64.encodeToString(readUrandom(RANDOM_BYTES), Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
     }
 
     @NonNull
@@ -60,8 +55,7 @@ public final class SocksAuthCredentials {
             if (offset == seed.length) {
                 return seed;
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         new SecureRandom().nextBytes(seed);
         return seed;
     }
@@ -72,6 +66,7 @@ public final class SocksAuthCredentials {
     }
 
     public static final class Pair {
+
         public final String username;
         public final String password;
 

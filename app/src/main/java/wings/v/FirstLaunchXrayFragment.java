@@ -12,12 +12,10 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.fragment.app.Fragment;
-
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
@@ -26,13 +24,16 @@ import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentFirstLaunchXrayBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchXrayFragment extends Fragment {
+
     public interface Host {
         void onXraySettingsCompleted();
     }
 
     @Nullable
     private FragmentFirstLaunchXrayBinding binding;
+
     private AppCompatCheckBox allowLanCheckBox;
     private AppCompatCheckBox allowInsecureCheckBox;
     private AppCompatCheckBox ipv6CheckBox;
@@ -44,9 +45,11 @@ public class FirstLaunchXrayFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchXrayBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -111,7 +114,10 @@ public class FirstLaunchXrayFragment extends Fragment {
         checkBox.setGravity(Gravity.CENTER_VERTICAL);
         checkBox.setButtonTintList(android.content.res.ColorStateList.valueOf(0xEAF9FBFF));
         checkBox.setPadding(0, 0, 0, 0);
-        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT);
+        LinearLayout.LayoutParams checkParams = new LinearLayout.LayoutParams(
+            dp(48),
+            ViewGroup.LayoutParams.MATCH_PARENT
+        );
         checkParams.setMarginStart(dp(22));
         row.addView(checkBox, checkParams);
 
@@ -122,15 +128,19 @@ public class FirstLaunchXrayFragment extends Fragment {
         label.setGravity(Gravity.CENTER_VERTICAL);
         label.setIncludeFontPadding(false);
         label.setTypeface(androidx.core.content.res.ResourcesCompat.getFont(requireContext(), R.font.samsungone));
-        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            1f
+        );
         labelParams.setMarginStart(dp(8));
         row.addView(label, labelParams);
 
         row.setOnClickListener(view -> checkBox.setChecked(!checkBox.isChecked()));
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         );
         params.setMargins(0, container.getChildCount() == 0 ? 0 : dp(10), 0, 0);
         container.addView(row, params);
@@ -153,10 +163,10 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void importFromClipboard(String requiredScheme, int invalidMessageRes) {
         Context context = requireContext();
-        ClipboardManager clipboardManager = (ClipboardManager)
-                context.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
             Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
             return;
@@ -203,10 +213,6 @@ public class FirstLaunchXrayFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                value,
-                getResources().getDisplayMetrics()
-        );
+        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
     }
 }

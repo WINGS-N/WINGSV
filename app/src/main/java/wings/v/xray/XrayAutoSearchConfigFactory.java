@@ -2,20 +2,26 @@ package wings.v.xray;
 
 import android.content.Context;
 import android.text.TextUtils;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.List;
-
+import org.json.JSONArray;
+import org.json.JSONObject;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.XrayProfile;
 import wings.v.core.XraySettings;
 
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.AvoidFileStream",
+    }
+)
 public final class XrayAutoSearchConfigFactory {
+
     private static final String SOCKS_TAG = "socks-in";
     private static final String PROXY_TAG = "proxy";
     private static final String BYEDPI_FRONT_TAG = "byedpi-front";
@@ -24,22 +30,21 @@ public final class XrayAutoSearchConfigFactory {
     private static final String DIRECT_TAG = "direct";
     private static final String BLOCK_TAG = "block";
 
-    private XrayAutoSearchConfigFactory() {
-    }
+    private XrayAutoSearchConfigFactory() {}
 
-    public static String buildConfigJson(Context context,
-                                         XrayProfile profile,
-                                         XraySettings xraySettings,
-                                         int localProxyPort,
-                                         ByeDpiSettings byeDpiSettings,
-                                         boolean useByeDpi) throws Exception {
+    public static String buildConfigJson(
+        Context context,
+        XrayProfile profile,
+        XraySettings xraySettings,
+        int localProxyPort,
+        ByeDpiSettings byeDpiSettings,
+        boolean useByeDpi
+    ) throws Exception {
         if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
             throw new IllegalArgumentException("Xray профиль не выбран");
         }
 
-        JSONObject converted = new JSONObject(
-                XrayBridge.convertShareLinkToOutboundJson(profile.rawLink)
-        );
+        JSONObject converted = new JSONObject(XrayBridge.convertShareLinkToOutboundJson(profile.rawLink));
         JSONArray convertedOutbounds = converted.optJSONArray("outbounds");
         if (convertedOutbounds == null || convertedOutbounds.length() == 0) {
             throw new IllegalStateException("Не удалось получить outbound из VLESS профиля");
@@ -60,7 +65,7 @@ public final class XrayAutoSearchConfigFactory {
         root.put("dns", buildDns(settings));
         root.put("inbounds", buildInbounds(settings, localProxyPort));
         root.put("outbounds", buildOutbounds(proxyOutbound, byeDpiSettings, useByeDpi));
-        root.put("routing", buildRouting(settings, localProxyPort));
+        root.put("routing", buildRouting(settings));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
         return configJson;
@@ -91,8 +96,7 @@ public final class XrayAutoSearchConfigFactory {
             }
             writeFile(new File(xrayDir, "config.json"), configJson);
             writeFile(new File(xrayDir, "proxy-outbound.json"), proxyOutbound.toString());
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static void resetLogFile(File file) {
@@ -104,14 +108,13 @@ public final class XrayAutoSearchConfigFactory {
             if (parent != null && !parent.exists()) {
                 parent.mkdirs();
             }
-            if (file.exists() && !file.delete()) {
-                // fall through to overwrite if delete is blocked
+            if (file.exists()) {
+                file.delete();
             }
             try (FileOutputStream ignored = new FileOutputStream(file, false)) {
                 // recreate on each autosearch startup to keep logs session-scoped
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private static void writeFile(File file, String content) throws Exception {
@@ -146,9 +149,8 @@ public final class XrayAutoSearchConfigFactory {
         return inbounds;
     }
 
-    private static JSONArray buildOutbounds(JSONObject proxyOutbound,
-                                            ByeDpiSettings byeDpiSettings,
-                                            boolean useByeDpi) throws Exception {
+    private static JSONArray buildOutbounds(JSONObject proxyOutbound, ByeDpiSettings byeDpiSettings, boolean useByeDpi)
+        throws Exception {
         JSONArray outbounds = new JSONArray();
         outbounds.put(proxyOutbound);
 
@@ -186,7 +188,7 @@ public final class XrayAutoSearchConfigFactory {
         return outbounds;
     }
 
-    private static JSONObject buildRouting(XraySettings settings, int localProxyPort) throws Exception {
+    private static JSONObject buildRouting(XraySettings settings) throws Exception {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
         JSONArray rules = new JSONArray();

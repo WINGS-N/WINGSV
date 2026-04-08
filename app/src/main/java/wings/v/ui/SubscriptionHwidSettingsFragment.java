@@ -4,19 +4,19 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-
 import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.SubscriptionHwidStore;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
+
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
 
     @Override
@@ -65,17 +65,18 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setOnBindEditTextListener(editText -> editText.setInputType(
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        ));
+        preference.setOnBindEditTextListener(editText ->
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        );
     }
 
     private CharSequence buildValueSummary(String key) {
         if (!isAdded()) {
             return "";
         }
-        boolean manualValues = getPreferenceManager().getSharedPreferences()
-                .getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
+        boolean manualValues = getPreferenceManager()
+            .getSharedPreferences()
+            .getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
         String displayedValue = SubscriptionHwidStore.getDisplayedValue(requireContext(), key);
         if (TextUtils.isEmpty(displayedValue)) {
             return getString(R.string.subscription_hwid_value_not_set);
@@ -127,8 +128,9 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void refreshAvailability() {
-        boolean manualValues = getPreferenceManager().getSharedPreferences()
-                .getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
+        boolean manualValues = getPreferenceManager()
+            .getSharedPreferences()
+            .getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
         setEnabled(AppPrefs.KEY_SUBSCRIPTION_HWID_VALUE, manualValues);
         setEnabled(AppPrefs.KEY_SUBSCRIPTION_HWID_DEVICE_OS, manualValues);
         setEnabled(AppPrefs.KEY_SUBSCRIPTION_HWID_VER_OS, manualValues);

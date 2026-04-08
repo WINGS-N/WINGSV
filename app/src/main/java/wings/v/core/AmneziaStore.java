@@ -3,21 +3,19 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-
 import androidx.preference.PreferenceManager;
-
-import org.amnezia.awg.config.Config;
-import org.amnezia.awg.config.InetEndpoint;
-import org.amnezia.awg.config.Interface;
-import org.amnezia.awg.config.Peer;
-
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.amnezia.awg.config.Config;
+import org.amnezia.awg.config.InetEndpoint;
+import org.amnezia.awg.config.Interface;
+import org.amnezia.awg.config.Peer;
 
 public final class AmneziaStore {
+
     public static final String KEY_OPEN_SETTINGS = "pref_open_amnezia_settings";
     public static final String KEY_IMPORT_FROM_CLIPBOARD = "pref_awg_import_from_clipboard";
     public static final String KEY_INFO = "pref_awg_info";
@@ -48,8 +46,7 @@ public final class AmneziaStore {
     public static final String KEY_PEER_ENDPOINT = "pref_awg_peer_endpoint";
     public static final String KEY_PEER_PERSISTENT_KEEPALIVE = "pref_awg_peer_persistent_keepalive";
 
-    private AmneziaStore() {
-    }
+    private AmneziaStore() {}
 
     public static void applyRawConfig(Context context, String rawConfig) throws Exception {
         Context appContext = context.getApplicationContext();
@@ -63,11 +60,13 @@ public final class AmneziaStore {
 
     public static void syncRawConfigFromStructuredPrefs(Context context) {
         Context appContext = context.getApplicationContext();
-        prefs(appContext).edit()
-                .putString(AppPrefs.KEY_AWG_QUICK_CONFIG, buildRawConfigFromStructuredPrefs(appContext))
-                .apply();
+        prefs(appContext)
+            .edit()
+            .putString(AppPrefs.KEY_AWG_QUICK_CONFIG, buildRawConfigFromStructuredPrefs(appContext))
+            .apply();
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public static void maybeBackfillStructuredPrefs(Context context) {
         Context appContext = context.getApplicationContext();
         SharedPreferences sharedPreferences = prefs(appContext);
@@ -83,8 +82,7 @@ public final class AmneziaStore {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             writeStructuredConfig(editor, structured);
             editor.apply();
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     public static String getEffectiveQuickConfig(Context context) {
@@ -95,6 +93,7 @@ public final class AmneziaStore {
         return buildRawConfigFromStructuredPrefs(context);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public static String getConfiguredEndpoint(Context context) {
         SharedPreferences sharedPreferences = prefs(context);
         String endpoint = trim(sharedPreferences.getString(KEY_PEER_ENDPOINT, ""));
@@ -102,14 +101,13 @@ public final class AmneziaStore {
             return endpoint;
         }
         try {
-            Config parsed = Config.parse(new ByteArrayInputStream(
-                    getEffectiveQuickConfig(context).getBytes(StandardCharsets.UTF_8)
-            ));
+            Config parsed = Config.parse(
+                new ByteArrayInputStream(getEffectiveQuickConfig(context).getBytes(StandardCharsets.UTF_8))
+            );
             if (!parsed.getPeers().isEmpty()) {
                 return parsed.getPeers().get(0).getEndpoint().map(InetEndpoint::toString).orElse("");
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         return "";
     }
 
@@ -118,32 +116,34 @@ public final class AmneziaStore {
     }
 
     public static boolean isStructuredPreferenceKey(String key) {
-        return KEY_INTERFACE_PRIVATE_KEY.equals(key)
-                || KEY_INTERFACE_ADDRESSES.equals(key)
-                || KEY_INTERFACE_DNS.equals(key)
-                || KEY_INTERFACE_LISTEN_PORT.equals(key)
-                || KEY_INTERFACE_MTU.equals(key)
-                || KEY_INTERFACE_JC.equals(key)
-                || KEY_INTERFACE_JMIN.equals(key)
-                || KEY_INTERFACE_JMAX.equals(key)
-                || KEY_INTERFACE_S1.equals(key)
-                || KEY_INTERFACE_S2.equals(key)
-                || KEY_INTERFACE_S3.equals(key)
-                || KEY_INTERFACE_S4.equals(key)
-                || KEY_INTERFACE_H1.equals(key)
-                || KEY_INTERFACE_H2.equals(key)
-                || KEY_INTERFACE_H3.equals(key)
-                || KEY_INTERFACE_H4.equals(key)
-                || KEY_INTERFACE_I1.equals(key)
-                || KEY_INTERFACE_I2.equals(key)
-                || KEY_INTERFACE_I3.equals(key)
-                || KEY_INTERFACE_I4.equals(key)
-                || KEY_INTERFACE_I5.equals(key)
-                || KEY_PEER_PUBLIC_KEY.equals(key)
-                || KEY_PEER_PRESHARED_KEY.equals(key)
-                || KEY_PEER_ALLOWED_IPS.equals(key)
-                || KEY_PEER_ENDPOINT.equals(key)
-                || KEY_PEER_PERSISTENT_KEEPALIVE.equals(key);
+        return (
+            KEY_INTERFACE_PRIVATE_KEY.equals(key) ||
+            KEY_INTERFACE_ADDRESSES.equals(key) ||
+            KEY_INTERFACE_DNS.equals(key) ||
+            KEY_INTERFACE_LISTEN_PORT.equals(key) ||
+            KEY_INTERFACE_MTU.equals(key) ||
+            KEY_INTERFACE_JC.equals(key) ||
+            KEY_INTERFACE_JMIN.equals(key) ||
+            KEY_INTERFACE_JMAX.equals(key) ||
+            KEY_INTERFACE_S1.equals(key) ||
+            KEY_INTERFACE_S2.equals(key) ||
+            KEY_INTERFACE_S3.equals(key) ||
+            KEY_INTERFACE_S4.equals(key) ||
+            KEY_INTERFACE_H1.equals(key) ||
+            KEY_INTERFACE_H2.equals(key) ||
+            KEY_INTERFACE_H3.equals(key) ||
+            KEY_INTERFACE_H4.equals(key) ||
+            KEY_INTERFACE_I1.equals(key) ||
+            KEY_INTERFACE_I2.equals(key) ||
+            KEY_INTERFACE_I3.equals(key) ||
+            KEY_INTERFACE_I4.equals(key) ||
+            KEY_INTERFACE_I5.equals(key) ||
+            KEY_PEER_PUBLIC_KEY.equals(key) ||
+            KEY_PEER_PRESHARED_KEY.equals(key) ||
+            KEY_PEER_ALLOWED_IPS.equals(key) ||
+            KEY_PEER_ENDPOINT.equals(key) ||
+            KEY_PEER_PERSISTENT_KEEPALIVE.equals(key)
+        );
     }
 
     private static StructuredConfig parseRawConfig(String rawConfig) throws Exception {
@@ -175,7 +175,10 @@ public final class AmneziaStore {
         if (!config.getPeers().isEmpty()) {
             Peer peer = config.getPeers().get(0);
             result.peerPublicKey = peer.getPublicKey().toBase64();
-            result.peerPresharedKey = peer.getPreSharedKey().map(key -> key.toBase64()).orElse("");
+            result.peerPresharedKey = peer
+                .getPreSharedKey()
+                .map(key -> key.toBase64())
+                .orElse("");
             result.peerAllowedIps = join(peer.getAllowedIps());
             result.peerEndpoint = peer.getEndpoint().map(InetEndpoint::toString).orElse("");
             result.peerPersistentKeepalive = peer.getPersistentKeepalive().map(String::valueOf).orElse("");
@@ -293,6 +296,7 @@ public final class AmneziaStore {
     }
 
     private static final class StructuredConfig {
+
         private String privateKey = "";
         private String addresses = "";
         private String dns = "";

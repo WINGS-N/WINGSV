@@ -4,14 +4,12 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-
 import wings.v.ActiveProbingTargetsActivity;
 import wings.v.R;
 import wings.v.core.ActiveProbingBackgroundScheduler;
@@ -20,7 +18,9 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
+
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
 
     @Override
@@ -73,9 +73,7 @@ public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setOnBindEditTextListener(editText ->
-                editText.setInputType(InputType.TYPE_CLASS_NUMBER)
-        );
+        preference.setOnBindEditTextListener(editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             return TextUtils.isEmpty(value) ? "Не задано" : value;
@@ -107,16 +105,17 @@ public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void refreshAvailability() {
-        SwitchPreferenceCompat tunnelPreference =
-                findPreference(ActiveProbingManager.KEY_TUNNEL_ENABLED);
+        SwitchPreferenceCompat tunnelPreference = findPreference(ActiveProbingManager.KEY_TUNNEL_ENABLED);
         if (tunnelPreference == null) {
             return;
         }
         boolean available = ActiveProbingManager.isTunnelProbingAvailable(requireContext());
         tunnelPreference.setEnabled(available);
-        tunnelPreference.setSummary(available
+        tunnelPreference.setSummary(
+            available
                 ? getString(R.string.active_probing_tunnel_summary)
-                : getString(R.string.active_probing_tunnel_xray_only));
+                : getString(R.string.active_probing_tunnel_xray_only)
+        );
     }
 
     private void registerPreferencesListener() {
@@ -151,10 +150,7 @@ public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
         syncSwitch(ActiveProbingManager.KEY_TUNNEL_ENABLED, settings.tunnelEnabled);
         syncSwitch(ActiveProbingManager.KEY_VK_TURN_ENABLED, settings.vkTurnEnabled);
         syncSwitch(ActiveProbingManager.KEY_BACKGROUND_ENABLED, settings.backgroundEnabled);
-        syncList(
-                ActiveProbingManager.KEY_XRAY_FALLBACK_BACKEND,
-                settings.xrayFallbackBackend.prefValue
-        );
+        syncList(ActiveProbingManager.KEY_XRAY_FALLBACK_BACKEND, settings.xrayFallbackBackend.prefValue);
         syncTargetsPreference(settings.rawUrls);
         syncEditText(ActiveProbingManager.KEY_INTERVAL_SECONDS, String.valueOf(settings.intervalSeconds));
         syncEditText(ActiveProbingManager.KEY_TIMEOUT_SECONDS, String.valueOf(settings.timeoutSeconds));
@@ -185,9 +181,7 @@ public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        String normalized = TextUtils.isEmpty(value)
-                ? BackendType.VK_TURN_WIREGUARD.prefValue
-                : value;
+        String normalized = TextUtils.isEmpty(value) ? BackendType.VK_TURN_WIREGUARD.prefValue : value;
         if (TextUtils.equals(preference.getValue(), normalized)) {
             return;
         }

@@ -3,9 +3,7 @@ package wings.v.receiver;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-
 import androidx.core.content.ContextCompat;
-
 import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateBackgroundScheduler;
@@ -15,22 +13,23 @@ import wings.v.core.RootUtils;
 import wings.v.core.XrayStore;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings("PMD.AvoidCatchingGenericException")
 public class BootReceiver extends BroadcastReceiver {
+
     @Override
     public void onReceive(Context context, Intent intent) {
         if (context == null || intent == null) {
             return;
         }
         String action = intent.getAction();
-        if (!Intent.ACTION_BOOT_COMPLETED.equals(action)
-                && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+        if (!Intent.ACTION_BOOT_COMPLETED.equals(action) && !Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             return;
         }
         AppUpdateBackgroundScheduler.schedule(context);
         ActiveProbingBackgroundScheduler.refresh(context);
         boolean autoStartConnection = AppPrefs.isAutoStartOnBootEnabled(context);
-        boolean autoStartSharing = AppPrefs.isSharingAutoStartOnBootEnabled(context)
-                && AppPrefs.isRootModeEnabled(context);
+        boolean autoStartSharing =
+            AppPrefs.isSharingAutoStartOnBootEnabled(context) && AppPrefs.isRootModeEnabled(context);
         if (!autoStartConnection && !autoStartSharing) {
             return;
         }
@@ -46,20 +45,21 @@ public class BootReceiver extends BroadcastReceiver {
             if (!RootUtils.isRootModeSupported(context, backendType, false)) {
                 return;
             }
-            if (backendType == BackendType.VK_TURN_WIREGUARD
-                    && AppPrefs.isKernelWireGuardEnabled(context)
-                    && !RootUtils.isKernelWireGuardSupported(context, backendType, false)) {
+            if (
+                backendType == BackendType.VK_TURN_WIREGUARD &&
+                AppPrefs.isKernelWireGuardEnabled(context) &&
+                !RootUtils.isKernelWireGuardSupported(context, backendType, false)
+            ) {
                 return;
             }
         }
         try {
             ContextCompat.startForegroundService(
-                    context,
-                    autoStartSharing
-                            ? ProxyTunnelService.createRestoreSharingOnBootIntent(context)
-                            : ProxyTunnelService.createStartIntent(context)
+                context,
+                autoStartSharing
+                    ? ProxyTunnelService.createRestoreSharingOnBootIntent(context)
+                    : ProxyTunnelService.createStartIntent(context)
             );
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 }

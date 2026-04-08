@@ -3,20 +3,18 @@ package wings.v.ui;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
 import wings.v.R;
 import wings.v.databinding.ItemAppRoutingBinding;
 import wings.v.databinding.ItemAppRoutingHeaderBinding;
 
 final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_APP = 1;
 
@@ -132,6 +130,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     final class HeaderViewHolder extends RecyclerView.ViewHolder {
+
         private final ItemAppRoutingHeaderBinding binding;
 
         HeaderViewHolder(ItemAppRoutingHeaderBinding binding) {
@@ -149,11 +148,11 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             });
 
             binding.textModeSummary.setText(
-                    bypassEnabled ? R.string.apps_mode_bypass_on : R.string.apps_mode_bypass_off
+                bypassEnabled ? R.string.apps_mode_bypass_on : R.string.apps_mode_bypass_off
             );
             if (getEnabledCount() > 0) {
                 binding.textAppsCount.setText(
-                        binding.getRoot().getContext().getString(R.string.apps_count, getEnabledCount())
+                    binding.getRoot().getContext().getString(R.string.apps_count, getEnabledCount())
                 );
             } else {
                 binding.textAppsCount.setText(R.string.apps_count_zero);
@@ -167,6 +166,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     final class AppViewHolder extends RecyclerView.ViewHolder {
+
         private final ItemAppRoutingBinding binding;
 
         AppViewHolder(ItemAppRoutingBinding binding) {
@@ -185,12 +185,14 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                     callback.onPackageToggled(item.packageName, isChecked, buttonView);
                 }
             });
-            binding.getRoot().setOnClickListener(v -> {
-                boolean nextValue = !binding.switchAppRule.isChecked();
-                if (callback != null) {
-                    callback.onPackageToggled(item.packageName, nextValue, binding.getRoot());
-                }
-            });
+            binding
+                .getRoot()
+                .setOnClickListener(v -> {
+                    boolean nextValue = !binding.switchAppRule.isChecked();
+                    if (callback != null) {
+                        callback.onPackageToggled(item.packageName, nextValue, binding.getRoot());
+                    }
+                });
         }
     }
 }

@@ -2,14 +2,13 @@ package wings.v.core;
 
 import android.content.Context;
 import android.text.TextUtils;
-
 import java.util.Locale;
 
 public final class UiFormatter {
-    private static final String[] SIZE_UNITS = {"B", "KB", "MB", "GB", "TB"};
 
-    private UiFormatter() {
-    }
+    private static final String[] SIZE_UNITS = { "B", "KB", "MB", "GB", "TB" };
+
+    private UiFormatter() {}
 
     public static String formatBytes(Context context, long value) {
         double normalized = Math.max(0L, value);

@@ -5,14 +5,14 @@ import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-
 import wings.v.databinding.FragmentFirstLaunchIntroBinding;
 
+@SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchIntroFragment extends Fragment {
+
     private static final String ARG_TITLE_RES = "title_res";
     private static final String ARG_SUBTITLE_RES = "subtitle_res";
     private static final String ARG_BUTTON_RES = "button_res";
@@ -24,9 +24,7 @@ public class FirstLaunchIntroFragment extends Fragment {
         void onAdvanceIntroPage();
     }
 
-    public static FirstLaunchIntroFragment create(int titleRes,
-                                                  int subtitleRes,
-                                                  int buttonRes) {
+    public static FirstLaunchIntroFragment create(int titleRes, int subtitleRes, int buttonRes) {
         Bundle args = new Bundle();
         args.putInt(ARG_TITLE_RES, titleRes);
         args.putInt(ARG_SUBTITLE_RES, subtitleRes);
@@ -39,9 +37,11 @@ public class FirstLaunchIntroFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentFirstLaunchIntroBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }

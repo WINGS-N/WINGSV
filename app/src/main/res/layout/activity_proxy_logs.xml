@@ -91,7 +91,7 @@
                     android:contentDescription="@string/proxy_logs_copy_title"
                     android:padding="8dp"
                     android:src="@drawable/ic_copy"
-                    android:tint="?android:textColorPrimary" />
+                    app:tint="?android:textColorPrimary" />
             </LinearLayout>
 
             <LinearLayout

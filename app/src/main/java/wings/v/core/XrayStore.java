@@ -3,54 +3,54 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-
 import androidx.preference.PreferenceManager;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-
+import org.json.JSONArray;
+import org.json.JSONObject;
 import wings.v.qs.QuickSettingsTiles;
 
+@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.UseConcurrentHashMap" })
 public final class XrayStore {
+
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
     private static final String DEFAULT_SUBSCRIPTION_URL =
-            "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt";
+        "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt";
     private static final String DEFAULT_SUBSCRIPTION_TITLE = "Universal";
     private static final String DEFAULT_REMOTE_DNS = "https://common.dot.dns.yandex.net/dns-query";
     private static final String DEFAULT_DIRECT_DNS = "https://common.dot.dns.yandex.net/dns-query";
 
-    private XrayStore() {
-    }
+    private XrayStore() {}
 
     public static BackendType getBackendType(Context context) {
-        return BackendType.fromPrefValue(prefs(context).getString(
-                AppPrefs.KEY_BACKEND_TYPE,
-                BackendType.VK_TURN_WIREGUARD.prefValue
-        ));
+        return BackendType.fromPrefValue(
+            prefs(context).getString(AppPrefs.KEY_BACKEND_TYPE, BackendType.VK_TURN_WIREGUARD.prefValue)
+        );
     }
 
     public static void setBackendType(Context context, BackendType backendType) {
         Context appContext = context.getApplicationContext();
-        prefs(appContext).edit()
-                .putString(AppPrefs.KEY_BACKEND_TYPE,
-                        backendType == null ? BackendType.VK_TURN_WIREGUARD.prefValue : backendType.prefValue)
-                .apply();
+        prefs(appContext)
+            .edit()
+            .putString(
+                AppPrefs.KEY_BACKEND_TYPE,
+                backendType == null ? BackendType.VK_TURN_WIREGUARD.prefValue : backendType.prefValue
+            )
+            .apply();
         QuickSettingsTiles.requestRefresh(appContext);
     }
 
     public static XraySettings getXraySettings(Context context) {
         SharedPreferences prefs = prefs(context);
         SocksAuthCredentials.Pair credentials = SocksAuthCredentials.ensure(
-                prefs,
-                AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME,
-                AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD
+            prefs,
+            AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME,
+            AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD
         );
         XraySettings settings = new XraySettings();
         settings.allowLan = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, false);
@@ -60,8 +60,8 @@ public final class XrayStore {
         settings.localProxyUsername = credentials.username;
         settings.localProxyPassword = credentials.password;
         settings.localProxyPort = parseInt(
-                prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(DEFAULT_LOCAL_PROXY_PORT)),
-                DEFAULT_LOCAL_PROXY_PORT
+            prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(DEFAULT_LOCAL_PROXY_PORT)),
+            DEFAULT_LOCAL_PROXY_PORT
         );
         settings.remoteDns = trim(prefs.getString(AppPrefs.KEY_XRAY_REMOTE_DNS, DEFAULT_REMOTE_DNS));
         settings.directDns = trim(prefs.getString(AppPrefs.KEY_XRAY_DIRECT_DNS, DEFAULT_DIRECT_DNS));
@@ -73,24 +73,30 @@ public final class XrayStore {
 
     public static void setXraySettings(Context context, XraySettings settings) {
         XraySettings value = settings != null ? settings : new XraySettings();
-        prefs(context).edit()
-                .putBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, value.allowLan)
-                .putBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, value.allowInsecure)
-                .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, value.localProxyEnabled)
-                .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, value.localProxyAuthEnabled)
-                .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, trim(value.localProxyUsername))
-                .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, trim(value.localProxyPassword))
-                .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(
-                        value.localProxyPort > 0 ? value.localProxyPort : DEFAULT_LOCAL_PROXY_PORT
-                ))
-                .putString(AppPrefs.KEY_XRAY_REMOTE_DNS,
-                        TextUtils.isEmpty(trim(value.remoteDns)) ? DEFAULT_REMOTE_DNS : trim(value.remoteDns))
-                .putString(AppPrefs.KEY_XRAY_DIRECT_DNS,
-                        TextUtils.isEmpty(trim(value.directDns)) ? DEFAULT_DIRECT_DNS : trim(value.directDns))
-                .putBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, value.ipv6)
-                .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
-                .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
-                .apply();
+        prefs(context)
+            .edit()
+            .putBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, value.allowLan)
+            .putBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, value.allowInsecure)
+            .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, value.localProxyEnabled)
+            .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, value.localProxyAuthEnabled)
+            .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, trim(value.localProxyUsername))
+            .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, trim(value.localProxyPassword))
+            .putString(
+                AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT,
+                String.valueOf(value.localProxyPort > 0 ? value.localProxyPort : DEFAULT_LOCAL_PROXY_PORT)
+            )
+            .putString(
+                AppPrefs.KEY_XRAY_REMOTE_DNS,
+                TextUtils.isEmpty(trim(value.remoteDns)) ? DEFAULT_REMOTE_DNS : trim(value.remoteDns)
+            )
+            .putString(
+                AppPrefs.KEY_XRAY_DIRECT_DNS,
+                TextUtils.isEmpty(trim(value.directDns)) ? DEFAULT_DIRECT_DNS : trim(value.directDns)
+            )
+            .putBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, value.ipv6)
+            .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
+            .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
+            .apply();
     }
 
     public static List<XraySubscription> getSubscriptions(Context context) {
@@ -112,7 +118,8 @@ public final class XrayStore {
         }
         if (allowUniversalSeed && !prefs.getBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, false)) {
             if (!hasSubscriptionWithUrl(result, DEFAULT_SUBSCRIPTION_URL)) {
-                result.add(new XraySubscription(
+                result.add(
+                    new XraySubscription(
                         null,
                         DEFAULT_SUBSCRIPTION_TITLE,
                         DEFAULT_SUBSCRIPTION_URL,
@@ -120,15 +127,12 @@ public final class XrayStore {
                         getRefreshIntervalHours(context),
                         true,
                         0L
-                ));
+                    )
+                );
                 setSubscriptions(context, result);
-                prefs.edit()
-                        .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
-                        .apply();
+                prefs.edit().putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true).apply();
             } else {
-                prefs.edit()
-                        .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
-                        .apply();
+                prefs.edit().putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true).apply();
             }
         }
         return result;
@@ -143,15 +147,15 @@ public final class XrayStore {
                 }
                 try {
                     array.put(subscription.toJson());
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
-        prefs(context).edit()
-                .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, array.toString())
-                .putBoolean(AppPrefs.KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED, true)
-                .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
-                .apply();
+        prefs(context)
+            .edit()
+            .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, array.toString())
+            .putBoolean(AppPrefs.KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED, true)
+            .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
+            .apply();
     }
 
     public static void ensureDefaultSubscriptionPresent(Context context) {
@@ -163,7 +167,8 @@ public final class XrayStore {
             return;
         }
         ArrayList<XraySubscription> updated = new ArrayList<>(subscriptions);
-        updated.add(new XraySubscription(
+        updated.add(
+            new XraySubscription(
                 null,
                 DEFAULT_SUBSCRIPTION_TITLE,
                 DEFAULT_SUBSCRIPTION_URL,
@@ -171,7 +176,8 @@ public final class XrayStore {
                 getRefreshIntervalHours(context),
                 true,
                 0L
-        ));
+            )
+        );
         setSubscriptions(context, updated);
     }
 
@@ -204,8 +210,7 @@ public final class XrayStore {
         for (XrayProfile profile : deduped.values()) {
             try {
                 array.put(profile.toJson());
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILES_JSON, array.toString()).apply();
         pruneProfileTrafficStats(context, collectProfileIds(deduped.values()));
@@ -239,10 +244,10 @@ public final class XrayStore {
             if (entry == null) {
                 continue;
             }
-            result.put(profileId, new ProfileTrafficStats(
-                    Math.max(0L, entry.optLong("rx", 0L)),
-                    Math.max(0L, entry.optLong("tx", 0L))
-            ));
+            result.put(
+                profileId,
+                new ProfileTrafficStats(Math.max(0L, entry.optLong("rx", 0L)), Math.max(0L, entry.optLong("tx", 0L)))
+            );
         }
         return result;
     }
@@ -307,10 +312,10 @@ public final class XrayStore {
             if (entry == null) {
                 continue;
             }
-            result.put(profilePingKey, new ProfilePingResult(
-                    entry.optBoolean("success", false),
-                    Math.max(0, entry.optInt("latency_ms", 0))
-            ));
+            result.put(
+                profilePingKey,
+                new ProfilePingResult(entry.optBoolean("success", false), Math.max(0, entry.optInt("latency_ms", 0)))
+            );
         }
         return result;
     }
@@ -368,16 +373,14 @@ public final class XrayStore {
     }
 
     public static int getRefreshIntervalHours(Context context) {
-        return parseInt(
-                prefs(context).getString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, "24"),
-                24
-        );
+        return parseInt(prefs(context).getString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, "24"), 24);
     }
 
     public static void setRefreshIntervalHours(Context context, int hours) {
-        prefs(context).edit()
-                .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, String.valueOf(Math.max(hours, 1)))
-                .apply();
+        prefs(context)
+            .edit()
+            .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, String.valueOf(Math.max(hours, 1)))
+            .apply();
     }
 
     public static long getLastSubscriptionsRefreshAt(Context context) {
@@ -385,9 +388,10 @@ public final class XrayStore {
     }
 
     public static void setLastSubscriptionsRefreshAt(Context context, long refreshedAt) {
-        prefs(context).edit()
-                .putLong(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT, Math.max(refreshedAt, 0L))
-                .apply();
+        prefs(context)
+            .edit()
+            .putLong(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT, Math.max(refreshedAt, 0L))
+            .apply();
     }
 
     public static String getLastSubscriptionsError(Context context) {
@@ -395,9 +399,7 @@ public final class XrayStore {
     }
 
     public static void setLastSubscriptionsError(Context context, String error) {
-        prefs(context).edit()
-                .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, trim(error))
-                .apply();
+        prefs(context).edit().putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, trim(error)).apply();
     }
 
     public static String getImportedSubscriptionJson(Context context) {
@@ -405,12 +407,11 @@ public final class XrayStore {
     }
 
     public static void setImportedSubscriptionJson(Context context, String rawJson) {
-        prefs(context).edit()
-                .putString(AppPrefs.KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON, trim(rawJson))
-                .apply();
+        prefs(context).edit().putString(AppPrefs.KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON, trim(rawJson)).apply();
     }
 
     public static final class ProfileTrafficStats {
+
         public static final ProfileTrafficStats ZERO = new ProfileTrafficStats(0L, 0L);
 
         public final long rxBytes;
@@ -423,6 +424,7 @@ public final class XrayStore {
     }
 
     public static final class ProfilePingResult {
+
         public final boolean success;
         public final int latencyMs;
 
@@ -455,13 +457,13 @@ public final class XrayStore {
     private static int parseInt(String rawValue, int fallback) {
         try {
             return Integer.parseInt(trim(rawValue));
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return fallback;
         }
     }
 
     private static boolean hasSubscriptionWithUrl(List<XraySubscription> subscriptions, String url) {
-        String expectedKey = TextUtils.isEmpty(url) ? "" : url.trim().toLowerCase();
+        String expectedKey = TextUtils.isEmpty(url) ? "" : url.trim().toLowerCase(Locale.ROOT);
         if (subscriptions != null) {
             for (XraySubscription subscription : subscriptions) {
                 if (subscription == null || TextUtils.isEmpty(subscription.url)) {
@@ -475,7 +477,10 @@ public final class XrayStore {
         return false;
     }
 
-    private static void writeProfileTrafficStats(Context context, Map<String, ProfileTrafficStats> profileTrafficStats) {
+    private static void writeProfileTrafficStats(
+        Context context,
+        Map<String, ProfileTrafficStats> profileTrafficStats
+    ) {
         JSONObject object = new JSONObject();
         if (profileTrafficStats != null) {
             for (Map.Entry<String, ProfileTrafficStats> entry : profileTrafficStats.entrySet()) {
@@ -488,13 +493,10 @@ public final class XrayStore {
                     item.put("rx", Math.max(0L, entry.getValue().rxBytes));
                     item.put("tx", Math.max(0L, entry.getValue().txBytes));
                     object.put(profileId, item);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
-        prefs(context).edit()
-                .putString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, object.toString())
-                .apply();
+        prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, object.toString()).apply();
     }
 
     private static void pruneProfileTrafficStats(Context context, Collection<String> activeProfileIds) {
@@ -528,13 +530,10 @@ public final class XrayStore {
                     item.put("success", entry.getValue().success);
                     item.put("latency_ms", Math.max(0, entry.getValue().latencyMs));
                     object.put(profilePingKey, item);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
-        prefs(context).edit()
-                .putString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, object.toString())
-                .apply();
+        prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, object.toString()).apply();
     }
 
     private static void pruneProfilePingResults(Context context, Collection<String> activeProfilePingKeys) {

@@ -2,18 +2,14 @@ package wings.v.core;
 
 import android.content.Context;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -21,14 +17,17 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import wings.v.R;
 
+@SuppressWarnings("PMD.AvoidFileStream")
 public final class ByeDpiDomainListStore {
+
     private static final String FILE_NAME = "byedpi_domain_lists.json";
 
-    private ByeDpiDomainListStore() {
-    }
+    private ByeDpiDomainListStore() {}
 
     @NonNull
     public static List<ByeDpiDomainList> getLists(@Nullable Context context) {
@@ -64,18 +63,20 @@ public final class ByeDpiDomainListStore {
                 if (TextUtils.isEmpty(id) || TextUtils.isEmpty(name) || domains.isEmpty()) {
                     continue;
                 }
-                result.add(new ByeDpiDomainList(
+                result.add(
+                    new ByeDpiDomainList(
                         id,
                         name,
                         domains,
                         object.optBoolean("isActive", false),
                         object.optBoolean("isBuiltIn", false)
-                ));
+                    )
+                );
             }
-        } catch (Exception ignored) {
-        }
-        Collections.sort(result, (left, right) -> left.name.toLowerCase(Locale.US)
-                .compareTo(right.name.toLowerCase(Locale.US)));
+        } catch (IOException | JSONException ignored) {}
+        Collections.sort(result, (left, right) ->
+            left.name.toLowerCase(Locale.US).compareTo(right.name.toLowerCase(Locale.US))
+        );
         return result;
     }
 
@@ -107,14 +108,12 @@ public final class ByeDpiDomainListStore {
                     object.put("isActive", item.isActive);
                     object.put("isBuiltIn", item.isBuiltIn);
                     array.put(object);
-                } catch (Exception ignored) {
-                }
+                } catch (JSONException ignored) {}
             }
         }
         try {
             writeUtf8(listsFile(context), array.toString());
-        } catch (Exception ignored) {
-        }
+        } catch (IOException ignored) {}
     }
 
     @NonNull
@@ -172,10 +171,12 @@ public final class ByeDpiDomainListStore {
         return true;
     }
 
-    public static boolean updateList(@Nullable Context context,
-                                     @Nullable String id,
-                                     @Nullable String name,
-                                     @Nullable List<String> domains) {
+    public static boolean updateList(
+        @Nullable Context context,
+        @Nullable String id,
+        @Nullable String name,
+        @Nullable List<String> domains
+    ) {
         if (context == null) {
             return false;
         }
@@ -191,13 +192,10 @@ public final class ByeDpiDomainListStore {
             if (!TextUtils.equals(item.id, normalizedId)) {
                 continue;
             }
-            lists.set(index, new ByeDpiDomainList(
-                    item.id,
-                    normalizedName,
-                    normalizedDomains,
-                    item.isActive,
-                    item.isBuiltIn
-            ));
+            lists.set(
+                index,
+                new ByeDpiDomainList(item.id, normalizedName, normalizedDomains, item.isActive, item.isBuiltIn)
+            );
             saveLists(context, lists);
             return true;
         }
@@ -215,13 +213,7 @@ public final class ByeDpiDomainListStore {
             if (!TextUtils.equals(item.id, normalizedId)) {
                 continue;
             }
-            lists.set(index, new ByeDpiDomainList(
-                    item.id,
-                    item.name,
-                    item.domains,
-                    !item.isActive,
-                    item.isBuiltIn
-            ));
+            lists.set(index, new ByeDpiDomainList(item.id, item.name, item.domains, !item.isActive, item.isBuiltIn));
             saveLists(context, lists);
             return true;
         }
@@ -258,14 +250,19 @@ public final class ByeDpiDomainListStore {
                 }
                 String id = asset.substring("proxytest_".length(), asset.length() - ".sites".length());
                 ArrayList<String> domains = new ArrayList<>();
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(context.getAssets().open(asset), StandardCharsets.UTF_8))) {
+                try (
+                    BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(context.getAssets().open(asset), StandardCharsets.UTF_8)
+                    )
+                ) {
                     String line;
-                    while ((line = reader.readLine()) != null) {
+                    line = reader.readLine();
+                    while (line != null) {
                         String normalized = ByeDpiStore.normalizeTarget(line);
                         if (!TextUtils.isEmpty(normalized)) {
                             domains.add(normalized);
                         }
+                        line = reader.readLine();
                     }
                 }
                 if (domains.isEmpty()) {
@@ -275,8 +272,7 @@ public final class ByeDpiDomainListStore {
                 boolean isActive = TextUtils.equals(id, "youtube") || TextUtils.equals(id, "googlevideo");
                 lists.add(new ByeDpiDomainList(id, name, domains, isActive, true));
             }
-        } catch (Exception ignored) {
-        }
+        } catch (IOException ignored) {}
         saveLists(context, lists);
     }
 
@@ -301,12 +297,16 @@ public final class ByeDpiDomainListStore {
 
     @NonNull
     private static String readUtf8(@NonNull File file) throws java.io.IOException {
-        try (FileInputStream input = new FileInputStream(file);
-             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+        try (
+            FileInputStream input = new FileInputStream(file);
+            ByteArrayOutputStream output = new ByteArrayOutputStream()
+        ) {
             byte[] buffer = new byte[8192];
             int read;
-            while ((read = input.read(buffer)) >= 0) {
+            read = input.read(buffer);
+            while (read >= 0) {
                 output.write(buffer, 0, read);
+                read = input.read(buffer);
             }
             return output.toString(StandardCharsets.UTF_8.name());
         }

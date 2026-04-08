@@ -3,14 +3,13 @@ package wings.v;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-
 import wings.v.databinding.ActivityByeDpiSettingsBinding;
 import wings.v.ui.ByeDpiSettingsFragment;
 
 public class ByeDpiSettingsActivity extends AppCompatActivity {
+
     public static Intent createIntent(Context context) {
         return new Intent(context, ByeDpiSettingsActivity.class);
     }
@@ -23,9 +22,9 @@ public class ByeDpiSettingsActivity extends AppCompatActivity {
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         if (savedInstanceState == null) {
             getSupportFragmentManager()
-                    .beginTransaction()
-                    .replace(R.id.bydpi_settings_container, new ByeDpiSettingsFragment())
-                    .commit();
+                .beginTransaction()
+                .replace(R.id.bydpi_settings_container, new ByeDpiSettingsFragment())
+                .commit();
         }
     }
 }

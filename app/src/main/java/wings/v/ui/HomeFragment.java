@@ -13,20 +13,17 @@ import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 import android.view.animation.LinearInterpolator;
-
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
-
 import java.util.Locale;
-
 import wings.v.MainActivity;
 import wings.v.R;
-import wings.v.core.AppPrefs;
 import wings.v.core.AmneziaStore;
+import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
@@ -37,7 +34,9 @@ import wings.v.core.XrayProfile;
 import wings.v.databinding.FragmentHomeBinding;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.NullAssignment", "PMD.ExceptionAsFlowControl" })
 public class HomeFragment extends Fragment {
+
     private static final long UI_REFRESH_INTERVAL_MS = 250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refreshRunnable = new Runnable() {
@@ -59,8 +58,11 @@ public class HomeFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-                             @Nullable Bundle savedInstanceState) {
+    public View onCreateView(
+        @NonNull LayoutInflater inflater,
+        @Nullable ViewGroup container,
+        @Nullable Bundle savedInstanceState
+    ) {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         return binding.getRoot();
     }
@@ -135,9 +137,9 @@ public class HomeFragment extends Fragment {
             binding.textServiceHint.setText(R.string.service_connecting_hint);
         } else if (stopping) {
             binding.textServiceState.setText(
-                    settings.backendType == BackendType.XRAY
-                            ? R.string.service_stopping_xray
-                            : R.string.service_stopping_vk_turn
+                settings.backendType == BackendType.XRAY
+                    ? R.string.service_stopping_xray
+                    : R.string.service_stopping_vk_turn
             );
             binding.textServiceHint.setText(R.string.service_stopping_hint);
         } else {
@@ -145,26 +147,23 @@ public class HomeFragment extends Fragment {
             binding.textServiceHint.setText(running ? R.string.tap_to_disconnect : R.string.tap_to_connect);
         }
         binding.textServiceState.setBackgroundResource(
-                running ? R.drawable.bg_service_state_on : R.drawable.bg_surface_card
+            running ? R.drawable.bg_service_state_on : R.drawable.bg_surface_card
         );
         binding.textServiceState.setTextColor(
-                running
-                        ? ContextCompat.getColor(context, android.R.color.white)
-                        : resolveThemeColor(
-                                android.R.attr.textColorPrimary,
-                                ContextCompat.getColor(context, R.color.wingsv_text_primary)
-                        )
+            running
+                ? ContextCompat.getColor(context, android.R.color.white)
+                : resolveThemeColor(
+                      android.R.attr.textColorPrimary,
+                      ContextCompat.getColor(context, R.color.wingsv_text_primary)
+                  )
         );
 
-        int tintColor = ContextCompat.getColor(
-                context,
-                android.R.color.white
-        );
+        int tintColor = ContextCompat.getColor(context, android.R.color.white);
         if (!active) {
             tintColor = resolveThemeColor(android.R.attr.textColorPrimary, tintColor);
         }
         binding.buttonToggle.setBackgroundResource(
-                active ? R.drawable.bg_power_button_on : R.drawable.bg_power_button_off
+            active ? R.drawable.bg_power_button_on : R.drawable.bg_power_button_off
         );
         binding.buttonToggle.setImageTintList(ColorStateList.valueOf(tintColor));
 
@@ -180,16 +179,16 @@ public class HomeFragment extends Fragment {
         binding.textIp.setText(TextUtils.isEmpty(ip) ? getString(R.string.ip_loading) : ip);
 
         String country = firstNonEmpty(
-                ProxyTunnelService.getPublicCountry(),
-                fallbackIpInfo != null ? fallbackIpInfo.country : null
+            ProxyTunnelService.getPublicCountry(),
+            fallbackIpInfo != null ? fallbackIpInfo.country : null
         );
-        binding.textCountry.setText(TextUtils.isEmpty(country)
-                ? getString(R.string.ip_unknown)
-                : formatCountryWithFlag(country));
+        binding.textCountry.setText(
+            TextUtils.isEmpty(country) ? getString(R.string.ip_unknown) : formatCountryWithFlag(country)
+        );
 
         String isp = firstNonEmpty(
-                ProxyTunnelService.getPublicIsp(),
-                fallbackIpInfo != null ? fallbackIpInfo.isp : null
+            ProxyTunnelService.getPublicIsp(),
+            fallbackIpInfo != null ? fallbackIpInfo.isp : null
         );
         binding.textIsp.setText(TextUtils.isEmpty(isp) ? getString(R.string.ip_unknown) : isp);
 
@@ -241,10 +240,12 @@ public class HomeFragment extends Fragment {
     }
 
     private void requestPublicIpIfNeeded() {
-        if (ProxyTunnelService.isRunning()
-                && !TextUtils.isEmpty(ProxyTunnelService.getPublicIp())
-                && !TextUtils.isEmpty(ProxyTunnelService.getPublicCountry())
-                && !TextUtils.isEmpty(ProxyTunnelService.getPublicIsp())) {
+        if (
+            ProxyTunnelService.isRunning() &&
+            !TextUtils.isEmpty(ProxyTunnelService.getPublicIp()) &&
+            !TextUtils.isEmpty(ProxyTunnelService.getPublicCountry()) &&
+            !TextUtils.isEmpty(ProxyTunnelService.getPublicIsp())
+        ) {
             return;
         }
         if (ProxyTunnelService.isActive()) {
@@ -273,11 +274,9 @@ public class HomeFragment extends Fragment {
             cancelIpRefreshRequest();
         }
         startIpRefreshAnimation();
-        final int requestGeneration = ++ipRequestGeneration;
-        ipRequest = PublicIpFetcher.fetchAsyncCancelable(
-                requireContext(),
-                false,
-                result -> {
+        ipRequestGeneration++;
+        final int requestGeneration = ipRequestGeneration;
+        ipRequest = PublicIpFetcher.fetchAsyncCancelable(requireContext(), false, result -> {
             if (!isAdded()) {
                 return;
             }
@@ -352,8 +351,7 @@ public class HomeFragment extends Fragment {
 
     private void importFromClipboard() {
         Context context = requireContext();
-        ClipboardManager clipboardManager =
-                (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
             Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
             return;
@@ -367,8 +365,9 @@ public class HomeFragment extends Fragment {
 
         CharSequence text = clipData.getItemAt(0).coerceToText(context);
         try {
-            WingsImportParser.ImportedConfig importedConfig =
-                    WingsImportParser.parseFromText(text != null ? text.toString() : null);
+            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(
+                text != null ? text.toString() : null
+            );
             AppPrefs.applyImportedConfig(context, importedConfig);
             Haptics.softConfirm(binding.buttonImportClipboard);
             Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
@@ -380,8 +379,7 @@ public class HomeFragment extends Fragment {
 
     private void copyCurrentConfiguration() {
         Context context = requireContext();
-        ClipboardManager clipboardManager =
-                (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboardManager == null) {
             Toast.makeText(context, R.string.clipboard_copy_failed, Toast.LENGTH_SHORT).show();
             return;
@@ -458,12 +456,14 @@ public class HomeFragment extends Fragment {
             default:
                 break;
         }
-        Locale russianLocale = new Locale("ru");
+        Locale russianLocale = Locale.forLanguageTag("ru");
         for (String isoCode : Locale.getISOCountries()) {
-            Locale locale = new Locale("", isoCode);
-            if (normalized.equals(locale.getDisplayCountry(Locale.ENGLISH).toLowerCase(Locale.ROOT))
-                    || normalized.equals(locale.getDisplayCountry(russianLocale).toLowerCase(Locale.ROOT))
-                    || normalized.equals(locale.getDisplayCountry(Locale.getDefault()).toLowerCase(Locale.ROOT))) {
+            Locale locale = new Locale.Builder().setRegion(isoCode).build();
+            if (
+                normalized.equals(locale.getDisplayCountry(Locale.ENGLISH).toLowerCase(Locale.ROOT)) ||
+                normalized.equals(locale.getDisplayCountry(russianLocale).toLowerCase(Locale.ROOT)) ||
+                normalized.equals(locale.getDisplayCountry(Locale.getDefault()).toLowerCase(Locale.ROOT))
+            ) {
                 return isoCode;
             }
         }
