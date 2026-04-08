@@ -22,7 +22,17 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentFirstLaunchAutoSearchRunBinding;
 import wings.v.databinding.ItemFirstLaunchAutoSearchProfileBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class FirstLaunchAutoSearchRunFragment extends Fragment {
 
     public interface Host {

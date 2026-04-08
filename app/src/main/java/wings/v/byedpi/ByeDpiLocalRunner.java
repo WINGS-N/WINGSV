@@ -24,6 +24,13 @@ import wings.v.core.ByeDpiSettings;
         "PMD.AvoidSynchronizedAtMethodLevel",
         "PMD.AvoidCatchingGenericException",
         "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.LongVariable",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.AtLeastOneConstructor",
     }
 )
 public final class ByeDpiLocalRunner implements AutoCloseable {

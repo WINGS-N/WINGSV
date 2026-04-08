@@ -118,4 +118,5 @@ message XraySettings {
   string direct_dns = 5;
   optional bool ipv6 = 6;
   optional bool sniffing_enabled = 7;
+  optional bool proxy_quic_enabled = 8;
 }

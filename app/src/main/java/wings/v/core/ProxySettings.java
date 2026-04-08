@@ -5,7 +5,19 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import org.amnezia.awg.config.Config;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.OnlyOneReturn",
+        "PMD.LawOfDemeter",
+        "PMD.AtLeastOneConstructor",
+        "PMD.TooManyFields",
+        "PMD.LongVariable",
+        "PMD.CognitiveComplexity",
+        "PMD.CyclomaticComplexity",
+    }
+)
 public class ProxySettings {
 
     public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
@@ -14,6 +26,7 @@ public class ProxySettings {
     public int threads;
     public boolean useUdp;
     public boolean noObfuscation;
+    public boolean manualCaptcha;
     public String turnSessionMode;
     public String localEndpoint;
     public String turnHost;

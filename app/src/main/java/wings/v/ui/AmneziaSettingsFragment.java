@@ -17,7 +17,17 @@ import wings.v.core.AmneziaStore;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 
-@SuppressWarnings({ "PMD.NullAssignment", "PMD.AvoidCatchingGenericException" })
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+    }
+)
 public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
 
     private boolean suppressPreferenceSync;

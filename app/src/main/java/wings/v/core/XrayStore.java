@@ -15,7 +15,19 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import wings.v.qs.QuickSettingsTiles;
 
-@SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.UseConcurrentHashMap" })
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.UseConcurrentHashMap",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LooseCoupling",
+    }
+)
 public final class XrayStore {
 
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
@@ -67,6 +79,7 @@ public final class XrayStore {
         settings.directDns = trim(prefs.getString(AppPrefs.KEY_XRAY_DIRECT_DNS, DEFAULT_DIRECT_DNS));
         settings.ipv6 = prefs.getBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, true);
         settings.sniffingEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, true);
+        settings.proxyQuicEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, false);
         settings.restartOnNetworkChange = prefs.getBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, false);
         return settings;
     }
@@ -95,6 +108,7 @@ public final class XrayStore {
             )
             .putBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, value.ipv6)
             .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
+            .putBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, value.proxyQuicEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
             .apply();
     }

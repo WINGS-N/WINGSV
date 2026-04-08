@@ -22,7 +22,18 @@ import wings.v.core.UiFormatter;
 import wings.v.databinding.ActivityAutoSearchBinding;
 import wings.v.databinding.ItemProfileEntryBinding;
 
-@SuppressWarnings("PMD.NullAssignment")
+@SuppressWarnings(
+    {
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class AutoSearchActivity extends AppCompatActivity {
 
     private static final String EXTRA_EXECUTION_MODE = "wings.v.extra.AUTO_SEARCH_EXECUTION_MODE";

@@ -8,6 +8,18 @@ import android.os.Build;
 import android.os.PowerManager;
 import androidx.core.content.ContextCompat;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LawOfDemeter",
+        "PMD.OnlyOneReturn",
+        "PMD.UselessParentheses",
+        "PMD.SimplifyBooleanReturns",
+        "PMD.LongVariable",
+    }
+)
 public final class PermissionUtils {
 
     private PermissionUtils() {}

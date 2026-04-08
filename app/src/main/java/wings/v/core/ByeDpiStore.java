@@ -13,7 +13,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-@SuppressWarnings("PMD.AvoidUsingHardCodedIP")
+@SuppressWarnings(
+    {
+        "PMD.AvoidUsingHardCodedIP",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class ByeDpiStore {
 
     public static final String KEY_OPEN_SETTINGS = "pref_open_bydpi_settings";

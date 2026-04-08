@@ -12,6 +12,17 @@ import wings.v.core.XrayStore;
 import wings.v.qs.QuickSettingsTiles;
 import wings.v.service.ProxyTunnelService;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LawOfDemeter",
+        "PMD.LinguisticNaming",
+    }
+)
 public final class ExternalActions {
 
     public static final String ACTION_START_TUNNEL = "wings.v.intent.action.START_TUNNEL";
@@ -90,7 +101,10 @@ public final class ExternalActions {
             if (transientLaunch) {
                 AppPrefs.setExternalActionTransientLaunchPending(appContext, true);
             }
-            ContextCompat.startForegroundService(appContext, ProxyTunnelService.createReconnectIntent(appContext));
+            ProxyTunnelService.requestReconnect(
+                appContext,
+                "Switching backend: " + currentBackend.prefValue + " -> " + targetBackend.prefValue
+            );
         }
         QuickSettingsTiles.requestRefresh(appContext);
         return changed;

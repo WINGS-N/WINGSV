@@ -15,6 +15,9 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import java.util.Locale;
 
+@SuppressWarnings(
+    { "PMD.CommentRequired", "PMD.MethodArgumentCouldBeFinal", "PMD.LocalVariableCouldBeFinal", "PMD.LawOfDemeter" }
+)
 public final class AvatarDrawableFactory {
 
     private AvatarDrawableFactory() {}

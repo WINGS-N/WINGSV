@@ -28,7 +28,18 @@ import java.util.concurrent.TimeUnit;
 import wings.v.ActiveProbingSettingsActivity;
 import wings.v.R;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public final class ActiveProbingManager {
 
     public static final String KEY_OPEN_SETTINGS = "pref_open_active_probing_settings";

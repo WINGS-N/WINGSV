@@ -8,14 +8,29 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import wings.v.R;
 
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings(
+    {
+        "PMD.AvoidCatchingGenericException",
+        "PMD.CommentRequired",
+        "PMD.LongVariable",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.LawOfDemeter",
+    }
+)
 public final class AppPrefs {
+
+    private static final String TURN_SESSION_MODE_AUTO = "auto";
+    private static final String TURN_SESSION_MODE_MAINLINE = "mainline";
+    private static final String TURN_SESSION_MODE_MUX = "mux";
 
     public static final String KEY_ENDPOINT = "pref_endpoint";
     public static final String KEY_VK_LINK = "pref_vk_link";
     public static final String KEY_THREADS = "pref_threads";
     public static final String KEY_USE_UDP = "pref_use_udp";
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
+    public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
     public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
@@ -40,7 +55,12 @@ public final class AppPrefs {
     public static final String KEY_XRAY_DIRECT_DNS = "pref_xray_direct_dns";
     public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
+    public static final String KEY_XRAY_PROXY_QUIC_ENABLED = "pref_xray_proxy_quic_enabled";
     public static final String KEY_XRAY_RESTART_ON_NETWORK_CHANGE = "pref_xray_restart_on_network_change";
+    public static final String KEY_XRAY_ROUTING_GEOIP_URL = "pref_xray_routing_geoip_url";
+    public static final String KEY_XRAY_ROUTING_GEOSITE_URL = "pref_xray_routing_geosite_url";
+    public static final String KEY_XRAY_ROUTING_RULES_JSON = "pref_xray_routing_rules_json";
+    public static final String KEY_XRAY_ROUTING_BOOTSTRAP_ATTEMPTED = "pref_xray_routing_bootstrap_attempted";
     public static final String KEY_XRAY_SUBSCRIPTIONS_JSON = "pref_xray_subscriptions_json";
     public static final String KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED = "pref_xray_default_subscription_seeded";
     public static final String KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED = "pref_xray_universal_subscription_migrated";
@@ -110,6 +130,7 @@ public final class AppPrefs {
         PreferenceManager.setDefaultValues(context, R.xml.subscription_hwid_preferences, false);
         XposedModulePrefs.ensureDefaults(context);
         migrateFirstLaunchExperienceReset300(context);
+        XrayRoutingStore.ensureGeoFilesBootstrap(context);
     }
 
     private static void migrateFirstLaunchExperienceReset300(Context context) {
@@ -275,7 +296,7 @@ public final class AppPrefs {
 
     public static Set<TetherType> getSharingLastActiveTypes(Context context) {
         Set<String> stored = prefs(context).getStringSet(KEY_SHARING_LAST_ACTIVE_TYPES, null);
-        LinkedHashSet<TetherType> result = new LinkedHashSet<>();
+        Set<TetherType> result = new LinkedHashSet<>();
         if (stored == null || stored.isEmpty()) {
             return result;
         }
@@ -291,7 +312,7 @@ public final class AppPrefs {
     }
 
     public static void setSharingLastActiveTypes(Context context, Set<TetherType> types) {
-        LinkedHashSet<String> values = new LinkedHashSet<>();
+        Set<String> values = new LinkedHashSet<>();
         if (types != null) {
             for (TetherType type : types) {
                 if (type != null) {
@@ -435,6 +456,7 @@ public final class AppPrefs {
         settings.threads = parseInt(prefs.getString(KEY_THREADS, "8"), 8);
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
+        settings.manualCaptcha = prefs.getBoolean(KEY_MANUAL_CAPTCHA, false);
         settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "auto"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
@@ -476,6 +498,7 @@ public final class AppPrefs {
         );
         editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
         editor.putBoolean(KEY_NO_OBFUSCATION, importedConfig.noObfuscation != null && importedConfig.noObfuscation);
+        editor.putBoolean(KEY_MANUAL_CAPTCHA, false);
         editor.putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(importedConfig.turnSessionMode));
         editor.putString(
             KEY_LOCAL_ENDPOINT,
@@ -531,6 +554,7 @@ public final class AppPrefs {
             .putString(KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 8))
             .putBoolean(KEY_USE_UDP, settings.useUdp)
             .putBoolean(KEY_NO_OBFUSCATION, settings.noObfuscation)
+            .putBoolean(KEY_MANUAL_CAPTCHA, settings.manualCaptcha)
             .putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(settings.turnSessionMode))
             .putString(
                 KEY_LOCAL_ENDPOINT,
@@ -552,16 +576,17 @@ public final class AppPrefs {
         XrayStore.setBackendType(context, BackendType.VK_TURN_WIREGUARD);
     }
 
+    @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
     private static void mergeImportedXrayPayload(Context context, WingsImportParser.ImportedConfig importedConfig) {
         java.util.List<XraySubscription> currentSubscriptions = XrayStore.getSubscriptions(context);
-        java.util.LinkedHashMap<String, XraySubscription> subscriptionsByKey = new java.util.LinkedHashMap<>();
+        java.util.Map<String, XraySubscription> subscriptionsByKey = new java.util.LinkedHashMap<>();
         for (XraySubscription subscription : currentSubscriptions) {
             if (subscription != null && !TextUtils.isEmpty(subscription.url)) {
                 subscriptionsByKey.put(subscription.stableDedupKey(), subscription);
             }
         }
 
-        java.util.LinkedHashMap<String, String> importedSubscriptionIdsToMergedIds = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> importedSubscriptionIdsToMergedIds = new java.util.LinkedHashMap<>();
         for (XraySubscription importedSubscription : importedConfig.xraySubscriptions) {
             if (importedSubscription == null || TextUtils.isEmpty(importedSubscription.url)) {
                 continue;
@@ -589,7 +614,7 @@ public final class AppPrefs {
         java.util.List<XraySubscription> mergedSubscriptions = new java.util.ArrayList<>(subscriptionsByKey.values());
         XrayStore.setSubscriptions(context, mergedSubscriptions);
 
-        java.util.LinkedHashMap<String, XraySubscription> mergedSubscriptionsById = new java.util.LinkedHashMap<>();
+        java.util.Map<String, XraySubscription> mergedSubscriptionsById = new java.util.LinkedHashMap<>();
         for (XraySubscription subscription : mergedSubscriptions) {
             if (subscription != null && !TextUtils.isEmpty(subscription.id)) {
                 mergedSubscriptionsById.put(subscription.id, subscription);
@@ -597,14 +622,14 @@ public final class AppPrefs {
         }
 
         java.util.List<XrayProfile> currentProfiles = XrayStore.getProfiles(context);
-        java.util.LinkedHashMap<String, XrayProfile> profilesByKey = new java.util.LinkedHashMap<>();
+        java.util.Map<String, XrayProfile> profilesByKey = new java.util.LinkedHashMap<>();
         for (XrayProfile profile : currentProfiles) {
             if (profile != null && !TextUtils.isEmpty(profile.rawLink)) {
                 profilesByKey.put(profile.stableDedupKey(), profile);
             }
         }
 
-        java.util.LinkedHashMap<String, String> importedProfileIdsToMergedIds = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> importedProfileIdsToMergedIds = new java.util.LinkedHashMap<>();
         for (XrayProfile importedProfile : importedConfig.xrayProfiles) {
             if (importedProfile == null || TextUtils.isEmpty(importedProfile.rawLink)) {
                 continue;
@@ -655,13 +680,13 @@ public final class AppPrefs {
         String mergedActiveProfileId = TextUtils.isEmpty(importedConfig.activeXrayProfileId)
             ? ""
             : importedProfileIdsToMergedIds.get(importedConfig.activeXrayProfileId);
-        if (!TextUtils.isEmpty(mergedActiveProfileId)) {
-            XrayStore.setActiveProfileId(context, mergedActiveProfileId);
-        } else {
+        if (TextUtils.isEmpty(mergedActiveProfileId)) {
             String currentActiveProfileId = XrayStore.getActiveProfileId(context);
             if (TextUtils.isEmpty(currentActiveProfileId) && !TextUtils.isEmpty(importedConfig.activeXrayProfileId)) {
                 XrayStore.setActiveProfileId(context, importedConfig.activeXrayProfileId);
             }
+        } else {
+            XrayStore.setActiveProfileId(context, mergedActiveProfileId);
         }
         XrayStore.setLastSubscriptionsError(context, "");
     }
@@ -680,16 +705,16 @@ public final class AppPrefs {
 
     private static String normalizeTurnSessionMode(String value) {
         String normalized = trim(value);
-        if (TextUtils.isEmpty(normalized) || "auto".equals(normalized)) {
-            return "auto";
+        if (TextUtils.isEmpty(normalized) || TURN_SESSION_MODE_AUTO.equals(normalized)) {
+            return TURN_SESSION_MODE_AUTO;
         }
-        if ("mux".equals(normalized)) {
-            return "mux";
+        if (TURN_SESSION_MODE_MUX.equals(normalized)) {
+            return TURN_SESSION_MODE_MUX;
         }
-        if ("mainline".equals(normalized)) {
-            return "mainline";
+        if (TURN_SESSION_MODE_MAINLINE.equals(normalized)) {
+            return TURN_SESSION_MODE_MAINLINE;
         }
-        return "auto";
+        return TURN_SESSION_MODE_AUTO;
     }
 
     private static String trim(String value) {

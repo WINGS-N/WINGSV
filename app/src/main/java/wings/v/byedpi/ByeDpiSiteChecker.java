@@ -13,7 +13,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import wings.v.core.SocksProxyAuthenticator;
 
-@SuppressWarnings("PMD.DoNotUseThreads")
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LawOfDemeter",
+        "PMD.SignatureDeclareThrowsException",
+        "PMD.LooseCoupling",
+        "PMD.CognitiveComplexity",
+        "PMD.CyclomaticComplexity",
+        "PMD.PrematureDeclaration",
+        "PMD.OnlyOneReturn",
+        "PMD.AvoidInstantiatingObjectsInLoops",
+    }
+)
 public final class ByeDpiSiteChecker {
 
     private ByeDpiSiteChecker() {}

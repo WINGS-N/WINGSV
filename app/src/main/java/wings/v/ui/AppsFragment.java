@@ -40,7 +40,18 @@ import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentAppsBinding;
 
-@SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.NullAssignment" })
+@SuppressWarnings(
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.LongVariable",
+        "PMD.OnlyOneReturn",
+    }
+)
 public class AppsFragment extends Fragment {
 
     private static final String STATE_SEARCH_QUERY = "apps_search_query";

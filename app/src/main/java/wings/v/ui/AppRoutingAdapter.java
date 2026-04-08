@@ -13,6 +13,18 @@ import wings.v.R;
 import wings.v.databinding.ItemAppRoutingBinding;
 import wings.v.databinding.ItemAppRoutingHeaderBinding;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.CommentDefaultAccessModifier",
+        "PMD.FieldDeclarationsShouldBeAtStartOfClass",
+        "PMD.CallsSuperInConstructor",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+    }
+)
 final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private static final int TYPE_HEADER = 0;

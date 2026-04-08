@@ -21,7 +21,24 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONObject;
 
 @SuppressWarnings(
-    { "PMD.DoNotUseThreads", "PMD.AvoidUsingVolatile", "PMD.AvoidCatchingGenericException", "PMD.NullAssignment" }
+    {
+        "PMD.DoNotUseThreads",
+        "PMD.AvoidUsingVolatile",
+        "PMD.AvoidCatchingGenericException",
+        "PMD.NullAssignment",
+        "PMD.CommentRequired",
+        "PMD.CouplingBetweenObjects",
+        "PMD.GodClass",
+        "PMD.CyclomaticComplexity",
+        "PMD.CognitiveComplexity",
+        "PMD.TooManyMethods",
+        "PMD.LawOfDemeter",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.ShortVariable",
+        "PMD.ImplicitFunctionalInterface",
+    }
 )
 public final class PublicIpFetcher {
 

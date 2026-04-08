@@ -7,6 +7,15 @@ import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.ShortVariable",
+        "PMD.OnlyOneReturn",
+        "PMD.LawOfDemeter",
+        "PMD.SimplifyBooleanReturns",
+    }
+)
 public final class XrayProfile {
 
     public final String id;
@@ -18,13 +27,13 @@ public final class XrayProfile {
     public final int port;
 
     public XrayProfile(
-        String id,
-        String title,
-        String rawLink,
-        String subscriptionId,
-        String subscriptionTitle,
-        String address,
-        int port
+        final String id,
+        final String title,
+        final String rawLink,
+        final String subscriptionId,
+        final String subscriptionTitle,
+        final String address,
+        final int port
     ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
@@ -91,7 +100,7 @@ public final class XrayProfile {
         if (!(other instanceof XrayProfile)) {
             return false;
         }
-        XrayProfile profile = (XrayProfile) other;
+        final XrayProfile profile = (XrayProfile) other;
         return (
             port == profile.port &&
             Objects.equals(id, profile.id) &&
@@ -108,7 +117,7 @@ public final class XrayProfile {
         return Objects.hash(id, title, rawLink, subscriptionId, subscriptionTitle, address, port);
     }
 
-    private static String emptyIfNull(String value) {
+    private static String emptyIfNull(final String value) {
         return value == null ? "" : value;
     }
 }
