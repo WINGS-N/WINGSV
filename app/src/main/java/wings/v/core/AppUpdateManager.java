@@ -1,6 +1,7 @@
 package wings.v.core;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -49,11 +50,16 @@ import org.json.JSONObject;
 public final class AppUpdateManager {
 
     private static final int TIRAMISU_API = 33;
+    private static final String CACHE_PREFS_NAME = "app_update_cache";
     private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases/latest";
     private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
     private static final String PREFERRED_APK_ASSET_NAME = "app-release.apk";
+    private static final String KEY_LAST_CHECK_AT = "last_check_at";
+    private static final String KEY_LAST_RELEASE_ETAG = "last_release_etag";
+    private static final String KEY_LAST_RELEASE_JSON = "last_release_json";
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 30_000;
+    private static final long AUTO_CHECK_MIN_INTERVAL_MS = 60L * 60L * 1000L;
     private static final long MIN_CONTENT_LENGTH_BYTES = 1L;
     private static final long PROGRESS_UPDATE_INTERVAL_MS = 250L;
     private static final Pattern VERSION_NUMBER_PATTERN = Pattern.compile("\\d+");
@@ -61,18 +67,21 @@ public final class AppUpdateManager {
     private static volatile AppUpdateManager instance;
 
     private final Context appContext;
+    private final SharedPreferences cachePreferences;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final java.util.Set<Listener> listeners = new CopyOnWriteArraySet<>();
     private final AtomicReference<HttpURLConnection> activeConnection = new AtomicReference<>();
 
-    private volatile UpdateState state = UpdateState.idle();
+    private volatile UpdateState state;
     private volatile boolean checkInFlight;
     private volatile boolean downloadInFlight;
     private volatile boolean cancelRequested;
 
     private AppUpdateManager(Context context) {
         this.appContext = context.getApplicationContext();
+        this.cachePreferences = appContext.getSharedPreferences(CACHE_PREFS_NAME, Context.MODE_PRIVATE);
+        this.state = loadPersistedState();
     }
 
     public static AppUpdateManager getInstance(Context context) {
@@ -101,14 +110,29 @@ public final class AppUpdateManager {
     }
 
     public void checkForUpdates() {
+        requestUpdateCheck(true);
+    }
+
+    public void checkForUpdatesIfStale() {
+        requestUpdateCheck(false);
+    }
+
+    private void requestUpdateCheck(boolean forceRefresh) {
         if (checkInFlight || downloadInFlight) {
             return;
+        }
+        if (!forceRefresh) {
+            UpdateState cachedState = resolveFreshCachedState();
+            if (cachedState != null) {
+                updateState(cachedState);
+                return;
+            }
         }
         checkInFlight = true;
         updateState(UpdateState.checking(state.releaseInfo));
         executor.execute(() -> {
             try {
-                updateState(resolveLatestState(true));
+                updateState(resolveLatestState(true, forceRefresh));
             } catch (Exception error) {
                 updateState(UpdateState.error(describeThrowable(error), state.releaseInfo));
             } finally {
@@ -120,7 +144,7 @@ public final class AppUpdateManager {
     @NonNull
     public UpdateState queryLatestStateBlocking() {
         try {
-            return resolveLatestState(false);
+            return resolveLatestState(false, false);
         } catch (Exception error) {
             return UpdateState.error(describeThrowable(error), state.releaseInfo);
         }
@@ -269,11 +293,26 @@ public final class AppUpdateManager {
     }
 
     @NonNull
-    private UpdateState resolveLatestState(boolean trackActiveConnection) throws Exception {
+    private UpdateState resolveLatestState(boolean trackActiveConnection, boolean forceRefresh) throws Exception {
+        if (!forceRefresh) {
+            UpdateState cachedState = resolveFreshCachedState();
+            if (cachedState != null) {
+                return cachedState;
+            }
+        }
         ReleaseInfo releaseInfo = fetchLatestRelease(trackActiveConnection);
         if (releaseInfo == null) {
+            ReleaseInfo cachedRelease = readCachedReleaseInfo();
+            if (cachedRelease != null) {
+                return buildStateFromReleaseInfo(cachedRelease);
+            }
             return UpdateState.error("GitHub не вернул опубликованный релиз", null);
         }
+        return buildStateFromReleaseInfo(releaseInfo);
+    }
+
+    @NonNull
+    private UpdateState buildStateFromReleaseInfo(@NonNull ReleaseInfo releaseInfo) {
         if (!releaseInfo.hasInstallableAsset()) {
             return UpdateState.error("В релизе не найден APK-артефакт", releaseInfo);
         }
@@ -291,6 +330,10 @@ public final class AppUpdateManager {
     @Nullable
     private ReleaseInfo fetchLatestRelease(boolean trackActiveConnection) throws Exception {
         HttpURLConnection connection = openConnection(RELEASES_URL);
+        String cachedEtag = cachePreferences.getString(KEY_LAST_RELEASE_ETAG, "");
+        if (!TextUtils.isEmpty(cachedEtag)) {
+            connection.setRequestProperty("If-None-Match", cachedEtag);
+        }
         if (trackActiveConnection) {
             activeConnection.set(connection);
         }
@@ -298,7 +341,19 @@ public final class AppUpdateManager {
             connection.connect();
             int responseCode = connection.getResponseCode();
             String body = readResponseBody(connection);
+            if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
+                persistLastCheckedAt();
+                return readCachedReleaseInfo();
+            }
             if (responseCode < 200 || responseCode >= 400) {
+                if (isRateLimitResponse(connection, body)) {
+                    persistLastCheckedAt();
+                    ReleaseInfo cachedRelease = readCachedReleaseInfo();
+                    if (cachedRelease != null) {
+                        return cachedRelease;
+                    }
+                    throw new IllegalStateException("GitHub API rate limit exceeded");
+                }
                 String message = extractGithubMessage(body);
                 if (TextUtils.isEmpty(message)) {
                     message = "GitHub releases HTTP " + responseCode;
@@ -306,50 +361,117 @@ public final class AppUpdateManager {
                 throw new IllegalStateException(message);
             }
 
-            JSONObject root = new JSONObject(body);
-            JSONArray assets = root.optJSONArray("assets");
-            String selectedAssetName = "";
-            String selectedAssetUrl = "";
-            long selectedAssetSize = 0L;
-            if (assets != null) {
-                for (int index = 0; index < assets.length(); index++) {
-                    JSONObject asset = assets.optJSONObject(index);
-                    if (asset == null) {
-                        continue;
-                    }
-                    String assetName = asset.optString("name", "");
-                    String assetUrl = asset.optString("browser_download_url", "");
-                    if (TextUtils.isEmpty(assetName) || TextUtils.isEmpty(assetUrl)) {
-                        continue;
-                    }
-                    if (!assetName.toLowerCase(Locale.US).endsWith(".apk")) {
-                        continue;
-                    }
-                    selectedAssetName = assetName;
-                    selectedAssetUrl = assetUrl;
-                    selectedAssetSize = asset.optLong("size", 0L);
-                    if (PREFERRED_APK_ASSET_NAME.equals(assetName)) {
-                        break;
-                    }
-                }
-            }
-
-            return new ReleaseInfo(
-                root.optString("tag_name", ""),
-                root.optString("name", ""),
-                root.optString("html_url", ""),
-                root.optString("body", ""),
-                root.optString("published_at", ""),
-                selectedAssetName,
-                selectedAssetUrl,
-                selectedAssetSize
-            );
+            ReleaseInfo releaseInfo = parseReleaseInfo(new JSONObject(body));
+            persistReleaseCache(body, connection.getHeaderField("ETag"));
+            return releaseInfo;
         } finally {
             connection.disconnect();
             if (trackActiveConnection) {
                 activeConnection.compareAndSet(connection, null);
             }
         }
+    }
+
+    @Nullable
+    private UpdateState resolveFreshCachedState() {
+        if (isAutoCheckStale()) {
+            return null;
+        }
+        ReleaseInfo cachedRelease = readCachedReleaseInfo();
+        if (cachedRelease == null) {
+            return null;
+        }
+        return buildStateFromReleaseInfo(cachedRelease);
+    }
+
+    private boolean isAutoCheckStale() {
+        long lastCheckAt = cachePreferences.getLong(KEY_LAST_CHECK_AT, 0L);
+        return lastCheckAt <= 0L || System.currentTimeMillis() - lastCheckAt >= AUTO_CHECK_MIN_INTERVAL_MS;
+    }
+
+    private void persistLastCheckedAt() {
+        cachePreferences.edit().putLong(KEY_LAST_CHECK_AT, System.currentTimeMillis()).apply();
+    }
+
+    private void persistReleaseCache(@Nullable String releaseJson, @Nullable String etag) {
+        cachePreferences
+            .edit()
+            .putLong(KEY_LAST_CHECK_AT, System.currentTimeMillis())
+            .putString(KEY_LAST_RELEASE_JSON, releaseJson == null ? "" : releaseJson)
+            .putString(KEY_LAST_RELEASE_ETAG, etag == null ? "" : etag)
+            .apply();
+    }
+
+    @Nullable
+    private ReleaseInfo readCachedReleaseInfo() {
+        String cachedJson = cachePreferences.getString(KEY_LAST_RELEASE_JSON, "");
+        if (TextUtils.isEmpty(cachedJson)) {
+            return null;
+        }
+        try {
+            return parseReleaseInfo(new JSONObject(cachedJson));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @NonNull
+    private UpdateState loadPersistedState() {
+        ReleaseInfo cachedRelease = readCachedReleaseInfo();
+        if (cachedRelease == null) {
+            return UpdateState.idle();
+        }
+        return buildStateFromReleaseInfo(cachedRelease);
+    }
+
+    private static boolean isRateLimitResponse(HttpURLConnection connection, String body) {
+        String message = extractGithubMessage(body);
+        if (!TextUtils.isEmpty(message) && message.toLowerCase(Locale.US).contains("rate limit")) {
+            return true;
+        }
+        String remaining = connection.getHeaderField("X-RateLimit-Remaining");
+        return "0".equals(remaining);
+    }
+
+    @NonNull
+    private static ReleaseInfo parseReleaseInfo(@NonNull JSONObject root) {
+        JSONArray assets = root.optJSONArray("assets");
+        String selectedAssetName = "";
+        String selectedAssetUrl = "";
+        long selectedAssetSize = 0L;
+        if (assets != null) {
+            for (int index = 0; index < assets.length(); index++) {
+                JSONObject asset = assets.optJSONObject(index);
+                if (asset == null) {
+                    continue;
+                }
+                String assetName = asset.optString("name", "");
+                String assetUrl = asset.optString("browser_download_url", "");
+                if (TextUtils.isEmpty(assetName) || TextUtils.isEmpty(assetUrl)) {
+                    continue;
+                }
+                if (!assetName.toLowerCase(Locale.US).endsWith(".apk")) {
+                    continue;
+                }
+                selectedAssetName = assetName;
+                selectedAssetUrl = assetUrl;
+                selectedAssetSize = asset.optLong("size", 0L);
+                if (PREFERRED_APK_ASSET_NAME.equals(assetName)) {
+                    break;
+                }
+            }
+        }
+
+        return new ReleaseInfo(
+            root.optString("tag_name", ""),
+            root.optString("name", ""),
+            root.optString("html_url", ""),
+            root.optString("body", ""),
+            root.optString("published_at", ""),
+            selectedAssetName,
+            selectedAssetUrl,
+            selectedAssetSize
+        );
     }
 
     private static String readResponseBody(HttpURLConnection connection) throws Exception {

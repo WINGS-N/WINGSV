@@ -23,6 +23,7 @@ import wings.v.core.WingsImportParser;
 import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentFirstLaunchXrayBinding;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -209,6 +210,7 @@ public class FirstLaunchXrayFragment extends Fragment {
                 return;
             }
             AppPrefs.applyImportedConfig(context, importedConfig);
+            requestReconnectAfterImport(context, text);
             loadSettings(XrayStore.getXraySettings(context));
             Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
             if (getActivity() instanceof Host) {
@@ -217,6 +219,17 @@ public class FirstLaunchXrayFragment extends Fragment {
         } catch (Exception ignored) {
             Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void requestReconnectAfterImport(Context context, @Nullable String importedText) {
+        if (!ProxyTunnelService.isActive()) {
+            return;
+        }
+        String normalized = importedText == null ? "" : importedText.trim().toLowerCase();
+        String reason = normalized.startsWith("vless://")
+            ? "Imported vless configuration applied"
+            : "Imported wingsv configuration applied";
+        ProxyTunnelService.requestReconnect(context, reason);
     }
 
     private void saveAndContinue() {

@@ -1,5 +1,6 @@
 package wings.v.ui;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
@@ -22,7 +23,9 @@ import wings.v.ExternalActions;
 import wings.v.FirstLaunchActivity;
 import wings.v.ProxyLogsActivity;
 import wings.v.R;
+import wings.v.RootInterfaceSettingsActivity;
 import wings.v.SubscriptionsActivity;
+import wings.v.VkTurnSettingsActivity;
 import wings.v.XposedSettingsActivity;
 import wings.v.XraySettingsActivity;
 import wings.v.core.ActiveProbingManager;
@@ -68,39 +71,6 @@ import wings.v.core.XrayStore;
 public class SettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
-    private static final String[] VK_PROXY_PREFERENCE_KEYS = {
-        AppPrefs.KEY_ENDPOINT,
-        AppPrefs.KEY_VK_LINK,
-        AppPrefs.KEY_THREADS,
-        AppPrefs.KEY_USE_UDP,
-        AppPrefs.KEY_NO_OBFUSCATION,
-        AppPrefs.KEY_MANUAL_CAPTCHA,
-        AppPrefs.KEY_TURN_SESSION_MODE,
-        AppPrefs.KEY_LOCAL_ENDPOINT,
-        AppPrefs.KEY_TURN_HOST,
-        AppPrefs.KEY_TURN_PORT,
-        "pref_inset_after_backend",
-        "pref_inset_after_vk_proxy",
-        "pref_category_vk_proxy",
-    };
-    private static final String[] WG_BACKEND_PREFERENCE_KEYS = {
-        AppPrefs.KEY_WG_PRIVATE_KEY,
-        AppPrefs.KEY_WG_ADDRESSES,
-        AppPrefs.KEY_WG_DNS,
-        AppPrefs.KEY_WG_MTU,
-        AppPrefs.KEY_WG_PUBLIC_KEY,
-        AppPrefs.KEY_WG_PRESHARED_KEY,
-        AppPrefs.KEY_WG_ALLOWED_IPS,
-        "pref_inset_after_wg_interface",
-        "pref_inset_after_wg_peer",
-        "pref_category_wg_interface",
-        "pref_category_wg_peer",
-    };
-    private static final String[] AWG_BACKEND_PREFERENCE_KEYS = {
-        AmneziaStore.KEY_OPEN_SETTINGS,
-        "pref_category_awg",
-        "pref_inset_after_awg",
-    };
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private AppUpdateManager appUpdateManager;
     private final AppUpdateManager.Listener updateStateListener = this::refreshAboutPreferenceBadge;
@@ -232,6 +202,19 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference vkTurnSettingsPreference = findPreference(AppPrefs.KEY_OPEN_VK_TURN_SETTINGS);
+        if (vkTurnSettingsPreference != null) {
+            vkTurnSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                BackendType backendType = XrayStore.getBackendType(requireContext());
+                if (!backendType.isVkTurnLike()) {
+                    return true;
+                }
+                startActivity(VkTurnSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         Preference byeDpiSettingsPreference = findPreference(ByeDpiStore.KEY_OPEN_SETTINGS);
         if (byeDpiSettingsPreference != null) {
             byeDpiSettingsPreference.setOnPreferenceClickListener(preference -> {
@@ -262,15 +245,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
-        Preference amneziaSettingsPreference = findPreference(AmneziaStore.KEY_OPEN_SETTINGS);
-        if (amneziaSettingsPreference != null) {
-            amneziaSettingsPreference.setOnPreferenceClickListener(preference -> {
-                Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                startActivity(AmneziaSettingsActivity.createIntent(requireContext()));
-                return true;
-            });
-        }
-
         Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
         if (xposedSettingsPreference != null) {
             xposedSettingsPreference.setOnPreferenceClickListener(preference -> {
@@ -283,17 +257,31 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference rootInterfaceSettingsPreference = findPreference(AppPrefs.KEY_OPEN_ROOT_INTERFACE_SETTINGS);
+        if (rootInterfaceSettingsPreference != null) {
+            rootInterfaceSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(RootInterfaceSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         configureRootPreferences();
         configureXrayPreferences(XrayStore.getBackendType(requireContext()));
         syncPreferenceValuesFromPrefs();
     }
 
     private void configureRootPreferences() {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
         PreferenceCategory rootCategory = findPreference("pref_category_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
+        Preference rootInterfaceSettingsPreference = findPreference(AppPrefs.KEY_OPEN_ROOT_INTERFACE_SETTINGS);
         Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
-        boolean rootGranted = AppPrefs.isRootAccessGranted(requireContext());
+        boolean rootGranted = AppPrefs.isRootAccessGranted(context);
         if (rootCategory != null) {
             rootCategory.setVisible(rootGranted);
         }
@@ -303,6 +291,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (!rootGranted) {
             rootModePreference.setVisible(false);
             kernelWireGuardPreference.setVisible(false);
+            if (rootInterfaceSettingsPreference != null) {
+                rootInterfaceSettingsPreference.setVisible(false);
+            }
             if (xposedSettingsPreference != null) {
                 xposedSettingsPreference.setVisible(false);
             }
@@ -311,13 +302,17 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         rootModePreference.setVisible(true);
         kernelWireGuardPreference.setVisible(true);
+        if (rootInterfaceSettingsPreference != null) {
+            rootInterfaceSettingsPreference.setVisible(true);
+            rootInterfaceSettingsPreference.setEnabled(true);
+        }
         if (xposedSettingsPreference != null) {
-            boolean rootModeEnabled = AppPrefs.isRootModeEnabled(requireContext());
+            boolean rootModeEnabled = AppPrefs.isRootModeEnabled(context);
             xposedSettingsPreference.setVisible(rootModeEnabled);
             xposedSettingsPreference.setEnabled(rootModeEnabled);
         }
-        BackendType backendType = XrayStore.getBackendType(requireContext());
-        String unavailableReason = RootUtils.getRootModeUnavailableReason(requireContext(), backendType, false);
+        BackendType backendType = XrayStore.getBackendType(context);
+        String unavailableReason = RootUtils.getRootModeUnavailableReason(context, backendType, false);
         boolean supported = TextUtils.isEmpty(unavailableReason);
         rootModePreference.setEnabled(supported);
         rootModePreference.setSummary(
@@ -330,14 +325,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             if (!(newValue instanceof Boolean) || !(Boolean) newValue) {
                 return true;
             }
+            Context preferenceContext = preference.getContext();
             String reason = RootUtils.getRootModeUnavailableReason(
-                requireContext(),
-                XrayStore.getBackendType(requireContext()),
+                preferenceContext,
+                XrayStore.getBackendType(preferenceContext),
                 false
             );
             if (!TextUtils.isEmpty(reason)) {
                 Toast.makeText(
-                    requireContext(),
+                    preferenceContext,
                     getString(R.string.root_mode_unavailable, reason),
                     Toast.LENGTH_SHORT
                 ).show();
@@ -346,11 +342,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return true;
         });
 
-        String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
-            requireContext(),
-            backendType,
-            false
-        );
+        String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(context, backendType, false);
         boolean kernelSupported = TextUtils.isEmpty(kernelUnavailableReason);
         kernelWireGuardPreference.setEnabled(kernelSupported);
         kernelWireGuardPreference.setSummary(
@@ -363,14 +355,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             if (!(newValue instanceof Boolean) || !(Boolean) newValue) {
                 return true;
             }
+            Context preferenceContext = preference.getContext();
             String reason = RootUtils.getKernelWireGuardUnavailableReason(
-                requireContext(),
-                XrayStore.getBackendType(requireContext()),
+                preferenceContext,
+                XrayStore.getBackendType(preferenceContext),
                 false
             );
             if (!TextUtils.isEmpty(reason)) {
                 Toast.makeText(
-                    requireContext(),
+                    preferenceContext,
                     getString(R.string.kernel_wireguard_unavailable, reason),
                     Toast.LENGTH_SHORT
                 ).show();
@@ -381,24 +374,20 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void configureXrayPreferences() {
-        configureXrayPreferences(XrayStore.getBackendType(requireContext()));
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        configureXrayPreferences(XrayStore.getBackendType(context));
     }
 
     private void configureXrayPreferences(@Nullable BackendType backendType) {
         boolean xrayBackend = backendType == BackendType.XRAY;
-        boolean awgBackend = backendType == BackendType.AMNEZIAWG;
+        boolean vkTurnLikeBackend = backendType != null && backendType.isVkTurnLike();
         Preference subscriptionsPreference = findPreference("pref_open_subscriptions");
         Preference xraySettingsPreference = findPreference("pref_open_xray_settings");
+        Preference vkTurnSettingsPreference = findPreference(AppPrefs.KEY_OPEN_VK_TURN_SETTINGS);
         Preference byeDpiSettingsPreference = findPreference(ByeDpiStore.KEY_OPEN_SETTINGS);
-        for (String key : VK_PROXY_PREFERENCE_KEYS) {
-            setPreferenceVisible(key, !xrayBackend);
-        }
-        for (String key : WG_BACKEND_PREFERENCE_KEYS) {
-            setPreferenceVisible(key, !xrayBackend && !awgBackend);
-        }
-        for (String key : AWG_BACKEND_PREFERENCE_KEYS) {
-            setPreferenceVisible(key, awgBackend);
-        }
         if (subscriptionsPreference != null) {
             subscriptionsPreference.setVisible(xrayBackend);
         }
@@ -406,6 +395,23 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             xraySettingsPreference.setVisible(xrayBackend);
             xraySettingsPreference.setEnabled(xrayBackend);
             xraySettingsPreference.setSummary(getString(R.string.drawer_xray_settings_summary));
+        }
+        if (vkTurnSettingsPreference != null) {
+            vkTurnSettingsPreference.setVisible(vkTurnLikeBackend);
+            vkTurnSettingsPreference.setEnabled(vkTurnLikeBackend);
+            if (backendType == BackendType.WIREGUARD) {
+                vkTurnSettingsPreference.setTitle(getString(R.string.wireguard_settings_title));
+                vkTurnSettingsPreference.setSummary(getString(R.string.wireguard_settings_summary));
+            } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+                vkTurnSettingsPreference.setTitle(getString(R.string.amneziawg_settings_title));
+                vkTurnSettingsPreference.setSummary(getString(R.string.amneziawg_settings_summary));
+            } else if (backendType == BackendType.AMNEZIAWG) {
+                vkTurnSettingsPreference.setTitle(getString(R.string.vk_turn_awg_settings_title));
+                vkTurnSettingsPreference.setSummary(getString(R.string.vk_turn_awg_settings_summary));
+            } else {
+                vkTurnSettingsPreference.setTitle(getString(R.string.vk_turn_settings_title));
+                vkTurnSettingsPreference.setSummary(getString(R.string.vk_turn_settings_summary));
+            }
         }
         if (byeDpiSettingsPreference != null) {
             byeDpiSettingsPreference.setVisible(true);
@@ -529,7 +535,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void syncPreferenceValuesFromPrefs() {
-        ProxySettings settings = AppPrefs.getSettings(requireContext());
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        ProxySettings settings = AppPrefs.getSettings(context);
 
         syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
         syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
@@ -548,10 +558,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
         syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
         syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
-        syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(requireContext()));
-        syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(requireContext()));
-        syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(requireContext()));
-        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(requireContext()).prefValue);
+        syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(context));
+        syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
+        syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
+        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
     }
 
     private void syncEditTextPreference(String key, @Nullable String value) {
@@ -583,11 +593,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         preference.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
         if (AppPrefs.KEY_BACKEND_TYPE.equals(key)) {
             preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
-                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                if (getListView() != null) {
+                    Haptics.softSelection(getListView());
+                } else if (getView() != null) {
+                    Haptics.softSelection(getView());
+                }
                 BackendType nextBackend = BackendType.fromPrefValue(newValue == null ? null : String.valueOf(newValue));
-                ExternalActions.setBackend(requireContext(), nextBackend, true, false);
-                configureRootPreferences();
-                configureXrayPreferences(nextBackend);
+                ExternalActions.setBackend(changedPreference.getContext(), nextBackend, true, false);
                 return true;
             });
         }

@@ -118,6 +118,16 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".VkTurnSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".RootInterfaceSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".XrayRoutingSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
@@ -236,6 +246,15 @@
 
         <service
             android:name=".service.XrayVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".service.EmergencyVpnResetService"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:exported="false">
             <intent-filter>

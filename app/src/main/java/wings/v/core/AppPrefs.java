@@ -5,7 +5,9 @@ import android.content.SharedPreferences;
 import android.text.TextUtils;
 import androidx.preference.PreferenceManager;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 import wings.v.R;
 
 @SuppressWarnings(
@@ -24,6 +26,10 @@ public final class AppPrefs {
     private static final String TURN_SESSION_MODE_AUTO = "auto";
     private static final String TURN_SESSION_MODE_MAINLINE = "mainline";
     private static final String TURN_SESSION_MODE_MUX = "mux";
+    private static final String DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME = "wingsv-{{hex}}";
+    private static final int MAX_INTERFACE_NAME_LENGTH = 15;
+    private static final String HEX_PLACEHOLDER = "{{hex}}";
+    private static final Pattern INTERFACE_NAME_PATTERN = Pattern.compile("[A-Za-z0-9_.-]+");
 
     public static final String KEY_ENDPOINT = "pref_endpoint";
     public static final String KEY_VK_LINK = "pref_vk_link";
@@ -44,6 +50,9 @@ public final class AppPrefs {
     public static final String KEY_WG_ALLOWED_IPS = "pref_wg_allowed_ips";
     public static final String KEY_AWG_QUICK_CONFIG = "pref_awg_quick_config";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
+    public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
+    public static final String KEY_OPEN_ROOT_INTERFACE_SETTINGS = "pref_open_root_interface_settings";
+    public static final String KEY_ROOT_WIREGUARD_INTERFACE_NAME = "pref_root_wg_interface_name";
     public static final String KEY_XRAY_ALLOW_LAN = "pref_xray_allow_lan";
     public static final String KEY_XRAY_ALLOW_INSECURE = "pref_xray_allow_insecure";
     public static final String KEY_XRAY_LOCAL_PROXY_ENABLED = "pref_xray_local_proxy_enabled";
@@ -123,6 +132,8 @@ public final class AppPrefs {
 
     public static void ensureDefaults(Context context) {
         PreferenceManager.setDefaultValues(context, R.xml.proxy_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.vk_turn_preferences, false);
+        PreferenceManager.setDefaultValues(context, R.xml.root_interface_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.xray_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.amnezia_preferences, false);
         PreferenceManager.setDefaultValues(context, R.xml.active_probing_preferences, false);
@@ -203,6 +214,55 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_KERNEL_WIREGUARD, enabled).apply();
     }
 
+    public static String getRootWireGuardInterfaceNameTemplate(Context context) {
+        SharedPreferences preferences = prefs(context);
+        String value = preferences.getString(KEY_ROOT_WIREGUARD_INTERFACE_NAME, DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME);
+        return normalizeInterfaceName(value, DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME, true);
+    }
+
+    public static String normalizeRootWireGuardInterfaceNameTemplate(String value) {
+        return normalizeInterfaceName(value, DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME, true);
+    }
+
+    public static boolean isValidRootWireGuardInterfaceNameTemplate(String value) {
+        return isValidInterfaceName(value, true);
+    }
+
+    public static String resolveRootWireGuardInterfaceName(Context context, long suffix) {
+        return resolveInterfaceNameTemplate(getRootWireGuardInterfaceNameTemplate(context), suffix);
+    }
+
+    public static boolean matchesManagedRootWireGuardInterfaceName(Context context, String interfaceName) {
+        String normalizedName = trim(interfaceName);
+        if (TextUtils.isEmpty(normalizedName)) {
+            return false;
+        }
+        if (matchesLegacyManagedRootWireGuardInterfaceName(normalizedName)) {
+            return true;
+        }
+        String template = getRootWireGuardInterfaceNameTemplate(context);
+        if (!template.contains(HEX_PLACEHOLDER)) {
+            return TextUtils.equals(template, normalizedName);
+        }
+        int placeholderIndex = template.indexOf(HEX_PLACEHOLDER);
+        String prefix = template.substring(0, placeholderIndex);
+        String suffix = template.substring(placeholderIndex + HEX_PLACEHOLDER.length());
+        if (!normalizedName.startsWith(prefix) || !normalizedName.endsWith(suffix)) {
+            return false;
+        }
+        String hexPart = normalizedName.substring(prefix.length(), normalizedName.length() - suffix.length());
+        if (TextUtils.isEmpty(hexPart)) {
+            return false;
+        }
+        for (int index = 0; index < hexPart.length(); index++) {
+            char symbol = Character.toLowerCase(hexPart.charAt(index));
+            if ((symbol < '0' || symbol > '9') && (symbol < 'a' || symbol > 'f')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static boolean isRootAccessGranted(Context context) {
         return prefs(context).getBoolean(KEY_ROOT_ACCESS_GRANTED, false);
     }
@@ -276,6 +336,73 @@ public final class AppPrefs {
 
     public static void clearRuntimeUpstreamState(Context context) {
         prefs(context).edit().remove(KEY_RUNTIME_UPSTREAM_INTERFACE).remove(KEY_RUNTIME_UPSTREAM_ROOT_DNS).apply();
+    }
+
+    private static String normalizeInterfaceName(String value, String defaultValue, boolean allowHexPlaceholder) {
+        String normalized = trim(value);
+        if (TextUtils.isEmpty(normalized)) {
+            return defaultValue;
+        }
+        return isValidInterfaceName(normalized, allowHexPlaceholder) ? normalized : defaultValue;
+    }
+
+    private static boolean isValidInterfaceName(String value, boolean allowHexPlaceholder) {
+        String normalized = trim(value);
+        if (TextUtils.isEmpty(normalized)) {
+            return false;
+        }
+        String candidate = normalized;
+        if (allowHexPlaceholder) {
+            int firstPlaceholderIndex = candidate.indexOf(HEX_PLACEHOLDER);
+            int lastPlaceholderIndex = candidate.lastIndexOf(HEX_PLACEHOLDER);
+            if (firstPlaceholderIndex != lastPlaceholderIndex) {
+                return false;
+            }
+            if (firstPlaceholderIndex >= 0) {
+                candidate = candidate.replace(HEX_PLACEHOLDER, "ffffff");
+            }
+            if (
+                candidate.contains("<") || candidate.contains(">") || candidate.contains("{") || candidate.contains("}")
+            ) {
+                return false;
+            }
+        } else if (
+            candidate.contains("<") || candidate.contains(">") || candidate.contains("{") || candidate.contains("}")
+        ) {
+            return false;
+        }
+        if (candidate.length() > MAX_INTERFACE_NAME_LENGTH) {
+            return false;
+        }
+        return INTERFACE_NAME_PATTERN.matcher(candidate).matches();
+    }
+
+    private static String resolveInterfaceNameTemplate(String template, long suffix) {
+        String normalizedTemplate = normalizeInterfaceName(template, DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME, true);
+        if (!normalizedTemplate.contains(HEX_PLACEHOLDER)) {
+            return normalizedTemplate;
+        }
+        String hexSuffix = Long.toHexString(Math.max(0L, suffix) & 0xFFFFFFL).toLowerCase(Locale.ROOT);
+        return normalizedTemplate.replace(HEX_PLACEHOLDER, hexSuffix);
+    }
+
+    private static boolean matchesLegacyManagedRootWireGuardInterfaceName(String interfaceName) {
+        if (TextUtils.isEmpty(interfaceName) || !interfaceName.startsWith("wingsv")) {
+            return false;
+        }
+        String suffix = interfaceName.startsWith("wingsv-")
+            ? interfaceName.substring("wingsv-".length())
+            : interfaceName.substring("wingsv".length());
+        if (TextUtils.isEmpty(suffix)) {
+            return false;
+        }
+        for (int index = 0; index < suffix.length(); index++) {
+            char symbol = Character.toLowerCase(suffix.charAt(index));
+            if ((symbol < '0' || symbol > '9') && (symbol < 'a' || symbol > 'f')) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static boolean isAutoStartOnBootEnabled(Context context) {
@@ -485,6 +612,7 @@ public final class AppPrefs {
             importedConfig.backendType != null ? importedConfig.backendType : BackendType.VK_TURN_WIREGUARD;
         if (backendType == BackendType.XRAY && importedConfig.xrayMergeOnly) {
             mergeImportedXrayPayload(context, importedConfig);
+            ActiveProbingManager.clearRestoreBackend(context);
             XrayStore.setBackendType(context, BackendType.XRAY);
             return;
         }
@@ -526,12 +654,13 @@ public final class AppPrefs {
         );
         editor.apply();
 
-        if (backendType == BackendType.AMNEZIAWG) {
+        if (backendType != null && backendType.usesAmneziaSettings()) {
             try {
                 AmneziaStore.applyRawConfig(context, importedConfig.awgQuickConfig);
             } catch (Exception ignored) {}
         }
 
+        ActiveProbingManager.clearRestoreBackend(context);
         XrayStore.setBackendType(context, backendType);
         if (backendType == BackendType.XRAY) {
             XrayStore.setXraySettings(context, importedConfig.xraySettings);

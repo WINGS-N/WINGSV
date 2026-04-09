@@ -262,7 +262,7 @@ public class HomeFragment extends Fragment {
             }
             return getString(R.string.backend_xray_title);
         }
-        if (settings.backendType == BackendType.AMNEZIAWG) {
+        if (settings.backendType != null && settings.backendType.usesAmneziaSettings()) {
             if (!TextUtils.isEmpty(settings.endpoint)) {
                 return settings.endpoint;
             }
@@ -270,7 +270,17 @@ public class HomeFragment extends Fragment {
             if (!TextUtils.isEmpty(endpoint)) {
                 return endpoint;
             }
-            return getString(R.string.backend_amneziawg_title);
+            return getString(
+                settings.backendType == BackendType.AMNEZIAWG
+                    ? R.string.backend_amneziawg_title
+                    : R.string.backend_amneziawg_plain_title
+            );
+        }
+        if (settings.backendType == BackendType.WIREGUARD) {
+            if (!TextUtils.isEmpty(settings.endpoint)) {
+                return settings.endpoint;
+            }
+            return getString(R.string.backend_wireguard_title);
         }
         if (!TextUtils.isEmpty(settings.endpoint)) {
             return settings.endpoint;
@@ -408,12 +418,24 @@ public class HomeFragment extends Fragment {
                 text != null ? text.toString() : null
             );
             AppPrefs.applyImportedConfig(context, importedConfig);
+            requestReconnectAfterImport(context, text != null ? text.toString() : null);
             Haptics.softConfirm(binding.buttonImportClipboard);
             Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
             refreshUi();
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void requestReconnectAfterImport(Context context, @Nullable String importedText) {
+        if (!ProxyTunnelService.isActive()) {
+            return;
+        }
+        String normalized = importedText == null ? "" : importedText.trim().toLowerCase();
+        String reason = normalized.startsWith("vless://")
+            ? "Imported vless configuration applied"
+            : "Imported wingsv configuration applied";
+        ProxyTunnelService.requestReconnect(context, reason);
     }
 
     private void copyCurrentConfiguration() {

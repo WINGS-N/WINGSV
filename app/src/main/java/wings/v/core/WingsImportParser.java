@@ -213,7 +213,7 @@ public final class WingsImportParser {
         }
         if (looksLikeAmneziaQuickConfig(rawText)) {
             ImportedConfig directImport = new ImportedConfig();
-            directImport.backendType = BackendType.AMNEZIAWG;
+            directImport.backendType = BackendType.AMNEZIAWG_PLAIN;
             directImport.awgQuickConfig = rawText.trim();
             return directImport;
         }
@@ -260,7 +260,7 @@ public final class WingsImportParser {
             .setType(
                 backendType == BackendType.XRAY
                     ? WingsvProto.ConfigType.CONFIG_TYPE_XRAY
-                    : backendType == BackendType.AMNEZIAWG
+                    : backendType != null && backendType.usesAmneziaSettings()
                         ? WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG
                         : WingsvProto.ConfigType.CONFIG_TYPE_VK
             );
@@ -272,7 +272,7 @@ public final class WingsImportParser {
             }
             return builder.build();
         }
-        if (settings != null && backendType == BackendType.AMNEZIAWG) {
+        if (settings != null && backendType != null && backendType.usesAmneziaSettings()) {
             WingsvProto.AmneziaWG.Builder awg = WingsvProto.AmneziaWG.newBuilder();
             if (!TextUtils.isEmpty(value(settings.awgQuickConfig))) {
                 awg.setAwgQuickConfig(value(settings.awgQuickConfig));
@@ -479,9 +479,12 @@ public final class WingsImportParser {
         if (
             config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG ||
             importedConfig.backendType == BackendType.AMNEZIAWG ||
+            importedConfig.backendType == BackendType.AMNEZIAWG_PLAIN ||
             config.hasAwg()
         ) {
-            importedConfig.backendType = BackendType.AMNEZIAWG;
+            if (importedConfig.backendType != BackendType.AMNEZIAWG_PLAIN) {
+                importedConfig.backendType = BackendType.AMNEZIAWG;
+            }
             if (config.hasAwg()) {
                 importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
             }

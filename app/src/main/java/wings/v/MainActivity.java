@@ -24,6 +24,7 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 import androidx.viewpager2.widget.ViewPager2;
 import dev.oneuiproject.oneui.layout.Badge;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
@@ -178,9 +179,7 @@ public class MainActivity extends AppCompatActivity {
         super.onStart();
         registerPreferencesListener();
         appUpdateManager.registerListener(updateStateListener);
-        if (appUpdateManager.getState().status == AppUpdateManager.Status.IDLE) {
-            appUpdateManager.checkForUpdates();
-        }
+        appUpdateManager.checkForUpdatesIfStale();
     }
 
     @Override
@@ -211,38 +210,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (AppPrefs.isRootModeEnabled(this)) {
-            String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
-                this,
-                XrayStore.getBackendType(this),
-                true
-            );
-            if (!TextUtils.isEmpty(rootUnavailableReason)) {
-                Toast.makeText(
-                    this,
-                    getString(R.string.root_mode_unavailable, rootUnavailableReason),
-                    Toast.LENGTH_SHORT
-                ).show();
-                return;
-            }
-            if (
-                XrayStore.getBackendType(this) == BackendType.VK_TURN_WIREGUARD &&
-                AppPrefs.isKernelWireGuardEnabled(this)
-            ) {
-                String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
-                    this,
-                    BackendType.VK_TURN_WIREGUARD,
-                    false
-                );
-                if (!TextUtils.isEmpty(kernelUnavailableReason)) {
-                    Toast.makeText(
-                        this,
-                        getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason),
-                        Toast.LENGTH_SHORT
-                    ).show();
-                    return;
-                }
-            }
+        if (!ensureRootModeCanStart()) {
+            return;
         }
 
         if (!PermissionUtils.areCorePermissionsGranted(this)) {
@@ -265,6 +234,49 @@ public class MainActivity extends AppCompatActivity {
         } catch (IllegalStateException ignored) {
             Toast.makeText(this, R.string.service_start_failed, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private boolean ensureRootModeCanStart() {
+        if (!AppPrefs.isRootModeEnabled(this)) {
+            return true;
+        }
+
+        final String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
+            this,
+            XrayStore.getBackendType(this),
+            true
+        );
+        if (!TextUtils.isEmpty(rootUnavailableReason)) {
+            Toast.makeText(
+                this,
+                getString(R.string.root_mode_unavailable, rootUnavailableReason),
+                Toast.LENGTH_SHORT
+            ).show();
+            return false;
+        }
+
+        final BackendType backendType = XrayStore.getBackendType(this);
+        final boolean kernelWireGuardRequested =
+            backendType != null && backendType.supportsKernelWireGuard() && AppPrefs.isKernelWireGuardEnabled(this);
+        if (!kernelWireGuardRequested) {
+            return true;
+        }
+
+        final String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
+            this,
+            backendType,
+            false
+        );
+        if (TextUtils.isEmpty(kernelUnavailableReason)) {
+            return true;
+        }
+
+        Toast.makeText(
+            this,
+            getString(R.string.kernel_wireguard_unavailable, kernelUnavailableReason),
+            Toast.LENGTH_SHORT
+        ).show();
+        return false;
     }
 
     private void updateTitle(int tabId) {
@@ -443,11 +455,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshRootStateAsync() {
-        if (
-            !AppPrefs.isRootAccessGranted(this) &&
-            !AppPrefs.isRootModeEnabled(this) &&
-            !AppPrefs.hasRootRuntimeState(this)
-        ) {
+        if (!AppPrefs.isRootAccessGranted(this)) {
             return;
         }
         rootStateRefreshGeneration++;
@@ -508,6 +516,7 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             AppPrefs.applyImportedConfig(this, WingsImportParser.parseFromText(rawData));
+            requestReconnectAfterImport(rawData);
             Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
             intent.setData(null);
             boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
@@ -519,6 +528,17 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
             intent.setData(null);
         }
+    }
+
+    private void requestReconnectAfterImport(@Nullable String importedText) {
+        if (!ProxyTunnelService.isActive()) {
+            return;
+        }
+        final String normalized = importedText == null ? "" : importedText.trim().toLowerCase(Locale.ROOT);
+        final String reason = normalized.startsWith("vless://")
+            ? "Imported vless configuration applied"
+            : "Imported wingsv configuration applied";
+        ProxyTunnelService.requestReconnect(this, reason);
     }
 
     private void registerPreferencesListener() {
@@ -555,7 +575,8 @@ public class MainActivity extends AppCompatActivity {
 
         private final Typeface typeface;
 
-        ToolbarTitleTypefaceSpan(@NonNull Typeface typeface) {
+        private ToolbarTitleTypefaceSpan(@NonNull final Typeface typeface) {
+            super();
             this.typeface = typeface;
         }
 

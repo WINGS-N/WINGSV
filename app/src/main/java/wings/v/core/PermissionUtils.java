@@ -59,7 +59,7 @@ public final class PermissionUtils {
             return areBasePermissionsGranted(context) && isVpnPermissionGranted(context);
         }
 
-        if (backendType == BackendType.VK_TURN_WIREGUARD && kernelWireGuardEnabled) {
+        if (backendType != null && backendType.supportsKernelWireGuard() && kernelWireGuardEnabled) {
             return areBasePermissionsGranted(context) && isRootPermissionGranted(context);
         }
         return (

@@ -48,6 +48,7 @@ public final class ActiveProbingManager {
     public static final String KEY_VK_TURN_ENABLED = "pref_active_probing_vk_turn_enabled";
     public static final String KEY_BACKGROUND_ENABLED = "pref_active_probing_background_enabled";
     public static final String KEY_XRAY_FALLBACK_BACKEND = "pref_active_probing_xray_fallback_backend";
+    public static final String KEY_RESTORE_BACKEND = "pref_active_probing_restore_backend";
     public static final String KEY_URLS = "pref_active_probing_urls";
     public static final String KEY_INTERVAL_SECONDS = "pref_active_probing_interval_seconds";
     public static final String KEY_TIMEOUT_SECONDS = "pref_active_probing_timeout_seconds";
@@ -163,25 +164,90 @@ public final class ActiveProbingManager {
     }
 
     public static boolean isTunnelProbingAvailable(@Nullable Context context) {
-        return context != null && XrayStore.getBackendType(context) == BackendType.XRAY;
+        if (context == null) {
+            return false;
+        }
+        BackendType backendType = XrayStore.getBackendType(context);
+        return backendType == BackendType.XRAY || backendType.isPlainBackend();
     }
 
     @NonNull
     public static BackendType normalizeXrayFallbackBackend(@Nullable BackendType backendType) {
-        return backendType == BackendType.AMNEZIAWG ? BackendType.AMNEZIAWG : BackendType.VK_TURN_WIREGUARD;
+        if (backendType == BackendType.AMNEZIAWG || backendType == BackendType.AMNEZIAWG_PLAIN) {
+            return BackendType.AMNEZIAWG;
+        }
+        return BackendType.VK_TURN_WIREGUARD;
     }
 
     @NonNull
     public static String getBackendLabel(@Nullable Context context, @Nullable BackendType backendType) {
-        BackendType resolved = normalizeXrayFallbackBackend(backendType);
+        BackendType resolved =
+            backendType == null
+                ? BackendType.VK_TURN_WIREGUARD
+                : backendType == BackendType.XRAY
+                    ? BackendType.XRAY
+                    : backendType;
         if (context == null) {
-            return resolved == BackendType.AMNEZIAWG ? "AmneziaWG" : "VK TURN";
+            if (resolved == BackendType.XRAY) {
+                return "Xray";
+            }
+            if (resolved == BackendType.AMNEZIAWG) {
+                return "VK TURN + AmneziaWG";
+            }
+            if (resolved == BackendType.AMNEZIAWG_PLAIN) {
+                return "AmneziaWG";
+            }
+            if (resolved == BackendType.WIREGUARD) {
+                return "WireGuard";
+            }
+            return "VK TURN + WireGuard";
         }
-        return context.getString(
-            resolved == BackendType.AMNEZIAWG
-                ? R.string.backend_amneziawg_title
-                : R.string.backend_vk_turn_wireguard_title
-        );
+        if (resolved == BackendType.XRAY) {
+            return context.getString(R.string.backend_xray_title);
+        }
+        if (resolved == BackendType.AMNEZIAWG) {
+            return context.getString(R.string.backend_amneziawg_title);
+        }
+        if (resolved == BackendType.AMNEZIAWG_PLAIN) {
+            return context.getString(R.string.backend_amneziawg_plain_title);
+        }
+        if (resolved == BackendType.WIREGUARD) {
+            return context.getString(R.string.backend_wireguard_title);
+        }
+        return context.getString(R.string.backend_vk_turn_wireguard_title);
+    }
+
+    @Nullable
+    public static BackendType getRestoreBackend(@Nullable Context context) {
+        if (context == null) {
+            return null;
+        }
+        String rawValue = prefs(context.getApplicationContext()).getString(KEY_RESTORE_BACKEND, null);
+        if (TextUtils.isEmpty(rawValue)) {
+            return null;
+        }
+        BackendType backendType = BackendType.fromPrefValue(rawValue);
+        return backendType == BackendType.VK_TURN_WIREGUARD && !TextUtils.equals(rawValue, backendType.prefValue)
+            ? null
+            : backendType;
+    }
+
+    public static void setRestoreBackend(@Nullable Context context, @Nullable BackendType backendType) {
+        if (context == null) {
+            return;
+        }
+        if (backendType == null) {
+            clearRestoreBackend(context);
+            return;
+        }
+        prefs(context.getApplicationContext()).edit().putString(KEY_RESTORE_BACKEND, backendType.prefValue).apply();
+    }
+
+    public static void clearRestoreBackend(@Nullable Context context) {
+        if (context == null) {
+            return;
+        }
+        prefs(context.getApplicationContext()).edit().remove(KEY_RESTORE_BACKEND).apply();
     }
 
     @NonNull
@@ -271,6 +337,7 @@ public final class ActiveProbingManager {
     public static void showTunnelFallbackNotification(
         @Nullable Context context,
         @Nullable ProbeResult result,
+        @Nullable BackendType fromBackend,
         @Nullable BackendType backendType
     ) {
         showTriggerNotification(
@@ -278,6 +345,7 @@ public final class ActiveProbingManager {
             R.string.active_probing_notification_tunnel_title,
             R.string.active_probing_notification_tunnel_text,
             result,
+            fromBackend,
             backendType
         );
     }
@@ -292,21 +360,24 @@ public final class ActiveProbingManager {
             R.string.active_probing_notification_background_title,
             R.string.active_probing_notification_background_text,
             result,
+            null,
             backendType
         );
     }
 
-    public static void showReturnToXrayNotification(
+    public static void showRestoreNotification(
         @Nullable Context context,
         @Nullable ProbeResult result,
-        @Nullable BackendType backendType
+        @Nullable BackendType fromBackend,
+        @Nullable BackendType restoreBackend
     ) {
         showTriggerNotification(
             context,
             R.string.active_probing_notification_restore_title,
             R.string.active_probing_notification_restore_text,
             result,
-            backendType
+            fromBackend,
+            restoreBackend
         );
     }
 
@@ -315,6 +386,7 @@ public final class ActiveProbingManager {
         int titleRes,
         int textRes,
         @Nullable ProbeResult result,
+        @Nullable BackendType fromBackend,
         @Nullable BackendType backendType
     ) {
         if (context == null) {
@@ -327,13 +399,18 @@ public final class ActiveProbingManager {
         }
         createNotificationChannel(appContext, notificationManager);
         String failedTargets = result != null ? result.failedTargetsSummary() : "";
-        String text = appContext.getString(
-            textRes,
-            TextUtils.isEmpty(failedTargets)
-                ? appContext.getString(R.string.active_probing_notification_targets_unknown)
-                : failedTargets,
-            getBackendLabel(appContext, backendType)
-        );
+        String resolvedFailedTargets = TextUtils.isEmpty(failedTargets)
+            ? appContext.getString(R.string.active_probing_notification_targets_unknown)
+            : failedTargets;
+        String text =
+            titleRes == R.string.active_probing_notification_background_title
+                ? appContext.getString(textRes, resolvedFailedTargets, getBackendLabel(appContext, backendType))
+                : appContext.getString(
+                      textRes,
+                      resolvedFailedTargets,
+                      getBackendLabel(appContext, fromBackend),
+                      getBackendLabel(appContext, backendType)
+                  );
         Intent openIntent = ActiveProbingSettingsActivity.createIntent(appContext).addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP
         );

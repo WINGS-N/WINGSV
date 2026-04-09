@@ -33,9 +33,15 @@ public class BootReceiver extends BroadcastReceiver {
         if (!autoStartConnection && !autoStartSharing) {
             return;
         }
-        if (AppPrefs.isRootModeEnabled(context) && !RootUtils.refreshRootAccessState(context)) {
-            AppPrefs.clearRootRuntimeState(context);
-            return;
+        if (AppPrefs.isRootModeEnabled(context)) {
+            if (!AppPrefs.isRootAccessGranted(context)) {
+                AppPrefs.clearRootRuntimeState(context);
+                return;
+            }
+            if (!RootUtils.refreshRootAccessState(context)) {
+                AppPrefs.clearRootRuntimeState(context);
+                return;
+            }
         }
         if (!PermissionUtils.areCorePermissionsGranted(context)) {
             return;
@@ -46,7 +52,8 @@ public class BootReceiver extends BroadcastReceiver {
                 return;
             }
             if (
-                backendType == BackendType.VK_TURN_WIREGUARD &&
+                backendType != null &&
+                backendType.supportsKernelWireGuard() &&
                 AppPrefs.isKernelWireGuardEnabled(context) &&
                 !RootUtils.isKernelWireGuardSupported(context, backendType, false)
             ) {

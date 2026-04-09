@@ -32,6 +32,7 @@ import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
 import wings.v.core.WingsImportParser;
 import wings.v.databinding.FragmentFirstLaunchVkTurnBinding;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -398,6 +399,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
                 return;
             }
             AppPrefs.applyImportedConfig(context, importedConfig);
+            requestReconnectAfterImport(context, text);
             loadSettings(AppPrefs.getSettings(context));
             validationAttempted = true;
             validateSettings(collectSettings(), false);
@@ -409,6 +411,17 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.first_launch_vk_turn_import_invalid, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void requestReconnectAfterImport(Context context, @Nullable String importedText) {
+        if (!ProxyTunnelService.isActive()) {
+            return;
+        }
+        String normalized = importedText == null ? "" : importedText.trim().toLowerCase();
+        String reason = normalized.startsWith("vless://")
+            ? "Imported vless configuration applied"
+            : "Imported wingsv configuration applied";
+        ProxyTunnelService.requestReconnect(context, reason);
     }
 
     private ProxySettings collectSettings() {

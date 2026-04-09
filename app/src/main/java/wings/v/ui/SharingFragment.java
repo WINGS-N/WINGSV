@@ -504,11 +504,12 @@ public class SharingFragment extends Fragment {
 
     private boolean shouldUseVpnServiceUpstream(Context context) {
         BackendType backendType = XrayStore.getBackendType(context);
-        if (backendType == BackendType.XRAY || backendType == BackendType.AMNEZIAWG) {
+        if (backendType == BackendType.XRAY || (backendType != null && backendType.usesAmneziaSettings())) {
             return true;
         }
         return (
-            backendType == BackendType.VK_TURN_WIREGUARD &&
+            backendType != null &&
+            backendType.supportsKernelWireGuard() &&
             AppPrefs.isRootModeEnabled(context) &&
             !AppPrefs.isKernelWireGuardEnabled(context)
         );

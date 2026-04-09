@@ -124,9 +124,7 @@ public class AboutAppActivity extends AppCompatActivity {
         appUpdateManager.registerListener(updateStateListener);
         AppUpdateManager.UpdateState currentUpdateState = appUpdateManager.getState();
         renderUpdateState(currentUpdateState);
-        if (currentUpdateState.status == AppUpdateManager.Status.IDLE) {
-            appUpdateManager.checkForUpdates();
-        }
+        appUpdateManager.checkForUpdatesIfStale();
         maybeResumePendingInstall();
     }
 

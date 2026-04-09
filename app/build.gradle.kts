@@ -36,11 +36,11 @@ val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.
 val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
 val protoSourceDir: File = project.file("src/main/proto")
 val generatedProtoJavaDir: Provider<Directory> = layout.buildDirectory.dir("generated/source/proto/main/java")
-val defaultAppVersionName = "3.2.0"
-val defaultAppVersionCode = 3200
+val defaultAppVersionName = "4.0.0"
+val defaultAppVersionCode = 4000
 val configuredAppVersionSpec = providers.gradleProperty("ver").orNull
 require(configuredAppVersionSpec == null || Regex("""[^/\s]+/\d+""").matches(configuredAppVersionSpec)) {
-    "Property -Pver must use format <versionName>/<versionCode>, for example -Pver=3.2.0/3200"
+    "Property -Pver must use format <versionName>/<versionCode>, for example -Pver=4.0.0/4000"
 }
 val configuredAppVersionName: String = configuredAppVersionSpec
     ?.substringBefore('/')
