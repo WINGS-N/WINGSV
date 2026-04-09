@@ -52,15 +52,17 @@ public class ProxySettings {
             }
             return null;
         }
-        if (backendType == BackendType.AMNEZIAWG) {
-            if (TextUtils.isEmpty(endpoint)) {
-                return "Endpoint не заполнен";
-            }
-            if (TextUtils.isEmpty(vkLink)) {
-                return "VK Link не заполнен";
-            }
-            if (TextUtils.isEmpty(localEndpoint)) {
-                return "Локальный endpoint не заполнен";
+        if (backendType != null && backendType.usesAmneziaSettings()) {
+            if (backendType.usesTurnProxy()) {
+                if (TextUtils.isEmpty(endpoint)) {
+                    return "Endpoint не заполнен";
+                }
+                if (TextUtils.isEmpty(vkLink)) {
+                    return "VK Link не заполнен";
+                }
+                if (TextUtils.isEmpty(localEndpoint)) {
+                    return "Локальный endpoint не заполнен";
+                }
             }
             if (TextUtils.isEmpty(awgQuickConfig)) {
                 return "AmneziaWG config не заполнен";
@@ -75,11 +77,13 @@ public class ProxySettings {
         if (TextUtils.isEmpty(endpoint)) {
             return "Endpoint не заполнен";
         }
-        if (TextUtils.isEmpty(vkLink)) {
-            return "VK Link не заполнен";
-        }
-        if (TextUtils.isEmpty(localEndpoint)) {
-            return "Локальный endpoint не заполнен";
+        if (backendType != null && backendType.usesTurnProxy()) {
+            if (TextUtils.isEmpty(vkLink)) {
+                return "VK Link не заполнен";
+            }
+            if (TextUtils.isEmpty(localEndpoint)) {
+                return "Локальный endpoint не заполнен";
+            }
         }
         if (TextUtils.isEmpty(wgPrivateKey)) {
             return "WireGuard private key не заполнен";

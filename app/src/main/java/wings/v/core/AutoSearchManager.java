@@ -3,6 +3,9 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -39,6 +42,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import wings.v.R;
 import wings.v.byedpi.ByeDpiLocalRunner;
+import wings.v.service.EmergencyVpnResetService;
 import wings.v.service.ProxyTunnelService;
 import wings.v.service.XrayVpnService;
 import wings.v.xray.XrayAutoSearchConfigFactory;
@@ -125,6 +129,8 @@ public final class AutoSearchManager {
     private static final long SERVICE_STOP_TIMEOUT_MS = 8_000L;
     private static final long SERVICE_STOP_POLL_MS = 200L;
     private static final long VPN_RELEASE_GRACE_MS = 1_000L;
+    private static final long EMERGENCY_VPN_RESET_HOLD_MS = 1_200L;
+    private static final long EMERGENCY_VPN_RESET_TIMEOUT_MS = 4_000L;
     private static final long XRAY_PROXY_START_TIMEOUT_MS = 4_000L;
     private static final long XRAY_PROXY_START_POLL_MS = 100L;
     private static final long XRAY_PROXY_WARMUP_MS = 700L;
@@ -576,13 +582,14 @@ public final class AutoSearchManager {
             SystemClock.sleep(SERVICE_STOP_POLL_MS);
         }
         if (isRuntimeStillStopping(true)) {
-            forceStopXrayRuntime();
+            forceStopRuntime();
             long forceDeadline = SystemClock.elapsedRealtime() + 2_500L;
-            while (isRuntimeStillStopping(false) && SystemClock.elapsedRealtime() < forceDeadline) {
+            while (isRuntimeStillStopping(true) && SystemClock.elapsedRealtime() < forceDeadline) {
                 SystemClock.sleep(SERVICE_STOP_POLL_MS);
             }
         }
-        if (isRuntimeStillStopping(false)) {
+        displaceAnyActiveVpnServiceIfNeeded();
+        if (isRuntimeStillStopping(true)) {
             throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_stop_runtime));
         }
         SystemClock.sleep(VPN_RELEASE_GRACE_MS);
@@ -599,18 +606,55 @@ public final class AutoSearchManager {
         if (realRuntimeActive) {
             return true;
         }
-        return includeProxyServiceState && ProxyTunnelService.isRunning();
+        return includeProxyServiceState && ProxyTunnelService.isActive();
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void forceStopXrayRuntime() {
+    private void forceStopRuntime() {
         stopXrayQuietly();
         try {
             XrayVpnService.forceStopService(appContext);
         } catch (RuntimeException ignored) {}
         try {
-            ProxyTunnelService.requestStop(appContext);
+            ProxyTunnelService.forceAbortRuntime(appContext);
         } catch (RuntimeException ignored) {}
+        if (ProxyTunnelService.hasOwnedVpnServiceRuntime()) {
+            try {
+                EmergencyVpnResetService.pulse(appContext, EMERGENCY_VPN_RESET_HOLD_MS);
+            } catch (RuntimeException ignored) {}
+        }
+    }
+
+    private void displaceAnyActiveVpnServiceIfNeeded() {
+        if (!isVpnTransportActive()) {
+            return;
+        }
+        try {
+            EmergencyVpnResetService.pulse(appContext, EMERGENCY_VPN_RESET_HOLD_MS);
+        } catch (RuntimeException ignored) {
+            return;
+        }
+        long deadline = SystemClock.elapsedRealtime() + EMERGENCY_VPN_RESET_TIMEOUT_MS;
+        while (isVpnTransportActive() && SystemClock.elapsedRealtime() < deadline) {
+            SystemClock.sleep(SERVICE_STOP_POLL_MS);
+        }
+    }
+
+    private boolean isVpnTransportActive() {
+        ConnectivityManager connectivityManager = appContext.getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return false;
+        }
+        try {
+            Network activeNetwork = connectivityManager.getActiveNetwork();
+            if (activeNetwork == null) {
+                return false;
+            }
+            NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(activeNetwork);
+            return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     @NonNull

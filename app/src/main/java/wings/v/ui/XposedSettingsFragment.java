@@ -47,6 +47,7 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         bindPackagePicker(XposedModulePrefs.KEY_TARGET_PACKAGES, XposedAppsActivity.MODE_TARGET_APPS);
         bindPackagePicker(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES, XposedAppsActivity.MODE_HIDDEN_VPN_APPS);
         updatePackageSummaries();
+        updatePreferenceEnabledState();
     }
 
     private void bindSwitchHaptics(String key) {
@@ -77,6 +78,29 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         updatePackageSummary(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES);
     }
 
+    private void updatePreferenceEnabledState() {
+        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+        if (preferences == null) {
+            return;
+        }
+        boolean moduleEnabled = preferences.getBoolean(
+            XposedModulePrefs.KEY_ENABLED,
+            XposedModulePrefs.DEFAULT_ENABLED
+        );
+        setPreferenceEnabled(XposedModulePrefs.KEY_ALL_APPS, moduleEnabled);
+        setPreferenceEnabled(XposedModulePrefs.KEY_TARGET_PACKAGES, moduleEnabled);
+        setPreferenceEnabled(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED, moduleEnabled);
+        setPreferenceEnabled(XposedModulePrefs.KEY_HIDE_VPN_APPS, moduleEnabled);
+        setPreferenceEnabled(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES, moduleEnabled);
+    }
+
+    private void setPreferenceEnabled(String key, boolean enabled) {
+        Preference preference = findPreference(key);
+        if (preference != null) {
+            preference.setEnabled(enabled);
+        }
+    }
+
     private void updatePackageSummary(String key) {
         Preference preference = findPreference(key);
         if (preference != null) {
@@ -91,6 +115,7 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
         preferencesChangeListener = (sharedPreferences, key) -> {
             updatePackageSummaries();
+            updatePreferenceEnabledState();
             XposedModulePrefs.export(requireContext());
         };
         preferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);

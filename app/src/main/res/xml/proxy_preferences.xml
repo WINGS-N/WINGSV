@@ -24,6 +24,11 @@
         android:summary="@string/drawer_xray_settings_summary" />
 
     <Preference
+        android:key="pref_open_vk_turn_settings"
+        android:title="@string/vk_turn_settings_title"
+        android:summary="@string/vk_turn_settings_summary" />
+
+    <Preference
         android:key="pref_open_bydpi_settings"
         android:title="@string/byedpi_title"
         android:summary="@string/byedpi_open_summary" />
@@ -42,128 +47,6 @@
         android:key="pref_inset_after_backend" />
 
     <PreferenceCategory
-        android:key="pref_category_awg"
-        android:title="@string/settings_awg_category" />
-
-    <Preference
-        android:key="pref_open_amnezia_settings"
-        android:title="@string/awg_settings_title"
-        android:summary="@string/awg_settings_open_summary" />
-
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
-        android:key="pref_inset_after_awg" />
-
-    <PreferenceCategory
-        android:key="pref_category_vk_proxy"
-        android:title="Proxy" />
-
-    <EditTextPreference
-        android:key="pref_endpoint"
-        android:title="Endpoint"
-        android:dialogTitle="Endpoint"
-        app:useSimpleSummaryProvider="true" />
-
-    <EditTextPreference
-        android:key="pref_vk_link"
-        android:title="VK Link"
-        android:dialogTitle="VK Link"
-        app:useSimpleSummaryProvider="true" />
-
-    <EditTextPreference
-        android:key="pref_threads"
-        android:title="Потоки"
-        android:defaultValue="8" />
-
-    <SwitchPreferenceCompat
-        android:key="pref_use_udp"
-        android:title="Использовать UDP"
-        android:defaultValue="true" />
-
-    <SwitchPreferenceCompat
-        android:key="pref_no_obfuscation"
-        android:title="Без обфускации"
-        android:defaultValue="false" />
-
-    <SwitchPreferenceCompat
-        android:key="pref_manual_captcha"
-        android:title="@string/manual_captcha_title"
-        android:summary="@string/manual_captcha_summary"
-        android:defaultValue="false" />
-
-    <androidx.preference.DropDownPreference
-        android:key="pref_turn_session_mode"
-        android:title="@string/turn_session_mode_title"
-        android:defaultValue="auto"
-        android:entries="@array/turn_session_mode_entries"
-        android:entryValues="@array/turn_session_mode_values" />
-
-    <EditTextPreference
-        android:key="pref_local_endpoint"
-        android:title="Локальный endpoint"
-        android:defaultValue="127.0.0.1:9000" />
-
-    <EditTextPreference
-        android:key="pref_turn_host"
-        android:title="TURN host override"
-        app:useSimpleSummaryProvider="true" />
-
-    <EditTextPreference
-        android:key="pref_turn_port"
-        android:title="TURN port override"
-        app:useSimpleSummaryProvider="true" />
-
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
-        android:key="pref_inset_after_vk_proxy" />
-
-    <PreferenceCategory
-        android:key="pref_category_wg_interface"
-        android:title="WireGuard Interface" />
-
-    <EditTextPreference
-        android:key="pref_wg_private_key"
-        android:title="Private key" />
-
-    <EditTextPreference
-        android:key="pref_wg_addresses"
-        android:title="Addresses"
-        app:useSimpleSummaryProvider="true" />
-
-    <EditTextPreference
-        android:key="pref_wg_dns"
-        android:title="DNS"
-        android:defaultValue="1.1.1.1, 1.0.0.1"
-        app:useSimpleSummaryProvider="true" />
-
-    <EditTextPreference
-        android:key="pref_wg_mtu"
-        android:title="MTU"
-        android:defaultValue="1280" />
-
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
-        android:key="pref_inset_after_wg_interface" />
-
-    <PreferenceCategory
-        android:key="pref_category_wg_peer"
-        android:title="WireGuard Peer" />
-
-    <EditTextPreference
-        android:key="pref_wg_public_key"
-        android:title="Public key" />
-
-    <EditTextPreference
-        android:key="pref_wg_preshared_key"
-        android:title="Preshared key (PSK)" />
-
-    <EditTextPreference
-        android:key="pref_wg_allowed_ips"
-        android:title="Allowed IPs"
-        android:defaultValue="0.0.0.0/0, ::/0"
-        app:useSimpleSummaryProvider="true" />
-
-    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
-        android:key="pref_inset_after_wg_peer" />
-
-    <PreferenceCategory
         android:key="pref_category_root"
         android:title="@string/root_category_title" />
 
@@ -178,6 +61,11 @@
         android:title="@string/kernel_wireguard_title"
         android:summary="@string/kernel_wireguard_summary"
         android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_open_root_interface_settings"
+        android:title="@string/root_interface_settings_title"
+        android:summary="@string/root_interface_settings_summary" />
 
     <Preference
         android:key="pref_open_xposed_settings"

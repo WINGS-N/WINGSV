@@ -6,33 +6,35 @@ import android.os.Bundle;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import dev.oneuiproject.oneui.layout.ToolbarLayout;
-import wings.v.databinding.ActivityXposedSettingsBinding;
-import wings.v.ui.XposedSettingsFragment;
+import wings.v.databinding.ActivityRootInterfaceSettingsBinding;
+import wings.v.ui.RootInterfaceSettingsFragment;
 
-/** Hosts the Xposed settings screen. */
-public class XposedSettingsActivity extends AppCompatActivity {
+/** Hosts root interface naming settings. */
+public class RootInterfaceSettingsActivity extends AppCompatActivity {
 
     /** Required empty constructor. */
-    public XposedSettingsActivity() {
+    public RootInterfaceSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the Xposed settings screen. */
+    /** Creates an intent for the root interface settings screen. */
     public static Intent createIntent(final Context context) {
-        return new Intent(context, XposedSettingsActivity.class);
+        return new Intent(context, RootInterfaceSettingsActivity.class);
     }
 
     @Override
     protected void onCreate(@Nullable final Bundle state) {
         super.onCreate(state);
-        final ActivityXposedSettingsBinding binding = ActivityXposedSettingsBinding.inflate(getLayoutInflater());
+        final ActivityRootInterfaceSettingsBinding binding = ActivityRootInterfaceSettingsBinding.inflate(
+            getLayoutInflater()
+        );
         setContentView(binding.getRoot());
         final ToolbarLayout toolbarLayout = findViewById(R.id.toolbar_layout);
         toolbarLayout.setShowNavigationButtonAsBack(true);
         if (state == null) {
             getSupportFragmentManager()
                 .beginTransaction()
-                .replace(R.id.xposed_settings_container, new XposedSettingsFragment())
+                .replace(R.id.root_interface_settings_container, new RootInterfaceSettingsFragment())
                 .commit();
         }
     }

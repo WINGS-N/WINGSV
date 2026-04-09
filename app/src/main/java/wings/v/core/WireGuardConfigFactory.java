@@ -16,6 +16,10 @@ public final class WireGuardConfigFactory {
     }
 
     public static Config build(Context context, ProxySettings settings, boolean includeAppRouting) throws Exception {
+        String peerEndpoint =
+            settings != null && settings.backendType == BackendType.WIREGUARD
+                ? settings.endpoint
+                : settings.localEndpoint;
         StringBuilder builder = new StringBuilder();
         builder.append("[Interface]\n");
         builder.append("PrivateKey = ").append(settings.wgPrivateKey).append('\n');
@@ -42,7 +46,7 @@ public final class WireGuardConfigFactory {
             builder.append("PresharedKey = ").append(settings.wgPresharedKey).append('\n');
         }
         builder.append("AllowedIPs = ").append(settings.wgAllowedIps).append('\n');
-        builder.append("Endpoint = ").append(settings.localEndpoint).append('\n');
+        builder.append("Endpoint = ").append(peerEndpoint).append('\n');
 
         return Config.parse(new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8)));
     }

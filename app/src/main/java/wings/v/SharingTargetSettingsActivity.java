@@ -440,11 +440,12 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     private boolean shouldUseVpnServiceUpstream() {
         BackendType backendType = XrayStore.getBackendType(this);
-        if (backendType == BackendType.XRAY || backendType == BackendType.AMNEZIAWG) {
+        if (backendType == BackendType.XRAY || (backendType != null && backendType.usesAmneziaSettings())) {
             return true;
         }
         return (
-            backendType == BackendType.VK_TURN_WIREGUARD &&
+            backendType != null &&
+            backendType.supportsKernelWireGuard() &&
             AppPrefs.isRootModeEnabled(this) &&
             !AppPrefs.isKernelWireGuardEnabled(this)
         );

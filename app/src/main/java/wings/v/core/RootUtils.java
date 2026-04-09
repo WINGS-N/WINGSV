@@ -91,8 +91,8 @@ public final class RootUtils {
         if (!rootGranted) {
             return "Root-доступ не подтверждён";
         }
-        if (backendType != BackendType.VK_TURN_WIREGUARD) {
-            return "Доступно только для VK TURN + WireGuard";
+        if (backendType == null || !backendType.supportsKernelWireGuard()) {
+            return "Доступно только для WireGuard backend";
         }
         if (!WgQuickBackend.hasKernelSupport()) {
             return "Kernel WireGuard недоступен на этом устройстве";

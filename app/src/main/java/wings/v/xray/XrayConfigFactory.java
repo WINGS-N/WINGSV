@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import wings.v.core.AppPrefs;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
@@ -38,7 +39,6 @@ import wings.v.core.XraySettings;
     }
 )
 public final class XrayConfigFactory {
-
     private static final String TUN_TAG = "tun-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String PROXY_TAG = "proxy";
@@ -78,7 +78,7 @@ public final class XrayConfigFactory {
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
-        root.put("inbounds", buildInbounds(xraySettings));
+        root.put("inbounds", buildInbounds(context, xraySettings));
         root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, settings.byeDpiSettings));
         root.put("routing", buildRouting(context, xraySettings));
         String configJson = root.toString();
@@ -185,14 +185,13 @@ public final class XrayConfigFactory {
         return values;
     }
 
-    private static JSONArray buildInbounds(XraySettings settings) throws Exception {
+    private static JSONArray buildInbounds(Context context, XraySettings settings) throws Exception {
         JSONArray inbounds = new JSONArray();
         JSONObject tunInbound = new JSONObject();
         tunInbound.put("tag", TUN_TAG);
         tunInbound.put("protocol", "tun");
         tunInbound.put("port", 0);
         JSONObject tunSettings = new JSONObject();
-        tunSettings.put("name", "wingsv-xray");
         tunSettings.put("MTU", DEFAULT_MTU);
         tunSettings.put("user_level", 0);
         tunInbound.put("settings", tunSettings);

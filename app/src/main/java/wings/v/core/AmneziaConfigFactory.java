@@ -14,7 +14,7 @@ public final class AmneziaConfigFactory {
     private AmneziaConfigFactory() {}
 
     public static Config build(Context context, ProxySettings settings) throws Exception {
-        if (settings == null || settings.backendType != BackendType.AMNEZIAWG) {
+        if (settings == null || settings.backendType == null || !settings.backendType.usesAmneziaSettings()) {
             throw new IllegalArgumentException("AmneziaWG settings required");
         }
         String raw = settings.awgQuickConfig == null ? "" : settings.awgQuickConfig.trim();
@@ -25,8 +25,9 @@ public final class AmneziaConfigFactory {
         if (context == null) {
             return parsed;
         }
+        boolean overridePeerEndpoint = settings.backendType.usesTurnProxy();
         String localEndpoint = settings.localEndpoint == null ? "" : settings.localEndpoint.trim();
-        if (localEndpoint.isEmpty()) {
+        if (overridePeerEndpoint && localEndpoint.isEmpty()) {
             throw new IllegalArgumentException("Локальный endpoint не заполнен");
         }
         Interface iface = parsed.getInterface();
@@ -68,8 +69,12 @@ public final class AmneziaConfigFactory {
         for (Peer peer : parsed.getPeers()) {
             Peer.Builder peerBuilder = new Peer.Builder()
                 .setPublicKey(peer.getPublicKey())
-                .addAllowedIps(peer.getAllowedIps())
-                .setEndpoint(InetEndpoint.parse(localEndpoint));
+                .addAllowedIps(peer.getAllowedIps());
+            if (overridePeerEndpoint) {
+                peerBuilder.setEndpoint(InetEndpoint.parse(localEndpoint));
+            } else if (peer.getEndpoint().isPresent()) {
+                peerBuilder.setEndpoint(peer.getEndpoint().get());
+            }
             if (peer.getPreSharedKey().isPresent()) {
                 peerBuilder.setPreSharedKey(peer.getPreSharedKey().get());
             }
