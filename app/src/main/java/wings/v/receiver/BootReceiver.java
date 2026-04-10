@@ -11,6 +11,7 @@ import wings.v.core.BackendType;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
 import wings.v.core.XrayStore;
+import wings.v.core.XraySubscriptionBackgroundScheduler;
 import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -27,6 +28,7 @@ public class BootReceiver extends BroadcastReceiver {
         }
         AppUpdateBackgroundScheduler.schedule(context);
         ActiveProbingBackgroundScheduler.refresh(context);
+        XraySubscriptionBackgroundScheduler.refresh(context);
         boolean autoStartConnection = AppPrefs.isAutoStartOnBootEnabled(context);
         boolean autoStartSharing =
             AppPrefs.isSharingAutoStartOnBootEnabled(context) && AppPrefs.isRootModeEnabled(context);

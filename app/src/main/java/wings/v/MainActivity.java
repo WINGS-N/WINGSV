@@ -262,11 +262,7 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
 
-        final String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
-            this,
-            backendType,
-            false
-        );
+        final String kernelUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(this, backendType, false);
         if (TextUtils.isEmpty(kernelUnavailableReason)) {
             return true;
         }

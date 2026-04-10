@@ -36,21 +36,53 @@ val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.
 val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
 val protoSourceDir: File = project.file("src/main/proto")
 val generatedProtoJavaDir: Provider<Directory> = layout.buildDirectory.dir("generated/source/proto/main/java")
-val defaultAppVersionName = "4.0.0"
-val defaultAppVersionCode = 4000
-val configuredAppVersionSpec = providers.gradleProperty("ver").orNull
-require(configuredAppVersionSpec == null || Regex("""[^/\s]+/\d+""").matches(configuredAppVersionSpec)) {
-    "Property -Pver must use format <versionName>/<versionCode>, for example -Pver=4.0.0/4000"
+
+fun versionCodeFromSemanticVersion(versionName: String): Int {
+    val parts: List<String> = versionName.split('.')
+    require(parts.size == 3) {
+        "Default app version must use semantic format <major>.<minor>.<patch>"
+    }
+    val major: Int = parts[0].toIntOrNull()
+        ?: error("Default app version major component is invalid: $versionName")
+    val minor: Int = parts[1].toIntOrNull()
+        ?: error("Default app version minor component is invalid: $versionName")
+    val patch: Int = parts[2].toIntOrNull()
+        ?: error("Default app version patch component is invalid: $versionName")
+    require(minor in 0..99 && patch in 0..99) {
+        "Minor and patch components must stay in 0..99 for version code mapping"
+    }
+    return major * 10000 + minor * 100 + patch
 }
-val configuredAppVersionName: String = configuredAppVersionSpec
-    ?.substringBefore('/')
-    ?.takeIf { it.isNotBlank() }
-    ?: defaultAppVersionName
-val configuredAppVersionCode: Int = configuredAppVersionSpec
-    ?.substringAfter('/', missingDelimiterValue = "")
-    ?.takeIf { it.isNotBlank() }
-    ?.toIntOrNull()
-    ?: defaultAppVersionCode
+
+fun parseVersionSpec(versionSpec: String?, defaultVersionName: String, defaultVersionCode: Int): Pair<String, Int> {
+    val normalizedSpec: String = versionSpec
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: return defaultVersionName to defaultVersionCode
+    if (!normalizedSpec.contains('/')) {
+        return normalizedSpec to versionCodeFromSemanticVersion(normalizedSpec)
+    }
+    val versionName: String = normalizedSpec.substringBefore('/').trim()
+    val versionCodeRaw: String = normalizedSpec.substringAfter('/', missingDelimiterValue = "").trim()
+    require(versionName.isNotEmpty() && versionCodeRaw.isNotEmpty()) {
+        "Property -Pver must use format <versionName> or <versionName>/<versionCode>"
+    }
+    val versionCode: Int = versionCodeRaw.toIntOrNull()
+        ?: error("Property -Pver contains invalid versionCode: $versionCodeRaw")
+    return versionName to versionCode
+}
+
+val defaultAppVersionName = "4.0.1"
+val defaultAppVersionCode = versionCodeFromSemanticVersion(defaultAppVersionName)
+val configuredAppVersionSpec = providers.gradleProperty("ver").orNull
+require(configuredAppVersionSpec == null || Regex("""[^/\s]+(?:/\d+)?""").matches(configuredAppVersionSpec)) {
+    "Property -Pver must use format <versionName> or <versionName>/<versionCode>, for example -Pver=4.0.1 or -Pver=4.0.1/40001"
+}
+val (configuredAppVersionName, configuredAppVersionCode) = parseVersionSpec(
+    configuredAppVersionSpec,
+    defaultAppVersionName,
+    defaultAppVersionCode
+)
 
 fun resolveAndroidSdkDir(): File {
     val candidates: List<File> = listOfNotNull(

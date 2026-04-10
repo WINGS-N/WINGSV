@@ -36,6 +36,7 @@ public final class XraySubscriptionUpdater {
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 20_000;
+    private static final long MILLIS_PER_HOUR = 60L * 60L * 1000L;
 
     private XraySubscriptionUpdater() {}
 
@@ -49,6 +50,23 @@ public final class XraySubscriptionUpdater {
 
     public static RefreshResult refreshAll(Context context, ProgressListener listener, boolean allowUniversalSeed)
         throws Exception {
+        return refreshSubscriptions(context, listener, allowUniversalSeed, false);
+    }
+
+    public static RefreshResult refreshDue(Context context) throws Exception {
+        return refreshDue(context, null);
+    }
+
+    public static RefreshResult refreshDue(Context context, ProgressListener listener) throws Exception {
+        return refreshSubscriptions(context, listener, true, true);
+    }
+
+    private static RefreshResult refreshSubscriptions(
+        Context context,
+        ProgressListener listener,
+        boolean allowUniversalSeed,
+        boolean dueOnly
+    ) throws Exception {
         List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context, allowUniversalSeed);
         LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
         LinkedHashMap<String, List<XrayProfile>> existingProfilesBySubscription = new LinkedHashMap<>();
@@ -68,11 +86,17 @@ public final class XraySubscriptionUpdater {
         }
         List<XraySubscription> updatedSubscriptions = new ArrayList<>();
         long now = System.currentTimeMillis();
+        int defaultRefreshIntervalHours = Math.max(1, XrayStore.getRefreshIntervalHours(context));
         String firstError = null;
         boolean anySubscriptionUpdated = false;
 
         for (XraySubscription subscription : subscriptions) {
             if (subscription == null || TextUtils.isEmpty(subscription.url)) {
+                continue;
+            }
+            if (dueOnly && !shouldRefreshSubscription(subscription, now, defaultRefreshIntervalHours)) {
+                updatedSubscriptions.add(subscription);
+                restoreExistingProfiles(existingProfilesBySubscription, profiles, subscription.id);
                 continue;
             }
             if (listener != null) {
@@ -133,6 +157,38 @@ public final class XraySubscriptionUpdater {
         }
 
         return new RefreshResult(new ArrayList<>(profiles.values()), updatedSubscriptions, firstError);
+    }
+
+    private static boolean shouldRefreshSubscription(
+        XraySubscription subscription,
+        long now,
+        int defaultRefreshIntervalHours
+    ) {
+        if (subscription == null || !subscription.autoUpdate || TextUtils.isEmpty(subscription.url)) {
+            return false;
+        }
+        int refreshHours =
+            subscription.refreshIntervalHours > 0 ? subscription.refreshIntervalHours : defaultRefreshIntervalHours;
+        if (subscription.lastUpdatedAt <= 0L) {
+            return true;
+        }
+        return now - subscription.lastUpdatedAt >= refreshHours * MILLIS_PER_HOUR;
+    }
+
+    private static void restoreExistingProfiles(
+        Map<String, List<XrayProfile>> existingProfilesBySubscription,
+        Map<String, XrayProfile> profiles,
+        String subscriptionId
+    ) {
+        List<XrayProfile> existingSubscriptionProfiles = existingProfilesBySubscription.get(subscriptionId);
+        if (existingSubscriptionProfiles == null) {
+            return;
+        }
+        for (XrayProfile existingProfile : existingSubscriptionProfiles) {
+            if (existingProfile != null && !TextUtils.isEmpty(existingProfile.rawLink)) {
+                profiles.put(existingProfile.stableDedupKey(), existingProfile);
+            }
+        }
     }
 
     public static Map<String, List<XrayProfile>> groupProfilesBySubscription(List<XrayProfile> profiles) {
