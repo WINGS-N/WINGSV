@@ -27,7 +27,7 @@ import wings.v.core.XrayStore;
 public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
-    private static final String[] PROXY_PREFERENCE_KEYS = {
+    private static final String[] TURN_PROXY_PREFERENCE_KEYS = {
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINK,
         AppPrefs.KEY_THREADS,
@@ -38,8 +38,6 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_LOCAL_ENDPOINT,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
-        "pref_category_vk_proxy",
-        "pref_inset_after_vk_proxy",
     };
     private static final String[] WIREGUARD_PREFERENCE_KEYS = {
         AppPrefs.KEY_WG_PRIVATE_KEY,
@@ -49,6 +47,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_WG_PUBLIC_KEY,
         AppPrefs.KEY_WG_PRESHARED_KEY,
         AppPrefs.KEY_WG_ALLOWED_IPS,
+        AppPrefs.KEY_WG_ENDPOINT,
         "pref_category_wg_interface",
         "pref_inset_after_wg_interface",
         "pref_category_wg_peer",
@@ -122,6 +121,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSummaryPreference(AppPrefs.KEY_WG_ADDRESSES);
         bindSummaryPreference(AppPrefs.KEY_WG_DNS);
         bindSummaryPreference(AppPrefs.KEY_WG_ALLOWED_IPS);
+        bindSummaryPreference(AppPrefs.KEY_WG_ENDPOINT);
         bindSummaryPreference(AppPrefs.KEY_AWG_QUICK_CONFIG);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_ADDRESSES);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_DNS);
@@ -383,6 +383,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
         syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
         syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
+        syncEditTextPreference(AppPrefs.KEY_WG_ENDPOINT, AppPrefs.getWireGuardEndpoint(requireContext()));
         syncAmneziaStructuredPrefs();
     }
 
@@ -392,7 +393,13 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         boolean wireGuardBackend = backendType.usesWireGuardSettings();
         boolean awgBackend = backendType.usesAmneziaSettings();
 
-        setPreferencesVisible(PROXY_PREFERENCE_KEYS, turnBackend);
+        setPreferenceVisible("pref_category_vk_proxy", turnBackend);
+        setPreferenceVisible("pref_inset_after_vk_proxy", turnBackend);
+        Preference proxyCategory = findPreference("pref_category_vk_proxy");
+        if (proxyCategory != null) {
+            proxyCategory.setTitle("Proxy");
+        }
+        setPreferencesVisible(TURN_PROXY_PREFERENCE_KEYS, turnBackend);
         setPreferencesVisible(WIREGUARD_PREFERENCE_KEYS, wireGuardBackend);
         setPreferencesVisible(AMNEZIA_PREFERENCE_KEYS, awgBackend);
     }

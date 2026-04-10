@@ -48,6 +48,7 @@ public final class AppPrefs {
     public static final String KEY_WG_PUBLIC_KEY = "pref_wg_public_key";
     public static final String KEY_WG_PRESHARED_KEY = "pref_wg_preshared_key";
     public static final String KEY_WG_ALLOWED_IPS = "pref_wg_allowed_ips";
+    public static final String KEY_WG_ENDPOINT = "pref_wg_endpoint";
     public static final String KEY_AWG_QUICK_CONFIG = "pref_awg_quick_config";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
     public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
@@ -578,7 +579,7 @@ public final class AppPrefs {
         SharedPreferences prefs = prefs(context);
         ProxySettings settings = new ProxySettings();
         settings.backendType = XrayStore.getBackendType(context);
-        settings.endpoint = trim(prefs.getString(KEY_ENDPOINT, ""));
+        settings.endpoint = resolveEndpointForBackend(context, settings.backendType);
         settings.vkLink = trim(prefs.getString(KEY_VK_LINK, ""));
         settings.threads = parseInt(prefs.getString(KEY_THREADS, "8"), 8);
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
@@ -613,12 +614,18 @@ public final class AppPrefs {
         if (backendType == BackendType.XRAY && importedConfig.xrayMergeOnly) {
             mergeImportedXrayPayload(context, importedConfig);
             ActiveProbingManager.clearRestoreBackend(context);
-            XrayStore.setBackendType(context, BackendType.XRAY);
+            if (shouldActivateImportedXrayPayload(importedConfig)) {
+                XrayStore.setBackendType(context, BackendType.XRAY);
+            }
             return;
         }
         SharedPreferences.Editor editor = prefs(context).edit();
 
-        editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
+        if (backendType == BackendType.WIREGUARD) {
+            editor.putString(KEY_WG_ENDPOINT, trim(importedConfig.endpoint));
+        } else {
+            editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
+        }
         editor.putString(KEY_VK_LINK, trim(importedConfig.link));
         editor.putString(
             KEY_THREADS,
@@ -703,6 +710,24 @@ public final class AppPrefs {
             )
             .apply();
         XrayStore.setBackendType(context, BackendType.VK_TURN_WIREGUARD);
+    }
+
+    public static String getTurnEndpoint(Context context) {
+        return trim(prefs(context).getString(KEY_ENDPOINT, ""));
+    }
+
+    public static String getWireGuardEndpoint(Context context) {
+        return trim(prefs(context).getString(KEY_WG_ENDPOINT, ""));
+    }
+
+    public static String resolveEndpointForBackend(Context context, BackendType backendType) {
+        if (backendType == BackendType.WIREGUARD) {
+            return getWireGuardEndpoint(context);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            return AmneziaStore.getConfiguredEndpoint(context);
+        }
+        return getTurnEndpoint(context);
     }
 
     @SuppressWarnings("PMD.AvoidInstantiatingObjectsInLoops")
@@ -818,6 +843,13 @@ public final class AppPrefs {
             XrayStore.setActiveProfileId(context, mergedActiveProfileId);
         }
         XrayStore.setLastSubscriptionsError(context, "");
+    }
+
+    private static boolean shouldActivateImportedXrayPayload(WingsImportParser.ImportedConfig importedConfig) {
+        return (
+            importedConfig != null &&
+            (!importedConfig.xrayProfiles.isEmpty() || !TextUtils.isEmpty(importedConfig.activeXrayProfileId))
+        );
     }
 
     private static SharedPreferences prefs(Context context) {

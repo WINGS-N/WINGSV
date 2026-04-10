@@ -20,6 +20,8 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import wings.v.MainActivity;
 import wings.v.R;
 import wings.v.core.AmneziaStore;
@@ -31,6 +33,7 @@ import wings.v.core.PublicIpFetcher;
 import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayProfile;
+import wings.v.core.XraySubscriptionImportHelper;
 import wings.v.databinding.FragmentHomeBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -64,6 +67,7 @@ public class HomeFragment extends Fragment {
     private static final int COUNTRY_CODE_LENGTH = 2;
     private static final long UI_REFRESH_INTERVAL_MS = 250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final ExecutorService importExecutor = Executors.newSingleThreadExecutor();
     private final Runnable refreshRunnable = new Runnable() {
         @Override
         public void run() {
@@ -414,11 +418,14 @@ public class HomeFragment extends Fragment {
 
         CharSequence text = clipData.getItemAt(0).coerceToText(context);
         try {
-            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(
-                text != null ? text.toString() : null
-            );
+            String rawText = text != null ? text.toString() : null;
+            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(rawText);
+            if (WingsImportParser.isSubscriptionOnlyXrayImport(importedConfig)) {
+                importSubscriptionUrls(context, rawText, importedConfig);
+                return;
+            }
             AppPrefs.applyImportedConfig(context, importedConfig);
-            requestReconnectAfterImport(context, text != null ? text.toString() : null);
+            requestReconnectAfterImport(context, rawText);
             Haptics.softConfirm(binding.buttonImportClipboard);
             Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
             refreshUi();
@@ -427,14 +434,67 @@ public class HomeFragment extends Fragment {
         }
     }
 
+    private void importSubscriptionUrls(
+        Context context,
+        @Nullable String importedText,
+        WingsImportParser.ImportedConfig importedConfig
+    ) {
+        Context appContext = context.getApplicationContext();
+        if (binding != null) {
+            binding.buttonImportClipboard.setEnabled(false);
+        }
+        Toast.makeText(appContext, R.string.xray_subscriptions_import_started, Toast.LENGTH_SHORT).show();
+        importExecutor.execute(() -> {
+            String toastMessage;
+            boolean importedSuccessfully = false;
+            try {
+                XraySubscriptionImportHelper.ImportResult result = XraySubscriptionImportHelper.importAndRefresh(
+                    appContext,
+                    importedConfig
+                );
+                if (!result.hasProfiles) {
+                    toastMessage = appContext.getString(R.string.xray_subscriptions_import_no_profiles);
+                } else if (TextUtils.isEmpty(result.refreshResult.error)) {
+                    toastMessage = appContext.getString(R.string.clipboard_import_success);
+                    importedSuccessfully = true;
+                } else {
+                    toastMessage = appContext.getString(
+                        R.string.xray_subscriptions_refresh_partial,
+                        result.refreshResult.error
+                    );
+                    importedSuccessfully = true;
+                }
+            } catch (Exception error) {
+                toastMessage = appContext.getString(R.string.xray_subscriptions_refresh_failed, error.getMessage());
+            }
+            final boolean shouldReconnect = importedSuccessfully;
+            final String resolvedToastMessage = toastMessage;
+            handler.post(() -> {
+                if (binding != null) {
+                    binding.buttonImportClipboard.setEnabled(true);
+                }
+                if (shouldReconnect) {
+                    requestReconnectAfterImport(appContext, importedText);
+                    if (binding != null) {
+                        Haptics.softConfirm(binding.buttonImportClipboard);
+                    }
+                    refreshUi();
+                }
+                Toast.makeText(appContext, resolvedToastMessage, Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
     private void requestReconnectAfterImport(Context context, @Nullable String importedText) {
         if (!ProxyTunnelService.isActive()) {
             return;
         }
-        String normalized = importedText == null ? "" : importedText.trim().toLowerCase();
+        String normalized = importedText == null ? "" : importedText.trim().toLowerCase(Locale.ROOT);
         String reason = normalized.startsWith("vless://")
             ? "Imported vless configuration applied"
-            : "Imported wingsv configuration applied";
+            : normalized.startsWith("http://") || normalized.startsWith("https://")
+                ? "Imported xray subscription applied"
+                : "Imported wingsv configuration applied";
         ProxyTunnelService.requestReconnect(context, reason);
     }
 

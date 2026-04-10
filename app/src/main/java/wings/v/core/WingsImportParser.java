@@ -5,9 +5,11 @@ import android.text.TextUtils;
 import android.util.Base64;
 import java.io.ByteArrayOutputStream;
 import java.net.InetAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,6 +34,7 @@ import wings.v.proto.WingsvProto;
 public final class WingsImportParser {
 
     private static final Pattern LINK_PATTERN = Pattern.compile("wingsv://[A-Za-z0-9_\\-+/=]+");
+    private static final Pattern SUBSCRIPTION_URL_PATTERN = Pattern.compile("https?://[^\\s\"']+");
     private static final String SCHEME_PREFIX = "wingsv://";
     private static final int CURRENT_VERSION = 1;
     private static final byte FORMAT_PROTOBUF_DEFLATE = 0x12;
@@ -44,6 +47,7 @@ public final class WingsImportParser {
     private static final String DEFAULT_WG_DNS = "1.1.1.1, 1.0.0.1";
     private static final int DEFAULT_WG_MTU = 1280;
     private static final String DEFAULT_ALLOWED_IPS = "0.0.0.0/0, ::/0";
+    private static final int DEFAULT_SUBSCRIPTION_REFRESH_HOURS = 24;
 
     private WingsImportParser() {}
 
@@ -217,6 +221,15 @@ public final class WingsImportParser {
             directImport.awgQuickConfig = rawText.trim();
             return directImport;
         }
+        List<XraySubscription> subscriptionImports = parseSubscriptionImports(rawText);
+        if (!subscriptionImports.isEmpty()) {
+            ImportedConfig directImport = new ImportedConfig();
+            directImport.backendType = BackendType.XRAY;
+            directImport.xrayMergeOnly = true;
+            directImport.xraySubscriptions.addAll(subscriptionImports);
+            directImport.xraySettings = defaultXraySettings();
+            return directImport;
+        }
         String link = extractLink(rawText);
         if (TextUtils.isEmpty(link)) {
             throw new IllegalArgumentException("WINGSV ссылка не найдена");
@@ -237,6 +250,16 @@ public final class WingsImportParser {
         throw new IllegalArgumentException("Неподдерживаемый формат WINGSV ссылки");
     }
 
+    public static boolean isSubscriptionOnlyXrayImport(ImportedConfig importedConfig) {
+        return (
+            importedConfig != null &&
+            importedConfig.backendType == BackendType.XRAY &&
+            importedConfig.xrayMergeOnly &&
+            !importedConfig.xraySubscriptions.isEmpty() &&
+            importedConfig.xrayProfiles.isEmpty()
+        );
+    }
+
     public static String extractLink(String rawText) {
         if (TextUtils.isEmpty(rawText)) {
             return null;
@@ -249,6 +272,59 @@ public final class WingsImportParser {
             return rawText.trim();
         }
         return null;
+    }
+
+    private static List<XraySubscription> parseSubscriptionImports(String rawText) {
+        LinkedHashSet<String> urls = new LinkedHashSet<>();
+        Matcher matcher = SUBSCRIPTION_URL_PATTERN.matcher(value(rawText));
+        while (matcher.find()) {
+            String candidate = value(matcher.group());
+            if (isValidSubscriptionUrl(candidate)) {
+                urls.add(candidate);
+            }
+        }
+        ArrayList<XraySubscription> subscriptions = new ArrayList<>();
+        for (String url : urls) {
+            subscriptions.add(
+                new XraySubscription(
+                    null,
+                    deriveSubscriptionTitle(url),
+                    url,
+                    "auto",
+                    DEFAULT_SUBSCRIPTION_REFRESH_HOURS,
+                    true,
+                    0L
+                )
+            );
+        }
+        return subscriptions;
+    }
+
+    private static boolean isValidSubscriptionUrl(String rawUrl) {
+        if (TextUtils.isEmpty(rawUrl)) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(rawUrl);
+            String scheme = value(uri.getScheme()).toLowerCase(java.util.Locale.ROOT);
+            if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                return false;
+            }
+            return !TextUtils.isEmpty(value(uri.getHost()));
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static String deriveSubscriptionTitle(String rawUrl) {
+        try {
+            URI uri = URI.create(rawUrl);
+            String host = value(uri.getHost());
+            if (!TextUtils.isEmpty(host)) {
+                return host;
+            }
+        } catch (RuntimeException ignored) {}
+        return "Imported";
     }
 
     private static WingsvProto.Config buildProtoConfig(Context context, ProxySettings settings) throws Exception {

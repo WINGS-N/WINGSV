@@ -81,6 +81,17 @@
             android:textStyle="bold" />
 
         <Button
+            android:id="@+id/button_import_subscription"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_first_launch_primary_button"
+            android:fontFamily="@font/samsungsharpsans"
+            android:text="@string/first_launch_xray_import_subscription"
+            android:textColor="#FF010102"
+            android:textStyle="bold" />
+
+        <Button
             android:id="@+id/button_continue_xray"
             android:layout_width="match_parent"
             android:layout_height="56dp"

@@ -306,6 +306,11 @@
             android:exported="false" />
 
         <receiver
+            android:name=".receiver.XraySubscriptionRefreshReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
             android:name=".receiver.BootReceiver"
             android:enabled="true"
             android:exported="true">

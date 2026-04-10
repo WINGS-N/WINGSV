@@ -58,6 +58,7 @@ public class FirstLaunchActivity
     private static final long PAGE_TRANSITION_IN_MS = 1_000L;
     private static final int PAGE_TRANSITION_OFFSET_DP = 18;
     private static final long ENTRY_FADE_MS = 2_000L;
+    private static final long INTRO_EXIT_FADE_MS = 650L;
     private static final long EXIT_FADE_MS = 2_000L;
     private static final long INTRO_MUSIC_FADE_IN_MS = 20_000L;
     private static final float INTRO_MUSIC_MAX_VOLUME = 0.2f;
@@ -187,6 +188,14 @@ public class FirstLaunchActivity
         }
         if (FirstLaunchConnectionFragment.CHOICE_AUTO_SEARCH.equals(choice)) {
             animateToPage(5);
+            return;
+        }
+        completeFirstLaunch();
+    }
+
+    @Override
+    public void onConnectionChoiceSkipped() {
+        if (exitTransitionRunning) {
             return;
         }
         completeFirstLaunch();
@@ -422,7 +431,18 @@ public class FirstLaunchActivity
         }
         binding.contentFirstLaunch.setAlpha(1f);
         binding.videoFirstLaunchIntro.animate().cancel();
-        binding.videoFirstLaunchIntro.setVisibility(View.GONE);
+        binding.videoFirstLaunchIntro
+            .animate()
+            .alpha(0f)
+            .setDuration(INTRO_EXIT_FADE_MS)
+            .setInterpolator(new PathInterpolator(0.22f, 0.25f, 0f, 1f))
+            .withEndAction(() -> {
+                if (binding == null) {
+                    return;
+                }
+                binding.videoFirstLaunchIntro.setVisibility(View.GONE);
+            })
+            .start();
     }
 
     private void stopIntroVideo() {

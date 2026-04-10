@@ -157,10 +157,7 @@ public class WarningConfirmActivity extends AppCompatActivity {
         final long remainingMs = Math.max(0L, confirmDeadlineMs - SystemClock.elapsedRealtime());
         final boolean ready = remainingMs <= NO_DEADLINE_MS;
         continueButton.setEnabled(ready);
-        final int textColor = ContextCompat.getColor(
-            this,
-            ready ? READY_TEXT_COLOR : IDLE_TEXT_COLOR
-        );
+        final int textColor = ContextCompat.getColor(this, ready ? READY_TEXT_COLOR : IDLE_TEXT_COLOR);
         continueButton.setBackgroundResource(ready ? READY_BG : IDLE_BG);
         continueButton.setTextColor(textColor);
         if (ready) {
@@ -168,9 +165,7 @@ public class WarningConfirmActivity extends AppCompatActivity {
             timerView.setText("");
         } else {
             timerView.setVisibility(View.VISIBLE);
-            timerView.setText(
-                getString(R.string.warning_confirm_timer_seconds, (int) Math.ceil(remainingMs / 1000d))
-            );
+            timerView.setText(getString(R.string.warning_confirm_timer_seconds, (int) Math.ceil(remainingMs / 1000d)));
         }
     }
 
