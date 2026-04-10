@@ -64,7 +64,6 @@ import wings.v.xray.XrayBridge;
         "PMD.GodClass",
         "PMD.CyclomaticComplexity",
         "PMD.TooManyMethods",
-        "PMD.NcssCount",
         "PMD.CognitiveComplexity",
         "PMD.NPathComplexity",
         "PMD.LawOfDemeter",
@@ -121,7 +120,7 @@ public final class AutoSearchManager {
     private static final int TRAFFIC_PROBE_RESPONSIVE_READ_TIMEOUT_MS = 12_000;
     private static final int TRAFFIC_PROBE_MAX_BYTES = 4 * 1024;
     private static final int DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 20;
-    private static final int DEFAULT_DOWNLOAD_ATTEMPTS = 3;
+    private static final int DEFAULT_DOWNLOAD_ATTEMPTS = 2;
     private static final int DEFAULT_TARGET_COUNT = 5;
     private static final int DEFAULT_DOWNLOAD_SIZE_MB = 5;
     private static final int FAILED_ATTEMPTS_LIMIT = 2;

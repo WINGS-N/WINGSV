@@ -170,6 +170,7 @@ public final class XrayStore {
             .putBoolean(AppPrefs.KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED, true)
             .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
             .apply();
+        XraySubscriptionBackgroundScheduler.refresh(context.getApplicationContext());
     }
 
     public static void ensureDefaultSubscriptionPresent(Context context) {
@@ -395,6 +396,7 @@ public final class XrayStore {
             .edit()
             .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, String.valueOf(Math.max(hours, 1)))
             .apply();
+        XraySubscriptionBackgroundScheduler.refresh(context.getApplicationContext());
     }
 
     public static long getLastSubscriptionsRefreshAt(Context context) {

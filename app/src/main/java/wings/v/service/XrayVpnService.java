@@ -99,7 +99,8 @@ public class XrayVpnService extends VpnService implements DialerController {
                     }
                 }
             }
-            return getServiceNow();
+            existing = getServiceNow();
+            return existing != null && existing.isReusable() ? existing : null;
         }
     }
 
@@ -191,8 +192,12 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        serviceFuture.complete(this);
-        updateHeartbeat(tunnelFd != null);
+        if (!shuttingDown) {
+            serviceFuture.complete(this);
+            updateHeartbeat(tunnelFd != null);
+        } else {
+            updateHeartbeat(false);
+        }
         return START_STICKY;
     }
 

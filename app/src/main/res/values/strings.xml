@@ -24,6 +24,7 @@
     <string name="first_launch_start">Начать</string>
     <string name="first_launch_next">Далее</string>
     <string name="first_launch_continue">Начать использовать</string>
+    <string name="first_launch_skip">Пропустить</string>
     <string name="first_launch_page_welcome_badge">Добро пожаловать</string>
     <string name="first_launch_page_welcome_title">WINGS V</string>
     <string name="first_launch_page_welcome_subtitle">WINGS V - это единый клиент для Xray и VK TURN, с множеством дополнительных функций для борьбы с Российской Интернет-цензурой, включая белые списки</string>
@@ -58,8 +59,10 @@
     <string name="first_launch_xray_description">Импортируйте VLESS профиль или настройте базовые параметры Xray</string>
     <string name="first_launch_xray_import_wingsv">Импортировать wingsv://</string>
     <string name="first_launch_xray_import_vless">Импортировать vless://</string>
+    <string name="first_launch_xray_import_subscription">Импортировать URL подписки</string>
     <string name="first_launch_xray_import_wingsv_invalid">В буфере нет подходящей Xray ссылки wingsv://</string>
     <string name="first_launch_xray_import_vless_invalid">В буфере нет подходящей vless:// ссылки</string>
+    <string name="first_launch_xray_import_subscription_invalid">В буфере нет подходящего URL подписки</string>
     <string name="first_launch_auto_search_settings_title">Автопоиск</string>
     <string name="first_launch_auto_search_settings_description">Настройте параметры проверки профилей перед запуском</string>
     <string name="first_launch_auto_search_mode_title">Режим автопоиска</string>
@@ -103,7 +106,7 @@
     <string name="home_description">TURN + WireGuard</string>
     <string name="clipboard_empty">В буфере обмена нет ссылки WINGSV или VLESS</string>
     <string name="clipboard_import_success">Настройки импортированы</string>
-    <string name="clipboard_import_invalid">Не удалось разобрать ссылку WINGSV или VLESS</string>
+    <string name="clipboard_import_invalid">Не удалось разобрать wingsv://, vless:// или URL подписки</string>
     <string name="clipboard_copy_success">Конфигурация скопирована в буфер</string>
     <string name="clipboard_copy_failed">Не удалось сформировать конфигурацию</string>
     <string name="action_delete">Удалить</string>
@@ -277,7 +280,7 @@
     <string name="license_component_repo">Открыть upstream: %1$s</string>
     <string name="root_category_title">Root функции</string>
     <string name="root_mode_title">Root функции</string>
-    <string name="root_mode_summary">Включает root-возможности приложения и позволяет раздавать VPN через системную раздачу</string>
+    <string name="root_mode_summary">Включает root-возможности приложения и позволяет раздавать Интернет с VPN</string>
     <string name="root_mode_unavailable">Root функции недоступны: %1$s</string>
     <string name="kernel_wireguard_title">Kernel WireGuard</string>
     <string name="kernel_wireguard_summary">Для VK TURN + WireGuard использует kernel WireGuard вместо Android VpnService</string>
@@ -489,6 +492,8 @@
     <string name="xray_subscriptions_refresh_success">Обновление завершено, профилей: %1$d</string>
     <string name="xray_subscriptions_refresh_partial">Обновление завершено с ошибкой: %1$s</string>
     <string name="xray_subscriptions_refresh_failed">Не удалось обновить подписки: %1$s</string>
+    <string name="xray_subscriptions_import_started">Подписка добавлена, обновляем профили…</string>
+    <string name="xray_subscriptions_import_no_profiles">Подписка сохранена, но профили не найдены</string>
     <string name="xray_subscriptions_selected_count">Выбрано: %1$d</string>
     <string name="xray_subscriptions_share_chooser">Поделиться подписками</string>
     <string name="xray_subscriptions_share_failed">Не удалось сформировать ссылку для выбранных подписок</string>

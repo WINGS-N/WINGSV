@@ -9,7 +9,6 @@ import java.util.Iterator;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import wings.v.core.AppPrefs;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
@@ -39,6 +38,7 @@ import wings.v.core.XraySettings;
     }
 )
 public final class XrayConfigFactory {
+
     private static final String TUN_TAG = "tun-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String PROXY_TAG = "proxy";

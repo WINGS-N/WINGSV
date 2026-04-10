@@ -22,6 +22,8 @@ public class FirstLaunchConnectionFragment extends Fragment {
 
     public interface Host {
         void onConnectionChoiceSelected(@NonNull String choice);
+
+        void onConnectionChoiceSkipped();
     }
 
     public static FirstLaunchConnectionFragment create() {
@@ -45,12 +47,20 @@ public class FirstLaunchConnectionFragment extends Fragment {
         binding.buttonFirstLaunchVkTurn.setOnClickListener(v -> dispatchChoice(v, CHOICE_VK_TURN));
         binding.buttonFirstLaunchXray.setOnClickListener(v -> dispatchChoice(v, CHOICE_XRAY));
         binding.buttonFirstLaunchAutoSearch.setOnClickListener(v -> dispatchChoice(v, CHOICE_AUTO_SEARCH));
+        binding.textFirstLaunchSkip.setOnClickListener(v -> dispatchSkip(v));
     }
 
     private void dispatchChoice(View view, String choice) {
         Haptics.softConfirm(view);
         if (getActivity() instanceof Host) {
             ((Host) getActivity()).onConnectionChoiceSelected(choice);
+        }
+    }
+
+    private void dispatchSkip(View view) {
+        Haptics.softSelection(view);
+        if (getActivity() instanceof Host) {
+            ((Host) getActivity()).onConnectionChoiceSkipped();
         }
     }
 

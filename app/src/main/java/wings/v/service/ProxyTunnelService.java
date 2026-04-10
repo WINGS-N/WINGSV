@@ -1,6 +1,7 @@
 package wings.v.service;
 
 import android.annotation.SuppressLint;
+import android.app.ActivityManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -204,6 +205,8 @@ public class ProxyTunnelService extends Service {
     private static final long STATS_SPEED_IDLE_DECAY_HOLD_MS = 900L;
     private static final long UNDERLYING_NETWORK_RECONNECT_DELAY_MS = 750L;
     private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 7_500L;
+    private static final long NON_XRAY_LIVENESS_STARTUP_GRACE_MS = 25_000L;
+    private static final long NON_XRAY_LIVENESS_TIMEOUT_MS = 45_000L;
     private static final long WAKE_FAST_PATH_EVENT_COOLDOWN_MS = 2_000L;
     private static final long WAKE_FAST_PATH_INITIAL_DELAY_MS = 500L;
     private static final long WAKE_FAST_PATH_RETRY_DELAY_MS = 750L;
@@ -387,6 +390,7 @@ public class ProxyTunnelService extends Service {
     private String lastUnderlyingNetworkFingerprint;
     private Boolean lastUnderlyingNetworkUsable;
     private long lastUnderlyingConnectivityEventAtElapsedMs;
+    private long lastRunningStateAtElapsedMs;
     private long lastWakeFastPathAtElapsedMs;
     private long lastActiveTunnelProbeAtElapsedMs;
     private long lastNotificationTrafficUpdateAtElapsedMs;
@@ -2022,6 +2026,11 @@ public class ProxyTunnelService extends Service {
         return successAt > 0L && ttl > 0L && SystemClock.elapsedRealtime() - successAt <= ttl;
     }
 
+    private static boolean hasConnectivityProbeSuccessWithin(long freshnessMs) {
+        long successAt = sLastConnectivityProbeSuccessAtElapsedMs;
+        return successAt > 0L && SystemClock.elapsedRealtime() - successAt <= Math.max(1L, freshnessMs);
+    }
+
     private File getRootProxyPidFile() {
         return new File(new File(getFilesDir(), "runtime"), "root_proxy.pid");
     }
@@ -2523,6 +2532,17 @@ public class ProxyTunnelService extends Service {
             showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, false, true);
             return;
         }
+        if (!isApplicationInForeground()) {
+            appendRuntimeLogLine("App is backgrounded, showing VK captcha notification instead of opening browser");
+            showCaptchaNotification(
+                prompt.url,
+                prompt.source,
+                prompt.userAgent,
+                transientExternalFlow,
+                prompt.source != CaptchaPromptSource.PRIMARY
+            );
+            return;
+        }
         if (transientExternalFlow && prompt.source == CaptchaPromptSource.PRIMARY) {
             showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, true, false);
         }
@@ -2621,6 +2641,12 @@ public class ProxyTunnelService extends Service {
         } catch (Exception error) {
             appendRuntimeLogLine("Failed to open captcha browser: " + error.getMessage());
         }
+    }
+
+    private boolean isApplicationInForeground() {
+        ActivityManager.RunningAppProcessInfo processInfo = new ActivityManager.RunningAppProcessInfo();
+        ActivityManager.getMyMemoryState(processInfo);
+        return processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
     }
 
     private void showCaptchaNotification(
@@ -4891,7 +4917,47 @@ public class ProxyTunnelService extends Service {
             (backend == null || currentTunnel == null)
         ) {
             scheduleRuntimeReconnect("WireGuard runtime lost tunnel state", RUNTIME_RECONNECT_DELAY_MS);
+            return;
         }
+
+        if (!ensureNonXrayTunnelLiveness()) {
+            return;
+        }
+    }
+
+    private boolean shouldSuppressNonXrayLivenessCheck() {
+        long runningAt = lastRunningStateAtElapsedMs;
+        if (runningAt > 0L && SystemClock.elapsedRealtime() - runningAt < NON_XRAY_LIVENESS_STARTUP_GRACE_MS) {
+            return true;
+        }
+        if (Boolean.FALSE.equals(lastUnderlyingNetworkUsable)) {
+            return true;
+        }
+        long connectivityEventAt = lastUnderlyingConnectivityEventAtElapsedMs;
+        if (connectivityEventAt <= 0L) {
+            return false;
+        }
+        return SystemClock.elapsedRealtime() - connectivityEventAt < ACTIVE_PROBING_CONNECTIVITY_GRACE_MS;
+    }
+
+    private boolean ensureNonXrayTunnelLiveness() {
+        if (hasConnectivityProbeSuccessWithin(NON_XRAY_LIVENESS_TIMEOUT_MS)) {
+            return true;
+        }
+        if (shouldSuppressNonXrayLivenessCheck()) {
+            return true;
+        }
+        if (connectivityProbeInProgress.get()) {
+            return true;
+        }
+        appendRuntimeLogLine("Non-Xray tunnel liveness became stale, running immediate connectivity probe");
+        if (runConnectivityProbeNow(WAKE_FAST_PATH_PROBE_TIMEOUT_MS)) {
+            appendRuntimeLogLine("Immediate non-Xray connectivity probe succeeded");
+            recordConnectivityProbeSuccess();
+            return true;
+        }
+        scheduleRuntimeReconnect("Non-Xray tunnel liveness probe timed out", RUNTIME_RECONNECT_DELAY_MS);
+        return false;
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -5017,6 +5083,11 @@ public class ProxyTunnelService extends Service {
 
     private void setServiceState(ServiceState state) {
         sServiceState = state;
+        if (state == ServiceState.RUNNING) {
+            lastRunningStateAtElapsedMs = SystemClock.elapsedRealtime();
+        } else {
+            lastRunningStateAtElapsedMs = 0L;
+        }
         if (state != ServiceState.RUNNING) {
             sRunning = false;
         }

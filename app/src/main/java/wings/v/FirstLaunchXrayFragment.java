@@ -4,6 +4,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -16,12 +19,16 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.fragment.app.Fragment;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
+import wings.v.core.XraySubscriptionImportHelper;
 import wings.v.databinding.FragmentFirstLaunchXrayBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -51,6 +58,9 @@ public class FirstLaunchXrayFragment extends Fragment {
 
     @Nullable
     private FragmentFirstLaunchXrayBinding binding;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService importExecutor = Executors.newSingleThreadExecutor();
 
     private AppCompatCheckBox allowLanCheckBox;
     private AppCompatCheckBox allowInsecureCheckBox;
@@ -113,6 +123,10 @@ public class FirstLaunchXrayFragment extends Fragment {
         binding.buttonImportVless.setOnClickListener(view -> {
             Haptics.softSelection(view);
             importFromClipboard("vless://", R.string.first_launch_xray_import_vless_invalid);
+        });
+        binding.buttonImportSubscription.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            importSubscriptionFromClipboard();
         });
         binding.buttonContinueXray.setOnClickListener(view -> {
             Haptics.softConfirm(view);
@@ -221,14 +235,93 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void importSubscriptionFromClipboard() {
+        Context context = requireContext();
+        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
+            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipData clipData = clipboardManager.getPrimaryClip();
+        if (clipData == null || clipData.getItemCount() == 0) {
+            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        CharSequence rawText = clipData.getItemAt(0).coerceToText(context);
+        String text = rawText != null ? rawText.toString() : "";
+        try {
+            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
+            if (!WingsImportParser.isSubscriptionOnlyXrayImport(importedConfig)) {
+                Toast.makeText(
+                    context,
+                    R.string.first_launch_xray_import_subscription_invalid,
+                    Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
+            if (binding != null) {
+                binding.buttonImportSubscription.setEnabled(false);
+            }
+            Toast.makeText(context, R.string.xray_subscriptions_import_started, Toast.LENGTH_SHORT).show();
+            Context appContext = context.getApplicationContext();
+            importExecutor.execute(() -> {
+                String toastMessage;
+                boolean importedSuccessfully = false;
+                try {
+                    XraySubscriptionImportHelper.ImportResult result = XraySubscriptionImportHelper.importAndRefresh(
+                        appContext,
+                        importedConfig
+                    );
+                    if (!result.hasProfiles) {
+                        toastMessage = appContext.getString(R.string.xray_subscriptions_import_no_profiles);
+                    } else if (TextUtils.isEmpty(result.refreshResult.error)) {
+                        toastMessage = appContext.getString(R.string.clipboard_import_success);
+                        importedSuccessfully = true;
+                    } else {
+                        toastMessage = appContext.getString(
+                            R.string.xray_subscriptions_refresh_partial,
+                            result.refreshResult.error
+                        );
+                        importedSuccessfully = true;
+                    }
+                } catch (Exception error) {
+                    toastMessage = appContext.getString(R.string.xray_subscriptions_refresh_failed, error.getMessage());
+                }
+                final boolean shouldComplete = importedSuccessfully;
+                final String resolvedToastMessage = toastMessage;
+                mainHandler.post(() -> {
+                    if (binding != null) {
+                        binding.buttonImportSubscription.setEnabled(true);
+                    }
+                    if (shouldComplete) {
+                        requestReconnectAfterImport(appContext, text);
+                        if (binding != null) {
+                            Haptics.softConfirm(binding.buttonImportSubscription);
+                        }
+                        loadSettings(XrayStore.getXraySettings(appContext));
+                        if (getActivity() instanceof Host) {
+                            ((Host) getActivity()).onXraySettingsCompleted();
+                        }
+                    }
+                    Toast.makeText(appContext, resolvedToastMessage, Toast.LENGTH_SHORT).show();
+                });
+            });
+        } catch (Exception ignored) {
+            Toast.makeText(context, R.string.first_launch_xray_import_subscription_invalid, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void requestReconnectAfterImport(Context context, @Nullable String importedText) {
         if (!ProxyTunnelService.isActive()) {
             return;
         }
-        String normalized = importedText == null ? "" : importedText.trim().toLowerCase();
+        String normalized = importedText == null ? "" : importedText.trim().toLowerCase(Locale.ROOT);
         String reason = normalized.startsWith("vless://")
             ? "Imported vless configuration applied"
-            : "Imported wingsv configuration applied";
+            : normalized.startsWith("http://") || normalized.startsWith("https://")
+                ? "Imported xray subscription applied"
+                : "Imported wingsv configuration applied";
         ProxyTunnelService.requestReconnect(context, reason);
     }
 
