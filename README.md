@@ -1,5 +1,11 @@
-# WINGS V
-Клиент сетевых backend'ов в интерфейсе Samsung One UI
+<h1 align="center">WINGS V</h1>
+<p align="center">
+  <a href="https://t.me/+KrgCVOtwL980ZDky">
+    <img src="https://img.shields.io/badge/Telegram-Чат-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Чат">
+  </a>
+</p>
+
+Клиент Xray, vk-turn-proxy, WireGuard, AmneziaWG в интерфейсе Samsung One UI
 
 ## Скриншоты
 |                                                                                           |                                                                                           |
@@ -9,7 +15,7 @@
 
 ## Что умеет
 
-- запускать и останавливать `VK TURN + WireGuard`, `Xray / VLESS` и `VK TURN + AmneziaWG`
+- работать через `Xray (VLESS)`, `VK TURN + WireGuard или AmneziaWG`, обычные `WireGuard/AmneziaWG`
 - показывать статус подключения, IP, страну, провайдера и сетевую статистику
 - работать в обычном VPN режиме через `VpnService`
 - работать в root режиме для `VK TURN + WireGuard`
