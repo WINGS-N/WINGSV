@@ -2,6 +2,7 @@ package wings.v.core;
 
 import android.content.Context;
 import android.text.TextUtils;
+import android.util.Log;
 import com.wireguard.android.backend.WgQuickBackend;
 import com.wireguard.android.util.RootShell;
 import java.io.ByteArrayOutputStream;
@@ -26,6 +27,11 @@ import java.nio.charset.StandardCharsets;
 )
 public final class RootUtils {
 
+    private static final String TAG = "WINGSV/RootUtils";
+    private static final String ROOT_UID_MARKER = "__WINGSV_ROOT_UID__=";
+    private static final String ROOT_CHECK_EXIT_MARKER = "__WINGSV_ROOT_CHECK_EXIT__=";
+    private static final int MAX_DIRECT_SU_LOG_CHARS = 240;
+
     private RootUtils() {}
 
     public static boolean verifyRootAccess(Context context) {
@@ -33,8 +39,9 @@ public final class RootUtils {
         try {
             rootShell.start();
             return true;
-        } catch (Exception ignored) {
-            return false;
+        } catch (Exception error) {
+            Log.w(TAG, "Interactive RootShell probe failed, falling back to direct su check", error);
+            return verifyRootAccessDirect();
         } finally {
             rootShell.stop();
         }
@@ -163,13 +170,91 @@ public final class RootUtils {
         RootShell rootShell = new RootShell(context.getApplicationContext());
         try {
             rootShell.start();
-            rootShell.run(null, command);
-            return true;
+            return rootShell.run(null, command) == 0;
         } catch (Exception ignored) {
-            return false;
+            try {
+                return runDirectRootCommand(command).exitCode == 0;
+            } catch (Exception ignoredAgain) {
+                return false;
+            }
         } finally {
             rootShell.stop();
         }
+    }
+
+    private static boolean verifyRootAccessDirect() {
+        try {
+            DirectRootCommandResult result = runDirectRootCommand(buildDirectRootAccessProbeCommand());
+            String uid = extractMarkerValue(result.output, ROOT_UID_MARKER);
+            String commandExit = extractMarkerValue(result.output, ROOT_CHECK_EXIT_MARKER);
+            boolean granted = result.exitCode == 0 && "0".equals(uid) && "0".equals(commandExit);
+            if (!granted) {
+                Log.w(
+                    TAG,
+                    "Direct su root probe failed: processExit=" +
+                    result.exitCode +
+                    ", uid=" +
+                    safeLogValue(uid) +
+                    ", commandExit=" +
+                    safeLogValue(commandExit) +
+                    ", output=" +
+                    summarizeDirectSuOutput(result.output)
+                );
+            }
+            return granted;
+        } catch (Exception error) {
+            Log.w(TAG, "Direct su root probe execution failed", error);
+            return false;
+        }
+    }
+
+    private static String buildDirectRootAccessProbeCommand() {
+        return (
+            "printf '\\n" +
+            ROOT_UID_MARKER +
+            "'; (/system/bin/id -u 2>/dev/null || id -u 2>/dev/null); " +
+            "rc=$?; printf '\\n" +
+            ROOT_CHECK_EXIT_MARKER +
+            "%s\\n' \"$rc\""
+        );
+    }
+
+    private static DirectRootCommandResult runDirectRootCommand(String command) throws Exception {
+        Process process = new ProcessBuilder("su", "-c", command).redirectErrorStream(true).start();
+        String output;
+        try (InputStream inputStream = process.getInputStream()) {
+            output = readFully(inputStream);
+        }
+        int exitCode = process.waitFor();
+        return new DirectRootCommandResult(exitCode, output == null ? "" : output);
+    }
+
+    private static String extractMarkerValue(String output, String marker) {
+        if (TextUtils.isEmpty(output) || TextUtils.isEmpty(marker)) {
+            return null;
+        }
+        String[] lines = output.replace("\r", "").split("\n");
+        for (String line : lines) {
+            if (line.startsWith(marker)) {
+                return line.substring(marker.length()).trim();
+            }
+        }
+        return null;
+    }
+
+    private static String summarizeDirectSuOutput(String output) {
+        if (TextUtils.isEmpty(output)) {
+            return "<empty>";
+        }
+        String normalized = output.replace("\r", " ").replace("\n", " ").trim();
+        if (normalized.length() <= MAX_DIRECT_SU_LOG_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_DIRECT_SU_LOG_CHARS) + "...";
+    }
+
+    private static String safeLogValue(String value) {
+        return TextUtils.isEmpty(value) ? "<missing>" : value;
     }
 
     private static String readFully(InputStream inputStream) throws Exception {
@@ -182,5 +267,16 @@ public final class RootUtils {
             read = inputStream.read(buffer);
         }
         return outputStream.toString(StandardCharsets.UTF_8.name());
+    }
+
+    private static final class DirectRootCommandResult {
+
+        private final int exitCode;
+        private final String output;
+
+        private DirectRootCommandResult(int exitCode, String output) {
+            this.exitCode = exitCode;
+            this.output = output;
+        }
     }
 }

@@ -123,6 +123,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".ThemeSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".VkTurnSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
@@ -256,6 +261,15 @@
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+        </service>
+
+        <service
+            android:name="com.wireguard.android.backend.GoBackend$VpnService"
+            android:foregroundServiceType="specialUse"
+            tools:node="merge">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="userspace_wireguard_vpn" />
         </service>
 
         <service
