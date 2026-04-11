@@ -59,8 +59,8 @@ public final class XrayRoutingStore {
     private static final String GEOIP_NAME = "geoip";
     private static final String GEOSITE_NAME = "geosite";
     private static final int BUFFER_SIZE = 8192;
-    private static final ExecutorService bootstrapExecutor = Executors.newSingleThreadExecutor();
-    private static final AtomicBoolean bootstrapScheduled = new AtomicBoolean(false);
+    private static final ExecutorService BOOTSTRAP_EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final AtomicBoolean BOOTSTRAP_SCHEDULED = new AtomicBoolean(false);
 
     private XrayRoutingStore() {}
 
@@ -108,11 +108,11 @@ public final class XrayRoutingStore {
         if (preferences.getBoolean(AppPrefs.KEY_XRAY_ROUTING_BOOTSTRAP_ATTEMPTED, false)) {
             return;
         }
-        if (!bootstrapScheduled.compareAndSet(false, true)) {
+        if (!BOOTSTRAP_SCHEDULED.compareAndSet(false, true)) {
             return;
         }
         preferences.edit().putBoolean(AppPrefs.KEY_XRAY_ROUTING_BOOTSTRAP_ATTEMPTED, true).apply();
-        bootstrapExecutor.execute(() -> {
+        BOOTSTRAP_EXECUTOR.execute(() -> {
             tryDownloadGeoFileSilently(appContext, XrayRoutingRule.MatchType.GEOIP);
             tryDownloadGeoFileSilently(appContext, XrayRoutingRule.MatchType.GEOSITE);
         });
@@ -314,12 +314,14 @@ public final class XrayRoutingStore {
             FileOutputStream outputStream = new FileOutputStream(target, false)
         ) {
             byte[] buffer = new byte[BUFFER_SIZE];
-            int read;
-            while ((read = inputStream.read(buffer)) >= 0) {
+            int read = inputStream.read(buffer);
+            while (read >= 0) {
                 if (read == 0) {
+                    read = inputStream.read(buffer);
                     continue;
                 }
                 outputStream.write(buffer, 0, read);
+                read = inputStream.read(buffer);
             }
         }
     }
@@ -334,12 +336,14 @@ public final class XrayRoutingStore {
             BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(target, false))
         ) {
             byte[] buffer = new byte[BUFFER_SIZE];
-            int read;
-            while ((read = inputStream.read(buffer)) >= 0) {
+            int read = inputStream.read(buffer);
+            while (read >= 0) {
                 if (read == 0) {
+                    read = inputStream.read(buffer);
                     continue;
                 }
                 outputStream.write(buffer, 0, read);
+                read = inputStream.read(buffer);
             }
         }
     }
@@ -350,12 +354,14 @@ public final class XrayRoutingStore {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()
         ) {
             byte[] buffer = new byte[BUFFER_SIZE];
-            int read;
-            while ((read = inputStream.read(buffer)) >= 0) {
+            int read = inputStream.read(buffer);
+            while (read >= 0) {
                 if (read == 0) {
+                    read = inputStream.read(buffer);
                     continue;
                 }
                 outputStream.write(buffer, 0, read);
+                read = inputStream.read(buffer);
             }
             return outputStream.toString(java.nio.charset.StandardCharsets.UTF_8.name());
         }

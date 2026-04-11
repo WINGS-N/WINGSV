@@ -15,6 +15,7 @@ import wings.v.databinding.FragmentFirstLaunchAutoSearchModeBinding;
 @SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchAutoSearchModeFragment extends Fragment {
 
+    @FunctionalInterface
     public interface Host {
         void onFirstLaunchAutoSearchModeSelected(@NonNull AutoSearchManager.Mode mode);
     }

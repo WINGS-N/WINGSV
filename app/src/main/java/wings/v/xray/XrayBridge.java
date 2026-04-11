@@ -2,6 +2,7 @@ package wings.v.xray;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import android.text.TextUtils;
 import android.util.Base64;
 import java.io.File;
@@ -38,6 +39,7 @@ import wings.v.service.XrayVpnService;
 public final class XrayBridge {
 
     private static final AtomicBoolean LOADED = new AtomicBoolean();
+    private static final AtomicBoolean RUNTIME_STARTED = new AtomicBoolean();
     private static final Object JNI_LOCK = new Object();
     private static final DialerController DIRECT_NETWORK_CONTROLLER = new DialerController() {
         @Override
@@ -98,9 +100,11 @@ public final class XrayBridge {
     public static void runFromJson(Context context, String configJson, int tunFd) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
+            RUNTIME_STARTED.set(false);
             File datDir = ensureDatDir(context);
             String request = LibXray.newXrayRunFromJSONRequest(datDir.getAbsolutePath(), "", configJson, tunFd);
             decodeResponse(LibXray.runXrayFromJSON(request));
+            RUNTIME_STARTED.set(true);
         }
     }
 
@@ -154,16 +158,29 @@ public final class XrayBridge {
     public static void stop() throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            decodeResponse(LibXray.stopXray());
-            LibXray.resetDns();
+            try {
+                decodeResponse(LibXray.stopXray());
+            } finally {
+                RUNTIME_STARTED.set(false);
+                LibXray.resetDns();
+            }
         }
     }
 
     public static boolean isRunning() {
         ensureLoaded();
-        synchronized (JNI_LOCK) {
-            return LibXray.getXrayState();
+        if (usesCachedStateFallback()) {
+            return RUNTIME_STARTED.get();
         }
+        synchronized (JNI_LOCK) {
+            boolean running = LibXray.getXrayState();
+            RUNTIME_STARTED.set(running);
+            return running;
+        }
+    }
+
+    public static boolean usesCachedStateFallback() {
+        return isXiaomiHyperOsDevice();
     }
 
     private static File ensureDatDir(Context context) {
@@ -196,12 +213,14 @@ public final class XrayBridge {
             FileOutputStream outputStream = new FileOutputStream(target, false)
         ) {
             byte[] buffer = new byte[8192];
-            int read;
-            while ((read = inputStream.read(buffer)) >= 0) {
+            int read = inputStream.read(buffer);
+            while (read >= 0) {
                 if (read == 0) {
+                    read = inputStream.read(buffer);
                     continue;
                 }
                 outputStream.write(buffer, 0, read);
+                read = inputStream.read(buffer);
             }
         } catch (Exception ignored) {
             // best-effort migration
@@ -212,6 +231,23 @@ public final class XrayBridge {
         if (LOADED.compareAndSet(false, true)) {
             LibXray.touch();
         }
+    }
+
+    private static boolean isXiaomiHyperOsDevice() {
+        String manufacturer = trim(Build.MANUFACTURER).toLowerCase(Locale.ROOT);
+        String brand = trim(Build.BRAND).toLowerCase(Locale.ROOT);
+        String fingerprint = trim(Build.FINGERPRINT).toLowerCase(Locale.ROOT);
+        return (
+            manufacturer.contains("xiaomi") ||
+            manufacturer.contains("redmi") ||
+            manufacturer.contains("poco") ||
+            brand.contains("xiaomi") ||
+            brand.contains("redmi") ||
+            brand.contains("poco") ||
+            fingerprint.contains("xiaomi/") ||
+            fingerprint.contains("redmi/") ||
+            fingerprint.contains("poco/")
+        );
     }
 
     private static String resolveBootstrapDnsDialTarget(String remoteDns, String directDns) {

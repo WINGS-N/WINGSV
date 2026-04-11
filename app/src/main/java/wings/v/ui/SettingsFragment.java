@@ -18,6 +18,7 @@ import wings.v.AboutAppActivity;
 import wings.v.ActiveProbingSettingsActivity;
 import wings.v.AutoSearchActivity;
 import wings.v.ByeDpiSettingsActivity;
+import wings.v.ExportSettingsActivity;
 import wings.v.ExternalActions;
 import wings.v.FirstLaunchActivity;
 import wings.v.ProxyLogsActivity;
@@ -135,6 +136,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             permissionsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 startActivity(FirstLaunchActivity.createPermissionsIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference exportSettingsPreference = findPreference("pref_open_export_settings");
+        if (exportSettingsPreference != null) {
+            exportSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(ExportSettingsActivity.createIntent(requireContext()));
                 return true;
             });
         }

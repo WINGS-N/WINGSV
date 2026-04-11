@@ -451,6 +451,13 @@
     <string name="xray_profiles_tcping_failed">TCPing не удался: %1$s</string>
     <string name="xray_profiles_filter_all">Все</string>
     <string name="xray_profiles_filter_no_subscription">Без подписки</string>
+    <string name="xray_profiles_subscription_quota_remaining">Осталось %1$s из %2$s</string>
+    <string name="xray_profiles_subscription_quota_remaining_with_expire">Осталось %1$s из %2$s · до %3$s</string>
+    <string name="xray_profiles_subscription_quota_used">%1$s / %2$s</string>
+    <string name="xray_profiles_subscription_limit_infinite">∞</string>
+    <string name="xray_profiles_subscription_usage">Использовано %1$s · ∞</string>
+    <string name="xray_profiles_subscription_usage_with_expire">Использовано %1$s · ∞ · до %2$s</string>
+    <string name="xray_profiles_subscription_expire_only">Действует до %1$s</string>
     <string name="xray_profiles_selected_count">Выбрано: %1$d</string>
     <string name="xray_profiles_selection_summary">Выберите действие для отмеченных профилей</string>
     <string name="xray_profiles_share_action">Поделиться</string>
@@ -795,6 +802,24 @@
     <string name="domain_lists">Списки доменов</string>
     <string name="domain_lists_summary">Управление списками доменов для тестирования</string>
     <string name="byedpi_value_not_set">Не задано</string>
+
+    <!-- Settings export -->
+    <string name="settings_export_title">Экспорт настроек</string>
+    <string name="settings_export_summary">Скопировать wingsv:// ссылку с выбранными настройками</string>
+    <string name="settings_export_category">Что экспортировать</string>
+    <string name="settings_export_all_title">Экспортировать все настройки</string>
+    <string name="settings_export_all_summary">Все proto настройки приложения, подписки и маршрутизация без профилей из подписок</string>
+    <string name="settings_export_xray_title">Экспортировать Xray настройки</string>
+    <string name="settings_export_xray_summary">Профили вручную, подписки, параметры Xray и правила маршрутизации</string>
+    <string name="settings_export_vk_turn_title">Экспортировать VK TURN настройки</string>
+    <string name="settings_export_vk_turn_summary">Endpoint, VK Link, режим сессии и параметры vk-turn-proxy</string>
+    <string name="settings_export_wireguard_title">Экспортировать WireGuard настройки</string>
+    <string name="settings_export_wireguard_summary">Endpoint, Interface и Peer для WireGuard</string>
+    <string name="settings_export_amnezia_title">Экспортировать AmneziaWG настройки</string>
+    <string name="settings_export_amnezia_summary">Raw AmneziaWG конфигурация и выбранный AmneziaWG backend</string>
+    <string name="settings_export_clip_label">WINGSV settings</string>
+    <string name="settings_export_done">Ссылка скопирована</string>
+    <string name="settings_export_failed">Не удалось экспортировать настройки</string>
 
     <!-- Auto Search -->
     <string name="auto_search_title">Автопоиск</string>

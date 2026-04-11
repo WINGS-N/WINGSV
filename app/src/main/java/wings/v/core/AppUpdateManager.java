@@ -625,6 +625,7 @@ public final class AppUpdateManager {
         return "0";
     }
 
+    @FunctionalInterface
     public interface Listener {
         void onUpdateStateChanged(@NonNull UpdateState state);
     }

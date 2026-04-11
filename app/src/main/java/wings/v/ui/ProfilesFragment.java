@@ -24,7 +24,6 @@ import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
-import dev.oneuiproject.oneui.widget.Separator;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.text.DateFormat;
@@ -46,9 +45,11 @@ import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayProfile;
 import wings.v.core.XrayStore;
+import wings.v.core.XraySubscription;
 import wings.v.core.XraySubscriptionUpdater;
 import wings.v.databinding.FragmentProfilesBinding;
 import wings.v.databinding.ItemProfileEntryBinding;
+import wings.v.databinding.ItemProfileGroupHeaderBinding;
 import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
@@ -87,6 +88,7 @@ public class ProfilesFragment extends Fragment {
     private static final int PING_WARNING_THRESHOLD_MS = 350;
     private static final int PAGE_SIZE = 5;
     private static final int LOAD_MORE_THRESHOLD_DP = 320;
+    private static final int GROUP_QUOTA_PROGRESS_MAX = 1000;
     private static final long TRAFFIC_REFRESH_INTERVAL_MS = 1_000L;
     private static final String FILTER_ALL = "__all__";
     private static final String FILTER_NO_SUBSCRIPTION = "__manual__";
@@ -246,17 +248,19 @@ public class ProfilesFragment extends Fragment {
         final String requestedFilterId = activeFilterId;
         renderExecutor.execute(() -> {
             List<XrayProfile> profiles = XrayStore.getProfiles(appContext);
+            List<XraySubscription> subscriptions = XrayStore.getSubscriptions(appContext);
             XrayProfile activeProfile = XrayStore.getActiveProfile(appContext);
             String activeProfileId = activeProfile != null ? activeProfile.id : "";
             LinkedHashMap<String, FilterSpec> computedFilters = buildFilters(profiles, appContext);
             String resolvedFilterId = computedFilters.containsKey(requestedFilterId) ? requestedFilterId : FILTER_ALL;
             List<XrayProfile> filteredProfiles = filterProfiles(profiles, resolvedFilterId);
             sortProfilesByStoredTcping(filteredProfiles, XrayStore.getProfilePingResultsMap(appContext));
-            Map<String, List<XrayProfile>> groupedProfiles = groupProfilesForDisplay(
+            List<ProfileGroup> groupedProfiles = groupProfilesForDisplay(
                 filteredProfiles,
                 resolvedFilterId,
                 computedFilters,
-                appContext
+                appContext,
+                subscriptions
             );
             ArrayList<DisplayItem> displayItems = buildDisplayItems(groupedProfiles);
             String renderSignature = buildRenderSignature(resolvedFilterId, displayItems);
@@ -337,9 +341,13 @@ public class ProfilesFragment extends Fragment {
             renderedItemCount++;
             if (item instanceof HeaderDisplayItem) {
                 HeaderDisplayItem header = (HeaderDisplayItem) item;
-                Separator separator = new Separator(requireContext());
-                separator.setText(header.title);
-                binding.containerProfileGroups.addView(separator);
+                ItemProfileGroupHeaderBinding headerBinding = ItemProfileGroupHeaderBinding.inflate(
+                    inflater,
+                    binding.containerProfileGroups,
+                    false
+                );
+                bindProfileGroupHeader(headerBinding, header.group);
+                binding.containerProfileGroups.addView(headerBinding.getRoot());
                 currentAppendGroupContainer = (RoundedLinearLayout) inflater.inflate(
                     R.layout.item_profile_group_section,
                     binding.containerProfileGroups,
@@ -1132,31 +1140,78 @@ public class ProfilesFragment extends Fragment {
         return "";
     }
 
-    private Map<String, List<XrayProfile>> groupProfilesForDisplay(
+    private List<ProfileGroup> groupProfilesForDisplay(
         List<XrayProfile> profiles,
         String filterId,
         Map<String, FilterSpec> filters,
-        Context context
+        Context context,
+        List<XraySubscription> subscriptions
     ) {
-        if (TextUtils.equals(filterId, FILTER_ALL)) {
-            return XraySubscriptionUpdater.groupProfilesBySubscription(profiles);
+        LinkedHashMap<String, XraySubscription> subscriptionsById = new LinkedHashMap<>();
+        if (subscriptions != null) {
+            for (XraySubscription subscription : subscriptions) {
+                if (subscription != null && !TextUtils.isEmpty(subscription.id)) {
+                    subscriptionsById.put(subscription.id, subscription);
+                }
+            }
         }
-        LinkedHashMap<String, List<XrayProfile>> singleGroup = new LinkedHashMap<>();
-        singleGroup.put(filterTitle(filterId, filters, context), profiles);
+        if (TextUtils.equals(filterId, FILTER_ALL)) {
+            LinkedHashMap<String, ProfileGroup> grouped = new LinkedHashMap<>();
+            for (XrayProfile profile : profiles) {
+                if (profile == null) {
+                    continue;
+                }
+                if (TextUtils.isEmpty(profile.subscriptionId)) {
+                    ProfileGroup group = grouped.get(FILTER_NO_SUBSCRIPTION);
+                    if (group == null) {
+                        group = new ProfileGroup(
+                            context.getString(R.string.xray_profiles_filter_no_subscription),
+                            null
+                        );
+                        grouped.put(FILTER_NO_SUBSCRIPTION, group);
+                    }
+                    group.profiles.add(profile);
+                    continue;
+                }
+                XraySubscription subscription = subscriptionsById.get(profile.subscriptionId);
+                String groupTitle =
+                    subscription != null && !TextUtils.isEmpty(subscription.title)
+                        ? subscription.title
+                        : !TextUtils.isEmpty(profile.subscriptionTitle)
+                            ? profile.subscriptionTitle
+                            : context.getString(R.string.xray_profiles_filter_no_subscription);
+                String groupKey = "sub:" + profile.subscriptionId;
+                ProfileGroup group = grouped.get(groupKey);
+                if (group == null) {
+                    group = new ProfileGroup(groupTitle, subscription);
+                    grouped.put(groupKey, group);
+                }
+                group.profiles.add(profile);
+            }
+            return new ArrayList<>(grouped.values());
+        }
+        XraySubscription subscription = null;
+        if (filterId.startsWith("sub:")) {
+            subscription = subscriptionsById.get(filterId.substring("sub:".length()));
+        }
+        ArrayList<ProfileGroup> singleGroup = new ArrayList<>();
+        ProfileGroup group = new ProfileGroup(filterTitle(filterId, filters, context), subscription);
+        group.profiles.addAll(profiles);
+        singleGroup.add(group);
         return singleGroup;
     }
 
-    private ArrayList<DisplayItem> buildDisplayItems(Map<String, List<XrayProfile>> groupedProfiles) {
+    private ArrayList<DisplayItem> buildDisplayItems(List<ProfileGroup> groupedProfiles) {
         ArrayList<DisplayItem> items = new ArrayList<>();
         if (groupedProfiles == null) {
             return items;
         }
-        for (Map.Entry<String, List<XrayProfile>> entry : groupedProfiles.entrySet()) {
-            List<XrayProfile> groupProfiles = entry.getValue();
+        for (ProfileGroup group : groupedProfiles) {
+            List<XrayProfile> groupProfiles = group == null ? null : group.profiles;
             if (groupProfiles == null || groupProfiles.isEmpty()) {
                 continue;
             }
-            items.add(new HeaderDisplayItem(entry.getKey()));
+            items.add(new HeaderDisplayItem(group));
             for (int index = 0; index < groupProfiles.size(); index++) {
                 items.add(new ProfileDisplayItem(groupProfiles.get(index), index < groupProfiles.size() - 1));
             }
@@ -1168,7 +1223,20 @@ public class ProfilesFragment extends Fragment {
         StringBuilder builder = new StringBuilder(filterId).append('|');
         for (DisplayItem item : displayItems) {
             if (item instanceof HeaderDisplayItem) {
-                builder.append("h:").append(((HeaderDisplayItem) item).title).append('|');
+                ProfileGroup group = ((HeaderDisplayItem) item).group;
+                builder.append("h:");
+                builder.append(group == null ? "" : group.title).append(':');
+                if (group != null && group.subscription != null) {
+                    builder
+                        .append(group.subscription.advertisedUploadBytes)
+                        .append(':')
+                        .append(group.subscription.advertisedDownloadBytes)
+                        .append(':')
+                        .append(group.subscription.advertisedTotalBytes)
+                        .append(':')
+                        .append(group.subscription.advertisedExpireAt);
+                }
+                builder.append('|');
             } else if (item instanceof ProfileDisplayItem) {
                 XrayProfile profile = ((ProfileDisplayItem) item).profile;
                 builder.append("p:").append(pingStateKey(profile)).append('|');
@@ -1236,6 +1304,107 @@ public class ProfilesFragment extends Fragment {
             return profile.rawLink;
         }
         return getString(R.string.xray_profiles_unavailable_target);
+    }
+
+    private void bindProfileGroupHeader(ItemProfileGroupHeaderBinding headerBinding, ProfileGroup group) {
+        if (headerBinding == null || group == null) {
+            return;
+        }
+        headerBinding.textProfileGroupTitle.setText(group.title);
+        SubscriptionQuotaState quotaState = buildSubscriptionQuotaState(group.subscription);
+        if (quotaState == null) {
+            headerBinding.textProfileGroupSummary.setVisibility(View.GONE);
+            headerBinding.layoutProfileGroupQuota.setVisibility(View.GONE);
+            return;
+        }
+
+        if (TextUtils.isEmpty(quotaState.summary)) {
+            headerBinding.textProfileGroupSummary.setVisibility(View.GONE);
+        } else {
+            headerBinding.textProfileGroupSummary.setText(quotaState.summary);
+            headerBinding.textProfileGroupSummary.setVisibility(View.VISIBLE);
+        }
+        if (!quotaState.showProgress) {
+            headerBinding.layoutProfileGroupQuota.setVisibility(View.GONE);
+            return;
+        }
+
+        headerBinding.textProfileGroupQuota.setText(quotaState.progressText);
+        headerBinding.progressProfileGroupQuota.setMax(GROUP_QUOTA_PROGRESS_MAX);
+        headerBinding.progressProfileGroupQuota.setProgress(quotaState.progress);
+        headerBinding.progressProfileGroupQuota.setProgressTintList(
+            ColorStateList.valueOf(ContextCompat.getColor(requireContext(), quotaState.colorResId))
+        );
+        headerBinding.layoutProfileGroupQuota.setVisibility(View.VISIBLE);
+    }
+
+    @Nullable
+    private SubscriptionQuotaState buildSubscriptionQuotaState(@Nullable XraySubscription subscription) {
+        if (subscription == null) {
+            return null;
+        }
+        long usedBytes = Math.max(0L, subscription.advertisedUploadBytes + subscription.advertisedDownloadBytes);
+        long totalBytes = Math.max(0L, subscription.advertisedTotalBytes);
+        long expireAt = Math.max(0L, subscription.advertisedExpireAt);
+        String expireDate = formatSubscriptionExpireDate(expireAt);
+
+        if (totalBytes > 0L) {
+            long remainingBytes = Math.max(totalBytes - usedBytes, 0L);
+            double remainingRatio = totalBytes == 0L ? 0.0 : (double) remainingBytes / (double) totalBytes;
+            int colorResId =
+                remainingRatio <= 0.1d
+                    ? R.color.wingsv_error
+                    : remainingRatio <= 0.4d
+                        ? R.color.wingsv_warning
+                        : R.color.wingsv_success;
+            String summary = TextUtils.isEmpty(expireDate)
+                ? ""
+                : getString(R.string.xray_profiles_subscription_expire_only, expireDate);
+            String progressText = getString(
+                R.string.xray_profiles_subscription_quota_used,
+                UiFormatter.formatBytes(requireContext(), usedBytes),
+                UiFormatter.formatBytes(requireContext(), totalBytes)
+            );
+            int progress = (int) Math.round(remainingRatio * GROUP_QUOTA_PROGRESS_MAX);
+            progress = Math.max(0, Math.min(progress, GROUP_QUOTA_PROGRESS_MAX));
+            return new SubscriptionQuotaState(summary, progressText, true, progress, colorResId);
+        }
+
+        if (usedBytes > 0L) {
+            String summary = TextUtils.isEmpty(expireDate)
+                ? ""
+                : getString(R.string.xray_profiles_subscription_expire_only, expireDate);
+            String progressText = getString(
+                R.string.xray_profiles_subscription_quota_used,
+                UiFormatter.formatBytes(requireContext(), usedBytes),
+                getString(R.string.xray_profiles_subscription_limit_infinite)
+            );
+            return new SubscriptionQuotaState(
+                summary,
+                progressText,
+                true,
+                GROUP_QUOTA_PROGRESS_MAX,
+                R.color.wingsv_success
+            );
+        }
+
+        if (!TextUtils.isEmpty(expireDate)) {
+            return new SubscriptionQuotaState(
+                getString(R.string.xray_profiles_subscription_expire_only, expireDate),
+                "",
+                false,
+                0,
+                0
+            );
+        }
+        return null;
+    }
+
+    private String formatSubscriptionExpireDate(long expireAt) {
+        if (expireAt <= 0L) {
+            return "";
+        }
+        return DateFormat.getDateInstance(DateFormat.SHORT).format(expireAt);
     }
 
     private void updateScrollToTopButton() {
@@ -1321,12 +1490,24 @@ public class ProfilesFragment extends Fragment {
 
     private interface DisplayItem {}
 
-    private static final class HeaderDisplayItem implements DisplayItem {
+    private static final class ProfileGroup {
 
         final String title;
+        final XraySubscription subscription;
+        final List<XrayProfile> profiles = new ArrayList<>();
 
-        HeaderDisplayItem(String title) {
+        ProfileGroup(String title, @Nullable XraySubscription subscription) {
             this.title = title;
+            this.subscription = subscription;
+        }
+    }
+
+    private static final class HeaderDisplayItem implements DisplayItem {
+
+        final ProfileGroup group;
+
+        HeaderDisplayItem(ProfileGroup group) {
+            this.group = group;
         }
     }
 
@@ -1338,6 +1519,29 @@ public class ProfilesFragment extends Fragment {
         ProfileDisplayItem(XrayProfile profile, boolean showDivider) {
             this.profile = profile;
             this.showDivider = showDivider;
+        }
+    }
+
+    private static final class SubscriptionQuotaState {
+
+        final String summary;
+        final String progressText;
+        final boolean showProgress;
+        final int progress;
+        final int colorResId;
+
+        SubscriptionQuotaState(
+            String summary,
+            String progressText,
+            boolean showProgress,
+            int progress,
+            int colorResId
+        ) {
+            this.summary = summary;
+            this.progressText = progressText;
+            this.showProgress = showProgress;
+            this.progress = progress;
+            this.colorResId = colorResId;
         }
     }
 

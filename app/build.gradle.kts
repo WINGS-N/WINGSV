@@ -72,7 +72,7 @@ fun parseVersionSpec(versionSpec: String?, defaultVersionName: String, defaultVe
     return versionName to versionCode
 }
 
-val defaultAppVersionName = "4.0.1"
+val defaultAppVersionName = "4.1.0"
 val defaultAppVersionCode = versionCodeFromSemanticVersion(defaultAppVersionName)
 val configuredAppVersionSpec = providers.gradleProperty("ver").orNull
 require(configuredAppVersionSpec == null || Regex("""[^/\s]+(?:/\d+)?""").matches(configuredAppVersionSpec)) {
@@ -454,7 +454,7 @@ val pmdJava: TaskProvider<Pmd> by tasks.registering(Pmd::class) {
     group = "verification"
     description = "Runs PMD against app Java sources."
 
-    source("src")
+    source("src/main/java")
     include("**/*.java")
     exclude("**/R.java", "**/BuildConfig.java")
     classpath = files()

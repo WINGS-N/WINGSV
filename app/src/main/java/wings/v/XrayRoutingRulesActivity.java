@@ -420,6 +420,7 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
         }
     }
 
+    @FunctionalInterface
     private interface ItemSelectCallback {
         void onItemSelected(int position);
     }

@@ -617,6 +617,7 @@ public class AutoSearchActivity extends AppCompatActivity {
         return value == null || value.isBlank() ? getString(fallbackResId) : value;
     }
 
+    @FunctionalInterface
     private interface IntSettingSetter {
         void set(int value);
     }

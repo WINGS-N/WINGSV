@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @SuppressWarnings(
     {
@@ -37,6 +39,10 @@ public final class XraySubscriptionUpdater {
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 20_000;
     private static final long MILLIS_PER_HOUR = 60L * 60L * 1000L;
+    private static final Pattern USERINFO_PART_PATTERN = Pattern.compile(
+        "(upload|download|total|expire)\\s*=\\s*([0-9]+)",
+        Pattern.CASE_INSENSITIVE
+    );
 
     private XraySubscriptionUpdater() {}
 
@@ -103,9 +109,12 @@ public final class XraySubscriptionUpdater {
                 listener.onSubscriptionStarted(subscription);
             }
             try {
-                String body = fetch(context, subscription.url);
-                for (String link : XraySubscriptionParser.parseLinks(body)) {
-                    XrayProfile profile = VlessLinkParser.parseProfile(link, subscription.id, subscription.title);
+                FetchResult fetched = fetch(context, subscription.url);
+                for (XrayProfile profile : XraySubscriptionParser.parseProfiles(
+                    fetched.body,
+                    subscription.id,
+                    subscription.title
+                )) {
                     if (profile != null) {
                         profiles.put(profile.stableDedupKey(), profile);
                     }
@@ -118,7 +127,11 @@ public final class XraySubscriptionUpdater {
                         subscription.formatHint,
                         subscription.refreshIntervalHours,
                         subscription.autoUpdate,
-                        now
+                        now,
+                        fetched.metadata.uploadBytes,
+                        fetched.metadata.downloadBytes,
+                        fetched.metadata.totalBytes,
+                        fetched.metadata.expireAt
                     )
                 );
                 anySubscriptionUpdated = true;
@@ -191,23 +204,7 @@ public final class XraySubscriptionUpdater {
         }
     }
 
-    public static Map<String, List<XrayProfile>> groupProfilesBySubscription(List<XrayProfile> profiles) {
-        LinkedHashMap<String, List<XrayProfile>> grouped = new LinkedHashMap<>();
-        if (profiles == null) {
-            return grouped;
-        }
-        for (XrayProfile profile : profiles) {
-            if (profile == null) {
-                continue;
-            }
-            String key = TextUtils.isEmpty(profile.subscriptionTitle) ? "Без подписки" : profile.subscriptionTitle;
-            List<XrayProfile> group = grouped.computeIfAbsent(key, k -> new ArrayList<>());
-            group.add(profile);
-        }
-        return grouped;
-    }
-
-    private static String fetch(Context context, String urlString) throws Exception {
+    private static FetchResult fetch(Context context, String urlString) throws Exception {
         HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, new URL(urlString));
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -230,6 +227,7 @@ public final class XraySubscriptionUpdater {
         }
         connection.connect();
         int responseCode = connection.getResponseCode();
+        SubscriptionMetadata metadata = parseSubscriptionMetadata(connection.getHeaderField("Subscription-Userinfo"));
         try (
             InputStream inputStream =
                 responseCode >= 200 && responseCode < 400 ? connection.getInputStream() : connection.getErrorStream();
@@ -248,9 +246,45 @@ public final class XraySubscriptionUpdater {
             if (responseCode < 200 || responseCode >= 400) {
                 throw new IllegalStateException("Subscription HTTP " + responseCode);
             }
-            return output.toString(StandardCharsets.UTF_8.name());
+            return new FetchResult(output.toString(StandardCharsets.UTF_8.name()), metadata);
         } finally {
             connection.disconnect();
+        }
+    }
+
+    private static SubscriptionMetadata parseSubscriptionMetadata(String rawHeader) {
+        if (TextUtils.isEmpty(rawHeader)) {
+            return SubscriptionMetadata.EMPTY;
+        }
+        long uploadBytes = 0L;
+        long downloadBytes = 0L;
+        long totalBytes = 0L;
+        long expireAt = 0L;
+        Matcher matcher = USERINFO_PART_PATTERN.matcher(rawHeader);
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            long value = parsePositiveLong(matcher.group(2));
+            if ("upload".equalsIgnoreCase(key)) {
+                uploadBytes = value;
+            } else if ("download".equalsIgnoreCase(key)) {
+                downloadBytes = value;
+            } else if ("total".equalsIgnoreCase(key)) {
+                totalBytes = value;
+            } else if ("expire".equalsIgnoreCase(key)) {
+                expireAt = value > 0L ? value * 1000L : 0L;
+            }
+        }
+        return new SubscriptionMetadata(uploadBytes, downloadBytes, totalBytes, expireAt);
+    }
+
+    private static long parsePositiveLong(String rawValue) {
+        if (TextUtils.isEmpty(rawValue)) {
+            return 0L;
+        }
+        try {
+            return Math.max(Long.parseLong(rawValue.trim()), 0L);
+        } catch (NumberFormatException ignored) {
+            return 0L;
         }
     }
 
@@ -285,5 +319,33 @@ public final class XraySubscriptionUpdater {
     public interface ProgressListener {
         void onSubscriptionStarted(XraySubscription subscription);
         void onSubscriptionFinished(XraySubscription subscription, String error);
+    }
+
+    private static final class FetchResult {
+
+        final String body;
+        final SubscriptionMetadata metadata;
+
+        FetchResult(String body, SubscriptionMetadata metadata) {
+            this.body = body == null ? "" : body;
+            this.metadata = metadata == null ? SubscriptionMetadata.EMPTY : metadata;
+        }
+    }
+
+    private static final class SubscriptionMetadata {
+
+        static final SubscriptionMetadata EMPTY = new SubscriptionMetadata(0L, 0L, 0L, 0L);
+
+        final long uploadBytes;
+        final long downloadBytes;
+        final long totalBytes;
+        final long expireAt;
+
+        SubscriptionMetadata(long uploadBytes, long downloadBytes, long totalBytes, long expireAt) {
+            this.uploadBytes = Math.max(uploadBytes, 0L);
+            this.downloadBytes = Math.max(downloadBytes, 0L);
+            this.totalBytes = Math.max(totalBytes, 0L);
+            this.expireAt = Math.max(expireAt, 0L);
+        }
     }
 }

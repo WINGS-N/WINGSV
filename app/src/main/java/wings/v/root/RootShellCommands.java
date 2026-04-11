@@ -9,6 +9,7 @@ final class RootShellCommands {
 
     private RootShellCommands() {}
 
+    @SuppressWarnings("PMD.SystemPrintln")
     static void handle(String... args) throws Exception {
         if (args == null || args.length == 0) {
             throw new IllegalArgumentException("Usage: shell <command>");

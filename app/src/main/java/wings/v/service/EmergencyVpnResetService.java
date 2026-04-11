@@ -17,7 +17,7 @@ public final class EmergencyVpnResetService extends VpnService {
     private static final int RESET_PREFIX_V4 = 30;
     private static final long DEFAULT_HOLD_MS = 1_200L;
 
-    private static final AtomicBoolean pulseInFlight = new AtomicBoolean();
+    private static final AtomicBoolean PULSE_IN_FLIGHT = new AtomicBoolean();
 
     public static void pulse(@Nullable Context context, long holdMs) {
         Context appContext = context != null ? context.getApplicationContext() : null;
@@ -38,7 +38,7 @@ public final class EmergencyVpnResetService extends VpnService {
             stopSelf(startId);
             return START_NOT_STICKY;
         }
-        if (!pulseInFlight.compareAndSet(false, true)) {
+        if (!PULSE_IN_FLIGHT.compareAndSet(false, true)) {
             stopSelf(startId);
             return START_NOT_STICKY;
         }
@@ -72,7 +72,7 @@ public final class EmergencyVpnResetService extends VpnService {
                     tunnel.close();
                 } catch (Exception ignored) {}
             }
-            pulseInFlight.set(false);
+            PULSE_IN_FLIGHT.set(false);
             stopSelf(startId);
         }
     }

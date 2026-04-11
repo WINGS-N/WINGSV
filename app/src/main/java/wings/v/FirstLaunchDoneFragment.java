@@ -13,6 +13,7 @@ import wings.v.databinding.FragmentFirstLaunchDoneBinding;
 @SuppressWarnings("PMD.NullAssignment")
 public class FirstLaunchDoneFragment extends Fragment {
 
+    @FunctionalInterface
     public interface Host {
         void onFirstLaunchDone();
     }
