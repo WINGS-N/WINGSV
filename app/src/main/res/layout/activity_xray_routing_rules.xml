@@ -64,6 +64,9 @@
                         android:id="@+id/button_add_rule"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:drawableStart="@drawable/ic_add"
+                        android:drawablePadding="8dp"
+                        android:textAllCaps="false"
                         android:text="@string/xray_routing_add_rule" />
                 </LinearLayout>
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>

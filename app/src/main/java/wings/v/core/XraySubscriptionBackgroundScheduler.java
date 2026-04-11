@@ -24,7 +24,7 @@ public final class XraySubscriptionBackgroundScheduler {
     private static final int REQUEST_CODE_REFRESH_SUBSCRIPTIONS = 1004;
     private static final long MIN_SCHEDULE_DELAY_MS = 15_000L;
     private static final long INITIAL_REFRESH_DELAY_MS = 60_000L;
-    private static final long MILLIS_PER_HOUR = 60L * 60L * 1000L;
+    private static final long MILLIS_PER_MINUTE = 60L * 1000L;
 
     private XraySubscriptionBackgroundScheduler() {}
 
@@ -60,7 +60,7 @@ public final class XraySubscriptionBackgroundScheduler {
 
     private static long resolveNextRefreshAt(@NonNull Context context) {
         long now = System.currentTimeMillis();
-        int defaultRefreshHours = Math.max(1, XrayStore.getRefreshIntervalHours(context));
+        int defaultRefreshMinutes = Math.max(1, XrayStore.getRefreshIntervalMinutes(context));
         long nextRefreshAt = Long.MAX_VALUE;
         boolean hasAutoUpdateSubscription = false;
         for (XraySubscription subscription : XrayStore.getSubscriptions(context)) {
@@ -68,11 +68,13 @@ public final class XraySubscriptionBackgroundScheduler {
                 continue;
             }
             hasAutoUpdateSubscription = true;
-            int refreshHours =
-                subscription.refreshIntervalHours > 0 ? subscription.refreshIntervalHours : defaultRefreshHours;
+            int refreshMinutes =
+                subscription.refreshIntervalMinutes > 0
+                    ? subscription.refreshIntervalMinutes
+                    : defaultRefreshMinutes;
             long candidateAt =
                 subscription.lastUpdatedAt > 0L
-                    ? subscription.lastUpdatedAt + (refreshHours * MILLIS_PER_HOUR)
+                    ? subscription.lastUpdatedAt + (refreshMinutes * MILLIS_PER_MINUTE)
                     : now + INITIAL_REFRESH_DELAY_MS;
             nextRefreshAt = Math.min(nextRefreshAt, candidateAt);
         }

@@ -79,6 +79,11 @@
         android:title="Система" />
 
     <Preference
+        android:key="pref_theme_mode"
+        android:title="@string/settings_theme_title"
+        android:summary="@string/theme_mode_system" />
+
+    <Preference
         android:key="pref_open_permissions"
         android:title="Проверить разрешения"
         android:summary="Открыть стартовый экран разрешений вручную" />

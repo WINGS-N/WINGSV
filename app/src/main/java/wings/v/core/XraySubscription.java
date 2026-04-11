@@ -24,7 +24,7 @@ public final class XraySubscription {
     public final String title;
     public final String url;
     public final String formatHint;
-    public final int refreshIntervalHours;
+    public final int refreshIntervalMinutes;
     public final boolean autoUpdate;
     public final long lastUpdatedAt;
     public final long advertisedUploadBytes;
@@ -37,7 +37,7 @@ public final class XraySubscription {
         String title,
         String url,
         String formatHint,
-        int refreshIntervalHours,
+        int refreshIntervalMinutes,
         boolean autoUpdate,
         long lastUpdatedAt,
         long advertisedUploadBytes,
@@ -49,7 +49,7 @@ public final class XraySubscription {
         this.title = emptyIfNull(title);
         this.url = emptyIfNull(url);
         this.formatHint = emptyIfNull(formatHint);
-        this.refreshIntervalHours = Math.max(refreshIntervalHours, 0);
+        this.refreshIntervalMinutes = Math.max(refreshIntervalMinutes, 0);
         this.autoUpdate = autoUpdate;
         this.lastUpdatedAt = Math.max(lastUpdatedAt, 0L);
         this.advertisedUploadBytes = Math.max(advertisedUploadBytes, 0L);
@@ -64,7 +64,10 @@ public final class XraySubscription {
         object.put("title", title);
         object.put("url", url);
         object.put("format_hint", formatHint);
-        object.put("refresh_interval_hours", refreshIntervalHours);
+        object.put("refresh_interval_minutes", refreshIntervalMinutes);
+        if (refreshIntervalMinutes > 0 && refreshIntervalMinutes % 60 == 0) {
+            object.put("refresh_interval_hours", refreshIntervalMinutes / 60);
+        }
         object.put("auto_update", autoUpdate);
         object.put("last_updated_at", lastUpdatedAt);
         object.put("advertised_upload_bytes", advertisedUploadBytes);
@@ -83,7 +86,7 @@ public final class XraySubscription {
             object.optString("title"),
             object.optString("url"),
             object.optString("format_hint"),
-            object.optInt("refresh_interval_hours"),
+            resolveRefreshIntervalMinutes(object),
             object.optBoolean("auto_update"),
             object.optLong("last_updated_at"),
             object.optLong("advertised_upload_bytes"),
@@ -107,7 +110,7 @@ public final class XraySubscription {
         }
         XraySubscription that = (XraySubscription) other;
         return (
-            refreshIntervalHours == that.refreshIntervalHours &&
+            refreshIntervalMinutes == that.refreshIntervalMinutes &&
             autoUpdate == that.autoUpdate &&
             lastUpdatedAt == that.lastUpdatedAt &&
             advertisedUploadBytes == that.advertisedUploadBytes &&
@@ -128,7 +131,7 @@ public final class XraySubscription {
             title,
             url,
             formatHint,
-            refreshIntervalHours,
+            refreshIntervalMinutes,
             autoUpdate,
             lastUpdatedAt,
             advertisedUploadBytes,
@@ -140,5 +143,17 @@ public final class XraySubscription {
 
     private static String emptyIfNull(String value) {
         return value == null ? "" : value;
+    }
+
+    private static int resolveRefreshIntervalMinutes(JSONObject object) {
+        int minutes = object.optInt("refresh_interval_minutes");
+        if (minutes > 0) {
+            return minutes;
+        }
+        int hours = object.optInt("refresh_interval_hours");
+        if (hours > 0) {
+            return hours * 60;
+        }
+        return 0;
     }
 }

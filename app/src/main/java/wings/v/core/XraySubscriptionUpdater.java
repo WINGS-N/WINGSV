@@ -38,7 +38,7 @@ public final class XraySubscriptionUpdater {
 
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 20_000;
-    private static final long MILLIS_PER_HOUR = 60L * 60L * 1000L;
+    private static final long MILLIS_PER_MINUTE = 60L * 1000L;
     private static final Pattern USERINFO_PART_PATTERN = Pattern.compile(
         "(upload|download|total|expire)\\s*=\\s*([0-9]+)",
         Pattern.CASE_INSENSITIVE
@@ -92,7 +92,7 @@ public final class XraySubscriptionUpdater {
         }
         List<XraySubscription> updatedSubscriptions = new ArrayList<>();
         long now = System.currentTimeMillis();
-        int defaultRefreshIntervalHours = Math.max(1, XrayStore.getRefreshIntervalHours(context));
+        int defaultRefreshIntervalMinutes = Math.max(1, XrayStore.getRefreshIntervalMinutes(context));
         String firstError = null;
         boolean anySubscriptionUpdated = false;
 
@@ -100,7 +100,7 @@ public final class XraySubscriptionUpdater {
             if (subscription == null || TextUtils.isEmpty(subscription.url)) {
                 continue;
             }
-            if (dueOnly && !shouldRefreshSubscription(subscription, now, defaultRefreshIntervalHours)) {
+            if (dueOnly && !shouldRefreshSubscription(subscription, now, defaultRefreshIntervalMinutes)) {
                 updatedSubscriptions.add(subscription);
                 restoreExistingProfiles(existingProfilesBySubscription, profiles, subscription.id);
                 continue;
@@ -125,7 +125,7 @@ public final class XraySubscriptionUpdater {
                         subscription.title,
                         subscription.url,
                         subscription.formatHint,
-                        subscription.refreshIntervalHours,
+                        subscription.refreshIntervalMinutes,
                         subscription.autoUpdate,
                         now,
                         fetched.metadata.uploadBytes,
@@ -175,17 +175,19 @@ public final class XraySubscriptionUpdater {
     private static boolean shouldRefreshSubscription(
         XraySubscription subscription,
         long now,
-        int defaultRefreshIntervalHours
+        int defaultRefreshIntervalMinutes
     ) {
         if (subscription == null || !subscription.autoUpdate || TextUtils.isEmpty(subscription.url)) {
             return false;
         }
-        int refreshHours =
-            subscription.refreshIntervalHours > 0 ? subscription.refreshIntervalHours : defaultRefreshIntervalHours;
+        int refreshMinutes =
+            subscription.refreshIntervalMinutes > 0
+                ? subscription.refreshIntervalMinutes
+                : defaultRefreshIntervalMinutes;
         if (subscription.lastUpdatedAt <= 0L) {
             return true;
         }
-        return now - subscription.lastUpdatedAt >= refreshHours * MILLIS_PER_HOUR;
+        return now - subscription.lastUpdatedAt >= refreshMinutes * MILLIS_PER_MINUTE;
     }
 
     private static void restoreExistingProfiles(

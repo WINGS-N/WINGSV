@@ -79,9 +79,11 @@ public final class AppPrefs {
     public static final String KEY_XRAY_PROFILE_TCPING_JSON = "pref_xray_profile_tcping_json";
     public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
+    public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES = "pref_xray_subscriptions_refresh_minutes";
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT = "pref_xray_subscriptions_last_refresh_at";
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR = "pref_xray_subscriptions_last_error";
     public static final String KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON = "pref_xray_imported_subscription_json";
+    public static final String KEY_THEME_MODE = "pref_theme_mode";
     public static final String KEY_SUBSCRIPTION_HWID_ENABLED = "pref_subscription_hwid_enabled";
     public static final String KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED = "pref_subscription_hwid_manual_enabled";
     public static final String KEY_SUBSCRIPTION_HWID_VALUE = "pref_subscription_hwid_value";
@@ -128,6 +130,9 @@ public final class AppPrefs {
     public static final String SHARING_IP_MONITOR_NETLINK_ROOT = "netlink_root";
     public static final String SHARING_IP_MONITOR_POLL = "poll";
     public static final String SHARING_IP_MONITOR_POLL_ROOT = "poll_root";
+    public static final String THEME_MODE_SYSTEM = "system";
+    public static final String THEME_MODE_DARK = "dark";
+    public static final String THEME_MODE_LIGHT = "light";
 
     private AppPrefs() {}
 
@@ -215,6 +220,14 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_KERNEL_WIREGUARD, enabled).apply();
     }
 
+    public static String getThemeMode(Context context) {
+        return normalizeThemeMode(prefs(context).getString(KEY_THEME_MODE, THEME_MODE_SYSTEM));
+    }
+
+    public static void setThemeMode(Context context, String value) {
+        prefs(context).edit().putString(KEY_THEME_MODE, normalizeThemeMode(value)).apply();
+    }
+
     public static String getRootWireGuardInterfaceNameTemplate(Context context) {
         SharedPreferences preferences = prefs(context);
         String value = preferences.getString(KEY_ROOT_WIREGUARD_INTERFACE_NAME, DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME);
@@ -262,6 +275,17 @@ public final class AppPrefs {
             }
         }
         return true;
+    }
+
+    private static String normalizeThemeMode(String value) {
+        String normalizedValue = trim(value);
+        if (THEME_MODE_DARK.equals(normalizedValue)) {
+            return THEME_MODE_DARK;
+        }
+        if (THEME_MODE_LIGHT.equals(normalizedValue)) {
+            return THEME_MODE_LIGHT;
+        }
+        return THEME_MODE_SYSTEM;
     }
 
     public static boolean isRootAccessGranted(Context context) {
@@ -827,7 +851,7 @@ public final class AppPrefs {
                           trim(importedSubscription.title),
                           trim(importedSubscription.url),
                           trim(importedSubscription.formatHint),
-                          importedSubscription.refreshIntervalHours,
+                          importedSubscription.refreshIntervalMinutes,
                           importedSubscription.autoUpdate,
                           importedSubscription.lastUpdatedAt,
                           importedSubscription.advertisedUploadBytes,
