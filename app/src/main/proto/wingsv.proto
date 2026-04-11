@@ -14,6 +14,7 @@ message Config {
   BackendType backend = 5;
   Xray xray = 6;
   AmneziaWG awg = 7;
+  AppRouting app_routing = 8;
 }
 
 enum ConfigType {
@@ -21,6 +22,7 @@ enum ConfigType {
   CONFIG_TYPE_VK = 1;
   CONFIG_TYPE_XRAY = 2;
   CONFIG_TYPE_AMNEZIAWG = 3;
+  CONFIG_TYPE_ALL = 4;
 }
 
 enum BackendType {
@@ -68,6 +70,7 @@ enum TurnSessionMode {
 message WireGuard {
   Interface iface = 1;
   Peer peer = 2;
+  Endpoint endpoint = 3;
 }
 
 message Interface {
@@ -90,6 +93,39 @@ message Xray {
   XraySettings settings = 4;
   string subscription_json = 5;
   optional bool merge_only = 6;
+  XrayRouting routing = 7;
+}
+
+message AppRouting {
+  optional bool bypass = 1;
+  repeated string packages = 2;
+}
+
+message XrayRouting {
+  repeated XrayRoutingRule rules = 1;
+  string geoip_url = 2;
+  string geosite_url = 3;
+}
+
+message XrayRoutingRule {
+  string id = 1;
+  XrayRoutingMatchType match_type = 2;
+  string code = 3;
+  XrayRoutingAction action = 4;
+  optional bool enabled = 5;
+}
+
+enum XrayRoutingMatchType {
+  XRAY_ROUTING_MATCH_UNSPECIFIED = 0;
+  XRAY_ROUTING_MATCH_GEOIP = 1;
+  XRAY_ROUTING_MATCH_GEOSITE = 2;
+}
+
+enum XrayRoutingAction {
+  XRAY_ROUTING_ACTION_UNSPECIFIED = 0;
+  XRAY_ROUTING_ACTION_PROXY = 1;
+  XRAY_ROUTING_ACTION_DIRECT = 2;
+  XRAY_ROUTING_ACTION_BLOCK = 3;
 }
 
 message Subscription {
@@ -121,4 +157,9 @@ message XraySettings {
   optional bool ipv6 = 6;
   optional bool sniffing_enabled = 7;
   optional bool proxy_quic_enabled = 8;
+  optional bool local_proxy_enabled = 9;
+  optional bool local_proxy_auth_enabled = 10;
+  string local_proxy_username = 11;
+  string local_proxy_password = 12;
+  optional bool restart_on_network_change = 13;
 }

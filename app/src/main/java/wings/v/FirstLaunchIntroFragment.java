@@ -30,6 +30,7 @@ public class FirstLaunchIntroFragment extends Fragment {
     @Nullable
     private FragmentFirstLaunchIntroBinding binding;
 
+    @FunctionalInterface
     public interface Host {
         void onAdvanceIntroPage();
     }

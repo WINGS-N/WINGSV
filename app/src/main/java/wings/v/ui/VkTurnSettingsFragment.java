@@ -15,6 +15,7 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceManager;
 import androidx.preference.SwitchPreferenceCompat;
+import java.util.Locale;
 import wings.v.R;
 import wings.v.core.AmneziaStore;
 import wings.v.core.AppPrefs;
@@ -340,7 +341,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private String normalizeTurnSessionMode(Object value) {
-        String normalizedValue = value == null ? "auto" : String.valueOf(value).trim().toLowerCase();
+        String normalizedValue = value == null ? "auto" : String.valueOf(value).trim().toLowerCase(Locale.ROOT);
         if ("mainline".equals(normalizedValue) || "mux".equals(normalizedValue)) {
             return normalizedValue;
         }

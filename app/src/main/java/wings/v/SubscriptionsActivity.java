@@ -270,7 +270,11 @@ public class SubscriptionsActivity extends AppCompatActivity {
                     "auto",
                     existing != null ? existing.refreshIntervalHours : XrayStore.getRefreshIntervalHours(this),
                     existing == null || existing.autoUpdate,
-                    existing != null ? existing.lastUpdatedAt : 0L
+                    existing != null ? existing.lastUpdatedAt : 0L,
+                    existing != null ? existing.advertisedUploadBytes : 0L,
+                    existing != null ? existing.advertisedDownloadBytes : 0L,
+                    existing != null ? existing.advertisedTotalBytes : 0L,
+                    existing != null ? existing.advertisedExpireAt : 0L
                 );
                 if (existing != null) {
                     for (int index = 0; index < subscriptions.size(); index++) {

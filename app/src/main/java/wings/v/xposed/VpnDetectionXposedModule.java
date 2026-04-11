@@ -645,6 +645,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         }
     }
 
+    @FunctionalInterface
     private interface OriginalCall<T> {
         T call() throws Throwable;
     }

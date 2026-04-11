@@ -165,6 +165,7 @@ public class ProxyTunnelService extends Service {
     private static final int PID_FILE_READ_RETRY_LIMIT = PID_FILE_READ_ATTEMPTS - 1;
     private static final int CAPTCHA_LOCKOUT_PARTS_MIN = 2;
     private static final int PROC_NET_DEV_MIN_COLUMNS = 9;
+    private static final String PROC_NET_DEV_PATH = "/proc/net/dev";
     private static final String DUMPSYS_TETHER_STATE_HEADER = "Tether state:";
     private static final String PROXY_STATUS_AUTH_READY = "auth_ready";
     private static final String PROXY_STATUS_CAPTCHA_LOCKOUT = "captcha_lockout";
@@ -206,11 +207,16 @@ public class ProxyTunnelService extends Service {
     private static final long UNDERLYING_NETWORK_RECONNECT_DELAY_MS = 750L;
     private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 7_500L;
     private static final long NON_XRAY_LIVENESS_STARTUP_GRACE_MS = 25_000L;
+    private static final long USERSPACE_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS = 10_000L;
+    private static final long USERSPACE_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS = 10_000L;
+    private static final long ROOT_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS = 10_000L;
+    private static final long ROOT_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS = 10_000L;
     private static final long NON_XRAY_LIVENESS_TIMEOUT_MS = 45_000L;
+    private static final long TURN_PROXY_LIVENESS_STARTUP_GRACE_MS = 120_000L;
     private static final long WAKE_FAST_PATH_EVENT_COOLDOWN_MS = 2_000L;
-    private static final long WAKE_FAST_PATH_INITIAL_DELAY_MS = 500L;
-    private static final long WAKE_FAST_PATH_RETRY_DELAY_MS = 750L;
-    private static final long WAKE_FAST_PATH_PROBE_TIMEOUT_MS = 1_500L;
+    private static final long WAKE_FAST_PATH_INITIAL_DELAY_MS = 1_000L;
+    private static final long WAKE_FAST_PATH_RETRY_DELAY_MS = 1_500L;
+    private static final long WAKE_FAST_PATH_PROBE_TIMEOUT_MS = 7_500L;
     private static final long ACTIVE_PROBING_CONNECTIVITY_GRACE_MS = 15_000L;
     private static final long CONNECTIVITY_PROBE_INTERVAL_MS = 20_000L;
     private static final long CONNECTIVITY_PROBE_TIMEOUT_MS = 4_000L;
@@ -230,6 +236,7 @@ public class ProxyTunnelService extends Service {
     private static final long TRANSIENT_ERROR_NOTICE_WINDOW_MS = 20_000L;
     private static final long CAPTCHA_NOTIFICATION_COOLDOWN_MS = 2 * 60_000L;
     private static final String NETLINK_PERMISSION_DENIED = "netlinkrib: permission denied";
+    private static final String PERMISSION_DENIED_MESSAGE = "permission denied";
     private static final String ROOT_TUNNEL_NAME = "wingsv";
     private static final int ROOT_UPSTREAM_TABLE = 54000;
     private static final int ROOT_RULE_PRIORITY_START = 12000;
@@ -391,6 +398,8 @@ public class ProxyTunnelService extends Service {
     private Boolean lastUnderlyingNetworkUsable;
     private long lastUnderlyingConnectivityEventAtElapsedMs;
     private long lastRunningStateAtElapsedMs;
+    private long lastUserspaceWireGuardHealthyAtElapsedMs;
+    private long lastRootWireGuardHealthyAtElapsedMs;
     private long lastWakeFastPathAtElapsedMs;
     private long lastActiveTunnelProbeAtElapsedMs;
     private long lastNotificationTrafficUpdateAtElapsedMs;
@@ -399,6 +408,8 @@ public class ProxyTunnelService extends Service {
     private volatile boolean proxyWarmupTurnReady;
     private volatile boolean proxyWarmupDtlsReady;
     private volatile boolean proxyWarmupAuthReady;
+    private volatile boolean procNetDevAccessDenied;
+    private long lastProxyStartedAtElapsedMs;
     private final AtomicBoolean wakeFastPathCheckQueued = new AtomicBoolean();
     private final ConnectivityManager.NetworkCallback physicalNetworkCallback =
         new ConnectivityManager.NetworkCallback() {
@@ -972,6 +983,8 @@ public class ProxyTunnelService extends Service {
                 synchronized (vpnBackendLock) {
                     backend.setState(currentTunnel, Tunnel.State.UP, currentConfig);
                 }
+                markUserspaceWireGuardWatchdogHealthy();
+                markRootWireGuardWatchdogHealthy();
                 if (kernelWireguardActive) {
                     persistRootRuntimeState(usesTurnProxyBackend(activeBackendType) ? readRootProxyPid() : 0L);
                 } else {
@@ -1144,6 +1157,9 @@ public class ProxyTunnelService extends Service {
         XrayBridge.prepareRuntime(vpnService, remoteDns, directDns);
         String configJson = XrayConfigFactory.buildConfigJson(getApplicationContext(), settings);
         appendRuntimeLogLine("Starting Xray backend");
+        if (XrayBridge.usesCachedStateFallback()) {
+            appendRuntimeLogLine("Xray native state query disabled on Xiaomi/HyperOS; using cached running state");
+        }
         XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
         if (!XrayBridge.isRunning()) {
             throw new IllegalStateException("Xray core не перешел в состояние running");
@@ -1703,6 +1719,8 @@ public class ProxyTunnelService extends Service {
 
         ensureRuntimeStillWanted(generation);
         rootRoutingState = captureRootRoutingState();
+        markUserspaceWireGuardWatchdogHealthy();
+        markRootWireGuardWatchdogHealthy();
         persistRootRuntimeState(proxyPid);
         syncRootAppTunnelRouting();
         registerTetherReceiverIfNeeded();
@@ -1736,6 +1754,7 @@ public class ProxyTunnelService extends Service {
             resetProxyWarmupState();
             Process launchedProcess = buildProxyProcess(settings);
             long launchedAt = SystemClock.elapsedRealtime();
+            lastProxyStartedAtElapsedMs = launchedAt;
             startProxyOutputReader(launchedProcess, launchOutputError);
 
             if (!launchedProcess.waitFor(PROXY_START_GRACE_MS, TimeUnit.MILLISECONDS)) {
@@ -1864,8 +1883,11 @@ public class ProxyTunnelService extends Service {
         lastUnderlyingNetworkFingerprint = null;
         lastUnderlyingNetworkUsable = null;
         lastUnderlyingConnectivityEventAtElapsedMs = 0L;
+        lastUserspaceWireGuardHealthyAtElapsedMs = 0L;
+        lastRootWireGuardHealthyAtElapsedMs = 0L;
         lastActiveTunnelProbeAtElapsedMs = 0L;
         lastNotificationTrafficUpdateAtElapsedMs = 0L;
+        lastProxyStartedAtElapsedMs = 0L;
         activeTunnelProbingInProgress.set(false);
         sProxyCapabilities = ProxyCapabilities.empty();
         resetProxyWarmupState();
@@ -4581,10 +4603,13 @@ public class ProxyTunnelService extends Service {
     }
 
     private InterfaceTrafficSnapshot readActiveVpnTrafficSnapshot() {
+        if (procNetDevAccessDenied) {
+            return InterfaceTrafficSnapshot.ZERO;
+        }
         String interfaceName = resolveActiveVpnInterfaceName();
         try (
             BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new FileInputStream("/proc/net/dev"), StandardCharsets.UTF_8)
+                new InputStreamReader(new FileInputStream(PROC_NET_DEV_PATH), StandardCharsets.UTF_8)
             )
         ) {
             java.util.LinkedHashMap<String, InterfaceTrafficSnapshot> snapshots = new java.util.LinkedHashMap<>();
@@ -4649,8 +4674,23 @@ public class ProxyTunnelService extends Service {
                     }
                 }
             }
-        } catch (IOException | RuntimeException ignored) {}
+        } catch (IOException | RuntimeException error) {
+            if (isProcNetDevPermissionDenied(error) && !procNetDevAccessDenied) {
+                procNetDevAccessDenied = true;
+                appendRuntimeLogLine(PROC_NET_DEV_PATH + " denied, falling back to uid traffic stats");
+            }
+        }
         return InterfaceTrafficSnapshot.ZERO;
+    }
+
+    private boolean isProcNetDevPermissionDenied(@Nullable Throwable error) {
+        if (error instanceof SecurityException) {
+            return true;
+        }
+        if (error == null || TextUtils.isEmpty(error.getMessage())) {
+            return false;
+        }
+        return error.getMessage().toLowerCase(Locale.US).contains(PERMISSION_DENIED_MESSAGE);
     }
 
     private InterfaceTrafficSnapshot readUidTrafficSnapshot() {
@@ -4906,6 +4946,9 @@ public class ProxyTunnelService extends Service {
             scheduleRuntimeReconnect("vk-turn-proxy process disappeared", RUNTIME_RECONNECT_DELAY_MS);
             return;
         }
+        if (!ensureRootWireGuardRuntimeHealthy()) {
+            return;
+        }
         if (usesAmneziaBackend(activeBackendType) && (awgBackend == null || awgTunnel == null || awgConfig == null)) {
             scheduleRuntimeReconnect("AmneziaWG runtime lost tunnel state", RUNTIME_RECONNECT_DELAY_MS);
             return;
@@ -4920,14 +4963,134 @@ public class ProxyTunnelService extends Service {
             return;
         }
 
+        if (!ensureUserspaceWireGuardRuntimeHealthy()) {
+            return;
+        }
+
         if (!ensureNonXrayTunnelLiveness()) {
             return;
+        }
+    }
+
+    private boolean ensureUserspaceWireGuardRuntimeHealthy() {
+        if (!usesUserspaceWireGuardRuntime()) {
+            lastUserspaceWireGuardHealthyAtElapsedMs = 0L;
+            return true;
+        }
+        long now = SystemClock.elapsedRealtime();
+        boolean serviceAlive = GoBackendVpnAccess.getServiceNow() != null;
+        Tunnel.State tunnelState = null;
+        if (serviceAlive && backend != null && currentTunnel != null) {
+            try {
+                tunnelState = backend.getState(currentTunnel);
+            } catch (Exception ignored) {}
+        }
+        if (serviceAlive && tunnelState == Tunnel.State.UP) {
+            lastUserspaceWireGuardHealthyAtElapsedMs = now;
+            return true;
+        }
+        long runningAt = lastRunningStateAtElapsedMs;
+        if (
+            lastUserspaceWireGuardHealthyAtElapsedMs <= 0L &&
+            runningAt > 0L &&
+            now - runningAt < USERSPACE_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS
+        ) {
+            return true;
+        }
+        if (
+            lastUserspaceWireGuardHealthyAtElapsedMs > 0L &&
+            now - lastUserspaceWireGuardHealthyAtElapsedMs < USERSPACE_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS
+        ) {
+            return true;
+        }
+        String watchdogReason = serviceAlive
+            ? "Userspace WireGuard watchdog: active tunnel state lost (" +
+              (tunnelState != null ? tunnelState.name() : "unknown") +
+              ")"
+            : "Userspace WireGuard watchdog: VPN service disappeared";
+        scheduleRuntimeReconnect(watchdogReason, RUNTIME_RECONNECT_DELAY_MS);
+        return false;
+    }
+
+    private boolean ensureRootWireGuardRuntimeHealthy() {
+        if (!usesRootWireGuardRuntime()) {
+            lastRootWireGuardHealthyAtElapsedMs = 0L;
+            return true;
+        }
+        long now = SystemClock.elapsedRealtime();
+        boolean interfaceAlive =
+            !TextUtils.isEmpty(activeTunnelName) &&
+            RootUtils.isRootInterfaceAlive(getApplicationContext(), activeTunnelName);
+        if (interfaceAlive) {
+            lastRootWireGuardHealthyAtElapsedMs = now;
+            return true;
+        }
+        long runningAt = lastRunningStateAtElapsedMs;
+        if (
+            lastRootWireGuardHealthyAtElapsedMs <= 0L &&
+            runningAt > 0L &&
+            now - runningAt < ROOT_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS
+        ) {
+            return true;
+        }
+        if (
+            lastRootWireGuardHealthyAtElapsedMs > 0L &&
+            now - lastRootWireGuardHealthyAtElapsedMs < ROOT_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS
+        ) {
+            return true;
+        }
+        scheduleRuntimeReconnect(
+            "Root WireGuard watchdog: active tunnel disappeared (" + firstNonEmpty(activeTunnelName, "unknown") + ")",
+            RUNTIME_RECONNECT_DELAY_MS
+        );
+        return false;
+    }
+
+    private boolean usesUserspaceWireGuardRuntime() {
+        return (
+            activeBackendType != null &&
+            activeBackendType.usesWireGuardSettings() &&
+            !usesAmneziaBackend(activeBackendType) &&
+            !kernelWireguardActive
+        );
+    }
+
+    private boolean usesRootWireGuardRuntime() {
+        return (
+            activeBackendType != null &&
+            activeBackendType.usesWireGuardSettings() &&
+            rootModeActive &&
+            kernelWireguardActive
+        );
+    }
+
+    private void markUserspaceWireGuardWatchdogHealthy() {
+        if (usesUserspaceWireGuardRuntime()) {
+            lastUserspaceWireGuardHealthyAtElapsedMs = SystemClock.elapsedRealtime();
+        } else {
+            lastUserspaceWireGuardHealthyAtElapsedMs = 0L;
+        }
+    }
+
+    private void markRootWireGuardWatchdogHealthy() {
+        if (usesRootWireGuardRuntime()) {
+            lastRootWireGuardHealthyAtElapsedMs = SystemClock.elapsedRealtime();
+        } else {
+            lastRootWireGuardHealthyAtElapsedMs = 0L;
         }
     }
 
     private boolean shouldSuppressNonXrayLivenessCheck() {
         long runningAt = lastRunningStateAtElapsedMs;
         if (runningAt > 0L && SystemClock.elapsedRealtime() - runningAt < NON_XRAY_LIVENESS_STARTUP_GRACE_MS) {
+            return true;
+        }
+        long proxyStartedAt = lastProxyStartedAtElapsedMs;
+        if (
+            usesTurnProxyBackend(activeBackendType) &&
+            proxyStartedAt > 0L &&
+            SystemClock.elapsedRealtime() - proxyStartedAt < TURN_PROXY_LIVENESS_STARTUP_GRACE_MS
+        ) {
             return true;
         }
         if (Boolean.FALSE.equals(lastUnderlyingNetworkUsable)) {

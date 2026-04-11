@@ -100,10 +100,12 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
         );
     }
 
+    @FunctionalInterface
     private interface InterfaceNameValidator {
         boolean isValid(String value);
     }
 
+    @FunctionalInterface
     private interface InterfaceNameNormalizer {
         String normalize(String value);
     }

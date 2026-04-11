@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import wings.v.core.ByeDpiSettings;
@@ -60,16 +61,8 @@ public final class XrayConfigFactory {
             throw new IllegalArgumentException("Xray профиль не выбран");
         }
 
-        JSONObject converted = new JSONObject(
-            XrayBridge.convertShareLinkToOutboundJson(settings.activeXrayProfile.rawLink)
-        );
-        JSONArray convertedOutbounds = converted.optJSONArray("outbounds");
-        if (convertedOutbounds == null || convertedOutbounds.length() == 0) {
-            throw new IllegalStateException("Не удалось получить outbound из VLESS профиля");
-        }
-
         XraySettings xraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
-        JSONObject proxyOutbound = new JSONObject(convertedOutbounds.getJSONObject(0).toString());
+        JSONObject proxyOutbound = resolveProxyOutbound(settings.activeXrayProfile);
         proxyOutbound.put("tag", PROXY_TAG);
         proxyOutbound.remove("sendThrough");
         sanitizeOutbound(proxyOutbound, settings.activeXrayProfile);
@@ -84,6 +77,70 @@ public final class XrayConfigFactory {
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
         return configJson;
+    }
+
+    private static JSONObject resolveProxyOutbound(XrayProfile profile) throws Exception {
+        String rawPayload = profile == null ? "" : profile.rawLink == null ? "" : profile.rawLink.trim();
+        if (TextUtils.isEmpty(rawPayload)) {
+            throw new IllegalStateException("Xray профиль пуст");
+        }
+        if (looksLikeJsonProfilePayload(rawPayload)) {
+            JSONObject container = rawPayload.startsWith("[")
+                ? new JSONObject().put("outbounds", new JSONArray(rawPayload))
+                : new JSONObject(rawPayload);
+            JSONObject outbound = extractPrimaryOutbound(container);
+            if (outbound == null) {
+                throw new IllegalStateException("Не удалось получить outbound из JSON профиля");
+            }
+            return new JSONObject(outbound.toString());
+        }
+
+        JSONObject converted = new JSONObject(XrayBridge.convertShareLinkToOutboundJson(rawPayload));
+        JSONObject outbound = extractPrimaryOutbound(converted);
+        if (outbound == null) {
+            throw new IllegalStateException("Не удалось получить outbound из share-link профиля");
+        }
+        return new JSONObject(outbound.toString());
+    }
+
+    private static boolean looksLikeJsonProfilePayload(String rawPayload) {
+        if (TextUtils.isEmpty(rawPayload)) {
+            return false;
+        }
+        String normalized = rawPayload.trim();
+        return normalized.startsWith("{") || normalized.startsWith("[");
+    }
+
+    private static JSONObject extractPrimaryOutbound(JSONObject configObject) {
+        if (configObject == null) {
+            return null;
+        }
+        if (configObject.has("protocol")) {
+            return configObject;
+        }
+        JSONArray outbounds = configObject.optJSONArray("outbounds");
+        if (outbounds == null || outbounds.length() == 0) {
+            return null;
+        }
+        for (int index = 0; index < outbounds.length(); index++) {
+            JSONObject outbound = outbounds.optJSONObject(index);
+            if (outbound != null && TextUtils.equals(PROXY_TAG, outbound.optString("tag"))) {
+                return outbound;
+            }
+        }
+        for (int index = 0; index < outbounds.length(); index++) {
+            JSONObject outbound = outbounds.optJSONObject(index);
+            if (outbound == null || isInternalProtocol(outbound.optString("protocol"))) {
+                continue;
+            }
+            return outbound;
+        }
+        return outbounds.optJSONObject(0);
+    }
+
+    private static boolean isInternalProtocol(String protocol) {
+        String normalized = protocol == null ? "" : protocol.trim().toLowerCase(Locale.ROOT);
+        return "dns".equals(normalized) || "freedom".equals(normalized) || "blackhole".equals(normalized);
     }
 
     private static JSONObject buildLog(Context context) throws Exception {
