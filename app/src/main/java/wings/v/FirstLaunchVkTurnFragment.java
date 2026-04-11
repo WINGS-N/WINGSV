@@ -26,6 +26,7 @@ import androidx.fragment.app.Fragment;
 import java.net.IDN;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
@@ -52,6 +53,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     private static final int IPV4_PART_COUNT = 4;
     private static final int IPV4_PART_MAX = 255;
 
+    @FunctionalInterface
     public interface Host {
         void onVkTurnSettingsCompleted();
     }
@@ -417,7 +419,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         if (!ProxyTunnelService.isActive()) {
             return;
         }
-        String normalized = importedText == null ? "" : importedText.trim().toLowerCase();
+        String normalized = importedText == null ? "" : importedText.trim().toLowerCase(Locale.ROOT);
         String reason = normalized.startsWith("vless://")
             ? "Imported vless configuration applied"
             : "Imported wingsv configuration applied";

@@ -11,7 +11,9 @@ import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.MetricAffectingSpan;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -24,6 +26,7 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 import androidx.viewpager2.widget.ViewPager2;
 import dev.oneuiproject.oneui.layout.Badge;
+import dev.oneuiproject.oneui.widget.BottomTabLayout;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -64,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long BACK_EXIT_WINDOW_MS = 2_000L;
 
     private ActivityMainBinding binding;
+    private BottomTabLayout bottomTab;
     private MainPagerAdapter pagerAdapter;
     private int currentTabId = R.id.menu_home;
     private boolean hasProfilesTab;
@@ -76,6 +80,15 @@ public class MainActivity extends AppCompatActivity {
     private AppUpdateManager appUpdateManager;
     private long lastBackPressedAtMs;
     private final AppUpdateManager.Listener updateStateListener = this::applyUpdateBadgeState;
+    private final MenuItem.OnMenuItemClickListener bottomTabClickListener = item -> {
+        int position = positionForTabId(item.getItemId());
+        if (binding.mainPager.getCurrentItem() != position) {
+            binding.mainPager.setCurrentItem(position, false);
+        } else {
+            Haptics.softSliderStep(bottomTab());
+        }
+        return true;
+    };
 
     private final ActivityResultLauncher<Intent> firstLaunchLauncher = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
@@ -99,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        bottomTab = binding.bottomTab;
         configureToolbar();
         configureBackHandling();
         inflateBottomTabMenu();
@@ -112,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
                     int tabId = tabIdForPosition(position);
                     boolean changed = currentTabId != tabId;
                     currentTabId = tabId;
-                    binding.bottomTab.setSelectedItem(tabId);
+                    bottomTab().setSelectedItem(tabId);
                     updateTitle(tabId);
                     if (pageSelectionReady && changed) {
                         Haptics.softSliderStep(binding.mainPager);
@@ -120,16 +134,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         );
-
-        binding.bottomTab.setOnMenuItemClickListener(item -> {
-            int position = positionForTabId(item.getItemId());
-            if (binding.mainPager.getCurrentItem() != position) {
-                binding.mainPager.setCurrentItem(position, false);
-            } else {
-                Haptics.softSliderStep(binding.bottomTab);
-            }
-            return true;
-        });
 
         int initialTabId;
         if (savedInstanceState == null) {
@@ -150,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
         }
         currentTabId = initialTabId;
         binding.mainPager.setCurrentItem(positionForTabId(initialTabId), false);
-        binding.bottomTab.setSelectedItem(initialTabId);
+        bottomTab().setSelectedItem(initialTabId);
         updateTitle(initialTabId);
         applyUpdateBadgeState(appUpdateManager.getState());
         pageSelectionReady = true;
@@ -363,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
         intent.removeExtra(EXTRA_FORCE_CURRENT_TAB_ID);
         currentTabId = forcedTabId;
         binding.mainPager.setCurrentItem(positionForTabId(forcedTabId), false);
-        binding.bottomTab.setSelectedItem(forcedTabId);
+        bottomTab().setSelectedItem(forcedTabId);
         updateTitle(forcedTabId);
     }
 
@@ -391,7 +395,7 @@ public class MainActivity extends AppCompatActivity {
         if (currentTabId != R.id.menu_home) {
             currentTabId = R.id.menu_home;
             binding.mainPager.setCurrentItem(positionForTabId(R.id.menu_home), false);
-            binding.bottomTab.setSelectedItem(R.id.menu_home);
+            bottomTab().setSelectedItem(R.id.menu_home);
             updateTitle(R.id.menu_home);
             return;
         }
@@ -415,7 +419,7 @@ public class MainActivity extends AppCompatActivity {
         } else {
             menuResId = R.menu.menu_bottom_tabs_default;
         }
-        binding.bottomTab.inflateMenu(menuResId, null);
+        bottomTab().inflateMenu(menuResId, bottomTabClickListener);
         applyUpdateBadgeState(appUpdateManager != null ? appUpdateManager.getState() : null);
     }
 
@@ -423,7 +427,7 @@ public class MainActivity extends AppCompatActivity {
         if (binding == null) {
             return;
         }
-        binding.bottomTab.setItemBadge(
+        bottomTab().setItemBadge(
             R.id.menu_settings,
             UpdateBadgeUtils.shouldShowUpdateBadge(state) ? Badge.DOT.INSTANCE : Badge.NONE.INSTANCE
         );
@@ -433,7 +437,7 @@ public class MainActivity extends AppCompatActivity {
         if (binding == null) {
             return;
         }
-        binding.bottomTab.setVisibility(suppressed ? View.GONE : View.VISIBLE);
+        bottomTab().setVisibility(suppressed ? View.GONE : View.VISIBLE);
     }
 
     private void maybeLaunchStartupOnboarding() {
@@ -479,24 +483,72 @@ public class MainActivity extends AppCompatActivity {
         boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
         boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
-            restartPreservingTab(currentTabId);
+            rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
         }
     }
 
-    public void restartPreservingTab(int targetTabId) {
-        Intent intent = getIntent();
-        if (intent == null) {
-            intent = new Intent(this, MainActivity.class);
+    private void rebuildNavigationStateInPlace(int targetTabId, boolean nextHasProfilesTab, boolean nextHasSharingTab) {
+        if (binding == null) {
+            return;
         }
-        intent.putExtra(EXTRA_FORCE_CURRENT_TAB_ID, targetTabId);
-        setIntent(intent);
-        recreate();
-        suppressActivityTransition();
+        setBottomNavigationSuppressed(false);
+        hasProfilesTab = nextHasProfilesTab;
+        hasSharingTab = nextHasSharingTab;
+
+        int resolvedTabId = targetTabId;
+        if (!hasProfilesTab && resolvedTabId == R.id.menu_profiles) {
+            resolvedTabId = R.id.menu_home;
+        }
+        if (!hasSharingTab && resolvedTabId == R.id.menu_sharing) {
+            resolvedTabId = R.id.menu_home;
+        }
+
+        pageSelectionReady = false;
+        replaceBottomTabLayout();
+        pagerAdapter = new MainPagerAdapter(this, hasProfilesTab, hasSharingTab);
+        binding.mainPager.setAdapter(pagerAdapter);
+        binding.mainPager.setOffscreenPageLimit(pagerAdapter.getPageCount());
+        inflateBottomTabMenu();
+
+        currentTabId = resolvedTabId;
+        binding.mainPager.setCurrentItem(positionForTabId(resolvedTabId), false);
+        bottomTab().setSelectedItem(resolvedTabId);
+        bottomTab().refresh(false);
+        bottomTab().setVisibility(View.VISIBLE);
+        updateTitle(resolvedTabId);
+        pageSelectionReady = true;
     }
 
-    @SuppressWarnings("deprecation")
-    private void suppressActivityTransition() {
-        overridePendingTransition(0, 0);
+    private BottomTabLayout bottomTab() {
+        if (bottomTab == null) {
+            bottomTab = binding.bottomTab;
+        }
+        return bottomTab;
+    }
+
+    private void replaceBottomTabLayout() {
+        if (binding == null || bottomTab() == null) {
+            return;
+        }
+        BottomTabLayout currentBottomTab = bottomTab();
+        ViewGroup parent = (ViewGroup) currentBottomTab.getParent();
+        if (parent == null) {
+            return;
+        }
+        int index = parent.indexOfChild(currentBottomTab);
+        ViewGroup.LayoutParams layoutParams = currentBottomTab.getLayoutParams();
+        int visibility = currentBottomTab.getVisibility();
+        parent.removeView(currentBottomTab);
+
+        BottomTabLayout replacement = (BottomTabLayout) getLayoutInflater().inflate(
+            R.layout.view_main_bottom_tab,
+            parent,
+            false
+        );
+        replacement.setLayoutParams(layoutParams);
+        replacement.setVisibility(visibility);
+        parent.addView(replacement, index);
+        bottomTab = replacement;
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -518,7 +570,7 @@ public class MainActivity extends AppCompatActivity {
             boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
             boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
             if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
-                restartPreservingTab(currentTabId);
+                rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
             }
         } catch (Exception ignored) {
             Toast.makeText(this, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();

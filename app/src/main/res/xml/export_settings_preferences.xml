@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory
+        android:key="pref_category_export_settings"
+        android:title="@string/settings_export_category" />
+
+    <Preference
+        android:key="pref_export_all_settings"
+        android:title="@string/settings_export_all_title"
+        android:summary="@string/settings_export_all_summary" />
+
+    <Preference
+        android:key="pref_export_xray_settings"
+        android:title="@string/settings_export_xray_title"
+        android:summary="@string/settings_export_xray_summary" />
+
+    <Preference
+        android:key="pref_export_vk_turn_settings"
+        android:title="@string/settings_export_vk_turn_title"
+        android:summary="@string/settings_export_vk_turn_summary" />
+
+    <Preference
+        android:key="pref_export_wireguard_settings"
+        android:title="@string/settings_export_wireguard_title"
+        android:summary="@string/settings_export_wireguard_summary" />
+
+    <Preference
+        android:key="pref_export_amnezia_settings"
+        android:title="@string/settings_export_amnezia_title"
+        android:summary="@string/settings_export_amnezia_summary" />
+
+</PreferenceScreen>

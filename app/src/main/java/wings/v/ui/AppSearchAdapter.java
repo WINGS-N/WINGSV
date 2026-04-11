@@ -25,6 +25,7 @@ import wings.v.databinding.ItemAppRoutingBinding;
 )
 final class AppSearchAdapter extends RecyclerView.Adapter<AppSearchAdapter.ViewHolder> {
 
+    @FunctionalInterface
     interface Callback {
         void onPackageToggled(String packageName, boolean enabled, View sourceView);
     }

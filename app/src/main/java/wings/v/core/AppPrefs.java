@@ -575,6 +575,18 @@ public final class AppPrefs {
         prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, packages).apply();
     }
 
+    public static void setAppRoutingPackages(Context context, Set<String> packages) {
+        LinkedHashSet<String> normalizedPackages = new LinkedHashSet<>();
+        if (packages != null) {
+            for (String packageName : packages) {
+                if (!TextUtils.isEmpty(trim(packageName))) {
+                    normalizedPackages.add(trim(packageName));
+                }
+            }
+        }
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, normalizedPackages).apply();
+    }
+
     public static ProxySettings getSettings(Context context) {
         SharedPreferences prefs = prefs(context);
         ProxySettings settings = new ProxySettings();
@@ -621,7 +633,49 @@ public final class AppPrefs {
         }
         SharedPreferences.Editor editor = prefs(context).edit();
 
-        if (backendType == BackendType.WIREGUARD) {
+        if (importedConfig.hasTurnSettings) {
+            applyImportedTurnSettings(editor, importedConfig, backendType);
+        }
+        if (importedConfig.hasWireGuardSettings) {
+            applyImportedWireGuardSettings(editor, importedConfig, backendType);
+        }
+        editor.apply();
+
+        if (importedConfig.hasAmneziaSettings) {
+            try {
+                AmneziaStore.applyRawConfig(context, importedConfig.awgQuickConfig);
+            } catch (Exception ignored) {}
+        }
+
+        if (importedConfig.hasXraySettings) {
+            applyImportedXraySettings(context, importedConfig);
+        }
+        if (importedConfig.hasXrayRouting) {
+            XrayRoutingStore.setSourceUrl(context, XrayRoutingRule.MatchType.GEOIP, importedConfig.xrayRoutingGeoipUrl);
+            XrayRoutingStore.setSourceUrl(
+                context,
+                XrayRoutingRule.MatchType.GEOSITE,
+                importedConfig.xrayRoutingGeositeUrl
+            );
+            XrayRoutingStore.setRules(context, importedConfig.xrayRoutingRules);
+        }
+        if (importedConfig.hasAppRouting) {
+            if (importedConfig.appRoutingBypass != null) {
+                setAppRoutingBypassEnabled(context, importedConfig.appRoutingBypass);
+            }
+            setAppRoutingPackages(context, new LinkedHashSet<>(importedConfig.appRoutingPackages));
+        }
+
+        ActiveProbingManager.clearRestoreBackend(context);
+        XrayStore.setBackendType(context, backendType);
+    }
+
+    private static void applyImportedTurnSettings(
+        SharedPreferences.Editor editor,
+        WingsImportParser.ImportedConfig importedConfig,
+        BackendType backendType
+    ) {
+        if (backendType == BackendType.WIREGUARD && !importedConfig.hasAllSettings) {
             editor.putString(KEY_WG_ENDPOINT, trim(importedConfig.endpoint));
         } else {
             editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
@@ -643,6 +697,18 @@ public final class AppPrefs {
         );
         editor.putString(KEY_TURN_HOST, trim(importedConfig.turnHost));
         editor.putString(KEY_TURN_PORT, trim(importedConfig.turnPort));
+    }
+
+    private static void applyImportedWireGuardSettings(
+        SharedPreferences.Editor editor,
+        WingsImportParser.ImportedConfig importedConfig,
+        BackendType backendType
+    ) {
+        String wireGuardEndpoint = trim(importedConfig.wgEndpoint);
+        if (TextUtils.isEmpty(wireGuardEndpoint) && backendType == BackendType.WIREGUARD) {
+            wireGuardEndpoint = trim(importedConfig.endpoint);
+        }
+        editor.putString(KEY_WG_ENDPOINT, wireGuardEndpoint);
         editor.putString(KEY_WG_PRIVATE_KEY, trim(importedConfig.wgPrivateKey));
         editor.putString(KEY_WG_ADDRESSES, trim(importedConfig.wgAddresses));
         editor.putString(
@@ -659,24 +725,30 @@ public final class AppPrefs {
             KEY_WG_ALLOWED_IPS,
             TextUtils.isEmpty(trim(importedConfig.wgAllowedIps)) ? "0.0.0.0/0, ::/0" : trim(importedConfig.wgAllowedIps)
         );
-        editor.apply();
+    }
 
-        if (backendType != null && backendType.usesAmneziaSettings()) {
-            try {
-                AmneziaStore.applyRawConfig(context, importedConfig.awgQuickConfig);
-            } catch (Exception ignored) {}
+    private static void applyImportedXraySettings(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        java.util.List<XrayProfile> resolvedImportedProfiles = resolveImportedXrayProfiles(importedConfig);
+        XrayStore.setXraySettings(context, importedConfig.xraySettings);
+        XrayStore.setSubscriptions(context, importedConfig.xraySubscriptions);
+        if (importedConfig.hasXrayProfiles) {
+            XrayStore.setProfiles(context, resolvedImportedProfiles);
         }
-
-        ActiveProbingManager.clearRestoreBackend(context);
-        XrayStore.setBackendType(context, backendType);
-        if (backendType == BackendType.XRAY) {
-            XrayStore.setXraySettings(context, importedConfig.xraySettings);
-            XrayStore.setSubscriptions(context, importedConfig.xraySubscriptions);
-            XrayStore.setProfiles(context, importedConfig.xrayProfiles);
-            XrayStore.setActiveProfileId(context, importedConfig.activeXrayProfileId);
+        String importedActiveProfileId = trim(importedConfig.activeXrayProfileId);
+        if (
+            TextUtils.isEmpty(importedActiveProfileId) &&
+            importedConfig.hasXrayProfiles &&
+            !resolvedImportedProfiles.isEmpty()
+        ) {
+            importedActiveProfileId = resolvedImportedProfiles.get(0).id;
+        }
+        if (!TextUtils.isEmpty(importedActiveProfileId) || importedConfig.hasXrayProfiles) {
+            XrayStore.setActiveProfileId(context, importedActiveProfileId);
+        }
+        if (importedConfig.hasXraySubscriptionJson) {
             XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
-            XrayStore.setLastSubscriptionsError(context, "");
         }
+        XrayStore.setLastSubscriptionsError(context, "");
     }
 
     public static void applyVkTurnSettings(Context context, ProxySettings settings) {
@@ -757,7 +829,11 @@ public final class AppPrefs {
                           trim(importedSubscription.formatHint),
                           importedSubscription.refreshIntervalHours,
                           importedSubscription.autoUpdate,
-                          importedSubscription.lastUpdatedAt
+                          importedSubscription.lastUpdatedAt,
+                          importedSubscription.advertisedUploadBytes,
+                          importedSubscription.advertisedDownloadBytes,
+                          importedSubscription.advertisedTotalBytes,
+                          importedSubscription.advertisedExpireAt
                       );
             subscriptionsByKey.put(dedupKey, merged);
             if (!TextUtils.isEmpty(importedSubscription.id)) {
@@ -784,7 +860,7 @@ public final class AppPrefs {
         }
 
         java.util.Map<String, String> importedProfileIdsToMergedIds = new java.util.LinkedHashMap<>();
-        for (XrayProfile importedProfile : importedConfig.xrayProfiles) {
+        for (XrayProfile importedProfile : resolveImportedXrayProfiles(importedConfig)) {
             if (importedProfile == null || TextUtils.isEmpty(importedProfile.rawLink)) {
                 continue;
             }
@@ -830,26 +906,60 @@ public final class AppPrefs {
             }
         }
 
-        XrayStore.setProfiles(context, new java.util.ArrayList<>(profilesByKey.values()));
+        java.util.List<XrayProfile> mergedProfiles = new java.util.ArrayList<>(profilesByKey.values());
+        XrayStore.setProfiles(context, mergedProfiles);
         String mergedActiveProfileId = TextUtils.isEmpty(importedConfig.activeXrayProfileId)
             ? ""
             : importedProfileIdsToMergedIds.get(importedConfig.activeXrayProfileId);
         if (TextUtils.isEmpty(mergedActiveProfileId)) {
             String currentActiveProfileId = XrayStore.getActiveProfileId(context);
-            if (TextUtils.isEmpty(currentActiveProfileId) && !TextUtils.isEmpty(importedConfig.activeXrayProfileId)) {
-                XrayStore.setActiveProfileId(context, importedConfig.activeXrayProfileId);
+            if (TextUtils.isEmpty(currentActiveProfileId)) {
+                if (!TextUtils.isEmpty(importedConfig.activeXrayProfileId)) {
+                    XrayStore.setActiveProfileId(context, importedConfig.activeXrayProfileId);
+                } else if (!mergedProfiles.isEmpty()) {
+                    XrayStore.setActiveProfileId(context, mergedProfiles.get(0).id);
+                }
             }
         } else {
             XrayStore.setActiveProfileId(context, mergedActiveProfileId);
         }
+        XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
         XrayStore.setLastSubscriptionsError(context, "");
     }
 
     private static boolean shouldActivateImportedXrayPayload(WingsImportParser.ImportedConfig importedConfig) {
         return (
             importedConfig != null &&
-            (!importedConfig.xrayProfiles.isEmpty() || !TextUtils.isEmpty(importedConfig.activeXrayProfileId))
+            (!resolveImportedXrayProfiles(importedConfig).isEmpty() ||
+                !TextUtils.isEmpty(importedConfig.activeXrayProfileId))
         );
+    }
+
+    private static java.util.List<XrayProfile> resolveImportedXrayProfiles(
+        WingsImportParser.ImportedConfig importedConfig
+    ) {
+        java.util.ArrayList<XrayProfile> resolvedProfiles = new java.util.ArrayList<>();
+        if (importedConfig == null) {
+            return resolvedProfiles;
+        }
+        if (!importedConfig.xrayProfiles.isEmpty()) {
+            resolvedProfiles.addAll(importedConfig.xrayProfiles);
+            return resolvedProfiles;
+        }
+        if (TextUtils.isEmpty(importedConfig.xraySubscriptionJson)) {
+            return resolvedProfiles;
+        }
+        XraySubscription primarySubscription = importedConfig.xraySubscriptions.isEmpty()
+            ? null
+            : importedConfig.xraySubscriptions.get(0);
+        resolvedProfiles.addAll(
+            XraySubscriptionParser.parseProfiles(
+                importedConfig.xraySubscriptionJson,
+                primarySubscription != null ? trim(primarySubscription.id) : "",
+                primarySubscription != null ? trim(primarySubscription.title) : ""
+            )
+        );
+        return resolvedProfiles;
     }
 
     private static SharedPreferences prefs(Context context) {

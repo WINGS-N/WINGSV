@@ -140,6 +140,10 @@ public final class XrayStore {
                         "auto",
                         getRefreshIntervalHours(context),
                         true,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
                         0L
                     )
                 );
@@ -190,6 +194,10 @@ public final class XrayStore {
                 "auto",
                 getRefreshIntervalHours(context),
                 true,
+                0L,
+                0L,
+                0L,
+                0L,
                 0L
             )
         );

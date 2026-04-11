@@ -83,6 +83,11 @@
         android:title="Проверить разрешения"
         android:summary="Открыть стартовый экран разрешений вручную" />
 
+    <Preference
+        android:key="pref_open_export_settings"
+        android:title="@string/settings_export_title"
+        android:summary="@string/settings_export_summary" />
+
     <SwitchPreferenceCompat
         android:key="pref_auto_start_on_boot"
         android:title="@string/auto_start_title"

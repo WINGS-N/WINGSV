@@ -118,6 +118,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".ExportSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".VkTurnSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
