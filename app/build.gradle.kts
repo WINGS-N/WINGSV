@@ -335,7 +335,6 @@ configurations.configureEach {
     exclude(group = "androidx.swiperefreshlayout", module = "swiperefreshlayout")
     exclude(group = "com.google.android.material", module = "material")
     exclude(group = "sesl.androidx.picker", module = "picker-app")
-    exclude(group = "sesl.androidx.picker", module = "picker-basic")
     exclude(group = "sesl.androidx.picker", module = "picker-color")
 }
 
@@ -471,6 +470,7 @@ tasks.named("check") {
 dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.oneui.design)
+    implementation(libs.sesl.pickerBasic)
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)

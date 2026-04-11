@@ -25,6 +25,7 @@ import wings.v.ProxyLogsActivity;
 import wings.v.R;
 import wings.v.RootInterfaceSettingsActivity;
 import wings.v.SubscriptionsActivity;
+import wings.v.ThemeSettingsActivity;
 import wings.v.VkTurnSettingsActivity;
 import wings.v.XposedSettingsActivity;
 import wings.v.XraySettingsActivity;
@@ -37,6 +38,7 @@ import wings.v.core.ByeDpiStore;
 import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
 import wings.v.core.RootUtils;
+import wings.v.core.ThemeModeController;
 import wings.v.core.UiFormatter;
 import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
@@ -145,6 +147,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             exportSettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 startActivity(ExportSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference themePreference = findPreference(AppPrefs.KEY_THEME_MODE);
+        if (themePreference != null) {
+            themePreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(ThemeSettingsActivity.createIntent(requireContext()));
                 return true;
             });
         }
@@ -570,6 +581,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
         syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
         syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
+        syncPreferenceSummary(AppPrefs.KEY_THEME_MODE, getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context))));
     }
 
     private void syncEditTextPreference(String key, @Nullable String value) {
@@ -610,6 +622,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 ExternalActions.setBackend(changedPreference.getContext(), nextBackend, true, false);
                 return true;
             });
+            return;
         }
     }
 
@@ -623,5 +636,16 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         preference.setValue(normalizedValue);
+    }
+
+    private void syncPreferenceSummary(String key, CharSequence summary) {
+        Preference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        if (TextUtils.equals(preference.getSummary(), summary)) {
+            return;
+        }
+        preference.setSummary(summary);
     }
 }

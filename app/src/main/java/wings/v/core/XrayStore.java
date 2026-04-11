@@ -138,7 +138,7 @@ public final class XrayStore {
                         DEFAULT_SUBSCRIPTION_TITLE,
                         DEFAULT_SUBSCRIPTION_URL,
                         "auto",
-                        getRefreshIntervalHours(context),
+                        getRefreshIntervalMinutes(context),
                         true,
                         0L,
                         0L,
@@ -192,7 +192,7 @@ public final class XrayStore {
                 DEFAULT_SUBSCRIPTION_TITLE,
                 DEFAULT_SUBSCRIPTION_URL,
                 "auto",
-                getRefreshIntervalHours(context),
+                getRefreshIntervalMinutes(context),
                 true,
                 0L,
                 0L,
@@ -395,15 +395,36 @@ public final class XrayStore {
         return firstProfile;
     }
 
-    public static int getRefreshIntervalHours(Context context) {
-        return parseInt(prefs(context).getString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, "24"), 24);
+    public static int getRefreshIntervalMinutes(Context context) {
+        SharedPreferences preferences = prefs(context);
+        if (preferences.contains(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES)) {
+            return normalizeRefreshIntervalMinutes(
+                parseInt(preferences.getString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES, "1440"), 1440)
+            );
+        }
+        int legacyHours = parseInt(preferences.getString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, "24"), 24);
+        int migratedMinutes = normalizeRefreshIntervalMinutes(legacyHours * 60);
+        preferences
+            .edit()
+            .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES, String.valueOf(migratedMinutes))
+            .apply();
+        return migratedMinutes;
     }
 
-    public static void setRefreshIntervalHours(Context context, int hours) {
-        prefs(context)
+    public static void setRefreshIntervalMinutes(Context context, int minutes) {
+        int normalizedMinutes = normalizeRefreshIntervalMinutes(minutes);
+        SharedPreferences.Editor editor = prefs(context)
             .edit()
-            .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, String.valueOf(Math.max(hours, 1)))
-            .apply();
+            .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES, String.valueOf(normalizedMinutes));
+        if (normalizedMinutes % 60 == 0) {
+            editor.putString(
+                AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS,
+                String.valueOf(normalizedMinutes / 60)
+            );
+        } else {
+            editor.remove(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS);
+        }
+        editor.apply();
         XraySubscriptionBackgroundScheduler.refresh(context.getApplicationContext());
     }
 
@@ -424,6 +445,13 @@ public final class XrayStore {
 
     public static void setLastSubscriptionsError(Context context, String error) {
         prefs(context).edit().putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, trim(error)).apply();
+    }
+
+    private static int normalizeRefreshIntervalMinutes(int minutes) {
+        if (minutes <= 0) {
+            return 1440;
+        }
+        return Math.min(minutes, 1440);
     }
 
     public static String getImportedSubscriptionJson(Context context) {

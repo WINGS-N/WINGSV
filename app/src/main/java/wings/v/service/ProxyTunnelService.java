@@ -227,7 +227,6 @@ public class ProxyTunnelService extends Service {
     private static final long BYEDPI_START_POLL_MS = 100L;
     private static final long BYEDPI_STOP_TIMEOUT_MS = 750L;
     private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 1_000L;
-    private static final long FAST_STOP_VPN_BACKEND_TIMEOUT_MS = 1_500L;
     private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 1_200L;
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int MAX_PROXY_LOG_LINES = 600;
@@ -1365,7 +1364,8 @@ public class ProxyTunnelService extends Service {
             XrayVpnService.forceStopService(getApplicationContext());
             runFastStopCleanupStep("Xray core stop", FAST_STOP_CLEANUP_TIMEOUT_MS, XrayBridge::stop);
         } else {
-            shutdownVpnBackendsFast();
+            // libwg-go/libamneziawg_go keep global native handles; do not overlap DOWN with a later UP.
+            shutdownVpnBackendsLocked();
         }
         runFastStopCleanupStep(
             "Active tunnel force link down",
@@ -2877,6 +2877,9 @@ public class ProxyTunnelService extends Service {
             VpnService vpnService = GoBackendVpnAccess.ensureServiceStarted(getApplicationContext());
             if (vpnService == null) {
                 throw new IllegalStateException(failureMessage);
+            }
+            if (GoBackendVpnAccess.promoteServiceForeground(vpnService, SERVICE_NOTIFICATION_ID, buildNotification())) {
+                appendRuntimeLogLine("Userspace WireGuard VPN service promoted to foreground");
             }
         } else if (vpnServiceProvider == null || vpnServiceProvider.getVpnService() == null) {
             throw new IllegalStateException(failureMessage);
@@ -4447,41 +4450,6 @@ public class ProxyTunnelService extends Service {
             }
             clearVpnBackendReferences();
         }
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void shutdownVpnBackendsFast() {
-        final org.amnezia.awg.backend.Backend awgBackendToStop;
-        final org.amnezia.awg.backend.Tunnel awgTunnelToStop;
-        final org.amnezia.awg.config.Config awgConfigToStop;
-        final Backend backendToStop;
-        final Tunnel currentTunnelToStop;
-        final Config currentConfigToStop;
-        synchronized (vpnBackendLock) {
-            awgBackendToStop = awgBackend;
-            awgTunnelToStop = awgTunnel;
-            awgConfigToStop = awgConfig;
-            backendToStop = backend;
-            currentTunnelToStop = currentTunnel;
-            currentConfigToStop = currentConfig;
-            clearVpnBackendReferences();
-        }
-        runFastStopCleanupStep("VPN backend shutdown", FAST_STOP_VPN_BACKEND_TIMEOUT_MS, () -> {
-            if (awgBackendToStop != null && awgTunnelToStop != null && awgConfigToStop != null) {
-                try {
-                    awgBackendToStop.setState(
-                        awgTunnelToStop,
-                        org.amnezia.awg.backend.Tunnel.State.DOWN,
-                        awgConfigToStop
-                    );
-                } catch (Exception ignored) {}
-            }
-            if (backendToStop != null && currentTunnelToStop != null && currentConfigToStop != null) {
-                try {
-                    backendToStop.setState(currentTunnelToStop, Tunnel.State.DOWN, currentConfigToStop);
-                } catch (Exception ignored) {}
-            }
-        });
     }
 
     private void clearVpnBackendReferences() {

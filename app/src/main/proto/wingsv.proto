@@ -136,6 +136,7 @@ message Subscription {
   optional uint32 refresh_interval_hours = 5;
   optional bool auto_update = 6;
   optional int64 last_updated_at = 7;
+  optional uint32 refresh_interval_minutes = 8;
 }
 
 message VlessProfile {

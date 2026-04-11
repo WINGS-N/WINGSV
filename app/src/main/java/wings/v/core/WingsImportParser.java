@@ -48,7 +48,7 @@ public final class WingsImportParser {
     private static final String DEFAULT_WG_DNS = "1.1.1.1, 1.0.0.1";
     private static final int DEFAULT_WG_MTU = 1280;
     private static final String DEFAULT_ALLOWED_IPS = "0.0.0.0/0, ::/0";
-    private static final int DEFAULT_SUBSCRIPTION_REFRESH_HOURS = 24;
+    private static final int DEFAULT_SUBSCRIPTION_REFRESH_MINUTES = 24 * 60;
 
     private enum ExportScope {
         ACTIVE,
@@ -170,9 +170,7 @@ public final class WingsImportParser {
                     .setTitle(value(subscription.title))
                     .setUrl(value(subscription.url))
                     .setFormatHint(value(subscription.formatHint));
-                if (subscription.refreshIntervalHours > 0) {
-                    subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
-                }
+                applyProtoSubscriptionRefreshInterval(subscriptionBuilder, subscription.refreshIntervalMinutes, false);
                 if (!subscription.autoUpdate) {
                     subscriptionBuilder.setAutoUpdate(false);
                 }
@@ -236,9 +234,7 @@ public final class WingsImportParser {
                 .setTitle(value(subscription.title))
                 .setUrl(value(subscription.url))
                 .setFormatHint(value(subscription.formatHint));
-            if (subscription.refreshIntervalHours > 0) {
-                subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
-            }
+            applyProtoSubscriptionRefreshInterval(subscriptionBuilder, subscription.refreshIntervalMinutes, false);
             if (!subscription.autoUpdate) {
                 subscriptionBuilder.setAutoUpdate(false);
             }
@@ -348,7 +344,7 @@ public final class WingsImportParser {
                     deriveSubscriptionTitle(url),
                     url,
                     "auto",
-                    DEFAULT_SUBSCRIPTION_REFRESH_HOURS,
+                    DEFAULT_SUBSCRIPTION_REFRESH_MINUTES,
                     true,
                     0L,
                     0L,
@@ -623,11 +619,11 @@ public final class WingsImportParser {
             .setTitle(value(subscription.title))
             .setUrl(value(subscription.url))
             .setFormatHint(value(subscription.formatHint));
-        if (subscription.refreshIntervalHours > 0) {
-            subscriptionBuilder.setRefreshIntervalHours(subscription.refreshIntervalHours);
-        } else if (includeDefaults) {
-            subscriptionBuilder.setRefreshIntervalHours(DEFAULT_SUBSCRIPTION_REFRESH_HOURS);
-        }
+        applyProtoSubscriptionRefreshInterval(
+            subscriptionBuilder,
+            subscription.refreshIntervalMinutes,
+            includeDefaults
+        );
         if (includeDefaults || !subscription.autoUpdate) {
             subscriptionBuilder.setAutoUpdate(subscription.autoUpdate);
         }
@@ -654,6 +650,26 @@ public final class WingsImportParser {
             builder.addRules(ruleBuilder.build());
         }
         return builder.build();
+    }
+
+    private static void applyProtoSubscriptionRefreshInterval(
+        WingsvProto.Subscription.Builder subscriptionBuilder,
+        int refreshIntervalMinutes,
+        boolean includeDefaults
+    ) {
+        int normalizedMinutes = Math.max(refreshIntervalMinutes, 0);
+        if (normalizedMinutes > 0) {
+            subscriptionBuilder.setRefreshIntervalMinutes(normalizedMinutes);
+            if (normalizedMinutes % 60 == 0) {
+                subscriptionBuilder.setRefreshIntervalHours(normalizedMinutes / 60);
+            }
+            return;
+        }
+        if (!includeDefaults) {
+            return;
+        }
+        subscriptionBuilder.setRefreshIntervalMinutes(DEFAULT_SUBSCRIPTION_REFRESH_MINUTES);
+        subscriptionBuilder.setRefreshIntervalHours(DEFAULT_SUBSCRIPTION_REFRESH_MINUTES / 60);
     }
 
     private static WingsvProto.XrayRoutingMatchType toProtoRoutingMatchType(XrayRoutingRule.MatchType matchType) {
@@ -1365,7 +1381,7 @@ public final class WingsImportParser {
             value(subscription.getTitle()),
             value(subscription.getUrl()),
             value(subscription.getFormatHint()),
-            subscription.hasRefreshIntervalHours() ? subscription.getRefreshIntervalHours() : 0,
+            resolveProtoSubscriptionRefreshIntervalMinutes(subscription),
             !subscription.hasAutoUpdate() || subscription.getAutoUpdate(),
             subscription.hasLastUpdatedAt() ? subscription.getLastUpdatedAt() : 0L,
             0L,
@@ -1373,6 +1389,16 @@ public final class WingsImportParser {
             0L,
             0L
         );
+    }
+
+    private static int resolveProtoSubscriptionRefreshIntervalMinutes(WingsvProto.Subscription subscription) {
+        if (subscription.hasRefreshIntervalMinutes()) {
+            return subscription.getRefreshIntervalMinutes();
+        }
+        if (subscription.hasRefreshIntervalHours()) {
+            return subscription.getRefreshIntervalHours() * 60;
+        }
+        return 0;
     }
 
     private static XraySettings defaultXraySettings() {

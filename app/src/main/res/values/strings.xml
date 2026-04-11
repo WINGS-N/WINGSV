@@ -488,7 +488,8 @@
     <string name="xray_subscriptions_edit_title">Изменить подписку</string>
     <string name="xray_subscriptions_delete_title">Удалить подписку</string>
     <string name="xray_subscriptions_refresh_interval_title">Интервал обновления</string>
-    <string name="xray_subscriptions_refresh_interval_summary">Автообновление каждые %1$d ч</string>
+    <string name="xray_subscriptions_refresh_interval_hint">Диапазон от 00:01 до 23:59, значение 00:00 означает 24:00</string>
+    <string name="xray_subscriptions_refresh_interval_summary">Автообновление каждые %1$s</string>
     <string name="xray_subscriptions_refresh_now_title">Обновить</string>
     <string name="xray_subscriptions_refresh_now_summary">Обновить профили из всех сохранённых подписок</string>
     <string name="xray_subscriptions_untitled">Подписка без названия</string>
@@ -622,6 +623,15 @@
     <string name="captcha_notification_text">Фоновое обновление TURN соединений ждёт решение капчи. Нажмите, чтобы открыть одноразовое окно проверки</string>
     <string name="captcha_notification_text_pool">Для дополнительной VK TURN сессии требуется пройти капчу. Нажмите, чтобы открыть окно проверки</string>
     <string name="captcha_notification_open">Открыть</string>
+    <string name="settings_theme_title">Тема</string>
+    <string name="settings_theme_picker_title">Оформление приложения</string>
+    <string name="settings_theme_picker_summary">Выберите оформление WINGS V</string>
+    <string name="theme_mode_system">Системная</string>
+    <string name="theme_mode_system_summary">Следовать светлой или тёмной теме устройства</string>
+    <string name="theme_mode_dark">Тёмная</string>
+    <string name="theme_mode_dark_summary">Всегда использовать тёмное оформление приложения</string>
+    <string name="theme_mode_light">Светлая</string>
+    <string name="theme_mode_light_summary">Всегда использовать светлое оформление приложения</string>
     <string name="auto_start_title">Автозапуск при старте устройства</string>
     <string name="auto_start_summary">Автоматически поднимать подключение после загрузки системы</string>
 
