@@ -74,11 +74,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
 
+      - name: Resolve build version
+        id: resolve-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(sed -nE 's/^val defaultAppVersionName = "([^"]+)"$/\1/p' app/build.gradle.kts | head -n1)"
+          fi
+          if [[ -z "${version}" ]]; then
+            echo "Failed to resolve build version" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
       - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug -Pver=${{ steps.resolve-version.outputs.version }}
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v6
         with:
-          name: app-debug
+          name: app-debug-${{ steps.resolve-version.outputs.version }}
           path: app/build/outputs/apk/debug/app-debug.apk
