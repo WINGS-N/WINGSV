@@ -227,7 +227,7 @@ public final class XrayStore {
                 if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
                     continue;
                 }
-                deduped.put(profile.stableDedupKey(), profile);
+                deduped.put(getProfileStorageKey(profile), profile);
             }
         }
         for (XrayProfile profile : deduped.values()) {
@@ -241,6 +241,10 @@ public final class XrayStore {
     }
 
     public static String getProfilePingKey(XrayProfile profile) {
+        return getProfileStorageKey(profile);
+    }
+
+    public static String getProfileStorageKey(XrayProfile profile) {
         if (profile == null) {
             return "";
         }

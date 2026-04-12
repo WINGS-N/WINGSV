@@ -123,8 +123,10 @@ public final class AutoSearchManager {
     private static final int DEFAULT_DOWNLOAD_ATTEMPTS = 2;
     private static final int DEFAULT_TARGET_COUNT = 5;
     private static final int DEFAULT_DOWNLOAD_SIZE_MB = 5;
-    private static final int FAILED_ATTEMPTS_LIMIT = 2;
     private static final long INTER_ATTEMPT_DELAY_MS = 3_000L;
+    private static final long DOWNLOAD_SUCCESS_TOLERANCE_MIN_BYTES = 64L * 1024L;
+    private static final long DOWNLOAD_SUCCESS_TOLERANCE_MAX_BYTES = 256L * 1024L;
+    private static final long DOWNLOAD_SUCCESS_TOLERANCE_DIVISOR = 50L;
     private static final long SERVICE_STOP_TIMEOUT_MS = 8_000L;
     private static final long SERVICE_STOP_POLL_MS = 200L;
     private static final long VPN_RELEASE_GRACE_MS = 1_000L;
@@ -751,7 +753,7 @@ public final class AutoSearchManager {
         ByeDpiSettings byeDpiSettings
     ) throws Exception {
         List<CandidateResult> stable = new ArrayList<>();
-        List<CandidateResult> live = new ArrayList<>();
+        List<CandidateResult> successful = new ArrayList<>();
         int total = pingSuccess.size();
         int index = 0;
         for (CandidateResult candidate : pingSuccess) {
@@ -767,13 +769,35 @@ public final class AutoSearchManager {
                     safeProfileTitle(candidate.profile),
                     appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
                     0L,
-                    stable.size(),
+                    successful.size(),
                     candidate.latencyMs
                 )
             );
-            runCandidateDownloadTest(mode, candidate, xraySettings, byeDpiSettings, stable.size());
-            if (candidate.live) {
-                live.add(candidate);
+            runCandidateDownloadTest(mode, candidate, xraySettings, byeDpiSettings, successful.size());
+            if (candidate.stable) {
+                stable.add(candidate);
+            }
+            if (isDownloadSuccessful(candidate)) {
+                successful.add(candidate);
+                updateState(
+                    State.running(
+                        mode,
+                        appContext.getString(R.string.auto_search_step_download),
+                        appContext.getString(R.string.auto_search_download_summary),
+                        false,
+                        index,
+                        total,
+                        safeProfileTitle(candidate.profile),
+                        appContext.getString(
+                            R.string.auto_search_download_ok_metric,
+                            UiFormatter.formatBytes(appContext, candidate.downloadedBytes),
+                            candidate.successfulAttempts
+                        ),
+                        0L,
+                        successful.size(),
+                        candidate.latencyMs
+                    )
+                );
             } else {
                 updateState(
                     State.running(
@@ -786,36 +810,33 @@ public final class AutoSearchManager {
                         safeProfileTitle(candidate.profile),
                         appContext.getString(R.string.auto_search_download_failed_metric),
                         0L,
-                        stable.size(),
+                        successful.size(),
                         candidate.latencyMs
                     )
                 );
             }
-            if (candidate.stable) {
-                stable.add(candidate);
-            }
-            if (stable.size() >= getTargetProfileCount(appContext)) {
+            if (successful.size() >= getTargetProfileCount(appContext)) {
                 break;
             }
         }
-        List<CandidateResult> result;
-        if (stable.isEmpty()) {
-            result = live;
-        } else {
-            result = stable;
+        List<CandidateResult> result = new ArrayList<>();
+        result.addAll(stable);
+        for (CandidateResult candidate : successful) {
+            if (!result.contains(candidate)) {
+                result.add(candidate);
+            }
         }
-        result.sort((left, right) -> {
-            int compareBytes = Long.compare(right.downloadedBytes, left.downloadedBytes);
-            if (compareBytes != 0) {
-                return compareBytes;
-            }
-            int compareAttempts = Integer.compare(right.successfulAttempts, left.successfulAttempts);
-            if (compareAttempts != 0) {
-                return compareAttempts;
-            }
-            return Integer.compare(left.latencyMs, right.latencyMs);
-        });
+        result.sort((left, right) -> compareCandidateResults(right, left));
         return result;
+    }
+
+    private boolean isDownloadSuccessful(@Nullable CandidateResult candidate) {
+        return (
+            candidate != null &&
+            candidate.profile != null &&
+            candidate.successfulAttempts > 0 &&
+            candidate.downloadedBytes > 0L
+        );
     }
 
     private void runCandidateDownloadTest(
@@ -823,7 +844,7 @@ public final class AutoSearchManager {
         CandidateResult candidate,
         XraySettings xraySettings,
         ByeDpiSettings byeDpiSettings,
-        int stableFoundCount
+        int foundProfilesCount
     ) throws Exception {
         int localPort = findAvailableTcpPort();
         String configJson = XrayAutoSearchConfigFactory.buildConfigJson(
@@ -834,7 +855,6 @@ public final class AutoSearchManager {
             byeDpiSettings,
             mode == Mode.WHITELIST
         );
-        int failedAttempts = 0;
         try {
             stopXrayQuietly();
             XrayBridge.prepareRuntimeDirect(
@@ -857,12 +877,12 @@ public final class AutoSearchManager {
                         safeProfileTitle(candidate.profile),
                         appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
                         0L,
-                        stableFoundCount,
+                        foundProfilesCount,
                         candidate.latencyMs
                     )
                 );
             } else {
-                ProbeResult probeResult = ensureTrafficUp(mode, candidate, xraySettings, localPort, stableFoundCount);
+                ProbeResult probeResult = ensureTrafficUp(mode, candidate, xraySettings, localPort, foundProfilesCount);
                 candidate.live = probeResult.success;
                 if (!probeResult.success) {
                     return;
@@ -870,31 +890,29 @@ public final class AutoSearchManager {
             }
             int downloadAttempts = getDownloadAttempts(appContext);
             long downloadSizeBytes = getDownloadSizeBytes(appContext);
-            long stableBytes = downloadSizeBytes + downloadSizeBytes / 2L;
+            long stableBytes = resolveStableBytes(downloadSizeBytes, downloadAttempts);
             for (int attempt = 1; attempt <= downloadAttempts; attempt++) {
-                if (failedAttempts >= FAILED_ATTEMPTS_LIMIT) {
-                    break;
-                }
                 DownloadResult result = downloadThroughProxy(
                     mode,
                     candidate,
                     xraySettings,
                     localPort,
-                    stableFoundCount,
+                    foundProfilesCount,
                     attempt,
                     downloadAttempts,
                     stableBytes
                 );
-                candidate.downloadedBytes += result.bytesRead;
+                candidate.downloadedBytes = Math.max(candidate.downloadedBytes, result.bytesRead);
                 candidate.successfulAttempts += result.success ? 1 : 0;
+                candidate.completedRuns++;
+                candidate.totalDownloadSpeedBytesPerSecond += result.averageSpeedBytesPerSecond;
+                candidate.averageDownloadSpeedBytesPerSecond =
+                    candidate.completedRuns > 0
+                        ? candidate.totalDownloadSpeedBytesPerSecond / candidate.completedRuns
+                        : 0L;
                 candidate.live = candidate.live || result.bytesRead > 0L;
-                candidate.stable = candidate.downloadedBytes >= stableBytes && candidate.successfulAttempts > 0;
-                if (!result.success) {
-                    failedAttempts++;
-                }
-                if (candidate.stable) {
-                    break;
-                }
+                candidate.stableRuns += meetsDownloadTarget(result.bytesRead, stableBytes) && result.success ? 1 : 0;
+                candidate.stable = candidate.stableRuns >= downloadAttempts;
                 if (attempt < downloadAttempts) {
                     SystemClock.sleep(INTER_ATTEMPT_DELAY_MS);
                 }
@@ -904,13 +922,51 @@ public final class AutoSearchManager {
         }
     }
 
+    private static long resolveStableBytes(long downloadSizeBytes, int downloadAttempts) {
+        return Math.max(1L, downloadSizeBytes);
+    }
+
+    private static boolean meetsDownloadTarget(long actualBytes, long targetBytes) {
+        long normalizedTarget = Math.max(1L, targetBytes);
+        long tolerance = Math.max(
+            DOWNLOAD_SUCCESS_TOLERANCE_MIN_BYTES,
+            normalizedTarget / DOWNLOAD_SUCCESS_TOLERANCE_DIVISOR
+        );
+        tolerance = Math.min(DOWNLOAD_SUCCESS_TOLERANCE_MAX_BYTES, tolerance);
+        long requiredBytes = Math.max(1L, normalizedTarget - tolerance);
+        return Math.max(0L, actualBytes) >= requiredBytes;
+    }
+
+    private static int compareCandidateResults(@NonNull CandidateResult left, @NonNull CandidateResult right) {
+        int compareAverageSpeed = Long.compare(
+            left.averageDownloadSpeedBytesPerSecond,
+            right.averageDownloadSpeedBytesPerSecond
+        );
+        if (compareAverageSpeed != 0) {
+            return compareAverageSpeed;
+        }
+        int compareStableRuns = Integer.compare(left.stableRuns, right.stableRuns);
+        if (compareStableRuns != 0) {
+            return compareStableRuns;
+        }
+        int compareSuccessfulRuns = Integer.compare(left.successfulAttempts, right.successfulAttempts);
+        if (compareSuccessfulRuns != 0) {
+            return compareSuccessfulRuns;
+        }
+        int compareBytes = Long.compare(left.downloadedBytes, right.downloadedBytes);
+        if (compareBytes != 0) {
+            return compareBytes;
+        }
+        return Integer.compare(right.latencyMs, left.latencyMs);
+    }
+
     @NonNull
     private ProbeResult ensureTrafficUp(
         Mode mode,
         CandidateResult candidate,
         XraySettings xraySettings,
         int localPort,
-        int stableFoundCount
+        int foundProfilesCount
     ) {
         for (String url : TRAFFIC_PROBE_URLS) {
             updateState(
@@ -924,7 +980,7 @@ public final class AutoSearchManager {
                     safeProfileTitle(candidate.profile),
                     appContext.getString(R.string.auto_search_preflight_checking_metric, url),
                     0L,
-                    stableFoundCount,
+                    foundProfilesCount,
                     candidate.latencyMs
                 )
             );
@@ -941,7 +997,7 @@ public final class AutoSearchManager {
                         safeProfileTitle(candidate.profile),
                         appContext.getString(R.string.auto_search_preflight_ok_metric, result.responseCode),
                         0L,
-                        stableFoundCount,
+                        foundProfilesCount,
                         candidate.latencyMs
                     )
                 );
@@ -959,7 +1015,7 @@ public final class AutoSearchManager {
                 safeProfileTitle(candidate.profile),
                 appContext.getString(R.string.auto_search_preflight_failed_metric),
                 0L,
-                stableFoundCount,
+                foundProfilesCount,
                 candidate.latencyMs
             )
         );
@@ -995,10 +1051,19 @@ public final class AutoSearchManager {
             TRAFFIC_PROBE_MAX_BYTES,
             null
         );
-        if (!result.success || result.responseCode < 200 || result.responseCode >= 400) {
+        if (!hasSuccessfulTrafficResponse(result)) {
             return ProbeResult.failed();
         }
         return new ProbeResult(true, result.responseCode, result.bytesRead);
+    }
+
+    private static boolean hasSuccessfulTrafficResponse(@Nullable SocksHttpResult result) {
+        return (
+            result != null &&
+            result.responseCode >= 200 &&
+            result.responseCode < 400 &&
+            (result.success || result.bytesRead > 0L)
+        );
     }
 
     @NonNull
@@ -1007,74 +1072,99 @@ public final class AutoSearchManager {
         CandidateResult candidate,
         XraySettings xraySettings,
         int localPort,
-        int stableFoundCount,
+        int foundProfilesCount,
         int attempt,
         int attemptCount,
         long targetBytes
     ) {
-        final long baseTotalBytes = candidate.downloadedBytes;
         final long startedAtMs = SystemClock.elapsedRealtime();
         final long singleSuccessBytes = getDownloadSizeBytes(appContext);
-        updateState(
-            State.running(
-                mode,
-                appContext.getString(R.string.auto_search_step_download),
-                appContext.getString(R.string.auto_search_download_summary),
-                false,
-                attempt - 1,
-                attemptCount,
-                safeProfileTitle(candidate.profile),
-                appContext.getString(R.string.auto_search_download_connecting_metric, attempt, attemptCount),
-                -1L,
-                stableFoundCount,
-                candidate.latencyMs
-            )
-        );
         int timeoutMs = getDownloadTimeoutSeconds(appContext) * 1000;
-        long readLimitBytes = Math.min(singleSuccessBytes, Math.max(1L, targetBytes - baseTotalBytes));
-        SocksHttpResult result = requestHttpViaSocks(
-            "127.0.0.1",
-            localPort,
-            resolveLocalSocksUsername(xraySettings),
-            resolveLocalSocksPassword(xraySettings),
-            DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes,
-            timeoutMs,
-            timeoutMs,
-            readLimitBytes,
-            (attemptBytes, totalAttemptLimitIgnored) -> {
-                long totalBytes = baseTotalBytes + attemptBytes;
-                long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
-                long speed = (attemptBytes * 1000L) / elapsedMs;
-                updateState(
-                    State.running(
-                        mode,
-                        appContext.getString(R.string.auto_search_step_download),
-                        appContext.getString(R.string.auto_search_download_summary),
-                        false,
-                        candidate.successfulAttempts,
-                        getDownloadAttempts(appContext),
-                        safeProfileTitle(candidate.profile),
-                        appContext.getString(
-                            R.string.auto_search_download_metric,
+        long readLimitBytes = Math.min(singleSuccessBytes, Math.max(1L, targetBytes));
+        long deadlineMs = startedAtMs + timeoutMs;
+        long attemptBytesRead = 0L;
+        boolean success = false;
+        int requestAttempt = 0;
+        while (attemptBytesRead < readLimitBytes) {
+            long nowMs = SystemClock.elapsedRealtime();
+            long remainingTimeMs = deadlineMs - nowMs;
+            if (remainingTimeMs <= 0L) {
+                break;
+            }
+            requestAttempt++;
+            final int currentRequestAttempt = requestAttempt;
+            updateState(
+                State.running(
+                    mode,
+                    appContext.getString(R.string.auto_search_step_download),
+                    appContext.getString(R.string.auto_search_download_summary),
+                    false,
+                    attempt - 1,
+                    attemptCount,
+                    safeProfileTitle(candidate.profile),
+                    appContext.getString(
+                        R.string.auto_search_download_connecting_metric,
+                        attempt,
+                        attemptCount,
+                        currentRequestAttempt
+                    ),
+                    -1L,
+                    foundProfilesCount,
+                    candidate.latencyMs
+                )
+            );
+            long remainingBytes = readLimitBytes - attemptBytesRead;
+            long baseAttemptBytes = attemptBytesRead;
+            int requestTimeoutMs = (int) Math.max(1L, remainingTimeMs);
+            SocksHttpResult result = requestHttpViaSocks(
+                "127.0.0.1",
+                localPort,
+                resolveLocalSocksUsername(xraySettings),
+                resolveLocalSocksPassword(xraySettings),
+                DOWNLOAD_TEST_URL_PREFIX + singleSuccessBytes,
+                requestTimeoutMs,
+                requestTimeoutMs,
+                remainingBytes,
+                (requestBytes, totalAttemptLimitIgnored) -> {
+                    long totalAttemptBytes = baseAttemptBytes + requestBytes;
+                    long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
+                    long speed = (totalAttemptBytes * 1000L) / elapsedMs;
+                    updateState(
+                        State.running(
+                            mode,
+                            appContext.getString(R.string.auto_search_step_download),
+                            appContext.getString(R.string.auto_search_download_summary),
+                            false,
                             attempt,
                             attemptCount,
-                            UiFormatter.formatBytes(appContext, totalBytes),
-                            UiFormatter.formatBytes(appContext, targetBytes),
-                            UiFormatter.formatBytesPerSecond(appContext, speed)
-                        ),
-                        speed,
-                        stableFoundCount,
-                        candidate.latencyMs
-                    )
-                );
+                            safeProfileTitle(candidate.profile),
+                            appContext.getString(
+                                R.string.auto_search_download_metric,
+                                attempt,
+                                attemptCount,
+                                currentRequestAttempt,
+                                UiFormatter.formatBytes(appContext, totalAttemptBytes),
+                                UiFormatter.formatBytes(appContext, targetBytes),
+                                UiFormatter.formatBytesPerSecond(appContext, speed)
+                            ),
+                            speed,
+                            foundProfilesCount,
+                            candidate.latencyMs
+                        )
+                    );
+                }
+            );
+            attemptBytesRead += result.bytesRead;
+            if (hasSuccessfulTrafficResponse(result)) {
+                success = true;
             }
-        );
-        boolean success =
-            result.success &&
-            result.responseCode >= 200 &&
-            result.responseCode < 400 &&
-            result.bytesRead >= readLimitBytes;
-        return new DownloadResult(success, result.bytesRead);
+            if (attemptBytesRead >= readLimitBytes || result.bytesRead <= 0L) {
+                break;
+            }
+        }
+        long elapsedMs = Math.max(1L, SystemClock.elapsedRealtime() - startedAtMs);
+        long averageSpeedBytesPerSecond = (attemptBytesRead * 1000L) / elapsedMs;
+        return new DownloadResult(success, attemptBytesRead, averageSpeedBytesPerSecond);
     }
 
     @NonNull
@@ -1089,6 +1179,11 @@ public final class AutoSearchManager {
         long maxBodyBytes,
         @Nullable DownloadProgress progress
     ) {
+        Socket socket = null;
+        BufferedOutputStream outputStream = null;
+        BufferedInputStream inputStream = null;
+        int responseCode = -1;
+        long bytesRead = 0L;
         try {
             URL url = new URL(urlValue);
             String scheme = url.getProtocol() == null ? "" : url.getProtocol().toLowerCase(Locale.ROOT);
@@ -1096,75 +1191,84 @@ public final class AutoSearchManager {
             String targetHost = url.getHost();
             int targetPort = url.getPort() > 0 ? url.getPort() : tls ? 443 : 80;
             String path = TextUtils.isEmpty(url.getFile()) ? "/" : url.getFile();
-            try (
-                Socket socket = openPreparedSocksSocket(
-                    proxyHost,
-                    proxyPort,
-                    targetHost,
-                    targetPort,
-                    username,
-                    password,
-                    connectTimeoutMs,
-                    readTimeoutMs,
-                    tls
-                );
-                BufferedOutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-                BufferedInputStream inputStream = new BufferedInputStream(socket.getInputStream())
-            ) {
-                String request =
-                    "GET " +
-                    path +
-                    " HTTP/1.1\r\n" +
-                    "Host: " +
-                    targetHost +
-                    "\r\n" +
-                    "User-Agent: " +
-                    resolveUserAgent() +
-                    "\r\n" +
-                    "Accept: */*\r\n" +
-                    "Accept-Encoding: identity\r\n" +
-                    "Connection: close\r\n" +
-                    "\r\n";
-                outputStream.write(request.getBytes(StandardCharsets.US_ASCII));
-                outputStream.flush();
+            socket = openPreparedSocksSocket(
+                proxyHost,
+                proxyPort,
+                targetHost,
+                targetPort,
+                username,
+                password,
+                connectTimeoutMs,
+                readTimeoutMs,
+                tls
+            );
+            outputStream = new BufferedOutputStream(socket.getOutputStream());
+            inputStream = new BufferedInputStream(socket.getInputStream());
 
-                String statusLine = readAsciiLine(inputStream, 4096);
-                int responseCode = parseHttpStatusCode(statusLine);
-                if (responseCode <= 0) {
-                    return SocksHttpResult.failed();
-                }
-                while (true) {
-                    String header = readAsciiLine(inputStream, 16 * 1024);
-                    if (header == null || header.length() == 0) {
-                        break;
-                    }
-                }
-                if (maxBodyBytes <= 0 || responseCode == 204 || responseCode == 304) {
-                    return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, 0L);
-                }
+            String request =
+                "GET " +
+                path +
+                " HTTP/1.1\r\n" +
+                "Host: " +
+                targetHost +
+                "\r\n" +
+                "User-Agent: " +
+                resolveUserAgent() +
+                "\r\n" +
+                "Accept: */*\r\n" +
+                "Accept-Encoding: identity\r\n" +
+                "Connection: close\r\n" +
+                "\r\n";
+            outputStream.write(request.getBytes(StandardCharsets.US_ASCII));
+            outputStream.flush();
 
-                byte[] buffer = new byte[16 * 1024];
-                long bytesRead = 0L;
-                while (bytesRead < maxBodyBytes) {
-                    int limit = (int) Math.min(buffer.length, maxBodyBytes - bytesRead);
-                    int read;
-                    try {
-                        read = inputStream.read(buffer, 0, limit);
-                    } catch (SocketTimeoutException timeout) {
+            String statusLine = readAsciiLine(inputStream, 4096);
+            responseCode = parseHttpStatusCode(statusLine);
+            if (responseCode <= 0) {
+                return SocksHttpResult.failed();
+            }
+            while (true) {
+                String header = readAsciiLine(inputStream, 16 * 1024);
+                if (header == null || header.length() == 0) {
+                    break;
+                }
+            }
+            if (maxBodyBytes <= 0 || responseCode == 204 || responseCode == 304) {
+                return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, 0L);
+            }
+
+            byte[] buffer = new byte[16 * 1024];
+            while (bytesRead < maxBodyBytes) {
+                int limit = (int) Math.min(buffer.length, maxBodyBytes - bytesRead);
+                int read;
+                try {
+                    read = inputStream.read(buffer, 0, limit);
+                } catch (SocketTimeoutException timeout) {
+                    return new SocksHttpResult(false, responseCode, bytesRead);
+                } catch (IOException bodyReadFailure) {
+                    if (responseCode > 0 && bytesRead > 0L) {
                         return new SocksHttpResult(false, responseCode, bytesRead);
                     }
-                    if (read == -1) {
-                        break;
-                    }
-                    bytesRead += read;
-                    if (progress != null) {
-                        progress.onBytesRead(bytesRead, maxBodyBytes);
-                    }
+                    throw bodyReadFailure;
                 }
-                return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, bytesRead);
+                if (read == -1) {
+                    break;
+                }
+                bytesRead += read;
+                if (progress != null) {
+                    progress.onBytesRead(bytesRead, maxBodyBytes);
+                }
             }
+            return new SocksHttpResult(responseCode >= 200 && responseCode < 400, responseCode, bytesRead);
         } catch (IOException | IllegalArgumentException ignored) {
+            if (responseCode > 0 && bytesRead > 0L) {
+                return new SocksHttpResult(false, responseCode, bytesRead);
+            }
             return SocksHttpResult.failed();
+        } finally {
+            closeQuietly(inputStream);
+            closeQuietly(outputStream);
+            closeQuietly(socket);
         }
     }
 
@@ -1396,13 +1500,13 @@ public final class AutoSearchManager {
         return "WINGSV";
     }
 
-    private static void closeQuietly(@Nullable Socket socket) {
-        if (socket == null) {
+    private static void closeQuietly(@Nullable AutoCloseable resource) {
+        if (resource == null) {
             return;
         }
         try {
-            socket.close();
-        } catch (IOException ignored) {}
+            resource.close();
+        } catch (Exception ignored) {}
     }
 
     private static final class ExecutorScope implements AutoCloseable {
@@ -1676,17 +1780,7 @@ public final class AutoSearchManager {
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        return Collections.max(candidates, (left, right) -> {
-            int compareBytes = Long.compare(left.downloadedBytes, right.downloadedBytes);
-            if (compareBytes != 0) {
-                return compareBytes;
-            }
-            int compareAttempts = Integer.compare(left.successfulAttempts, right.successfulAttempts);
-            if (compareAttempts != 0) {
-                return compareAttempts;
-            }
-            return Integer.compare(right.latencyMs, left.latencyMs);
-        });
+        return Collections.max(candidates, AutoSearchManager::compareCandidateResults);
     }
 
     private void updateState(@NonNull State newState) {
@@ -1933,6 +2027,10 @@ public final class AutoSearchManager {
         boolean pingResponsive;
         long downloadedBytes;
         int successfulAttempts;
+        int completedRuns;
+        int stableRuns;
+        long totalDownloadSpeedBytesPerSecond;
+        long averageDownloadSpeedBytesPerSecond;
         boolean live;
         boolean stable;
 
@@ -1950,10 +2048,12 @@ public final class AutoSearchManager {
 
         final boolean success;
         final long bytesRead;
+        final long averageSpeedBytesPerSecond;
 
-        DownloadResult(boolean success, long bytesRead) {
+        DownloadResult(boolean success, long bytesRead, long averageSpeedBytesPerSecond) {
             this.success = success;
             this.bytesRead = Math.max(0L, bytesRead);
+            this.averageSpeedBytesPerSecond = Math.max(0L, averageSpeedBytesPerSecond);
         }
     }
 
