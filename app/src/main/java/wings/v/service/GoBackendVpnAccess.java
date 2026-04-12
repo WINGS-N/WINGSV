@@ -7,6 +7,7 @@ import android.net.VpnService;
 import android.util.Log;
 import com.wireguard.android.backend.GoBackend;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -40,9 +41,21 @@ final class GoBackendVpnAccess {
         if (context == null) {
             return;
         }
+        clearServiceOwner();
         try {
             context.stopService(new Intent(context, GoBackend.VpnService.class));
         } catch (Exception ignored) {}
+    }
+
+    static void clearServiceOwner() {
+        VpnService service = getServiceNow();
+        if (service == null) {
+            return;
+        }
+        if (clearServiceOwnerWithSetter(service)) {
+            return;
+        }
+        clearServiceOwnerField(service);
     }
 
     static boolean promoteServiceForeground(VpnService service, int notificationId, Notification notification) {
@@ -56,6 +69,25 @@ final class GoBackendVpnAccess {
             Log.w(TAG, "Unable to promote GoBackend VpnService to foreground", error);
             return false;
         }
+    }
+
+    private static boolean clearServiceOwnerWithSetter(VpnService service) {
+        try {
+            Method setOwnerMethod = service.getClass().getDeclaredMethod("setOwner", GoBackend.class);
+            setOwnerMethod.setAccessible(true);
+            setOwnerMethod.invoke(service, new Object[] { null });
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static void clearServiceOwnerField(VpnService service) {
+        try {
+            Field ownerField = service.getClass().getDeclaredField("owner");
+            ownerField.setAccessible(true);
+            ownerField.set(service, null);
+        } catch (Exception ignored) {}
     }
 
     private static VpnService awaitService(long timeoutMs) {

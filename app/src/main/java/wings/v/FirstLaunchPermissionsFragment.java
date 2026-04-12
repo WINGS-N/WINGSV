@@ -22,6 +22,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
@@ -64,6 +65,7 @@ public class FirstLaunchPermissionsFragment extends Fragment {
 
     private final ExecutorService rootExecutor = Executors.newSingleThreadExecutor();
     private volatile boolean rootCheckInProgress;
+    private boolean batteryOptimizationRequestPending;
 
     @Nullable
     private Boolean continueButtonEnabledState;
@@ -74,6 +76,14 @@ public class FirstLaunchPermissionsFragment extends Fragment {
     private final ActivityResultLauncher<String> notificationPermissionLauncher = registerForActivityResult(
         new ActivityResultContracts.RequestPermission(),
         granted -> refreshRows()
+    );
+
+    private final ActivityResultLauncher<Intent> batteryOptimizationLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            completeBatteryOptimizationRequestIfNeeded();
+            refreshRows();
+        }
     );
 
     private final ActivityResultLauncher<Intent> vpnPermissionLauncher = registerForActivityResult(
@@ -141,6 +151,7 @@ public class FirstLaunchPermissionsFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        completeBatteryOptimizationRequestIfNeeded();
         refreshRows();
     }
 
@@ -205,11 +216,32 @@ public class FirstLaunchPermissionsFragment extends Fragment {
         Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(
             Uri.parse("package:" + requireContext().getPackageName())
         );
-        try {
-            startActivity(intent);
-        } catch (ActivityNotFoundException ignored) {
-            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        if (launchBatteryOptimizationIntent(intent)) {
+            return;
         }
+        launchBatteryOptimizationIntent(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+    }
+
+    private boolean launchBatteryOptimizationIntent(Intent intent) {
+        try {
+            batteryOptimizationRequestPending = true;
+            batteryOptimizationLauncher.launch(intent);
+            return true;
+        } catch (RuntimeException ignored) {
+            batteryOptimizationRequestPending = false;
+            return false;
+        }
+    }
+
+    private void completeBatteryOptimizationRequestIfNeeded() {
+        if (!batteryOptimizationRequestPending || !isAdded()) {
+            return;
+        }
+        batteryOptimizationRequestPending = false;
+        AppPrefs.setBatteryOptimizationAcknowledged(
+            requireContext(),
+            !PermissionUtils.isIgnoringBatteryOptimizationsSystem(requireContext())
+        );
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
