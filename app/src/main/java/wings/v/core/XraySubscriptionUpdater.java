@@ -81,7 +81,7 @@ public final class XraySubscriptionUpdater {
                 continue;
             }
             if (TextUtils.isEmpty(existingProfile.subscriptionId)) {
-                profiles.put(existingProfile.stableDedupKey(), existingProfile);
+                profiles.put(XrayStore.getProfileStorageKey(existingProfile), existingProfile);
             } else {
                 List<XrayProfile> subscriptionProfiles = existingProfilesBySubscription.computeIfAbsent(
                     existingProfile.subscriptionId,
@@ -116,7 +116,7 @@ public final class XraySubscriptionUpdater {
                     subscription.title
                 )) {
                     if (profile != null) {
-                        profiles.put(profile.stableDedupKey(), profile);
+                        profiles.put(XrayStore.getProfileStorageKey(profile), profile);
                     }
                 }
                 updatedSubscriptions.add(
@@ -147,7 +147,7 @@ public final class XraySubscriptionUpdater {
                 if (existingSubscriptionProfiles != null) {
                     for (XrayProfile existingProfile : existingSubscriptionProfiles) {
                         if (existingProfile != null && !TextUtils.isEmpty(existingProfile.rawLink)) {
-                            profiles.put(existingProfile.stableDedupKey(), existingProfile);
+                            profiles.put(XrayStore.getProfileStorageKey(existingProfile), existingProfile);
                         }
                     }
                 }
@@ -201,7 +201,7 @@ public final class XraySubscriptionUpdater {
         }
         for (XrayProfile existingProfile : existingSubscriptionProfiles) {
             if (existingProfile != null && !TextUtils.isEmpty(existingProfile.rawLink)) {
-                profiles.put(existingProfile.stableDedupKey(), existingProfile);
+                profiles.put(XrayStore.getProfileStorageKey(existingProfile), existingProfile);
             }
         }
     }

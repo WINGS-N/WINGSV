@@ -260,8 +260,12 @@ public class AppsFragment extends Fragment {
         } else {
             enabledPackages.remove(packageName);
         }
-        adapter.setPackageEnabled(packageName, enabled);
-        searchAdapter.setPackageEnabled(packageName, enabled);
+        adapter.replaceItems(
+            filterEntries("", false),
+            enabledPackages,
+            AppPrefs.isAppRoutingBypassEnabled(requireContext())
+        );
+        updateSearchResults();
         updateSearchResultsEmptyState();
         Haptics.softSliderStep(sourceView);
     }
@@ -380,7 +384,19 @@ public class AppsFragment extends Fragment {
                 filteredEntries.add(entry);
             }
         }
+        sortSelectedFirst(filteredEntries);
         return filteredEntries;
+    }
+
+    private void sortSelectedFirst(List<AppRoutingEntry> entries) {
+        if (entries == null || entries.size() < 2) {
+            return;
+        }
+        entries.sort(
+            Comparator.comparingInt((AppRoutingEntry entry) -> enabledPackages.contains(entry.packageName) ? 0 : 1)
+                .thenComparing(entry -> entry.label.toLowerCase(Locale.getDefault()))
+                .thenComparing(entry -> entry.packageName)
+        );
     }
 
     private boolean matchesAppTypeFilter(AppRoutingEntry entry) {
