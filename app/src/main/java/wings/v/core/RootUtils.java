@@ -192,13 +192,13 @@ public final class RootUtils {
                 Log.w(
                     TAG,
                     "Direct su root probe failed: processExit=" +
-                    result.exitCode +
-                    ", uid=" +
-                    safeLogValue(uid) +
-                    ", commandExit=" +
-                    safeLogValue(commandExit) +
-                    ", output=" +
-                    summarizeDirectSuOutput(result.output)
+                        result.exitCode +
+                        ", uid=" +
+                        safeLogValue(uid) +
+                        ", commandExit=" +
+                        safeLogValue(commandExit) +
+                        ", output=" +
+                        summarizeDirectSuOutput(result.output)
                 );
             }
             return granted;

@@ -69,9 +69,7 @@ public final class XraySubscriptionBackgroundScheduler {
             }
             hasAutoUpdateSubscription = true;
             int refreshMinutes =
-                subscription.refreshIntervalMinutes > 0
-                    ? subscription.refreshIntervalMinutes
-                    : defaultRefreshMinutes;
+                subscription.refreshIntervalMinutes > 0 ? subscription.refreshIntervalMinutes : defaultRefreshMinutes;
             long candidateAt =
                 subscription.lastUpdatedAt > 0L
                     ? subscription.lastUpdatedAt + (refreshMinutes * MILLIS_PER_MINUTE)

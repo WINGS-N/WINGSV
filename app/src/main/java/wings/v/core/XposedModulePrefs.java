@@ -2,6 +2,8 @@ package wings.v.core;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import androidx.preference.PreferenceManager;
 import java.io.File;
 import java.util.Arrays;
@@ -110,11 +112,43 @@ public final class XposedModulePrefs {
     }
 
     public static String buildPackagesSummary(Context context, String key) {
-        int count = getPackageSet(context, key).size();
+        int count = countInstalledPackages(context, getPackageSet(context, key));
         if (count <= 0) {
             return context.getString(R.string.xposed_apps_count_zero);
         }
         return context.getString(R.string.xposed_apps_count, count);
+    }
+
+    private static int countInstalledPackages(Context context, Set<String> packages) {
+        if (packages == null || packages.isEmpty()) {
+            return 0;
+        }
+        PackageManager packageManager = context.getPackageManager();
+        int count = 0;
+        for (String packageName : packages) {
+            if (isPackageInstalled(packageManager, packageName)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean isPackageInstalled(PackageManager packageManager, String packageName) {
+        if (packageName == null || packageName.isBlank()) {
+            return false;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0));
+            } else {
+                packageManager.getApplicationInfo(packageName, 0);
+            }
+            return true;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return false;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     public static Set<String> parsePackageSet(String value) {
