@@ -114,6 +114,7 @@ public final class AppPrefs {
     public static final String KEY_SHARING_TEMP_HOTSPOT_USE_SYSTEM = "pref_sharing_temp_hotspot_use_system";
     public static final String KEY_SHARING_IP_MONITOR_MODE = "pref_sharing_ip_monitor_mode";
     public static final String KEY_ONBOARDING_SEEN = "pref_onboarding_seen";
+    public static final String KEY_BATTERY_OPTIMIZATION_ACKNOWLEDGED = "pref_battery_optimization_acknowledged";
     public static final String KEY_FIRST_LAUNCH_EXPERIENCE_SEEN = "pref_first_launch_experience_seen";
     public static final String KEY_FIRST_LAUNCH_EXPERIENCE_RESET_300 = "pref_first_launch_experience_reset_300";
     public static final String KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH = "pref_external_action_transient_launch";
@@ -564,6 +565,14 @@ public final class AppPrefs {
 
     public static void markOnboardingSeen(Context context) {
         prefs(context).edit().putBoolean(KEY_ONBOARDING_SEEN, true).apply();
+    }
+
+    public static boolean isBatteryOptimizationAcknowledged(Context context) {
+        return prefs(context).getBoolean(KEY_BATTERY_OPTIMIZATION_ACKNOWLEDGED, false);
+    }
+
+    public static void setBatteryOptimizationAcknowledged(Context context, boolean acknowledged) {
+        prefs(context).edit().putBoolean(KEY_BATTERY_OPTIMIZATION_ACKNOWLEDGED, acknowledged).apply();
     }
 
     public static void markFirstLaunchExperienceSeen(Context context) {

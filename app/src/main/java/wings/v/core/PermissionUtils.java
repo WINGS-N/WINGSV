@@ -1,6 +1,7 @@
 package wings.v.core;
 
 import android.Manifest;
+import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.VpnService;
@@ -35,8 +36,23 @@ public final class PermissionUtils {
     }
 
     public static boolean isIgnoringBatteryOptimizations(Context context) {
+        if (isIgnoringBatteryOptimizationsSystem(context)) {
+            return true;
+        }
+        return AppPrefs.isBatteryOptimizationAcknowledged(context) && !isBackgroundRestricted(context);
+    }
+
+    public static boolean isIgnoringBatteryOptimizationsSystem(Context context) {
         PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         return powerManager != null && powerManager.isIgnoringBatteryOptimizations(context.getPackageName());
+    }
+
+    public static boolean isBackgroundRestricted(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return false;
+        }
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        return activityManager != null && activityManager.isBackgroundRestricted();
     }
 
     public static boolean isVpnPermissionGranted(Context context) {

@@ -57,6 +57,7 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     private static volatile CompletableFuture<XrayVpnService> serviceFuture = new CompletableFuture<>();
     private static volatile long lastHeartbeatElapsedMs;
+    private static volatile boolean serviceAlive;
     private static volatile boolean tunnelActive;
 
     private final Object tunnelLock = new Object();
@@ -106,6 +107,10 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     public static boolean hasActiveTunnel() {
         return tunnelActive;
+    }
+
+    public static boolean isServiceAlive() {
+        return serviceAlive || getServiceNow() != null;
     }
 
     public static boolean isHeartbeatFresh(long maxAgeMs) {
@@ -159,6 +164,17 @@ public class XrayVpnService extends VpnService implements DialerController {
         } catch (Exception ignored) {}
     }
 
+    public static boolean waitForStopped(long timeoutMs) throws InterruptedException {
+        long deadline = SystemClock.elapsedRealtime() + Math.max(timeoutMs, 1L);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (!isServiceAlive() && !tunnelActive) {
+                return true;
+            }
+            TimeUnit.MILLISECONDS.sleep(SERVICE_WAIT_POLL_MS);
+        }
+        return !isServiceAlive() && !tunnelActive;
+    }
+
     private static XrayVpnService awaitService(long timeoutMs) {
         long deadline = SystemClock.elapsedRealtime() + Math.max(timeoutMs, 1L);
         while (SystemClock.elapsedRealtime() < deadline) {
@@ -185,6 +201,7 @@ public class XrayVpnService extends VpnService implements DialerController {
     @Override
     public void onCreate() {
         super.onCreate();
+        serviceAlive = true;
         shuttingDown = false;
         serviceFuture.complete(this);
         updateHeartbeat(false);
@@ -192,6 +209,7 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        serviceAlive = true;
         if (!shuttingDown) {
             serviceFuture.complete(this);
             updateHeartbeat(tunnelFd != null);
@@ -206,7 +224,12 @@ public class XrayVpnService extends VpnService implements DialerController {
         boolean unexpectedShutdown = !shuttingDown;
         shuttingDown = true;
         shutdownTunnel();
-        if (this.equals(getServiceNow())) {
+        XrayVpnService currentService = getServiceNow();
+        if (this.equals(currentService) || currentService == null) {
+            serviceAlive = false;
+            updateHeartbeat(false);
+        }
+        if (this.equals(currentService)) {
             resetServiceFuture();
         }
         super.onDestroy();
@@ -482,7 +505,7 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     private boolean isReusable() {
-        return !shuttingDown;
+        return serviceAlive && !shuttingDown;
     }
 
     private static void resetServiceFuture() {
