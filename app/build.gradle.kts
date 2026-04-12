@@ -223,7 +223,6 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
 
     inputs.files(fileTree(libXrayRepoDir) {
         exclude(".git/**")
-        exclude("**/build/**")
         exclude("**/*.aar")
         exclude("**/*-sources.jar")
     })
@@ -242,7 +241,6 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
             from(libXrayRepoDir)
             into(workDir)
             exclude(".git/**")
-            exclude("**/build/**")
             exclude("**/*.aar")
             exclude("**/*-sources.jar")
         }
@@ -282,16 +280,11 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
                 sleep 2
               done
             }
-            GO_BIN=${resolveGoBinary("go")}
-            GOMOBILE_BIN=${resolveGoBinary("gomobile")}
             export GOPROXY=https://proxy.golang.org,direct
-            retry "${shellDollar}GO_BIN" install golang.org/x/mobile/cmd/gomobile@latest
-            retry "${shellDollar}GOMOBILE_BIN" init
-            retry "${shellDollar}GO_BIN" get golang.org/x/mobile/cmd/gomobile
-            retry "${shellDollar}GO_BIN" get golang.org/x/mobile/bind
-            retry "${shellDollar}GO_BIN" get google.golang.org/genproto
             rm -f libXray.aar libXray-sources.jar
-            "${shellDollar}GOMOBILE_BIN" bind -target android -androidapi 21 -o "${generatedLibXrayAar.get().absolutePath}" .
+            retry python3 build/main.py android
+            test -f libXray.aar
+            cp libXray.aar "${generatedLibXrayAar.get().absolutePath}"
             """.trimIndent()
         )
     }
