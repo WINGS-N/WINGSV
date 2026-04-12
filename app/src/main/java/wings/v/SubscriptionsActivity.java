@@ -278,9 +278,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
                     titleInput.getText() != null ? titleInput.getText().toString().trim() : "",
                     url,
                     "auto",
-                    existing != null
-                        ? existing.refreshIntervalMinutes
-                        : XrayStore.getRefreshIntervalMinutes(this),
+                    existing != null ? existing.refreshIntervalMinutes : XrayStore.getRefreshIntervalMinutes(this),
                     existing == null || existing.autoUpdate,
                     existing != null ? existing.lastUpdatedAt : 0L,
                     existing != null ? existing.advertisedUploadBytes : 0L,

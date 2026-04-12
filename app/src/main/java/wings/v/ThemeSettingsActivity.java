@@ -6,9 +6,9 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.ImageView;
-import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.ThemeModeController;
@@ -67,7 +67,12 @@ public class ThemeSettingsActivity extends AppCompatActivity {
 
     private void refreshSelectionUi() {
         final String currentMode = AppPrefs.getThemeMode(this);
-        updateThemeCard(R.id.card_theme_system, R.id.icon_theme_system_selected, AppPrefs.THEME_MODE_SYSTEM, currentMode);
+        updateThemeCard(
+            R.id.card_theme_system,
+            R.id.icon_theme_system_selected,
+            AppPrefs.THEME_MODE_SYSTEM,
+            currentMode
+        );
         updateThemeCard(R.id.card_theme_dark, R.id.icon_theme_dark_selected, AppPrefs.THEME_MODE_DARK, currentMode);
         updateThemeCard(R.id.card_theme_light, R.id.icon_theme_light_selected, AppPrefs.THEME_MODE_LIGHT, currentMode);
     }

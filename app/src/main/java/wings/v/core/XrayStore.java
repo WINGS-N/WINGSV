@@ -421,10 +421,7 @@ public final class XrayStore {
             .edit()
             .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES, String.valueOf(normalizedMinutes));
         if (normalizedMinutes % 60 == 0) {
-            editor.putString(
-                AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS,
-                String.valueOf(normalizedMinutes / 60)
-            );
+            editor.putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS, String.valueOf(normalizedMinutes / 60));
         } else {
             editor.remove(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS);
         }

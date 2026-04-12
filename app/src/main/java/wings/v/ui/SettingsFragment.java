@@ -581,7 +581,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
         syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
         syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
-        syncPreferenceSummary(AppPrefs.KEY_THEME_MODE, getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context))));
+        syncPreferenceSummary(
+            AppPrefs.KEY_THEME_MODE,
+            getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context)))
+        );
     }
 
     private void syncEditTextPreference(String key, @Nullable String value) {
