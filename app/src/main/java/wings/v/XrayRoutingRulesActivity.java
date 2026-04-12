@@ -215,15 +215,19 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
         @NonNull DialogXrayRoutingRuleBinding binding,
         @NonNull Runnable refreshValidation
     ) {
-        String[] options = {
-            getString(R.string.xray_routing_match_geoip),
-            getString(R.string.xray_routing_match_geosite),
+        XrayRoutingRule.MatchType[] matchTypes = {
+            XrayRoutingRule.MatchType.GEOIP,
+            XrayRoutingRule.MatchType.GEOSITE,
+            XrayRoutingRule.MatchType.DOMAIN,
+            XrayRoutingRule.MatchType.IP,
+            XrayRoutingRule.MatchType.PORT,
         };
+        String[] options = new String[matchTypes.length];
+        for (int index = 0; index < matchTypes.length; index++) {
+            options[index] = resolveMatchTypeLabel(matchTypes[index]);
+        }
         showAnchoredDropdown(binding.fieldMatchType, options, which -> {
-            setSelectedMatchType(
-                binding,
-                which == 1 ? XrayRoutingRule.MatchType.GEOSITE : XrayRoutingRule.MatchType.GEOIP
-            );
+            setSelectedMatchType(binding, matchTypes[which]);
             Haptics.softConfirm(binding.fieldMatchType);
             refreshValidation.run();
         });
@@ -270,6 +274,15 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
     private String resolveMatchTypeLabel(XrayRoutingRule.MatchType matchType) {
         if (matchType == XrayRoutingRule.MatchType.GEOSITE) {
             return getString(R.string.xray_routing_match_geosite);
+        }
+        if (matchType == XrayRoutingRule.MatchType.DOMAIN) {
+            return getString(R.string.xray_routing_match_domain);
+        }
+        if (matchType == XrayRoutingRule.MatchType.IP) {
+            return getString(R.string.xray_routing_match_ip);
+        }
+        if (matchType == XrayRoutingRule.MatchType.PORT) {
+            return getString(R.string.xray_routing_match_port);
         }
         return getString(R.string.xray_routing_match_geoip);
     }

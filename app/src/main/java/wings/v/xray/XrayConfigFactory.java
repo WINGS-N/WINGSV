@@ -374,7 +374,7 @@ public final class XrayConfigFactory {
             rules.put(blockQuicRule);
         }
 
-        addGeoRoutingRules(rules, settings, context);
+        addCustomRoutingRules(rules, settings, context);
 
         JSONObject trafficRule = new JSONObject();
         trafficRule.put("type", "field");
@@ -397,7 +397,8 @@ public final class XrayConfigFactory {
         return routing;
     }
 
-    private static void addGeoRoutingRules(JSONArray rules, XraySettings settings, Context context) throws Exception {
+    private static void addCustomRoutingRules(JSONArray rules, XraySettings settings, Context context)
+        throws Exception {
         for (XrayRoutingRule rule : XrayRoutingStore.getValidRules(context)) {
             if (rule == null || !rule.enabled || TextUtils.isEmpty(rule.code)) {
                 continue;
@@ -410,14 +411,88 @@ public final class XrayConfigFactory {
                 inboundTags.put(SOCKS_TAG);
             }
             routingRule.put("inboundTag", inboundTags);
-            if (rule.matchType == XrayRoutingRule.MatchType.GEOSITE) {
-                routingRule.put("domain", new JSONArray().put("geosite:" + rule.code));
-            } else {
-                routingRule.put("ip", new JSONArray().put("geoip:" + rule.code));
+            if (!putCustomRoutingMatcher(routingRule, rule)) {
+                continue;
             }
             routingRule.put("outboundTag", resolveOutboundTag(rule.action));
             rules.put(routingRule);
         }
+    }
+
+    private static boolean putCustomRoutingMatcher(JSONObject routingRule, XrayRoutingRule rule) throws Exception {
+        if (rule.matchType == XrayRoutingRule.MatchType.GEOSITE) {
+            routingRule.put("domain", new JSONArray().put("geosite:" + rule.code));
+            return true;
+        }
+        if (rule.matchType == XrayRoutingRule.MatchType.GEOIP) {
+            routingRule.put("ip", new JSONArray().put("geoip:" + rule.code));
+            return true;
+        }
+        if (rule.matchType == XrayRoutingRule.MatchType.DOMAIN) {
+            JSONArray domainRules = buildRoutingValueArray(rule.code, true);
+            if (domainRules.length() == 0) {
+                return false;
+            }
+            routingRule.put("domain", domainRules);
+            return true;
+        }
+        if (rule.matchType == XrayRoutingRule.MatchType.IP) {
+            JSONArray ipRules = buildRoutingValueArray(rule.code, false);
+            if (ipRules.length() == 0) {
+                return false;
+            }
+            routingRule.put("ip", ipRules);
+            return true;
+        }
+        if (rule.matchType == XrayRoutingRule.MatchType.PORT) {
+            String portRule = normalizePortRoutingValue(rule.code);
+            if (TextUtils.isEmpty(portRule)) {
+                return false;
+            }
+            routingRule.put("port", portRule);
+            return true;
+        }
+        return false;
+    }
+
+    private static JSONArray buildRoutingValueArray(String value, boolean domainRule) {
+        JSONArray values = new JSONArray();
+        for (String token : value.split("[,\\s]+")) {
+            String normalized = trim(token);
+            if (TextUtils.isEmpty(normalized)) {
+                continue;
+            }
+            values.put(domainRule ? normalizeDomainRoutingValue(normalized) : normalized);
+        }
+        return values;
+    }
+
+    private static String normalizeDomainRoutingValue(String value) {
+        return hasRoutingValuePrefix(value) ? value : "domain:" + value;
+    }
+
+    private static boolean hasRoutingValuePrefix(String value) {
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return (
+            normalized.startsWith("domain:") ||
+            normalized.startsWith("full:") ||
+            normalized.startsWith("regexp:") ||
+            normalized.startsWith("regex:") ||
+            normalized.startsWith("geosite:") ||
+            normalized.startsWith("keyword:") ||
+            normalized.startsWith("plain:")
+        );
+    }
+
+    private static String normalizePortRoutingValue(String value) {
+        ArrayList<String> ports = new ArrayList<>();
+        for (String token : value.split("[,\\s]+")) {
+            String normalized = trim(token);
+            if (!TextUtils.isEmpty(normalized)) {
+                ports.add(normalized);
+            }
+        }
+        return TextUtils.join(",", ports);
     }
 
     private static String resolveOutboundTag(XrayRoutingRule.Action action) {

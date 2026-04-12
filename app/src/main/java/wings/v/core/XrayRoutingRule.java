@@ -23,7 +23,10 @@ public final class XrayRoutingRule {
 
     public enum MatchType {
         GEOIP("geoip"),
-        GEOSITE("geosite");
+        GEOSITE("geosite"),
+        DOMAIN("domain"),
+        IP("ip"),
+        PORT("port");
 
         public final String value;
 
@@ -35,7 +38,20 @@ public final class XrayRoutingRule {
             if ("geosite".equalsIgnoreCase(value)) {
                 return GEOSITE;
             }
+            if ("domain".equalsIgnoreCase(value)) {
+                return DOMAIN;
+            }
+            if ("ip".equalsIgnoreCase(value)) {
+                return IP;
+            }
+            if ("port".equalsIgnoreCase(value)) {
+                return PORT;
+            }
             return GEOIP;
+        }
+
+        public boolean isGeo() {
+            return this == GEOIP || this == GEOSITE;
         }
     }
 
@@ -104,11 +120,20 @@ public final class XrayRoutingRule {
 
     public static String normalizeCode(String code, MatchType matchType) {
         String normalized = code == null ? "" : code.trim();
-        String prefix = (matchType == MatchType.GEOSITE ? "geosite:" : "geoip:");
-        if (normalized.regionMatches(true, 0, prefix, 0, prefix.length())) {
-            normalized = normalized.substring(prefix.length()).trim();
+        MatchType normalizedMatchType = matchType == null ? MatchType.GEOIP : matchType;
+        normalized = stripOwnPrefix(normalized, normalizedMatchType).trim();
+        if (normalizedMatchType == MatchType.PORT) {
+            return normalized.replaceAll("\\s*-\\s*", "-");
         }
         return normalized.toLowerCase(Locale.ROOT);
+    }
+
+    private static String stripOwnPrefix(String code, MatchType matchType) {
+        String prefix = matchType.value + ":";
+        if (code.regionMatches(true, 0, prefix, 0, prefix.length())) {
+            return code.substring(prefix.length());
+        }
+        return code;
     }
 
     @Override

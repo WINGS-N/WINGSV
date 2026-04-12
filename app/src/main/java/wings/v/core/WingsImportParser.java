@@ -676,6 +676,15 @@ public final class WingsImportParser {
         if (matchType == XrayRoutingRule.MatchType.GEOSITE) {
             return WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_GEOSITE;
         }
+        if (matchType == XrayRoutingRule.MatchType.DOMAIN) {
+            return WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_DOMAIN;
+        }
+        if (matchType == XrayRoutingRule.MatchType.IP) {
+            return WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_IP;
+        }
+        if (matchType == XrayRoutingRule.MatchType.PORT) {
+            return WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_PORT;
+        }
         return WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_GEOIP;
     }
 
@@ -983,6 +992,15 @@ public final class WingsImportParser {
     private static XrayRoutingRule.MatchType fromProtoRoutingMatchType(WingsvProto.XrayRoutingMatchType matchType) {
         if (matchType == WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_GEOSITE) {
             return XrayRoutingRule.MatchType.GEOSITE;
+        }
+        if (matchType == WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_DOMAIN) {
+            return XrayRoutingRule.MatchType.DOMAIN;
+        }
+        if (matchType == WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_IP) {
+            return XrayRoutingRule.MatchType.IP;
+        }
+        if (matchType == WingsvProto.XrayRoutingMatchType.XRAY_ROUTING_MATCH_PORT) {
+            return XrayRoutingRule.MatchType.PORT;
         }
         return XrayRoutingRule.MatchType.GEOIP;
     }

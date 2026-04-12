@@ -221,7 +221,10 @@ public final class XrayRoutingStore {
         }
         String normalizedCode = XrayRoutingRule.normalizeCode(rule.code, rule.matchType);
         if (TextUtils.isEmpty(normalizedCode)) {
-            return new ValidationResult(false, "Код категории не задан");
+            return new ValidationResult(false, "Значение правила не задано");
+        }
+        if (!rule.matchType.isGeo()) {
+            return validateSimpleRule(rule.matchType, normalizedCode);
         }
         File datFile = getGeoDatFile(context, rule.matchType);
         if (!datFile.exists()) {
@@ -235,6 +238,68 @@ public final class XrayRoutingStore {
             return new ValidationResult(false, "Код не найден в " + datFile.getName());
         }
         return new ValidationResult(true, datFile.getName());
+    }
+
+    private static ValidationResult validateSimpleRule(XrayRoutingRule.MatchType matchType, String value) {
+        if (matchType == XrayRoutingRule.MatchType.PORT) {
+            return validatePortRule(value);
+        }
+        if (!hasListValue(value)) {
+            return new ValidationResult(false, "Значение правила не задано");
+        }
+        return new ValidationResult(true, matchType.value);
+    }
+
+    private static ValidationResult validatePortRule(String value) {
+        boolean hasValue = false;
+        for (String token : value.split("[,\\s]+")) {
+            String normalized = trim(token);
+            if (TextUtils.isEmpty(normalized)) {
+                continue;
+            }
+            hasValue = true;
+            if (!isValidPortToken(normalized)) {
+                return new ValidationResult(false, "Порт должен быть 1-65535 или диапазоном");
+            }
+        }
+        return hasValue
+            ? new ValidationResult(true, XrayRoutingRule.MatchType.PORT.value)
+            : new ValidationResult(false, "Порт не задан");
+    }
+
+    private static boolean isValidPortToken(String token) {
+        int separator = token.indexOf('-');
+        if (separator < 0) {
+            return isValidPortNumber(token);
+        }
+        if (separator == 0 || separator == token.length() - 1 || token.indexOf('-', separator + 1) >= 0) {
+            return false;
+        }
+        int start = parsePort(token.substring(0, separator));
+        int end = parsePort(token.substring(separator + 1));
+        return start > 0 && end > 0 && start <= end;
+    }
+
+    private static boolean isValidPortNumber(String value) {
+        return parsePort(value) > 0;
+    }
+
+    private static int parsePort(String value) {
+        try {
+            int port = Integer.parseInt(trim(value));
+            return port >= 1 && port <= 65535 ? port : -1;
+        } catch (Exception ignored) {
+            return -1;
+        }
+    }
+
+    private static boolean hasListValue(String value) {
+        for (String token : value.split("[,\\s]+")) {
+            if (!TextUtils.isEmpty(trim(token))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void tryDownloadGeoFileSilently(Context context, XrayRoutingRule.MatchType matchType) {
