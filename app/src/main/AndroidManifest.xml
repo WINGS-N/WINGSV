@@ -248,7 +248,8 @@
         <service
             android:name=".service.ProxyTunnelService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse"
+            android:process=":tunnel">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="vpn_runtime_controller" />
@@ -257,7 +258,8 @@
         <service
             android:name=".service.XrayVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false">
+            android:exported="false"
+            android:process=":tunnel">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
@@ -266,10 +268,23 @@
         <service
             android:name="com.wireguard.android.backend.GoBackend$VpnService"
             android:foregroundServiceType="specialUse"
+            android:process=":tunnel"
             tools:node="merge">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="userspace_wireguard_vpn" />
+        </service>
+
+        <service
+            android:name="org.amnezia.awg.backend.GoBackend$VpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:process=":tunnel"
+            tools:node="merge">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="userspace_amneziawg_vpn" />
         </service>
 
         <service

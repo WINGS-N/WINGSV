@@ -22,12 +22,12 @@ class RootProcessCommand(
             .fixPathForRootServer(redirect)
             .start()
         coroutineScope {
-            val output = async { process.inputStream.bufferedReader().use { it.readText() } }
+            val output = async { process.inputStream.bufferedReader().use { it.readLimitedProcessOutput() } }
             val error = async {
                 if (redirect) {
                     ""
                 } else {
-                    process.errorStream.bufferedReader().use { it.readText() }
+                    process.errorStream.bufferedReader().use { it.readLimitedProcessOutput() }
                 }
             }
             RootProcessResult(process.waitFor(), output.await(), error.await())

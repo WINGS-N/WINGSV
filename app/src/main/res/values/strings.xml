@@ -87,6 +87,7 @@
     <string name="service_notification_traffic_summary">%1$s · %2$s · %3$s</string>
     <string name="service_notification_lockout_summary">%1$s · ожидание капчи %2$s</string>
     <string name="service_connecting">Подключение…</string>
+    <string name="service_handoff_waiting">Ожидание %1$d s</string>
     <string name="service_stopping">Остановка…</string>
     <string name="service_stopping_xray">Останавливаем Xray…</string>
     <string name="service_stopping_vk_turn">Останавливаем vk-turn-proxy…</string>
@@ -159,7 +160,6 @@
     <string name="apps_filter_user">Пользовательские</string>
     <string name="apps_toggle">Включить правило для приложения</string>
     <string name="proxy_logs_title">Логи vk-turn-proxy</string>
-    <string name="proxy_logs_subtitle">Live stdout/stderr бинарника. Экран обновляется автоматически, пока открыт</string>
     <string name="proxy_logs_output_title">Вывод процесса</string>
     <string name="proxy_logs_empty">Вывод vk-turn-proxy пока отсутствует</string>
     <string name="proxy_logs_auto_scroll_title">Автопрокрутка в конец</string>
@@ -169,12 +169,10 @@
     <string name="proxy_logs_copy_done">Лог скопирован в буфер</string>
     <string name="proxy_logs_copy_failed">Не удалось скопировать лог</string>
     <string name="xray_logs_title">Логи Xray</string>
-    <string name="xray_logs_subtitle">Файлы access.log и error.log ядра Xray. Экран обновляется автоматически, пока открыт</string>
     <string name="xray_logs_output_title">Вывод ядра</string>
     <string name="xray_logs_empty">Логи Xray пока отсутствуют</string>
     <string name="xray_logs_open_summary">Открыть access.log и error.log ядра Xray</string>
     <string name="runtime_logs_title">Логи runtime</string>
-    <string name="runtime_logs_subtitle">Сервисные события приложения, маршрутизация, reconnect и runtime-предупреждения</string>
     <string name="runtime_logs_output_title">Вывод runtime</string>
     <string name="runtime_logs_empty">Логи runtime пока отсутствуют</string>
     <string name="runtime_logs_open_summary">Открыть лог событий приложения и сервиса</string>
