@@ -18,6 +18,7 @@ import wings.v.MainActivity;
 import wings.v.core.AppPrefs;
 import wings.v.core.ProxySettings;
 import wings.v.core.XraySettings;
+import wings.v.xray.XrayBridge;
 
 @SuppressWarnings(
     {
@@ -138,6 +139,7 @@ public class XrayVpnService extends VpnService implements DialerController {
             XrayVpnService service = getServiceNow();
             if (service != null) {
                 service.shuttingDown = true;
+                XrayBridge.detachVpnService(service);
             }
             resetServiceFuture();
             if (service != null) {
@@ -155,6 +157,7 @@ public class XrayVpnService extends VpnService implements DialerController {
             XrayVpnService service = getServiceNow();
             if (service != null) {
                 service.shuttingDown = true;
+                XrayBridge.detachVpnService(service);
                 service.shutdownTunnel();
                 service.stopSelf();
             }
@@ -223,6 +226,7 @@ public class XrayVpnService extends VpnService implements DialerController {
     public void onDestroy() {
         boolean unexpectedShutdown = !shuttingDown;
         shuttingDown = true;
+        XrayBridge.detachVpnService(this);
         shutdownTunnel();
         XrayVpnService currentService = getServiceNow();
         if (this.equals(currentService) || currentService == null) {
@@ -241,6 +245,7 @@ public class XrayVpnService extends VpnService implements DialerController {
     @Override
     public void onRevoke() {
         boolean unexpectedRevoke = !shuttingDown;
+        XrayBridge.detachVpnService(this);
         shutdown();
         super.onRevoke();
         if (unexpectedRevoke && ProxyTunnelService.isActive()) {
@@ -330,7 +335,14 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     @Override
     public boolean protectFd(long fd) {
-        return protect((int) fd);
+        if (!canProtectSockets()) {
+            return false;
+        }
+        try {
+            return protect((int) fd);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private void applyAppRouting(Builder builder) {
@@ -506,6 +518,12 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     private boolean isReusable() {
         return serviceAlive && !shuttingDown;
+    }
+
+    public boolean canProtectSockets() {
+        synchronized (tunnelLock) {
+            return serviceAlive && !shuttingDown && tunnelFd != null;
+        }
     }
 
     private static void resetServiceFuture() {

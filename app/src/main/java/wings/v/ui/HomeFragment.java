@@ -14,6 +14,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.LinearInterpolator;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -64,6 +65,7 @@ import wings.v.service.ProxyTunnelService;
 public class HomeFragment extends Fragment {
 
     private static final long NO_DURATION_MS = 0L;
+    private static final long MILLIS_PER_SECOND = 1_000L;
     private static final int COUNTRY_CODE_LENGTH = 2;
     private static final long UI_REFRESH_INTERVAL_MS = 250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -84,6 +86,17 @@ public class HomeFragment extends Fragment {
     private PublicIpFetcher.Request ipRequest;
     private ObjectAnimator ipRefreshAnimator;
     private int ipRequestGeneration;
+    private int lastServiceStateBackgroundRes;
+    private int lastServiceStateTextColor = Integer.MIN_VALUE;
+    private int lastToggleBackgroundRes;
+    private int lastToggleTintColor = Integer.MIN_VALUE;
+    private boolean lastRuntimeNoticeVisible;
+
+    @Nullable
+    private String lastRuntimeNoticeError;
+
+    private boolean lastPowerGlowConnected;
+    private long lastPowerGlowBytesPerSecond = Long.MIN_VALUE;
 
     @Nullable
     @Override
@@ -146,6 +159,7 @@ public class HomeFragment extends Fragment {
         super.onDestroyView();
         cancelIpRefreshRequest();
         stopIpRefreshAnimation();
+        resetUiDiffState();
         binding = null;
     }
 
@@ -160,40 +174,63 @@ public class HomeFragment extends Fragment {
         boolean stopping = ProxyTunnelService.isStopping();
         boolean active = running || connecting || stopping;
         ProxySettings settings = AppPrefs.getSettings(context);
+        BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(context);
+        if (settings != null) {
+            settings.backendType = visibleBackendType;
+        }
 
         if (connecting) {
-            binding.textServiceState.setText(R.string.service_connecting);
+            long vpnHandoffRemainingMs = ProxyTunnelService.getVpnHandoffRemainingMs();
+            if (vpnHandoffRemainingMs > NO_DURATION_MS) {
+                setTextIfChanged(
+                    binding.textServiceState,
+                    getString(R.string.service_handoff_waiting, ceilSeconds(vpnHandoffRemainingMs))
+                );
+            } else {
+                setTextIfChanged(binding.textServiceState, getString(R.string.service_connecting));
+            }
             long captchaLockoutRemainingMs = ProxyTunnelService.getProxyCaptchaLockoutRemainingMs();
             if (captchaLockoutRemainingMs > NO_DURATION_MS) {
-                binding.textServiceHint.setText(
+                setTextIfChanged(
+                    binding.textServiceHint,
                     getString(
                         R.string.service_connecting_lockout_hint,
                         wings.v.core.UiFormatter.formatDurationShort(captchaLockoutRemainingMs)
                     )
                 );
             } else {
-                binding.textServiceHint.setText(R.string.service_connecting_hint);
+                setTextIfChanged(binding.textServiceHint, getString(R.string.service_connecting_hint));
             }
         } else if (stopping) {
-            binding.textServiceState.setText(
-                settings.backendType == BackendType.XRAY
-                    ? R.string.service_stopping_xray
-                    : R.string.service_stopping_vk_turn
+            setTextIfChanged(
+                binding.textServiceState,
+                getString(
+                    visibleBackendType == BackendType.XRAY
+                        ? R.string.service_stopping_xray
+                        : R.string.service_stopping_vk_turn
+                )
             );
-            binding.textServiceHint.setText(R.string.service_stopping_hint);
+            setTextIfChanged(binding.textServiceHint, getString(R.string.service_stopping_hint));
         } else {
-            binding.textServiceState.setText(running ? R.string.service_on : R.string.service_off);
-            binding.textServiceHint.setText(running ? R.string.tap_to_disconnect : R.string.tap_to_connect);
+            setTextIfChanged(binding.textServiceState, getString(running ? R.string.service_on : R.string.service_off));
+            setTextIfChanged(
+                binding.textServiceHint,
+                getString(running ? R.string.tap_to_disconnect : R.string.tap_to_connect)
+            );
         }
         if (running) {
-            binding.textServiceState.setBackgroundResource(R.drawable.bg_service_state_on);
-            binding.textServiceState.setTextColor(ContextCompat.getColor(context, android.R.color.white));
+            applyServiceStateStyle(
+                R.drawable.bg_service_state_on,
+                ContextCompat.getColor(context, android.R.color.white)
+            );
         } else if (connecting || stopping) {
-            binding.textServiceState.setBackgroundResource(R.drawable.bg_service_state_warning);
-            binding.textServiceState.setTextColor(ContextCompat.getColor(context, R.color.wingsv_text_primary));
+            applyServiceStateStyle(
+                R.drawable.bg_service_state_warning,
+                ContextCompat.getColor(context, R.color.wingsv_text_primary)
+            );
         } else {
-            binding.textServiceState.setBackgroundResource(R.drawable.bg_surface_card);
-            binding.textServiceState.setTextColor(
+            applyServiceStateStyle(
+                R.drawable.bg_surface_card,
                 resolveThemeColor(
                     android.R.attr.textColorPrimary,
                     ContextCompat.getColor(context, R.color.wingsv_text_primary)
@@ -205,27 +242,25 @@ public class HomeFragment extends Fragment {
         if (!active) {
             tintColor = resolveThemeColor(android.R.attr.textColorPrimary, tintColor);
         }
-        binding.buttonToggle.setBackgroundResource(
-            active ? R.drawable.bg_power_button_on : R.drawable.bg_power_button_off
-        );
-        binding.buttonToggle.setImageTintList(ColorStateList.valueOf(tintColor));
+        applyToggleStyle(active ? R.drawable.bg_power_button_on : R.drawable.bg_power_button_off, tintColor);
 
         long rxBytesPerSecond = ProxyTunnelService.getRxBytesPerSecond();
         long txBytesPerSecond = ProxyTunnelService.getTxBytesPerSecond();
-        binding.textDownlink.setText(UiFormatter.formatBytesPerSecond(context, rxBytesPerSecond));
-        binding.textUplink.setText(UiFormatter.formatBytesPerSecond(context, txBytesPerSecond));
-        binding.textRx.setText(UiFormatter.formatBytes(context, ProxyTunnelService.getRxBytes()));
-        binding.textTx.setText(UiFormatter.formatBytes(context, ProxyTunnelService.getTxBytes()));
-        binding.viewPowerGlow.setTrafficState(running, rxBytesPerSecond + txBytesPerSecond);
+        setTextIfChanged(binding.textDownlink, UiFormatter.formatBytesPerSecond(context, rxBytesPerSecond));
+        setTextIfChanged(binding.textUplink, UiFormatter.formatBytesPerSecond(context, txBytesPerSecond));
+        setTextIfChanged(binding.textRx, UiFormatter.formatBytes(context, ProxyTunnelService.getRxBytes()));
+        setTextIfChanged(binding.textTx, UiFormatter.formatBytes(context, ProxyTunnelService.getTxBytes()));
+        updatePowerGlow(running, rxBytesPerSecond + txBytesPerSecond);
 
         String ip = firstNonEmpty(ProxyTunnelService.getPublicIp(), fallbackIpInfo != null ? fallbackIpInfo.ip : null);
-        binding.textIp.setText(TextUtils.isEmpty(ip) ? getString(R.string.ip_loading) : ip);
+        setTextIfChanged(binding.textIp, TextUtils.isEmpty(ip) ? getString(R.string.ip_loading) : ip);
 
         String country = firstNonEmpty(
             ProxyTunnelService.getPublicCountry(),
             fallbackIpInfo != null ? fallbackIpInfo.country : null
         );
-        binding.textCountry.setText(
+        setTextIfChanged(
+            binding.textCountry,
             TextUtils.isEmpty(country) ? getString(R.string.ip_unknown) : formatCountryWithFlag(country)
         );
 
@@ -233,21 +268,95 @@ public class HomeFragment extends Fragment {
             ProxyTunnelService.getPublicIsp(),
             fallbackIpInfo != null ? fallbackIpInfo.isp : null
         );
-        binding.textIsp.setText(TextUtils.isEmpty(isp) ? getString(R.string.ip_unknown) : isp);
+        setTextIfChanged(binding.textIsp, TextUtils.isEmpty(isp) ? getString(R.string.ip_unknown) : isp);
 
         String error = ProxyTunnelService.getVisibleErrorNotice();
-        if (TextUtils.isEmpty(error)) {
-            binding.cardRuntimeNotice.setVisibility(View.GONE);
-        } else {
-            binding.cardRuntimeNotice.setVisibility(View.VISIBLE);
-            binding.cardRuntimeNotice.setTitle(getString(R.string.runtime_notice_title));
-            binding.cardRuntimeNotice.setSummary(getString(R.string.runtime_notice_message, error));
-        }
+        updateRuntimeNotice(error);
 
         syncIpRefreshAnimation();
 
         String summary = resolveConnectionSummary(settings);
-        binding.textConnectionSummary.setText(summary);
+        setTextIfChanged(binding.textConnectionSummary, summary);
+    }
+
+    private void applyServiceStateStyle(int backgroundResId, int textColor) {
+        if (binding == null) {
+            return;
+        }
+        if (lastServiceStateBackgroundRes != backgroundResId) {
+            binding.textServiceState.setBackgroundResource(backgroundResId);
+            lastServiceStateBackgroundRes = backgroundResId;
+        }
+        if (lastServiceStateTextColor != textColor) {
+            binding.textServiceState.setTextColor(textColor);
+            lastServiceStateTextColor = textColor;
+        }
+    }
+
+    private void applyToggleStyle(int backgroundResId, int tintColor) {
+        if (binding == null) {
+            return;
+        }
+        if (lastToggleBackgroundRes != backgroundResId) {
+            binding.buttonToggle.setBackgroundResource(backgroundResId);
+            lastToggleBackgroundRes = backgroundResId;
+        }
+        if (lastToggleTintColor != tintColor) {
+            binding.buttonToggle.setImageTintList(ColorStateList.valueOf(tintColor));
+            lastToggleTintColor = tintColor;
+        }
+    }
+
+    private void updateRuntimeNotice(@Nullable String error) {
+        if (binding == null) {
+            return;
+        }
+        boolean visible = !TextUtils.isEmpty(error);
+        if (lastRuntimeNoticeVisible != visible) {
+            binding.cardRuntimeNotice.setVisibility(visible ? View.VISIBLE : View.GONE);
+            lastRuntimeNoticeVisible = visible;
+        }
+        if (!visible || TextUtils.equals(lastRuntimeNoticeError, error)) {
+            lastRuntimeNoticeError = error;
+            return;
+        }
+        binding.cardRuntimeNotice.setTitle(getString(R.string.runtime_notice_title));
+        binding.cardRuntimeNotice.setSummary(getString(R.string.runtime_notice_message, error));
+        lastRuntimeNoticeError = error;
+    }
+
+    private void updatePowerGlow(boolean connected, long bytesPerSecond) {
+        if (binding == null) {
+            return;
+        }
+        if (lastPowerGlowConnected == connected && lastPowerGlowBytesPerSecond == bytesPerSecond) {
+            return;
+        }
+        binding.viewPowerGlow.setTrafficState(connected, bytesPerSecond);
+        lastPowerGlowConnected = connected;
+        lastPowerGlowBytesPerSecond = bytesPerSecond;
+    }
+
+    private void setTextIfChanged(@Nullable TextView view, CharSequence text) {
+        if (view == null || TextUtils.equals(view.getText(), text)) {
+            return;
+        }
+        view.setText(text);
+    }
+
+    private void resetUiDiffState() {
+        lastServiceStateBackgroundRes = 0;
+        lastServiceStateTextColor = Integer.MIN_VALUE;
+        lastToggleBackgroundRes = 0;
+        lastToggleTintColor = Integer.MIN_VALUE;
+        lastRuntimeNoticeVisible = false;
+        lastRuntimeNoticeError = null;
+        lastPowerGlowConnected = false;
+        lastPowerGlowBytesPerSecond = Long.MIN_VALUE;
+    }
+
+    private long ceilSeconds(long durationMs) {
+        return Math.max(1L, (durationMs + MILLIS_PER_SECOND - 1L) / MILLIS_PER_SECOND);
     }
 
     private String resolveConnectionSummary(ProxySettings settings) {

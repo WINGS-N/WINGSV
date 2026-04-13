@@ -8,6 +8,7 @@ import android.net.VpnService;
 import android.os.Build;
 import android.os.PowerManager;
 import androidx.core.content.ContextCompat;
+import java.util.Locale;
 
 @SuppressWarnings(
     {
@@ -39,7 +40,13 @@ public final class PermissionUtils {
         if (isIgnoringBatteryOptimizationsSystem(context)) {
             return true;
         }
-        return AppPrefs.isBatteryOptimizationAcknowledged(context) && !isBackgroundRestricted(context);
+        if (!AppPrefs.isBatteryOptimizationAcknowledged(context)) {
+            return false;
+        }
+        if (isXiaomiBatteryOptimizationCheckBrokenDevice()) {
+            return true;
+        }
+        return !isBackgroundRestricted(context);
     }
 
     public static boolean isIgnoringBatteryOptimizationsSystem(Context context) {
@@ -53,6 +60,27 @@ public final class PermissionUtils {
         }
         ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         return activityManager != null && activityManager.isBackgroundRestricted();
+    }
+
+    private static boolean isXiaomiBatteryOptimizationCheckBrokenDevice() {
+        String manufacturer = trim(Build.MANUFACTURER).toLowerCase(Locale.ROOT);
+        String brand = trim(Build.BRAND).toLowerCase(Locale.ROOT);
+        String fingerprint = trim(Build.FINGERPRINT).toLowerCase(Locale.ROOT);
+        return (
+            manufacturer.contains("xiaomi") ||
+            manufacturer.contains("redmi") ||
+            manufacturer.contains("poco") ||
+            brand.contains("xiaomi") ||
+            brand.contains("redmi") ||
+            brand.contains("poco") ||
+            fingerprint.contains("xiaomi/") ||
+            fingerprint.contains("redmi/") ||
+            fingerprint.contains("poco/")
+        );
+    }
+
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
     }
 
     public static boolean isVpnPermissionGranted(Context context) {

@@ -5,20 +5,19 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.VpnService;
 import android.util.Log;
-import com.wireguard.android.backend.GoBackend;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import org.amnezia.awg.backend.GoBackend;
 
 @SuppressWarnings({ "PMD.AvoidCatchingGenericException", "PMD.AvoidAccessibilityAlteration" })
-final class GoBackendVpnAccess {
+final class AwgBackendVpnAccess {
 
-    private static final String TAG = "WINGSV/GoBackendVpn";
+    private static final String TAG = "WINGSV/AwgBackendVpn";
     private static final long SERVICE_WAIT_TIMEOUT_MS = 2_000L;
     private static final long SERVICE_WAIT_POLL_MS = 200L;
 
-    private GoBackendVpnAccess() {}
+    private AwgBackendVpnAccess() {}
 
     static VpnService ensureServiceStarted(Context context) {
         if (context == null) {
@@ -30,8 +29,11 @@ final class GoBackendVpnAccess {
 
     static VpnService getServiceNow() {
         try {
-            CompletableFuture<?> future = getVpnServiceFuture();
-            Object value = future != null ? future.getNow(null) : null;
+            Object future = getVpnServiceFuture();
+            if (future == null || !invokeIsDone(future)) {
+                return null;
+            }
+            Object value = invokeTimedGet(future, 0L, TimeUnit.NANOSECONDS);
             return value instanceof VpnService ? (VpnService) value : null;
         } catch (Exception ignored) {
             return null;
@@ -82,7 +84,7 @@ final class GoBackendVpnAccess {
             service.startForeground(notificationId, notification);
             return true;
         } catch (Exception error) {
-            Log.w(TAG, "Unable to promote GoBackend VpnService to foreground", error);
+            Log.w(TAG, "Unable to promote AmneziaWG VpnService to foreground", error);
             return false;
         }
     }
@@ -107,26 +109,42 @@ final class GoBackendVpnAccess {
     }
 
     private static VpnService awaitService(long timeoutMs) {
-        try {
-            CompletableFuture<?> future = getVpnServiceFuture();
-            if (future == null) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1L);
+        while (System.currentTimeMillis() < deadline) {
+            VpnService service = getServiceNow();
+            if (service != null) {
+                return service;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(SERVICE_WAIT_POLL_MS);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
                 return null;
             }
-            Object value = future.get(timeoutMs, TimeUnit.MILLISECONDS);
-            return value instanceof VpnService ? (VpnService) value : null;
+        }
+        return getServiceNow();
+    }
+
+    private static Object getVpnServiceFuture() {
+        try {
+            Field vpnServiceField = GoBackend.class.getDeclaredField("vpnService");
+            vpnServiceField.setAccessible(true);
+            return vpnServiceField.get(null);
         } catch (Exception ignored) {
             return null;
         }
     }
 
-    private static CompletableFuture<?> getVpnServiceFuture() {
-        try {
-            Field vpnServiceField = GoBackend.class.getDeclaredField("vpnService");
-            vpnServiceField.setAccessible(true);
-            Object value = vpnServiceField.get(null);
-            return value instanceof CompletableFuture<?> ? (CompletableFuture<?>) value : null;
-        } catch (Exception ignored) {
-            return null;
-        }
+    private static boolean invokeIsDone(Object future) throws Exception {
+        Method isDoneMethod = future.getClass().getDeclaredMethod("isDone");
+        isDoneMethod.setAccessible(true);
+        Object value = isDoneMethod.invoke(future);
+        return value instanceof Boolean && (Boolean) value;
+    }
+
+    private static Object invokeTimedGet(Object future, long timeout, TimeUnit unit) throws Exception {
+        Method getMethod = future.getClass().getDeclaredMethod("get", long.class, TimeUnit.class);
+        getMethod.setAccessible(true);
+        return getMethod.invoke(future, timeout, unit);
     }
 }
