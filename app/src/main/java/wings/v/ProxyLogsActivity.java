@@ -93,7 +93,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityProxyLogsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        autoScrollEnabled = savedInstanceState != null && savedInstanceState.getBoolean(STATE_AUTO_SCROLL, false);
+        autoScrollEnabled = savedInstanceState == null || savedInstanceState.getBoolean(STATE_AUTO_SCROLL, true);
 
         String requestedMode = getIntent().getStringExtra(EXTRA_LOG_MODE);
         if (!TextUtils.isEmpty(requestedMode)) {
@@ -108,7 +108,6 @@ public class ProxyLogsActivity extends AppCompatActivity {
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         binding.toolbarLayout.setTitle(resolveTitle());
         binding.textLogsHeadline.setText(resolveTitle());
-        binding.textLogsSubtitle.setText(resolveSubtitle());
         binding.textLogsOutputTitle.setText(resolveOutputTitle());
         binding.textProxyLogsEmpty.setText(resolveEmptyText());
         binding.switchLogsAutoScroll.setChecked(autoScrollEnabled);
@@ -389,16 +388,6 @@ public class ProxyLogsActivity extends AppCompatActivity {
             return getString(R.string.xray_logs_title);
         }
         return getString(R.string.proxy_logs_title);
-    }
-
-    private String resolveSubtitle() {
-        if (MODE_RUNTIME.equals(logMode)) {
-            return getString(R.string.runtime_logs_subtitle);
-        }
-        if (MODE_XRAY.equals(logMode)) {
-            return getString(R.string.xray_logs_subtitle);
-        }
-        return getString(R.string.proxy_logs_subtitle);
     }
 
     private String resolveOutputTitle() {

@@ -2,7 +2,6 @@ package wings.v.xray;
 
 import android.content.Context;
 import android.net.Uri;
-import android.os.Build;
 import android.text.TextUtils;
 import android.util.Base64;
 import java.io.File;
@@ -11,6 +10,7 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import libXray.DialerController;
 import libXray.LibXray;
 import org.json.JSONObject;
@@ -40,11 +40,32 @@ public final class XrayBridge {
 
     private static final AtomicBoolean LOADED = new AtomicBoolean();
     private static final AtomicBoolean RUNTIME_STARTED = new AtomicBoolean();
+    private static final AtomicBoolean CONTROLLERS_REGISTERED = new AtomicBoolean();
     private static final Object JNI_LOCK = new Object();
     private static final DialerController DIRECT_NETWORK_CONTROLLER = new DialerController() {
         @Override
         public boolean protectFd(long fd) {
             return true;
+        }
+    };
+    private static final AtomicReference<DialerController> ACTIVE_NETWORK_CONTROLLER = new AtomicReference<>(
+        DIRECT_NETWORK_CONTROLLER
+    );
+    private static final DialerController DELEGATING_CONTROLLER = new DialerController() {
+        @Override
+        public boolean protectFd(long fd) {
+            DialerController activeController = ACTIVE_NETWORK_CONTROLLER.get();
+            if (activeController instanceof XrayVpnService) {
+                XrayVpnService vpnService = (XrayVpnService) activeController;
+                if (!vpnService.canProtectSockets()) {
+                    return false;
+                }
+            }
+            try {
+                return activeController == null || activeController.protectFd(fd);
+            } catch (RuntimeException ignored) {
+                return false;
+            }
         }
     };
 
@@ -56,11 +77,11 @@ public final class XrayBridge {
             if (vpnService == null) {
                 throw new IllegalStateException("Xray VpnService не готов");
             }
-            LibXray.registerDialerController(vpnService);
-            LibXray.registerListenerController(vpnService);
+            ACTIVE_NETWORK_CONTROLLER.set(vpnService);
+            ensureControllersRegisteredLocked();
             String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
             if (!TextUtils.isEmpty(runtimeDns)) {
-                LibXray.initDns(vpnService, runtimeDns);
+                LibXray.initDns(DELEGATING_CONTROLLER, runtimeDns);
             } else {
                 LibXray.resetDns();
             }
@@ -70,11 +91,11 @@ public final class XrayBridge {
     public static synchronized void prepareRuntimeDirect(String remoteDns, String directDns) {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            LibXray.registerDialerController(DIRECT_NETWORK_CONTROLLER);
-            LibXray.registerListenerController(DIRECT_NETWORK_CONTROLLER);
+            ACTIVE_NETWORK_CONTROLLER.set(DIRECT_NETWORK_CONTROLLER);
+            ensureControllersRegisteredLocked();
             String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
             if (!TextUtils.isEmpty(runtimeDns)) {
-                LibXray.initDns(DIRECT_NETWORK_CONTROLLER, runtimeDns);
+                LibXray.initDns(DELEGATING_CONTROLLER, runtimeDns);
             } else {
                 LibXray.resetDns();
             }
@@ -159,28 +180,31 @@ public final class XrayBridge {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             try {
-                decodeResponse(LibXray.stopXray());
+                if (RUNTIME_STARTED.get()) {
+                    decodeResponse(LibXray.stopXray());
+                }
             } finally {
                 RUNTIME_STARTED.set(false);
+                ACTIVE_NETWORK_CONTROLLER.set(DIRECT_NETWORK_CONTROLLER);
                 LibXray.resetDns();
             }
         }
     }
 
+    public static void detachVpnService(XrayVpnService vpnService) {
+        if (vpnService == null) {
+            return;
+        }
+        ACTIVE_NETWORK_CONTROLLER.compareAndSet(vpnService, DIRECT_NETWORK_CONTROLLER);
+    }
+
     public static boolean isRunning() {
         ensureLoaded();
-        if (usesCachedStateFallback()) {
-            return RUNTIME_STARTED.get();
-        }
-        synchronized (JNI_LOCK) {
-            boolean running = LibXray.getXrayState();
-            RUNTIME_STARTED.set(running);
-            return running;
-        }
+        return RUNTIME_STARTED.get();
     }
 
     public static boolean usesCachedStateFallback() {
-        return isXiaomiHyperOsDevice();
+        return true;
     }
 
     private static File ensureDatDir(Context context) {
@@ -233,21 +257,11 @@ public final class XrayBridge {
         }
     }
 
-    private static boolean isXiaomiHyperOsDevice() {
-        String manufacturer = trim(Build.MANUFACTURER).toLowerCase(Locale.ROOT);
-        String brand = trim(Build.BRAND).toLowerCase(Locale.ROOT);
-        String fingerprint = trim(Build.FINGERPRINT).toLowerCase(Locale.ROOT);
-        return (
-            manufacturer.contains("xiaomi") ||
-            manufacturer.contains("redmi") ||
-            manufacturer.contains("poco") ||
-            brand.contains("xiaomi") ||
-            brand.contains("redmi") ||
-            brand.contains("poco") ||
-            fingerprint.contains("xiaomi/") ||
-            fingerprint.contains("redmi/") ||
-            fingerprint.contains("poco/")
-        );
+    private static void ensureControllersRegisteredLocked() {
+        if (CONTROLLERS_REGISTERED.compareAndSet(false, true)) {
+            LibXray.registerDialerController(DELEGATING_CONTROLLER);
+            LibXray.registerListenerController(DELEGATING_CONTROLLER);
+        }
     }
 
     private static String resolveBootstrapDnsDialTarget(String remoteDns, String directDns) {

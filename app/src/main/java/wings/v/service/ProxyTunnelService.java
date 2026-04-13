@@ -2,6 +2,8 @@ package wings.v.service;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
+import android.app.AlarmManager;
+import android.app.Application;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -208,6 +210,14 @@ public class ProxyTunnelService extends Service {
     private static final long UNDERLYING_NETWORK_RECONNECT_DELAY_MS = 750L;
     private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 7_500L;
     private static final long XRAY_VPN_STOP_WAIT_MS = 2_500L;
+    private static final long VPN_HANDOFF_RETRY_INITIAL_DELAY_MS = 10L;
+    private static final long VPN_HANDOFF_RETRY_MAX_DELAY_MS = 30_000L;
+    private static final long VPN_HANDOFF_RETRY_TIMEOUT_MS = 30_000L;
+    private static final long VPN_HANDOFF_NATIVE_COOLDOWN_MS = 30_000L;
+    private static final long VPN_HANDOFF_PROCESS_RESTART_DELAY_MS = 1_000L;
+    private static final int VPN_HANDOFF_RESTART_REQUEST_CODE = 103;
+    private static final String VPN_HANDOFF_PREFS_NAME = "wingsv_vpn_handoff";
+    private static final String KEY_VPN_HANDOFF_LAST_TEARDOWN_WALL_MS = "last_teardown_wall_ms";
     private static final long NON_XRAY_LIVENESS_STARTUP_GRACE_MS = 25_000L;
     private static final long USERSPACE_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS = 10_000L;
     private static final long USERSPACE_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS = 10_000L;
@@ -293,6 +303,7 @@ public class ProxyTunnelService extends Service {
     private static volatile String sPendingCaptchaUrl;
     private static volatile long sLastCaptchaNotificationAtElapsedMs;
     private static volatile long sProxyCaptchaLockoutUntilElapsedMs;
+    private static volatile long sVpnHandoffWaitUntilElapsedMs;
     private static volatile ProxyCapabilities sProxyCapabilities = ProxyCapabilities.empty();
 
     private static final class CaptchaPrompt {
@@ -331,6 +342,17 @@ public class ProxyTunnelService extends Service {
     @FunctionalInterface
     private interface CleanupStep {
         void run() throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface RuntimeStartOperation {
+        void run() throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface NullableVpnServiceStarter {
+        @Nullable
+        VpnService get();
     }
 
     private final Object vpnBackendLock = new Object();
@@ -374,6 +396,7 @@ public class ProxyTunnelService extends Service {
     private int byeDpiDialPort = 1080;
     private String activeTunnelName = ROOT_TUNNEL_NAME;
     private String appliedTetherUpstreamName;
+    private volatile long lastOwnedVpnTeardownElapsedMs;
     private volatile PublicIpFetcher.Request publicIpRequest;
     private volatile int publicIpRequestGeneration;
     private volatile boolean stopping;
@@ -569,43 +592,87 @@ public class ProxyTunnelService extends Service {
         return new Intent(context, ProxyTunnelService.class).setAction(ACTION_RESTORE_SHARING_ON_BOOT);
     }
 
-    public static void requestRuntimeSyncIfNeeded(Context context) {
+    public static void reconcilePersistedRuntimeStateOnAppStart(Context context) {
         Context appContext = context != null ? context.getApplicationContext() : null;
-        if (
-            appContext == null ||
-            isActive() ||
-            !AppPrefs.isRootModeEnabled(appContext) ||
-            !AppPrefs.isKernelWireGuardEnabled(appContext) ||
-            !AppPrefs.hasRootRuntimeHint(appContext)
-        ) {
+        if (appContext == null || hasLocalService() || isTunnelRuntimeProcessAlive(appContext)) {
             return;
         }
-        try {
-            ContextCompat.startForegroundService(appContext, createSyncRuntimeIntent(appContext));
-        } catch (IllegalStateException | SecurityException ignored) {}
+        RuntimeStateStore.Snapshot snapshot = RuntimeStateStore.readSnapshot();
+        if (RuntimeStateStore.STATE_STOPPED.equals(snapshot.state)) {
+            return;
+        }
+        if (shouldAttemptRuntimeSync(appContext)) {
+            if (startRuntimeSync(appContext)) {
+                return;
+            }
+        }
+        clearStalePersistedRuntimeState(appContext);
+    }
+
+    public static void requestRuntimeSyncIfNeeded(Context context) {
+        Context appContext = context != null ? context.getApplicationContext() : null;
+        if (appContext == null || hasLocalService() || isTunnelRuntimeProcessAlive(appContext)) {
+            return;
+        }
+        if (!shouldAttemptRuntimeSync(appContext)) {
+            return;
+        }
+        startRuntimeSync(appContext);
     }
 
     public static boolean isRunning() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.STATE_RUNNING.equals(RuntimeStateStore.readSnapshot().state);
+        }
         return sServiceState == ServiceState.RUNNING;
     }
 
     public static boolean isConnecting() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.STATE_CONNECTING.equals(RuntimeStateStore.readSnapshot().state);
+        }
         return sServiceState == ServiceState.CONNECTING;
     }
 
     public static boolean isStopping() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.STATE_STOPPING.equals(RuntimeStateStore.readSnapshot().state);
+        }
         return sServiceState == ServiceState.STOPPING;
     }
 
     public static boolean isActive() {
+        if (!hasLocalService()) {
+            return !RuntimeStateStore.STATE_STOPPED.equals(RuntimeStateStore.readSnapshot().state);
+        }
         return sServiceState != ServiceState.STOPPED;
     }
 
+    public static BackendType getVisibleBackendType(Context context) {
+        if (isActive()) {
+            BackendType runtimeBackendType = getRuntimeBackendType();
+            if (runtimeBackendType != null) {
+                return runtimeBackendType;
+            }
+        }
+        return XrayStore.getBackendType(context);
+    }
+
+    @Nullable
+    private static BackendType getRuntimeBackendType() {
+        String rawBackendType = RuntimeStateStore.readSnapshot().backendType;
+        return TextUtils.isEmpty(rawBackendType) ? null : BackendType.fromPrefValue(rawBackendType);
+    }
+
     public static boolean hasOwnedVpnServiceRuntime() {
+        if (!hasLocalService()) {
+            return isActive();
+        }
         return (
             XrayVpnService.hasActiveTunnel() ||
             XrayVpnService.getServiceNow() != null ||
-            GoBackendVpnAccess.getServiceNow() != null
+            GoBackendVpnAccess.getServiceNow() != null ||
+            AwgBackendVpnAccess.getServiceNow() != null
         );
     }
 
@@ -618,44 +685,83 @@ public class ProxyTunnelService extends Service {
     }
 
     public static long getRxBytes() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().rxBytes;
+        }
         return sRxBytes;
     }
 
     public static long getTxBytes() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().txBytes;
+        }
         return sTxBytes;
     }
 
     public static long getRxBytesPerSecond() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().rxBytesPerSecond;
+        }
         return sRxBytesPerSecond;
     }
 
     public static long getTxBytesPerSecond() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().txBytesPerSecond;
+        }
         return sTxBytesPerSecond;
     }
 
     public static String getPublicIp() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().publicIp;
+        }
         return sPublicIp;
     }
 
     public static String getPublicCountry() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().publicCountry;
+        }
         return sPublicCountry;
     }
 
     public static String getPublicIsp() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().publicIsp;
+        }
         return sPublicIsp;
     }
 
     public static String getLastError() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().lastError;
+        }
         return sLastError;
     }
 
     public static long getProxyCaptchaLockoutRemainingMs() {
-        long deadline = sProxyCaptchaLockoutUntilElapsedMs;
+        long deadline = hasLocalService()
+            ? sProxyCaptchaLockoutUntilElapsedMs
+            : RuntimeStateStore.readSnapshot().captchaLockoutUntilElapsedMs;
         if (deadline <= 0L) {
             return 0L;
         }
         long remaining = deadline - SystemClock.elapsedRealtime();
         return Math.max(0L, remaining);
+    }
+
+    public static long getVpnHandoffRemainingMs() {
+        long now = SystemClock.elapsedRealtime();
+        RuntimeStateStore.Snapshot snapshot = RuntimeStateStore.readSnapshot();
+        long handoffWaitUntilElapsedMs = hasLocalService()
+            ? sVpnHandoffWaitUntilElapsedMs
+            : snapshot.handoffWaitUntilElapsedMs;
+        long remainingMs = Math.max(0L, handoffWaitUntilElapsedMs - now);
+        if (remainingMs <= 0L) {
+            clearVpnHandoffWaitState();
+        }
+        return remainingMs;
     }
 
     public static boolean isProxyCaptchaLockoutActive() {
@@ -664,6 +770,15 @@ public class ProxyTunnelService extends Service {
 
     @Nullable
     public static String getVisibleErrorNotice() {
+        if (!hasLocalService()) {
+            RuntimeStateStore.Snapshot snapshot = RuntimeStateStore.readSnapshot();
+            if (
+                TextUtils.isEmpty(snapshot.visibleError) || snapshot.dismissedErrorSessionId == snapshot.errorSessionId
+            ) {
+                return null;
+            }
+            return snapshot.visibleError;
+        }
         if (TextUtils.isEmpty(sVisibleErrorNotice) || sDismissedErrorNoticeSessionId == sErrorNoticeSessionId) {
             return null;
         }
@@ -672,17 +787,33 @@ public class ProxyTunnelService extends Service {
 
     public static void dismissVisibleErrorNotice() {
         sDismissedErrorNoticeSessionId = sErrorNoticeSessionId;
+        RuntimeStateStore.Snapshot snapshot = RuntimeStateStore.readSnapshot();
+        RuntimeStateStore.writeLastError(
+            snapshot.lastError,
+            snapshot.visibleError,
+            snapshot.errorSessionId,
+            snapshot.errorSessionId
+        );
     }
 
     public static boolean isPublicIpRefreshInProgress() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().publicIpRefreshing;
+        }
         return sPublicIpRefreshInProgress;
     }
 
     public static long getProxyLogVersion() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.getProxyLogVersion();
+        }
         return sProxyLogVersion;
     }
 
     public static String getProxyLogSnapshot() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.getProxyLogSnapshot();
+        }
         synchronized (PROXY_LOG_LOCK) {
             if (sProxyLogLines.isEmpty()) {
                 return "";
@@ -699,10 +830,16 @@ public class ProxyTunnelService extends Service {
     }
 
     public static long getRuntimeLogVersion() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.getRuntimeLogVersion();
+        }
         return sRuntimeLogVersion;
     }
 
     public static String getRuntimeLogSnapshot() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.getRuntimeLogSnapshot();
+        }
         synchronized (RUNTIME_LOG_LOCK) {
             if (sRuntimeLogLines.isEmpty()) {
                 return "";
@@ -723,6 +860,7 @@ public class ProxyTunnelService extends Service {
             sProxyLogLines.clear();
             sProxyLogVersion++;
         }
+        RuntimeStateStore.clearProxyLog();
     }
 
     public static void clearRuntimeLogs() {
@@ -730,6 +868,54 @@ public class ProxyTunnelService extends Service {
             sRuntimeLogLines.clear();
             sRuntimeLogVersion++;
         }
+        RuntimeStateStore.clearRuntimeLog();
+    }
+
+    private static boolean hasLocalService() {
+        return sServiceRef.get() != null;
+    }
+
+    private static boolean shouldAttemptRuntimeSync(Context context) {
+        return (
+            context != null &&
+            AppPrefs.isRootModeEnabled(context) &&
+            AppPrefs.isKernelWireGuardEnabled(context) &&
+            AppPrefs.hasRootRuntimeHint(context)
+        );
+    }
+
+    private static boolean startRuntimeSync(Context context) {
+        try {
+            ContextCompat.startForegroundService(context, createSyncRuntimeIntent(context));
+            return true;
+        } catch (IllegalStateException | SecurityException ignored) {
+            return false;
+        }
+    }
+
+    private static void clearStalePersistedRuntimeState(Context context) {
+        RuntimeStateStore.resetEphemeralState();
+        AppPrefs.setExternalActionTransientLaunchPending(context, false);
+        AppPrefs.clearRootRuntimeState(context);
+        AppPrefs.clearRuntimeUpstreamState(context);
+    }
+
+    private static boolean isTunnelRuntimeProcessAlive(Context context) {
+        ActivityManager activityManager = context.getSystemService(ActivityManager.class);
+        if (activityManager == null) {
+            return false;
+        }
+        String tunnelProcessName = context.getPackageName() + ":tunnel";
+        List<ActivityManager.RunningAppProcessInfo> processes = activityManager.getRunningAppProcesses();
+        if (processes == null) {
+            return false;
+        }
+        for (ActivityManager.RunningAppProcessInfo process : processes) {
+            if (process != null && TextUtils.equals(process.processName, tunnelProcessName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void appendProxyLogLine(String line) {
@@ -743,12 +929,14 @@ public class ProxyTunnelService extends Service {
             sProxyLogLines.addLast(line);
             sProxyLogVersion++;
         }
+        RuntimeStateStore.appendProxyLog(line);
     }
 
     private static void appendRuntimeLogLine(String line) {
         if (TextUtils.isEmpty(line)) {
             return;
         }
+        Log.d(TAG, line);
         synchronized (RUNTIME_LOG_LOCK) {
             while (sRuntimeLogLines.size() >= MAX_PROXY_LOG_LINES) {
                 sRuntimeLogLines.removeFirst();
@@ -756,6 +944,7 @@ public class ProxyTunnelService extends Service {
             sRuntimeLogLines.addLast(line);
             sRuntimeLogVersion++;
         }
+        RuntimeStateStore.appendRuntimeLog(line);
     }
 
     public static void applyPublicIpInfo(@Nullable PublicIpFetcher.IpInfo ipInfo) {
@@ -763,16 +952,19 @@ public class ProxyTunnelService extends Service {
             sPublicIp = null;
             sPublicCountry = null;
             sPublicIsp = null;
+            RuntimeStateStore.writePublicIp(null, null, null);
             return;
         }
         sPublicIp = TextUtils.isEmpty(ipInfo.ip) ? null : ipInfo.ip;
         sPublicCountry = TextUtils.isEmpty(ipInfo.country) ? null : ipInfo.country;
         sPublicIsp = TextUtils.isEmpty(ipInfo.isp) ? null : ipInfo.isp;
+        RuntimeStateStore.writePublicIp(sPublicIp, sPublicCountry, sPublicIsp);
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        RuntimeStateStore.initialize(this);
         sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
     }
@@ -785,6 +977,7 @@ public class ProxyTunnelService extends Service {
             action = shouldAttemptRootRuntimeRecovery() ? ACTION_SYNC_RUNTIME : ACTION_START;
         }
         if (ACTION_STOP.equals(action)) {
+            clearVpnHandoffWaitState();
             if (isConnecting()) {
                 abortConnectingNow(true);
                 return START_NOT_STICKY;
@@ -825,26 +1018,25 @@ public class ProxyTunnelService extends Service {
             return START_STICKY;
         }
         if (ACTION_RECONNECT.equals(action)) {
+            clearVpnHandoffWaitState();
             if (!isActive()) {
                 setServiceState(ServiceState.CONNECTING);
                 startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 startWork(true);
                 return START_STICKY;
             }
-            resetRuntimeSnapshot();
-            clearLastError();
+            final BackendType previousBackendType = activeBackendType;
+            final boolean previousKernelWireguardActive = kernelWireguardActive;
             setServiceState(ServiceState.CONNECTING);
             startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
-            workExecutor.execute(() -> {
-                stopWorkInternalForReconnect();
-                stopping = false;
-                clearLastError();
-                setServiceState(ServiceState.CONNECTING);
-                try {
-                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
-                } catch (RuntimeException ignored) {}
-                startWork(true);
-            });
+            workExecutor.execute(() ->
+                performRuntimeReconnect(
+                    runtimeGeneration.get(),
+                    previousBackendType,
+                    previousKernelWireguardActive,
+                    "manual reconnect"
+                )
+            );
             return START_STICKY;
         }
         if (ACTION_SYNC_RUNTIME.equals(action)) {
@@ -917,6 +1109,7 @@ public class ProxyTunnelService extends Service {
                 clearLastError();
                 resetRuntimeSnapshot();
                 activeBackendType = settings.backendType != null ? settings.backendType : BackendType.VK_TURN_WIREGUARD;
+                RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
                 rootModeActive = settings.rootModeEnabled;
                 kernelWireguardActive = false;
                 if (rootModeActive) {
@@ -960,60 +1153,20 @@ public class ProxyTunnelService extends Service {
                 setServiceState(ServiceState.CONNECTING);
                 waitForUsablePhysicalNetwork(generation);
                 if (activeBackendType == BackendType.XRAY) {
-                    startXrayRuntime(settings, generation);
+                    runWithVpnHandoffRetry("Xray start", generation, () -> startXrayRuntime(settings, generation));
                     return;
                 }
                 if (usesAmneziaBackend(activeBackendType)) {
-                    startAmneziaRuntime(settings, generation);
+                    runWithVpnHandoffRetry("AmneziaWG start", generation, () ->
+                        startAmneziaRuntime(settings, generation)
+                    );
                     return;
                 }
-                if (!settings.rootModeEnabled || !settings.kernelWireguardEnabled) {
-                    ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
-                }
-                prepareBackend(settings, null);
-                ensureRuntimeStillWanted(generation);
-                if (kernelWireguardActive && usesTurnProxyBackend(activeBackendType)) {
-                    terminateMatchingRootProxyProcesses(settings);
-                    rootRoutingState = captureRootRoutingState();
-                    applyRootRouting(rootRoutingState);
-                }
-                ensureRuntimeStillWanted(generation);
-                if (usesTurnProxyBackend(activeBackendType)) {
-                    long proxyStartedAt = startProxyProcess(settings, generation);
-                    waitForProxyWarmup(proxyStartedAt, generation);
-                }
-
-                ensureRuntimeStillWanted(generation);
-                if (!kernelWireguardActive) {
-                    ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
-                }
-                currentTunnel = new LocalTunnel(activeTunnelName);
-                currentConfig = WireGuardConfigFactory.build(getApplicationContext(), settings, !kernelWireguardActive);
-                synchronized (vpnBackendLock) {
-                    backend.setState(currentTunnel, Tunnel.State.UP, currentConfig);
-                }
-                markUserspaceWireGuardWatchdogHealthy();
-                markRootWireGuardWatchdogHealthy();
-                if (kernelWireguardActive) {
-                    persistRootRuntimeState(usesTurnProxyBackend(activeBackendType) ? readRootProxyPid() : 0L);
-                } else {
-                    clearPersistedRootRuntimeState();
-                }
-                if (kernelWireguardActive) {
-                    syncRootAppTunnelRouting();
-                }
-                if (rootModeActive) {
-                    registerTetherReceiverIfNeeded();
-                    registerTetherEventCallbackIfNeeded();
-                    syncRootTetherRouting(null);
-                }
-                setServiceState(ServiceState.RUNNING);
-                sRunning = true;
-                AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
-                requestPublicIpRefresh(true);
-                restoreSharingOnBootIfNeeded();
-
-                startPolling();
+                runWithVpnHandoffRetry("WireGuard start", generation, () ->
+                    startWireGuardRuntime(settings, generation)
+                );
+            } catch (InterruptedException error) {
+                appendRuntimeLogLine("Runtime start cancelled: " + firstNonEmpty(error.getMessage(), "interrupted"));
             } catch (Exception error) {
                 if (!stopping) {
                     setLastError(error.getMessage());
@@ -1099,8 +1252,15 @@ public class ProxyTunnelService extends Service {
         closeProtectBridge();
         protectSocketName = null;
 
+        ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
+        ensureVpnNativeHandoffReady("Xray", generation);
         Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
         if (vpnPermissionIntent != null) {
+            if (isOwnedVpnHandoffLikelyInProgress()) {
+                throw new VpnHandoffPendingException(
+                    "Предыдущий VPN backend ещё не отпустил системный VPN slot; откладываем запуск Xray"
+                );
+            }
             throw new IllegalStateException(
                 getString(R.string.vpn_permission_required) +
                     ". Проверьте другой активный VPN и Always-On VPN в системных настройках"
@@ -1149,7 +1309,7 @@ public class ProxyTunnelService extends Service {
 
         ByeDpiSettings byeDpiSettings = settings != null ? settings.byeDpiSettings : null;
         if (byeDpiSettings != null && byeDpiSettings.launchOnXrayStart) {
-            ensureProtectBridgeReady(XrayVpnService::getServiceNow, false, "Не удалось запустить Xray protect bridge");
+            ensureProtectBridgeReady(XrayVpnService::getServiceNow, null, "Не удалось запустить Xray protect bridge");
             ensureRuntimeStillWanted(generation);
             startByeDpiFrontProxy(byeDpiSettings, generation);
         } else {
@@ -1167,12 +1327,13 @@ public class ProxyTunnelService extends Service {
         String configJson = XrayConfigFactory.buildConfigJson(getApplicationContext(), settings);
         appendRuntimeLogLine("Starting Xray backend");
         if (XrayBridge.usesCachedStateFallback()) {
-            appendRuntimeLogLine("Xray native state query disabled on Xiaomi/HyperOS; using cached running state");
+            appendRuntimeLogLine("Xray native state query disabled; using cached running state");
         }
         XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
         if (!XrayBridge.isRunning()) {
             throw new IllegalStateException("Xray core не перешел в состояние running");
         }
+        markOwnedVpnHandoffSettled();
 
         if (rootModeActive) {
             registerTetherReceiverIfNeeded();
@@ -1199,8 +1360,10 @@ public class ProxyTunnelService extends Service {
         closeProtectBridge();
         protectSocketName = null;
 
+        ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
         ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
-        ensureProtectBridgeReady();
+        ensureVpnNativeHandoffReady("AmneziaWG", generation);
+        ensureAmneziaProtectBridgeReady();
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
@@ -1218,8 +1381,13 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
         synchronized (vpnBackendLock) {
-            awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.UP, awgConfig);
+            try {
+                awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.UP, awgConfig);
+            } catch (Exception error) {
+                throw rewriteUserspaceVpnStartupException(error, "AmneziaWG");
+            }
         }
+        markOwnedVpnHandoffSettled();
 
         if (rootModeActive) {
             registerTetherReceiverIfNeeded();
@@ -1227,6 +1395,63 @@ public class ProxyTunnelService extends Service {
             syncRootTetherRouting(null);
         }
 
+        setServiceState(ServiceState.RUNNING);
+        sRunning = true;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
+        requestPublicIpRefresh(true);
+        restoreSharingOnBootIfNeeded();
+        startPolling();
+    }
+
+    private void startWireGuardRuntime(ProxySettings settings, int generation) throws Exception {
+        ensureRuntimeStillWanted(generation);
+        if (!settings.rootModeEnabled || !settings.kernelWireguardEnabled) {
+            ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
+            ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
+            ensureVpnNativeHandoffReady("WireGuard", generation);
+        }
+        prepareBackend(settings, null);
+        ensureRuntimeStillWanted(generation);
+        if (kernelWireguardActive && usesTurnProxyBackend(activeBackendType)) {
+            terminateMatchingRootProxyProcesses(settings);
+            rootRoutingState = captureRootRoutingState();
+            applyRootRouting(rootRoutingState);
+        }
+        ensureRuntimeStillWanted(generation);
+        if (usesTurnProxyBackend(activeBackendType)) {
+            long proxyStartedAt = startProxyProcess(settings, generation);
+            waitForProxyWarmup(proxyStartedAt, generation);
+        }
+
+        ensureRuntimeStillWanted(generation);
+        if (!kernelWireguardActive) {
+            ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
+        }
+        currentTunnel = new LocalTunnel(activeTunnelName);
+        currentConfig = WireGuardConfigFactory.build(getApplicationContext(), settings, !kernelWireguardActive);
+        synchronized (vpnBackendLock) {
+            try {
+                backend.setState(currentTunnel, Tunnel.State.UP, currentConfig);
+            } catch (Exception error) {
+                throw rewriteUserspaceVpnStartupException(error, "WireGuard");
+            }
+        }
+        markOwnedVpnHandoffSettled();
+        markUserspaceWireGuardWatchdogHealthy();
+        markRootWireGuardWatchdogHealthy();
+        if (kernelWireguardActive) {
+            persistRootRuntimeState(usesTurnProxyBackend(activeBackendType) ? readRootProxyPid() : 0L);
+        } else {
+            clearPersistedRootRuntimeState();
+        }
+        if (kernelWireguardActive) {
+            syncRootAppTunnelRouting();
+        }
+        if (rootModeActive) {
+            registerTetherReceiverIfNeeded();
+            registerTetherEventCallbackIfNeeded();
+            syncRootTetherRouting(null);
+        }
         setServiceState(ServiceState.RUNNING);
         sRunning = true;
         AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
@@ -1272,10 +1497,7 @@ public class ProxyTunnelService extends Service {
                     task.get();
                 } catch (InterruptedException error) {
                     Thread.currentThread().interrupt();
-                    throw new IllegalStateException(
-                        firstNonEmpty(error.getMessage(), "ByeDPI завершился до старта"),
-                        error
-                    );
+                    throw error;
                 } catch (ExecutionException error) {
                     throw new IllegalStateException(
                         firstNonEmpty(error.getMessage(), "ByeDPI завершился до старта"),
@@ -1360,7 +1582,7 @@ public class ProxyTunnelService extends Service {
         setServiceState(ServiceState.STOPPING);
         sRunning = false;
         resetRuntimeSnapshot();
-        sPublicIpRefreshInProgress = false;
+        setPublicIpRefreshInProgress(false);
         clearProxyCaptchaLockoutState();
         AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
         clearPendingCaptchaPrompt(getApplicationContext());
@@ -1373,11 +1595,18 @@ public class ProxyTunnelService extends Service {
 
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly();
         if (activeBackendType == BackendType.XRAY) {
-            XrayVpnService.forceStopService(getApplicationContext());
             runFastStopCleanupStep("Xray core stop", FAST_STOP_CLEANUP_TIMEOUT_MS, XrayBridge::stop);
+            runFastStopCleanupStep("Xray VPN service force stop", FAST_STOP_CLEANUP_TIMEOUT_MS, () ->
+                forceStopXrayVpnServiceAndWait("Xray VPN service force stop")
+            );
         } else {
             // libwg-go/libamneziawg_go keep global native handles; do not overlap DOWN with a later UP.
             shutdownVpnBackendsLocked();
+            runFastStopCleanupStep(
+                "Userspace VPN service stop wait",
+                FAST_STOP_CLEANUP_TIMEOUT_MS,
+                this::stopUserspaceVpnServicesAndWait
+            );
         }
         runFastStopCleanupStep(
             "Active tunnel force link down",
@@ -1423,6 +1652,7 @@ public class ProxyTunnelService extends Service {
         if (shouldStopGoBackendBridgeService) {
             GoBackendVpnAccess.stopService(getApplicationContext());
         }
+        AwgBackendVpnAccess.stopService(getApplicationContext());
         XrayVpnService.forceStopService(getApplicationContext());
         if (rootShell != null) {
             runFastStopCleanupStep("Root shell stop", FAST_STOP_CLEANUP_TIMEOUT_MS, () -> {
@@ -1443,11 +1673,13 @@ public class ProxyTunnelService extends Service {
     }
 
     private void stopXrayVpnServiceAndWait(String reason) throws InterruptedException {
+        markOwnedVpnTeardownAttempt();
         XrayVpnService.stopService(getApplicationContext());
         waitForXrayVpnServiceStopped(reason);
     }
 
     private void forceStopXrayVpnServiceAndWait(String reason) throws InterruptedException {
+        markOwnedVpnTeardownAttempt();
         XrayVpnService.forceStopService(getApplicationContext());
         waitForXrayVpnServiceStopped(reason);
     }
@@ -1467,23 +1699,27 @@ public class ProxyTunnelService extends Service {
             return;
         }
         appendRuntimeLogLine("Waiting for Xray VPN service teardown before starting userspace WireGuard backend");
+        markOwnedVpnTeardownAttempt();
         XrayVpnService.stopService(getApplicationContext());
         if (!XrayVpnService.waitForStopped(XRAY_VPN_STOP_WAIT_MS)) {
-            throw new IllegalStateException(
-                "Xray VPN service ещё завершается; запуск userspace WireGuard отменен, чтобы не поймать crash libwg-go на Xiaomi/HyperOS"
+            throw new VpnHandoffPendingException(
+                "Xray VPN service ещё завершается; откладываем запуск userspace WireGuard"
             );
         }
         ensureRuntimeStillWanted(generation);
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void stopWorkInternalForReconnect() {
+        stopWorkInternalForReconnect(false);
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void stopWorkInternalForReconnect(boolean skipNativeStopForProcessRestart) {
         stopping = true;
-        runtimeReconnectQueued.set(false);
         sRunning = false;
         setServiceState(ServiceState.STOPPING);
         cancelPublicIpRefresh();
-        sPublicIpRefreshInProgress = false;
+        setPublicIpRefreshInProgress(false);
         clearPendingCaptchaPrompt(getApplicationContext());
 
         shutdownStatsExecutor();
@@ -1492,13 +1728,21 @@ public class ProxyTunnelService extends Service {
 
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly();
         if (activeBackendType == BackendType.XRAY) {
-            runReconnectCleanupStep("Xray VPN service stop", () -> XrayVpnService.stopService(getApplicationContext()));
-            runReconnectCleanupStep("Xray core stop", XrayBridge::stop);
             runReconnectCleanupStep("Xray VPN service stop wait", () ->
-                waitForXrayVpnServiceStopped("Xray VPN service stop")
+                stopXrayVpnServiceAndWait("Xray VPN service stop")
             );
+            if (skipNativeStopForProcessRestart) {
+                appendRuntimeLogLine("Skipping Xray core stop before tunnel runtime process restart");
+            } else {
+                runReconnectCleanupStep("Xray core stop", XrayBridge::stop);
+            }
         } else {
-            runReconnectCleanupStep("VPN backend shutdown", this::shutdownVpnBackendsLocked);
+            if (skipNativeStopForProcessRestart) {
+                runReconnectCleanupStep("VPN backend detach", this::detachVpnBackendsForProcessRestart);
+            } else {
+                runReconnectCleanupStep("VPN backend shutdown", this::shutdownVpnBackendsLocked);
+            }
+            runReconnectCleanupStep("Userspace VPN service stop wait", this::stopUserspaceVpnServicesAndWait);
         }
         runReconnectCleanupStep("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded);
 
@@ -1534,9 +1778,14 @@ public class ProxyTunnelService extends Service {
                 GoBackendVpnAccess.stopService(getApplicationContext())
             );
         }
-        runReconnectCleanupStep("Final Xray VPN service stop", () ->
-            stopXrayVpnServiceAndWait("Final Xray VPN service stop")
+        runReconnectCleanupStep("AmneziaWG VPN access bridge stop", () ->
+            AwgBackendVpnAccess.stopService(getApplicationContext())
         );
+        if (!skipNativeStopForProcessRestart) {
+            runReconnectCleanupStep("Final Xray VPN service stop", () ->
+                stopXrayVpnServiceAndWait("Final Xray VPN service stop")
+            );
+        }
         if (rootShell != null) {
             runReconnectCleanupStep("Root shell stop", () -> {
                 if (rootShell != null) {
@@ -1638,7 +1887,7 @@ public class ProxyTunnelService extends Service {
         setServiceState(ServiceState.STOPPED);
         sRunning = false;
         resetRuntimeSnapshot();
-        sPublicIpRefreshInProgress = false;
+        setPublicIpRefreshInProgress(false);
         clearProxyCaptchaLockoutState();
         cancelPublicIpRefresh();
         clearPendingCaptchaPrompt(getApplicationContext());
@@ -1744,6 +1993,8 @@ public class ProxyTunnelService extends Service {
         }
 
         ensureRuntimeStillWanted(generation);
+        activeBackendType = settings.backendType != null ? settings.backendType : BackendType.VK_TURN_WIREGUARD;
+        RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
         prepareBackend(settings, tunnelName);
         ensureRuntimeStillWanted(generation);
         currentTunnel = new LocalTunnel(activeTunnelName);
@@ -1809,7 +2060,7 @@ public class ProxyTunnelService extends Service {
             if (!launchedProcess.waitFor(PROXY_START_GRACE_MS, TimeUnit.MILLISECONDS)) {
                 proxyProcess = launchedProcess;
                 clearLastError();
-                attachProxyWaitThread(launchedProcess);
+                attachProxyWaitThread(launchedProcess, generation);
                 return launchedAt;
             }
 
@@ -1920,6 +2171,8 @@ public class ProxyTunnelService extends Service {
         sPublicIp = null;
         sPublicCountry = null;
         sPublicIsp = null;
+        RuntimeStateStore.writeTraffic(0L, 0L, 0L, 0L);
+        RuntimeStateStore.writePublicIp(null, null, null);
         lastRxSample = -1L;
         lastTxSample = -1L;
         lastRxTrafficAtElapsedMs = -1L;
@@ -1943,6 +2196,7 @@ public class ProxyTunnelService extends Service {
         activeTunnelProbingInProgress.set(false);
         sProxyCapabilities = ProxyCapabilities.empty();
         resetProxyWarmupState();
+        clearVpnHandoffWaitState();
     }
 
     private void resetProxyWarmupState() {
@@ -1951,8 +2205,14 @@ public class ProxyTunnelService extends Service {
         proxyWarmupAuthReady = false;
     }
 
+    private static void setPublicIpRefreshInProgress(boolean refreshing) {
+        sPublicIpRefreshInProgress = refreshing;
+        RuntimeStateStore.writePublicIpRefreshing(refreshing);
+    }
+
     private static void clearProxyCaptchaLockoutState() {
         sProxyCaptchaLockoutUntilElapsedMs = 0L;
+        RuntimeStateStore.writeCaptchaLockoutUntil(0L);
     }
 
     private void noteProxyCaptchaLockoutSeconds(long seconds) {
@@ -1961,6 +2221,7 @@ public class ProxyTunnelService extends Service {
             return;
         }
         sProxyCaptchaLockoutUntilElapsedMs = SystemClock.elapsedRealtime() + TimeUnit.SECONDS.toMillis(seconds);
+        RuntimeStateStore.writeCaptchaLockoutUntil(sProxyCaptchaLockoutUntilElapsedMs);
         String message = getString(
             R.string.service_connecting_lockout_hint,
             UiFormatter.formatDurationShort(getProxyCaptchaLockoutRemainingMs())
@@ -2002,6 +2263,12 @@ public class ProxyTunnelService extends Service {
         sTransientErrorNoticeStartedAtMs = 0L;
         sLastConnectivityProbeSuccessAtElapsedMs = 0L;
         sConnectivityProbeSuccessTtlMs = 0L;
+        RuntimeStateStore.writeLastError(
+            sLastError,
+            sVisibleErrorNotice,
+            sErrorNoticeSessionId,
+            sDismissedErrorNoticeSessionId
+        );
     }
 
     private static void clearLastError() {
@@ -2009,6 +2276,12 @@ public class ProxyTunnelService extends Service {
         sVisibleErrorNotice = null;
         sTransientErrorNoticeCount = 0;
         sTransientErrorNoticeStartedAtMs = 0L;
+        RuntimeStateStore.writeLastError(
+            sLastError,
+            sVisibleErrorNotice,
+            sErrorNoticeSessionId,
+            sDismissedErrorNoticeSessionId
+        );
     }
 
     private static void setLastError(@Nullable String error) {
@@ -2017,6 +2290,12 @@ public class ProxyTunnelService extends Service {
             sVisibleErrorNotice = null;
             sTransientErrorNoticeCount = 0;
             sTransientErrorNoticeStartedAtMs = 0L;
+            RuntimeStateStore.writeLastError(
+                sLastError,
+                sVisibleErrorNotice,
+                sErrorNoticeSessionId,
+                sDismissedErrorNoticeSessionId
+            );
             return;
         }
         if (isTransientNoticeCandidateError(sLastError)) {
@@ -2037,11 +2316,23 @@ public class ProxyTunnelService extends Service {
             } else {
                 sVisibleErrorNotice = null;
             }
+            RuntimeStateStore.writeLastError(
+                sLastError,
+                sVisibleErrorNotice,
+                sErrorNoticeSessionId,
+                sDismissedErrorNoticeSessionId
+            );
             return;
         }
         sTransientErrorNoticeCount = 0;
         sTransientErrorNoticeStartedAtMs = 0L;
         sVisibleErrorNotice = sLastError;
+        RuntimeStateStore.writeLastError(
+            sLastError,
+            sVisibleErrorNotice,
+            sErrorNoticeSessionId,
+            sDismissedErrorNoticeSessionId
+        );
     }
 
     private static boolean isTransientNoticeCandidateError(@Nullable String error) {
@@ -2124,6 +2415,12 @@ public class ProxyTunnelService extends Service {
             sVisibleErrorNotice = null;
             sTransientErrorNoticeCount = 0;
             sTransientErrorNoticeStartedAtMs = 0L;
+            RuntimeStateStore.writeLastError(
+                sLastError,
+                sVisibleErrorNotice,
+                sErrorNoticeSessionId,
+                sDismissedErrorNoticeSessionId
+            );
         }
     }
 
@@ -2824,12 +3121,16 @@ public class ProxyTunnelService extends Service {
         } catch (Exception ignored) {}
     }
 
-    private void attachProxyWaitThread(Process monitoredProcess) {
+    private void attachProxyWaitThread(Process monitoredProcess, int monitoredGeneration) {
         Thread waitThread = new Thread(
             () -> {
                 try {
                     int exitCode = monitoredProcess.waitFor();
-                    if (!stopping) {
+                    if (
+                        !stopping &&
+                        monitoredGeneration == runtimeGeneration.get() &&
+                        java.util.Objects.equals(proxyProcess, monitoredProcess)
+                    ) {
                         scheduleRuntimeReconnect(
                             "vk-turn-proxy exited unexpectedly with code " + exitCode,
                             RUNTIME_RECONNECT_DELAY_MS
@@ -2948,21 +3249,59 @@ public class ProxyTunnelService extends Service {
     }
 
     private void ensureProtectBridgeReady() {
-        ensureProtectBridgeReady(GoBackendVpnAccess::getServiceNow, true, "Не удалось запустить VPN protect bridge");
+        ensureProtectBridgeReady(
+            GoBackendVpnAccess::getServiceNow,
+            this::ensureWireGuardVpnServiceStarted,
+            "Не удалось запустить VPN protect bridge"
+        );
+    }
+
+    private void ensureAmneziaProtectBridgeReady() {
+        ensureProtectBridgeReady(
+            AwgBackendVpnAccess::getServiceNow,
+            this::ensureAmneziaVpnServiceStarted,
+            "Не удалось запустить AmneziaWG protect bridge"
+        );
+    }
+
+    @Nullable
+    private VpnService ensureWireGuardVpnServiceStarted() {
+        VpnService vpnService = GoBackendVpnAccess.ensureServiceStarted(getApplicationContext());
+        if (
+            vpnService != null &&
+            GoBackendVpnAccess.promoteServiceForeground(vpnService, SERVICE_NOTIFICATION_ID, buildNotification())
+        ) {
+            appendRuntimeLogLine("Userspace WireGuard VPN service promoted to foreground");
+        }
+        return vpnService;
+    }
+
+    @Nullable
+    private VpnService ensureAmneziaVpnServiceStarted() {
+        VpnService vpnService = AwgBackendVpnAccess.ensureServiceStarted(getApplicationContext());
+        if (
+            vpnService != null &&
+            AwgBackendVpnAccess.promoteServiceForeground(vpnService, SERVICE_NOTIFICATION_ID, buildNotification())
+        ) {
+            appendRuntimeLogLine("Userspace AmneziaWG VPN service promoted to foreground");
+        }
+        return vpnService;
     }
 
     private void ensureProtectBridgeReady(
         ProxyProtectBridgeServer.VpnServiceProvider vpnServiceProvider,
-        boolean ensureGoBackendService,
+        @Nullable NullableVpnServiceStarter vpnServiceStarter,
         String failureMessage
     ) {
-        if (ensureGoBackendService) {
-            VpnService vpnService = GoBackendVpnAccess.ensureServiceStarted(getApplicationContext());
+        if (vpnServiceStarter != null) {
+            VpnService vpnService = vpnServiceStarter.get();
             if (vpnService == null) {
+                if (isOwnedVpnHandoffLikelyInProgress()) {
+                    throw new VpnHandoffPendingException(
+                        "Предыдущий VPN backend ещё не отпустил системный VPN slot; откладываем запуск protect bridge"
+                    );
+                }
                 throw new IllegalStateException(failureMessage);
-            }
-            if (GoBackendVpnAccess.promoteServiceForeground(vpnService, SERVICE_NOTIFICATION_ID, buildNotification())) {
-                appendRuntimeLogLine("Userspace WireGuard VPN service promoted to foreground");
             }
         } else if (vpnServiceProvider == null || vpnServiceProvider.getVpnService() == null) {
             throw new IllegalStateException(failureMessage);
@@ -4255,10 +4594,12 @@ public class ProxyTunnelService extends Service {
             return;
         }
         lastActiveTunnelProbeAtElapsedMs = now;
+        int probeGeneration = runtimeGeneration.get();
+        BackendType probeBackend = activeBackendType;
         Thread probeThread = new Thread(
             () -> {
                 try {
-                    runActiveTunnelProbe(settings);
+                    runActiveTunnelProbe(settings, probeGeneration, probeBackend);
                 } finally {
                     activeTunnelProbingInProgress.set(false);
                 }
@@ -4269,12 +4610,16 @@ public class ProxyTunnelService extends Service {
         probeThread.start();
     }
 
-    private void runActiveTunnelProbe(ActiveProbingManager.Settings settings) {
+    private void runActiveTunnelProbe(
+        ActiveProbingManager.Settings settings,
+        int probeGeneration,
+        @Nullable BackendType probeBackend
+    ) {
         ActiveProbingManager.ProbeResult result = ActiveProbingManager.runDirectProbes(
             getApplicationContext(),
             settings
         );
-        if (stopping || sServiceState != ServiceState.RUNNING || runtimeReconnectQueued.get()) {
+        if (isStaleActiveTunnelProbe(probeGeneration, probeBackend)) {
             return;
         }
         if (activeBackendType == BackendType.XRAY) {
@@ -4307,6 +4652,7 @@ public class ProxyTunnelService extends Service {
                 BackendType.XRAY,
                 fallbackBackend
             );
+            RuntimeStateStore.writeBackendType(fallbackBackend.prefValue);
             XrayStore.setBackendType(getApplicationContext(), fallbackBackend);
             triggerActiveProbeReconnect(
                 ActiveProbingManager.getBackendLabel(getApplicationContext(), fallbackBackend) + " fallback"
@@ -4344,6 +4690,7 @@ public class ProxyTunnelService extends Service {
                 activeBackendType,
                 fallbackBackend
             );
+            RuntimeStateStore.writeBackendType(fallbackBackend.prefValue);
             XrayStore.setBackendType(getApplicationContext(), fallbackBackend);
             triggerActiveProbeReconnect(
                 ActiveProbingManager.getBackendLabel(getApplicationContext(), fallbackBackend) + " fallback"
@@ -4378,11 +4725,32 @@ public class ProxyTunnelService extends Service {
                 restoreBackend
             );
             ActiveProbingManager.clearRestoreBackend(getApplicationContext());
+            RuntimeStateStore.writeBackendType(restoreBackend.prefValue);
             XrayStore.setBackendType(getApplicationContext(), restoreBackend);
             triggerActiveProbeReconnect(
                 ActiveProbingManager.getBackendLabel(getApplicationContext(), restoreBackend) + " restore"
             );
         }
+    }
+
+    private boolean isStaleActiveTunnelProbe(int probeGeneration, @Nullable BackendType probeBackend) {
+        if (stopping || sServiceState != ServiceState.RUNNING || runtimeReconnectQueued.get()) {
+            return true;
+        }
+        if (probeGeneration != runtimeGeneration.get()) {
+            appendRuntimeLogLine("Suppressing stale active probing result: runtime generation changed");
+            return true;
+        }
+        if (probeBackend != activeBackendType) {
+            appendRuntimeLogLine(
+                "Suppressing stale active probing result: backend changed from " +
+                    (probeBackend != null ? probeBackend.prefValue : "unknown") +
+                    " to " +
+                    (activeBackendType != null ? activeBackendType.prefValue : "unknown")
+            );
+            return true;
+        }
+        return false;
     }
 
     private boolean shouldRunActiveTunnelProbe(ActiveProbingManager.Settings settings) {
@@ -4401,12 +4769,6 @@ public class ProxyTunnelService extends Service {
         return false;
     }
 
-    private boolean canSwitchBackToXray() {
-        ProxySettings xraySettings = AppPrefs.getSettings(getApplicationContext());
-        xraySettings.backendType = BackendType.XRAY;
-        return TextUtils.isEmpty(xraySettings.validate());
-    }
-
     private boolean canSwitchToBackend(@Nullable BackendType backendType) {
         if (backendType == null) {
             return false;
@@ -4423,14 +4785,7 @@ public class ProxyTunnelService extends Service {
 
     @Nullable
     private BackendType resolveActiveProbeRestoreBackend() {
-        BackendType restoreBackend = ActiveProbingManager.getRestoreBackend(getApplicationContext());
-        if (restoreBackend != null) {
-            return restoreBackend;
-        }
-        if (canSwitchBackToXray()) {
-            return BackendType.XRAY;
-        }
-        return null;
+        return ActiveProbingManager.getRestoreBackend(getApplicationContext());
     }
 
     @Nullable
@@ -4454,16 +4809,10 @@ public class ProxyTunnelService extends Service {
     }
 
     private void triggerActiveProbeReconnect(String reason) {
-        try {
-            ContextCompat.startForegroundService(
-                getApplicationContext(),
-                createReconnectIntent(getApplicationContext())
-            );
-        } catch (Exception error) {
-            appendRuntimeLogLine(
-                "Failed to trigger active probing reconnect for " + reason + ": " + error.getMessage()
-            );
-        }
+        scheduleRuntimeReconnect(
+            "Active probing: " + firstNonEmpty(reason, "backend switch"),
+            RUNTIME_RECONNECT_DELAY_MS
+        );
     }
 
     private void applyStatisticsSnapshot(@Nullable Statistics statistics) {
@@ -4521,10 +4870,13 @@ public class ProxyTunnelService extends Service {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void shutdownVpnBackendsLocked() {
         synchronized (vpnBackendLock) {
+            markOwnedVpnTeardownAttempt();
             if (awgBackend != null && awgTunnel != null && awgConfig != null) {
+                AwgBackendVpnAccess.clearServiceOwner();
                 try {
                     awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.DOWN, awgConfig);
                 } catch (Exception ignored) {}
+                AwgBackendVpnAccess.clearServiceOwner();
             }
             if (backend != null && currentTunnel != null) {
                 // GoBackend.VpnService.onDestroy may race our shutdown path and call wgTurnOff too.
@@ -4538,6 +4890,15 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    private void detachVpnBackendsForProcessRestart() {
+        synchronized (vpnBackendLock) {
+            markOwnedVpnTeardownAttempt();
+            GoBackendVpnAccess.clearServiceOwner();
+            AwgBackendVpnAccess.clearServiceOwner();
+            clearVpnBackendReferences();
+        }
+    }
+
     private void clearVpnBackendReferences() {
         synchronized (vpnBackendLock) {
             currentConfig = null;
@@ -4546,6 +4907,217 @@ public class ProxyTunnelService extends Service {
             awgConfig = null;
             awgTunnel = null;
             awgBackend = null;
+        }
+    }
+
+    private void ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(int generation) throws InterruptedException {
+        if (!GoBackendVpnAccess.isServiceAlive() && !AwgBackendVpnAccess.isServiceAlive()) {
+            return;
+        }
+        appendRuntimeLogLine("Waiting for userspace VPN service teardown before starting Xray backend");
+        if (!stopUserspaceVpnServicesAndWait()) {
+            throw new VpnHandoffPendingException("Userspace VPN backend ещё завершается; откладываем запуск Xray");
+        }
+        ensureRuntimeStillWanted(generation);
+    }
+
+    private void ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(int generation) throws InterruptedException {
+        if (!GoBackendVpnAccess.isServiceAlive() && !AwgBackendVpnAccess.isServiceAlive()) {
+            return;
+        }
+        appendRuntimeLogLine("Waiting for previous userspace VPN service teardown before starting userspace backend");
+        if (!stopUserspaceVpnServicesAndWait()) {
+            throw new VpnHandoffPendingException(
+                "Предыдущий userspace VPN backend ещё завершается; откладываем запуск"
+            );
+        }
+        ensureRuntimeStillWanted(generation);
+    }
+
+    private boolean stopUserspaceVpnServicesAndWait() throws InterruptedException {
+        markOwnedVpnTeardownAttempt();
+        GoBackendVpnAccess.stopService(getApplicationContext());
+        AwgBackendVpnAccess.stopService(getApplicationContext());
+        boolean wireguardStopped = GoBackendVpnAccess.waitForStopped(XRAY_VPN_STOP_WAIT_MS);
+        boolean awgStopped = AwgBackendVpnAccess.waitForStopped(XRAY_VPN_STOP_WAIT_MS);
+        if (!wireguardStopped || !awgStopped) {
+            appendRuntimeLogLine(
+                "Userspace VPN service stop timed out after " +
+                    XRAY_VPN_STOP_WAIT_MS +
+                    "ms; continuing after best-effort stop"
+            );
+        }
+        return wireguardStopped && awgStopped;
+    }
+
+    private void runWithVpnHandoffRetry(String operationName, int generation, RuntimeStartOperation operation)
+        throws Exception {
+        long startedAt = SystemClock.elapsedRealtime();
+        long delayMs = VPN_HANDOFF_RETRY_INITIAL_DELAY_MS;
+        int retry = 1;
+        while (true) {
+            ensureRuntimeStillWanted(generation);
+            try {
+                operation.run();
+                clearVpnHandoffWaitState();
+                return;
+            } catch (VpnHandoffPendingException error) {
+                long elapsedMs = Math.max(0L, SystemClock.elapsedRealtime() - startedAt);
+                long remainingMs = VPN_HANDOFF_RETRY_TIMEOUT_MS - elapsedMs;
+                if (remainingMs <= 0L) {
+                    throw new IllegalStateException(
+                        error.getMessage() + " after waiting up to " + VPN_HANDOFF_RETRY_TIMEOUT_MS + "ms",
+                        error
+                    );
+                }
+                long sleepMs = Math.min(delayMs, remainingMs);
+                long handoffRemainingMs = getVpnNativeHandoffCooldownRemainingMs();
+                if (handoffRemainingMs <= 0L) {
+                    handoffRemainingMs = remainingMs;
+                }
+                noteVpnHandoffWaitRemainingMs(handoffRemainingMs);
+                updateNotification();
+                appendRuntimeLogLine(
+                    operationName +
+                        " delayed by VPN handoff lockout, retry " +
+                        retry +
+                        " in " +
+                        sleepMs +
+                        "ms: " +
+                        error.getMessage()
+                );
+                sleepInterruptibly(sleepMs, generation);
+                delayMs = Math.min(delayMs * 2L, VPN_HANDOFF_RETRY_MAX_DELAY_MS);
+                retry++;
+            }
+        }
+    }
+
+    private Exception rewriteUserspaceVpnStartupException(Exception error, String backendName) {
+        if (isRetryableUserspaceVpnStartupException(error) && isOwnedVpnHandoffLikelyInProgress()) {
+            return new VpnHandoffPendingException(
+                "Предыдущий VPN backend ещё не отпустил системный VPN slot; откладываем запуск " + backendName,
+                error
+            );
+        }
+        return error;
+    }
+
+    private static void noteVpnHandoffWaitRemainingMs(long remainingMs) {
+        if (remainingMs <= 0L) {
+            clearVpnHandoffWaitState();
+            return;
+        }
+        sVpnHandoffWaitUntilElapsedMs = SystemClock.elapsedRealtime() + remainingMs;
+        RuntimeStateStore.writeHandoffWaitUntil(sVpnHandoffWaitUntilElapsedMs);
+    }
+
+    private static void clearVpnHandoffWaitState() {
+        sVpnHandoffWaitUntilElapsedMs = 0L;
+        RuntimeStateStore.writeHandoffWaitUntil(0L);
+    }
+
+    private boolean isRetryableUserspaceVpnStartupException(@Nullable Throwable error) {
+        if (error == null) {
+            return false;
+        }
+        if (error instanceof org.amnezia.awg.backend.BackendException) {
+            org.amnezia.awg.backend.BackendException.Reason reason = (
+                (org.amnezia.awg.backend.BackendException) error
+            ).getReason();
+            if (
+                reason == org.amnezia.awg.backend.BackendException.Reason.VPN_NOT_AUTHORIZED ||
+                reason == org.amnezia.awg.backend.BackendException.Reason.UNABLE_TO_START_VPN
+            ) {
+                return true;
+            }
+        }
+        if ("com.wireguard.android.backend.BackendException".equals(error.getClass().getName())) {
+            try {
+                Object reason = error.getClass().getMethod("getReason").invoke(error);
+                String reasonName = String.valueOf(reason);
+                if ("VPN_NOT_AUTHORIZED".equals(reasonName) || "UNABLE_TO_START_VPN".equals(reasonName)) {
+                    return true;
+                }
+            } catch (Exception ignored) {}
+        }
+        return isRetryableUserspaceVpnStartupException(error.getCause());
+    }
+
+    private void markOwnedVpnTeardownAttempt() {
+        lastOwnedVpnTeardownElapsedMs = SystemClock.elapsedRealtime();
+        try {
+            getSharedPreferences(VPN_HANDOFF_PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putLong(KEY_VPN_HANDOFF_LAST_TEARDOWN_WALL_MS, System.currentTimeMillis())
+                .apply();
+        } catch (Exception ignored) {}
+    }
+
+    private void markOwnedVpnHandoffSettled() {
+        lastOwnedVpnTeardownElapsedMs = 0L;
+        clearVpnHandoffWaitState();
+        try {
+            getSharedPreferences(VPN_HANDOFF_PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .remove(KEY_VPN_HANDOFF_LAST_TEARDOWN_WALL_MS)
+                .apply();
+        } catch (Exception ignored) {}
+    }
+
+    private boolean isOwnedVpnHandoffLikelyInProgress() {
+        if (hasOwnedVpnServiceRuntime()) {
+            return true;
+        }
+        long lastTeardownMs = lastOwnedVpnTeardownElapsedMs;
+        if (lastTeardownMs > 0L && SystemClock.elapsedRealtime() - lastTeardownMs <= VPN_HANDOFF_RETRY_TIMEOUT_MS) {
+            return true;
+        }
+        long wallTeardownMs = getPersistedVpnHandoffTeardownWallMs();
+        return wallTeardownMs > 0L && System.currentTimeMillis() - wallTeardownMs <= VPN_HANDOFF_RETRY_TIMEOUT_MS;
+    }
+
+    private void ensureVpnNativeHandoffReady(String backendName, int generation) throws InterruptedException {
+        ensureRuntimeStillWanted(generation);
+        if (hasOwnedVpnServiceRuntime()) {
+            throw new VpnHandoffPendingException(
+                "Предыдущий VPN backend ещё завершается; откладываем запуск " + backendName
+            );
+        }
+        long remainingMs = getVpnNativeHandoffCooldownRemainingMs();
+        if (remainingMs > 0L) {
+            throw new VpnHandoffPendingException(
+                "Предыдущий VPN backend ещё освобождает native state; запуск " +
+                    backendName +
+                    " через " +
+                    remainingMs +
+                    "ms"
+            );
+        }
+    }
+
+    private long getVpnNativeHandoffCooldownRemainingMs() {
+        long elapsedTeardownMs = lastOwnedVpnTeardownElapsedMs;
+        if (elapsedTeardownMs > 0L) {
+            long elapsedMs = Math.max(0L, SystemClock.elapsedRealtime() - elapsedTeardownMs);
+            return Math.max(0L, VPN_HANDOFF_NATIVE_COOLDOWN_MS - elapsedMs);
+        }
+        long wallTeardownMs = getPersistedVpnHandoffTeardownWallMs();
+        if (wallTeardownMs <= 0L) {
+            return 0L;
+        }
+        long elapsedWallMs = Math.max(0L, System.currentTimeMillis() - wallTeardownMs);
+        return Math.max(0L, VPN_HANDOFF_NATIVE_COOLDOWN_MS - elapsedWallMs);
+    }
+
+    private long getPersistedVpnHandoffTeardownWallMs() {
+        try {
+            return getSharedPreferences(VPN_HANDOFF_PREFS_NAME, MODE_PRIVATE).getLong(
+                KEY_VPN_HANDOFF_LAST_TEARDOWN_WALL_MS,
+                0L
+            );
+        } catch (Exception ignored) {
+            return 0L;
         }
     }
 
@@ -4609,6 +5181,7 @@ public class ProxyTunnelService extends Service {
         lastTxSample = txTotal;
         sRxBytes = rxTotal;
         sTxBytes = txTotal;
+        RuntimeStateStore.writeTraffic(sRxBytes, sTxBytes, sRxBytesPerSecond, sTxBytesPerSecond);
         maybeRefreshTrafficNotification(now);
     }
 
@@ -4835,7 +5408,7 @@ public class ProxyTunnelService extends Service {
             cancelPublicIpRefresh();
         }
 
-        sPublicIpRefreshInProgress = true;
+        setPublicIpRefreshInProgress(true);
         publicIpRequestGeneration++;
         final int requestGeneration = publicIpRequestGeneration;
         publicIpRequest = PublicIpFetcher.fetchAsyncCancelable(
@@ -4846,7 +5419,7 @@ public class ProxyTunnelService extends Service {
                     return;
                 }
                 publicIpRequest = null;
-                sPublicIpRefreshInProgress = false;
+                setPublicIpRefreshInProgress(false);
                 applyPublicIpInfo(result);
             }
         );
@@ -4866,7 +5439,7 @@ public class ProxyTunnelService extends Service {
             activeRequest.cancel();
             publicIpRequest = null;
         }
-        sPublicIpRefreshInProgress = false;
+        setPublicIpRefreshInProgress(false);
     }
 
     private void requestConnectivityProbe(boolean force) {
@@ -5032,13 +5605,8 @@ public class ProxyTunnelService extends Service {
         }
         long now = SystemClock.elapsedRealtime();
         boolean serviceAlive = GoBackendVpnAccess.getServiceNow() != null;
-        Tunnel.State tunnelState = null;
-        if (serviceAlive && backend != null && currentTunnel != null) {
-            try {
-                tunnelState = backend.getState(currentTunnel);
-            } catch (Exception ignored) {}
-        }
-        if (serviceAlive && tunnelState == Tunnel.State.UP) {
+        boolean runtimeRefsAlive = backend != null && currentTunnel != null;
+        if (serviceAlive && runtimeRefsAlive) {
             lastUserspaceWireGuardHealthyAtElapsedMs = now;
             return true;
         }
@@ -5057,9 +5625,7 @@ public class ProxyTunnelService extends Service {
             return true;
         }
         String watchdogReason = serviceAlive
-            ? "Userspace WireGuard watchdog: active tunnel state lost (" +
-              (tunnelState != null ? tunnelState.name() : "unknown") +
-              ")"
+            ? "Userspace WireGuard watchdog: runtime tunnel references lost"
             : "Userspace WireGuard watchdog: VPN service disappeared";
         scheduleRuntimeReconnect(watchdogReason, RUNTIME_RECONNECT_DELAY_MS);
         return false;
@@ -5190,6 +5756,8 @@ public class ProxyTunnelService extends Service {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void scheduleRuntimeReconnect(String reason, long delayMs) {
         final int scheduledGeneration = runtimeGeneration.get();
+        final BackendType previousBackendType = activeBackendType;
+        final boolean previousKernelWireguardActive = kernelWireguardActive;
         if (sServiceState == ServiceState.STOPPED || !runtimeReconnectQueued.compareAndSet(false, true)) {
             return;
         }
@@ -5212,28 +5780,175 @@ public class ProxyTunnelService extends Service {
                 if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
                     return;
                 }
-                resetRuntimeSnapshot();
-                clearLastError();
-                setServiceState(ServiceState.CONNECTING);
-                try {
-                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
-                } catch (RuntimeException ignored) {}
-                stopWorkInternalForReconnect();
-                if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
-                    return;
-                }
-                stopping = false;
-                beginErrorNoticeSession();
-                clearLastError();
-                setServiceState(ServiceState.CONNECTING);
-                try {
-                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
-                } catch (RuntimeException ignored) {}
-                startWork(true);
+                performRuntimeReconnect(
+                    scheduledGeneration,
+                    previousBackendType,
+                    previousKernelWireguardActive,
+                    reason
+                );
             } finally {
                 runtimeReconnectQueued.set(false);
             }
         });
+    }
+
+    private void performRuntimeReconnect(
+        int scheduledGeneration,
+        @Nullable BackendType previousBackendType,
+        boolean previousKernelWireguardActive,
+        @Nullable String reason
+    ) {
+        if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+            return;
+        }
+        int reconnectGeneration = runtimeGeneration.incrementAndGet();
+        ProxySettings reconnectSettings = AppPrefs.getSettings(getApplicationContext());
+        boolean shouldRestartProcess = shouldRestartProcessForVpnNativeHandoff(
+            previousBackendType,
+            previousKernelWireguardActive,
+            reconnectSettings
+        );
+        resetRuntimeSnapshot();
+        clearLastError();
+        setServiceState(ServiceState.CONNECTING);
+        try {
+            startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+        } catch (RuntimeException ignored) {}
+        stopWorkInternalForReconnect(shouldRestartProcess);
+        if (reconnectGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+            return;
+        }
+        if (shouldRestartProcess && restartRuntimeProcessForVpnNativeHandoff(reason)) {
+            return;
+        }
+        stopping = false;
+        beginErrorNoticeSession();
+        clearLastError();
+        setServiceState(ServiceState.CONNECTING);
+        try {
+            startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+        } catch (RuntimeException ignored) {}
+        startWork(true);
+    }
+
+    private boolean shouldRestartProcessForVpnNativeHandoff(
+        @Nullable BackendType previousBackendType,
+        boolean previousKernelWireguardActive,
+        @Nullable ProxySettings nextSettings
+    ) {
+        if (previousBackendType == null || nextSettings == null || !isTunnelRuntimeProcess()) {
+            return false;
+        }
+        BackendType nextBackendType =
+            nextSettings.backendType != null ? nextSettings.backendType : BackendType.VK_TURN_WIREGUARD;
+        boolean nextKernelWireguardActive =
+            nextBackendType.supportsKernelWireGuard() &&
+            nextSettings.rootModeEnabled &&
+            nextSettings.kernelWireguardEnabled;
+        if (previousBackendType == nextBackendType && previousKernelWireguardActive == nextKernelWireguardActive) {
+            return false;
+        }
+        return usesProcessBoundNativeRuntime(previousBackendType, previousKernelWireguardActive);
+    }
+
+    private static boolean usesProcessBoundNativeRuntime(
+        @Nullable BackendType backendType,
+        boolean kernelWireguardActive
+    ) {
+        if (backendType == BackendType.XRAY) {
+            return true;
+        }
+        if (backendType == null || kernelWireguardActive) {
+            return false;
+        }
+        return backendType.usesWireGuardSettings() || backendType.usesAmneziaSettings();
+    }
+
+    private boolean restartRuntimeProcessForVpnNativeHandoff(@Nullable String reason) {
+        if (!isTunnelRuntimeProcess()) {
+            appendRuntimeLogLine("Tunnel runtime process restart skipped: service is not isolated");
+            return false;
+        }
+        appendRuntimeLogLine(
+            "Restarting tunnel runtime process for VPN handoff: " + firstNonEmpty(reason, "backend switch")
+        );
+        setServiceState(ServiceState.CONNECTING);
+        try {
+            startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+        } catch (RuntimeException ignored) {}
+        boolean restartScheduled = scheduleRuntimeProcessRestart();
+        if (!restartScheduled) {
+            appendRuntimeLogLine("Tunnel runtime process restart scheduling failed; stopping current runtime process");
+        }
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } catch (RuntimeException ignored) {}
+        android.os.Process.killProcess(android.os.Process.myPid());
+        return true;
+    }
+
+    private boolean scheduleRuntimeProcessRestart() {
+        AlarmManager alarmManager = getSystemService(AlarmManager.class);
+        if (alarmManager == null) {
+            return false;
+        }
+        Intent restartIntent = createStartIntent(getApplicationContext());
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent restartPendingIntent =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? PendingIntent.getForegroundService(
+                      getApplicationContext(),
+                      VPN_HANDOFF_RESTART_REQUEST_CODE,
+                      restartIntent,
+                      flags
+                  )
+                : PendingIntent.getService(
+                      getApplicationContext(),
+                      VPN_HANDOFF_RESTART_REQUEST_CODE,
+                      restartIntent,
+                      flags
+                  );
+        long triggerAt = SystemClock.elapsedRealtime() + VPN_HANDOFF_PROCESS_RESTART_DELAY_MS;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    triggerAt,
+                    restartPendingIntent
+                );
+            } else {
+                alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, restartPendingIntent);
+            }
+            return true;
+        } catch (RuntimeException error) {
+            appendRuntimeLogLine("Failed to schedule tunnel runtime process restart: " + error.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isTunnelRuntimeProcess() {
+        return TextUtils.equals(getPackageName() + ":tunnel", getCurrentProcessName());
+    }
+
+    @Nullable
+    private String getCurrentProcessName() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return Application.getProcessName();
+        }
+        byte[] buffer = new byte[256];
+        try (FileInputStream input = new FileInputStream("/proc/self/cmdline")) {
+            int read = input.read(buffer);
+            if (read <= 0) {
+                return null;
+            }
+            int length = 0;
+            while (length < read && buffer[length] != 0) {
+                length++;
+            }
+            return new String(buffer, 0, length, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private boolean shouldReconnectOnUnderlyingNetworkChange() {
@@ -5310,6 +6025,13 @@ public class ProxyTunnelService extends Service {
 
     private void setServiceState(ServiceState state) {
         sServiceState = state;
+        RuntimeStateStore.writeState(state.name());
+        if (state != ServiceState.STOPPED && activeBackendType != null) {
+            RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
+        }
+        if (state != ServiceState.CONNECTING) {
+            clearVpnHandoffWaitState();
+        }
         if (state == ServiceState.RUNNING) {
             lastRunningStateAtElapsedMs = SystemClock.elapsedRealtime();
         } else {
@@ -5853,5 +6575,16 @@ public class ProxyTunnelService extends Service {
 
         @Override
         public void onStateChange(org.amnezia.awg.backend.Tunnel.State newState) {}
+    }
+
+    private static final class VpnHandoffPendingException extends IllegalStateException {
+
+        private VpnHandoffPendingException(String message) {
+            super(message);
+        }
+
+        private VpnHandoffPendingException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

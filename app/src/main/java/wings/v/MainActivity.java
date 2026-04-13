@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -65,8 +67,20 @@ public class MainActivity extends AppCompatActivity {
 
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
     private static final long BACK_EXIT_WINDOW_MS = 2_000L;
+    private static final long NAVIGATION_REFRESH_INTERVAL_MS = 500L;
 
     private ActivityMainBinding binding;
+    private final Handler navigationHandler = new Handler(Looper.getMainLooper());
+    private final Runnable navigationRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (binding == null) {
+                return;
+            }
+            syncNavigationState();
+            navigationHandler.postDelayed(this, NAVIGATION_REFRESH_INTERVAL_MS);
+        }
+    };
     private BottomTabLayout bottomTab;
     private MainPagerAdapter pagerAdapter;
     private int currentTabId = R.id.menu_home;
@@ -107,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
-        hasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
+        hasProfilesTab = ProxyTunnelService.getVisibleBackendType(this) == BackendType.XRAY;
         hasSharingTab = AppPrefs.isRootModeEnabled(this);
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
@@ -174,8 +188,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         syncNavigationState();
+        startNavigationRefresh();
         refreshRootStateAsync();
         maybeRecoverRuntimeState();
+    }
+
+    @Override
+    protected void onPause() {
+        stopNavigationRefresh();
+        super.onPause();
     }
 
     @Override
@@ -196,6 +217,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        stopNavigationRefresh();
         unregisterPreferencesListener();
         rootStateExecutor.shutdownNow();
     }
@@ -479,8 +501,17 @@ public class MainActivity extends AppCompatActivity {
         ProxyTunnelService.requestRuntimeSyncIfNeeded(this);
     }
 
+    private void startNavigationRefresh() {
+        navigationHandler.removeCallbacks(navigationRefreshRunnable);
+        navigationHandler.postDelayed(navigationRefreshRunnable, NAVIGATION_REFRESH_INTERVAL_MS);
+    }
+
+    private void stopNavigationRefresh() {
+        navigationHandler.removeCallbacks(navigationRefreshRunnable);
+    }
+
     private void syncNavigationState() {
-        boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
+        boolean nextHasProfilesTab = ProxyTunnelService.getVisibleBackendType(this) == BackendType.XRAY;
         boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
             rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);

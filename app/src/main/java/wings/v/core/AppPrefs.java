@@ -592,7 +592,9 @@ public final class AppPrefs {
         if (stored == null || stored.isEmpty()) {
             return new LinkedHashSet<>();
         }
-        return new LinkedHashSet<>(stored);
+        LinkedHashSet<String> packages = new LinkedHashSet<>(stored);
+        packages.remove(context.getPackageName());
+        return packages;
     }
 
     public static void setAppRoutingPackageEnabled(Context context, String packageName, boolean enabled) {
@@ -600,7 +602,7 @@ public final class AppPrefs {
             return;
         }
         Set<String> packages = getAppRoutingPackages(context);
-        if (enabled) {
+        if (enabled && !TextUtils.equals(packageName, context.getPackageName())) {
             packages.add(packageName);
         } else {
             packages.remove(packageName);
@@ -612,8 +614,12 @@ public final class AppPrefs {
         LinkedHashSet<String> normalizedPackages = new LinkedHashSet<>();
         if (packages != null) {
             for (String packageName : packages) {
-                if (!TextUtils.isEmpty(trim(packageName))) {
-                    normalizedPackages.add(trim(packageName));
+                String normalizedPackageName = trim(packageName);
+                if (
+                    !TextUtils.isEmpty(normalizedPackageName) &&
+                    !TextUtils.equals(normalizedPackageName, context.getPackageName())
+                ) {
+                    normalizedPackages.add(normalizedPackageName);
                 }
             }
         }

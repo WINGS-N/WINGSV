@@ -16,6 +16,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.ListPopupWindow;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -71,6 +72,7 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
         rules = new ArrayList<>(XrayRoutingStore.getRules(this));
         adapter = new RulesAdapter();
         binding.recyclerRules.setLayoutManager(new LinearLayoutManager(this));
+        binding.recyclerRules.setItemAnimator(new DefaultItemAnimator());
         binding.recyclerRules.setAdapter(adapter);
         itemTouchHelper = new ItemTouchHelper(new RuleTouchHelperCallback());
         itemTouchHelper.attachToRecyclerView(binding.recyclerRules);
@@ -88,8 +90,12 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
     }
 
     private void renderRules() {
-        binding.textRulesEmpty.setVisibility(rules.isEmpty() ? android.view.View.VISIBLE : android.view.View.GONE);
+        updateEmptyState();
         adapter.notifyDataSetChanged();
+    }
+
+    private void updateEmptyState() {
+        binding.textRulesEmpty.setVisibility(rules.isEmpty() ? android.view.View.VISIBLE : android.view.View.GONE);
     }
 
     private void deleteRule(int position) {
@@ -98,7 +104,8 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
         }
         rules.remove(position);
         persistRules();
-        renderRules();
+        updateEmptyState();
+        adapter.notifyItemRemoved(position);
     }
 
     private void showRuleDialog(@Nullable XrayRoutingRule existingRule, int position) {
@@ -160,11 +167,15 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
                     }
                     if (position >= 0 && position < rules.size()) {
                         rules.set(position, rule);
+                        adapter.notifyItemChanged(position);
                     } else {
                         rules.add(rule);
+                        int insertedPosition = rules.size() - 1;
+                        adapter.notifyItemInserted(insertedPosition);
+                        binding.recyclerRules.scrollToPosition(insertedPosition);
                     }
                     persistRules();
-                    renderRules();
+                    updateEmptyState();
                     dialog.dismiss();
                 })
         );
@@ -303,6 +314,10 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
 
     private final class RulesAdapter extends RecyclerView.Adapter<RulesAdapter.RuleViewHolder> {
 
+        RulesAdapter() {
+            setHasStableIds(true);
+        }
+
         @NonNull
         @Override
         public RuleViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -362,6 +377,11 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
             return rules.size();
         }
 
+        @Override
+        public long getItemId(int position) {
+            return rules.get(position).id.hashCode();
+        }
+
         final class RuleViewHolder extends RecyclerView.ViewHolder {
 
             private final ItemXrayRoutingRuleBinding binding;
@@ -404,7 +424,7 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
         public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
             super.clearView(recyclerView, viewHolder);
             persistRules();
-            renderRules();
+            updateEmptyState();
         }
 
         @Override

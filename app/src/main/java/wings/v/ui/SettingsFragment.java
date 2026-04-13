@@ -3,6 +3,8 @@ package wings.v.ui;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.widget.Toast;
@@ -42,7 +44,7 @@ import wings.v.core.ThemeModeController;
 import wings.v.core.UiFormatter;
 import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
-import wings.v.core.XrayStore;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -72,8 +74,18 @@ import wings.v.core.XrayStore;
 public class SettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
+    private static final long RUNTIME_BACKEND_REFRESH_INTERVAL_MS = 500L;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable runtimeBackendRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshRuntimeBackedPreferences(false);
+            handler.postDelayed(this, RUNTIME_BACKEND_REFRESH_INTERVAL_MS);
+        }
+    };
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private AppUpdateManager appUpdateManager;
+    private BackendType lastRuntimeVisibleBackendType;
     private final AppUpdateManager.Listener updateStateListener = this::refreshAboutPreferenceBadge;
 
     @Override
@@ -90,16 +102,41 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         registerPreferencesListener();
         appUpdateManager.registerListener(updateStateListener);
         syncPreferenceValuesFromPrefs();
-        configureRootPreferences();
-        configureXrayPreferences(XrayStore.getBackendType(requireContext()));
+        refreshRuntimeBackedPreferences(true);
+        startRuntimeBackendRefresh();
         refreshAboutPreferenceBadge(appUpdateManager.getState());
     }
 
     @Override
     public void onPause() {
+        stopRuntimeBackendRefresh();
         unregisterPreferencesListener();
         appUpdateManager.unregisterListener(updateStateListener);
         super.onPause();
+    }
+
+    private void startRuntimeBackendRefresh() {
+        handler.removeCallbacks(runtimeBackendRefreshRunnable);
+        handler.postDelayed(runtimeBackendRefreshRunnable, RUNTIME_BACKEND_REFRESH_INTERVAL_MS);
+    }
+
+    private void stopRuntimeBackendRefresh() {
+        handler.removeCallbacks(runtimeBackendRefreshRunnable);
+    }
+
+    private void refreshRuntimeBackedPreferences(boolean force) {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(context);
+        if (!force && visibleBackendType == lastRuntimeVisibleBackendType) {
+            return;
+        }
+        lastRuntimeVisibleBackendType = visibleBackendType;
+        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, visibleBackendType.prefValue);
+        configureRootPreferences(visibleBackendType);
+        configureXrayPreferences(visibleBackendType);
     }
 
     private void configurePreferences() {
@@ -213,7 +250,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (xraySettingsPreference != null) {
             xraySettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                if (XrayStore.getBackendType(requireContext()) != BackendType.XRAY) {
+                if (ProxyTunnelService.getVisibleBackendType(requireContext()) != BackendType.XRAY) {
                     return true;
                 }
                 startActivity(XraySettingsActivity.createIntent(requireContext()));
@@ -225,7 +262,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (vkTurnSettingsPreference != null) {
             vkTurnSettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                BackendType backendType = XrayStore.getBackendType(requireContext());
+                BackendType backendType = ProxyTunnelService.getVisibleBackendType(requireContext());
                 if (!backendType.isVkTurnLike()) {
                     return true;
                 }
@@ -238,7 +275,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (byeDpiSettingsPreference != null) {
             byeDpiSettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                if (XrayStore.getBackendType(requireContext()) != BackendType.XRAY) {
+                if (ProxyTunnelService.getVisibleBackendType(requireContext()) != BackendType.XRAY) {
                     return true;
                 }
                 startActivity(ByeDpiSettingsActivity.createIntent(requireContext()));
@@ -285,12 +322,19 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
-        configureRootPreferences();
-        configureXrayPreferences(XrayStore.getBackendType(requireContext()));
+        refreshRuntimeBackedPreferences(true);
         syncPreferenceValuesFromPrefs();
     }
 
     private void configureRootPreferences() {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        configureRootPreferences(ProxyTunnelService.getVisibleBackendType(context));
+    }
+
+    private void configureRootPreferences(@Nullable BackendType backendType) {
         Context context = getContext();
         if (context == null) {
             return;
@@ -330,7 +374,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             xposedSettingsPreference.setVisible(rootModeEnabled);
             xposedSettingsPreference.setEnabled(rootModeEnabled);
         }
-        BackendType backendType = XrayStore.getBackendType(context);
         String unavailableReason = RootUtils.getRootModeUnavailableReason(context, backendType, false);
         boolean supported = TextUtils.isEmpty(unavailableReason);
         rootModePreference.setEnabled(supported);
@@ -347,7 +390,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             Context preferenceContext = preference.getContext();
             String reason = RootUtils.getRootModeUnavailableReason(
                 preferenceContext,
-                XrayStore.getBackendType(preferenceContext),
+                ProxyTunnelService.getVisibleBackendType(preferenceContext),
                 false
             );
             if (!TextUtils.isEmpty(reason)) {
@@ -377,7 +420,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             Context preferenceContext = preference.getContext();
             String reason = RootUtils.getKernelWireGuardUnavailableReason(
                 preferenceContext,
-                XrayStore.getBackendType(preferenceContext),
+                ProxyTunnelService.getVisibleBackendType(preferenceContext),
                 false
             );
             if (!TextUtils.isEmpty(reason)) {
@@ -397,7 +440,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        configureXrayPreferences(XrayStore.getBackendType(context));
+        configureXrayPreferences(ProxyTunnelService.getVisibleBackendType(context));
     }
 
     private void configureXrayPreferences(@Nullable BackendType backendType) {
@@ -535,8 +578,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 return;
             }
             syncPreferenceValuesFromPrefs();
-            configureRootPreferences();
-            configureXrayPreferences();
+            refreshRuntimeBackedPreferences(true);
         };
         getPreferenceManager()
             .getSharedPreferences()
@@ -580,7 +622,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(context));
         syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
         syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
-        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
+        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, ProxyTunnelService.getVisibleBackendType(context).prefValue);
         syncPreferenceSummary(
             AppPrefs.KEY_THEME_MODE,
             getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context)))

@@ -254,6 +254,9 @@ public class AppsFragment extends Fragment {
 
     private void onPackageToggled(String packageName, boolean enabled, View sourceView) {
         Context context = requireContext();
+        if (TextUtils.equals(packageName, context.getPackageName())) {
+            return;
+        }
         AppPrefs.setAppRoutingPackageEnabled(context, packageName, enabled);
         if (enabled) {
             enabledPackages.add(packageName);
@@ -300,6 +303,7 @@ public class AppsFragment extends Fragment {
         binding.textAppsEmpty.setVisibility(View.GONE);
         executor.execute(() -> {
             List<AppRoutingEntry> entries = queryInstalledApps(appContext);
+            AppPrefs.setAppRoutingPackageEnabled(appContext, appContext.getPackageName(), false);
             Set<String> storedEnabledPackages = AppPrefs.getAppRoutingPackages(appContext);
             boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(appContext);
             mainHandler.post(() -> {
@@ -590,6 +594,7 @@ public class AppsFragment extends Fragment {
 
     private List<AppRoutingEntry> queryInstalledApps(Context context) {
         PackageManager packageManager = context.getPackageManager();
+        String ownPackageName = context.getPackageName();
         List<ApplicationInfo> installedApplications;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             installedApplications = packageManager.getInstalledApplications(
@@ -601,6 +606,9 @@ public class AppsFragment extends Fragment {
 
         List<AppRoutingEntry> entries = new ArrayList<>(installedApplications.size());
         for (ApplicationInfo applicationInfo : installedApplications) {
+            if (TextUtils.equals(applicationInfo.packageName, ownPackageName)) {
+                continue;
+            }
             String label = applicationInfo.loadLabel(packageManager).toString().trim();
             if (label.isEmpty()) {
                 label = applicationInfo.packageName;
