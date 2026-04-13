@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
   workflow_dispatch:
 
@@ -60,6 +61,11 @@ jobs:
         with:
           go-version: "1.25.5"
           check-latest: true
+          cache-dependency-path: |
+            external/vk-turn-proxy/go.sum
+            external/libXray/go.sum
+            external/Xray-core/go.sum
+            external/amneziawg-android/tunnel/tools/libwg-go/go.sum
 
       - name: Cache vk-turn-proxy Go build state
         uses: actions/cache@v5
