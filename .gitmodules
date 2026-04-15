@@ -16,3 +16,6 @@
 [submodule "external/byedpi"]
 	path = external/byedpi
 	url = https://github.com/WINGS-N/byedpi.git
+[submodule "external/librustoreparser"]
+	path = external/librustoreparser
+	url = https://github.com/WINGS-N/librustoreparser.git
