@@ -46,9 +46,22 @@ public class ProxySettings {
     public ByeDpiSettings byeDpiSettings;
 
     public String validate() {
-        if (backendType == BackendType.XRAY) {
+        if (backendType != null && backendType.usesXrayCore()) {
             if (activeXrayProfile == null || TextUtils.isEmpty(activeXrayProfile.rawLink)) {
                 return "Xray профиль не выбран";
+            }
+            if (
+                xraySettings != null && xraySettings.transportMode != null && xraySettings.transportMode.usesTurnProxy()
+            ) {
+                if (TextUtils.isEmpty(endpoint)) {
+                    return "Endpoint не заполнен";
+                }
+                if (TextUtils.isEmpty(vkLink)) {
+                    return "VK Link не заполнен";
+                }
+                if (TextUtils.isEmpty(localEndpoint)) {
+                    return "Локальный endpoint не заполнен";
+                }
             }
             return null;
         }

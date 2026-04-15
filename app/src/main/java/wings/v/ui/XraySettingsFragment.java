@@ -6,6 +6,7 @@ import android.text.TextUtils;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
+import androidx.preference.DropDownPreference;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -14,10 +15,12 @@ import wings.v.R;
 import wings.v.WarningConfirmActivity;
 import wings.v.XrayRoutingSettingsActivity;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.SocksAuthSecurity;
 import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
+import wings.v.core.XrayTransportMode;
 
 public class XraySettingsFragment extends PreferenceFragmentCompat {
 
@@ -52,6 +55,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE);
+        bindTransportMode(AppPrefs.KEY_XRAY_TRANSPORT_MODE);
         bindRoutingEntry();
         bindSummary(AppPrefs.KEY_XRAY_REMOTE_DNS);
         bindSummary(AppPrefs.KEY_XRAY_DIRECT_DNS);
@@ -144,8 +148,20 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         syncSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, settings.sniffingEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, settings.proxyQuicEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, settings.restartOnNetworkChange);
+        refreshTransportModeVisibility();
+        syncDropDown(
+            AppPrefs.KEY_XRAY_TRANSPORT_MODE,
+            settings.transportMode == null ? XrayTransportMode.DIRECT.prefValue : settings.transportMode.prefValue
+        );
         syncRoutingSummary();
         refreshLocalProxyVisibility(settings);
+    }
+
+    private void refreshTransportModeVisibility() {
+        Preference preference = findPreference(AppPrefs.KEY_XRAY_TRANSPORT_MODE);
+        if (preference != null) {
+            preference.setVisible(true);
+        }
     }
 
     private void syncEditText(String key, String value) {
@@ -163,6 +179,17 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         SwitchPreferenceCompat preference = findPreference(key);
         if (preference != null && preference.isChecked() != value) {
             preference.setChecked(value);
+        }
+    }
+
+    private void syncDropDown(String key, String value) {
+        DropDownPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        String normalized = value == null ? "" : value;
+        if (!TextUtils.equals(preference.getValue(), normalized)) {
+            preference.setValue(normalized);
         }
     }
 
@@ -197,6 +224,21 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         if (preference != null) {
             preference.setSummary(R.string.xray_settings_routing_summary);
         }
+    }
+
+    private void bindTransportMode(String key) {
+        DropDownPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setSummaryProvider(pref -> {
+            CharSequence entry = ((DropDownPreference) pref).getEntry();
+            return TextUtils.isEmpty(entry) ? getString(R.string.xray_settings_transport_mode_summary) : entry;
+        });
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            Haptics.softSelection(getListView() != null ? getListView() : requireView());
+            return true;
+        });
     }
 
     private boolean shouldWarnBeforeDisablingSocksAuth(String key, SwitchPreferenceCompat preference, Object newValue) {

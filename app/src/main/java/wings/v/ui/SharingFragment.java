@@ -504,7 +504,10 @@ public class SharingFragment extends Fragment {
 
     private boolean shouldUseVpnServiceUpstream(Context context) {
         BackendType backendType = XrayStore.getBackendType(context);
-        if (backendType == BackendType.XRAY || (backendType != null && backendType.usesAmneziaSettings())) {
+        if (
+            (backendType != null && backendType.usesXrayCore()) ||
+            (backendType != null && backendType.usesAmneziaSettings())
+        ) {
             return true;
         }
         return (

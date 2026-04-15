@@ -24,6 +24,7 @@ import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
 import wings.v.core.UiFormatter;
 import wings.v.core.XrayStore;
+import wings.v.core.XrayTransportMode;
 
 public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
@@ -37,6 +38,17 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_MANUAL_CAPTCHA,
         AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_LOCAL_ENDPOINT,
+        AppPrefs.KEY_TURN_HOST,
+        AppPrefs.KEY_TURN_PORT,
+    };
+    private static final String[] VK_TURN_RELAY_PREFERENCE_KEYS = {
+        AppPrefs.KEY_ENDPOINT,
+        AppPrefs.KEY_VK_LINK,
+        AppPrefs.KEY_THREADS,
+        AppPrefs.KEY_USE_UDP,
+        AppPrefs.KEY_NO_OBFUSCATION,
+        AppPrefs.KEY_MANUAL_CAPTCHA,
+        AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
     };
@@ -390,17 +402,23 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     private void refreshBackendSections() {
         BackendType backendType = XrayStore.getBackendType(requireContext());
-        boolean turnBackend = backendType.usesTurnProxy();
+        XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
+        boolean xrayBackend = backendType != null && backendType.usesXrayCore();
+        boolean xrayVkTurnTcp = xrayBackend && xrayTransportMode != null && xrayTransportMode.usesTurnProxy();
+        boolean vkTurnRelay = backendType.usesTurnProxy() || xrayVkTurnTcp;
+        boolean relaySettings = vkTurnRelay || xrayBackend;
         boolean wireGuardBackend = backendType.usesWireGuardSettings();
         boolean awgBackend = backendType.usesAmneziaSettings();
 
-        setPreferenceVisible("pref_category_vk_proxy", turnBackend);
-        setPreferenceVisible("pref_inset_after_vk_proxy", turnBackend);
+        setPreferenceVisible("pref_category_vk_proxy", relaySettings);
+        setPreferenceVisible("pref_inset_after_vk_proxy", relaySettings);
         Preference proxyCategory = findPreference("pref_category_vk_proxy");
         if (proxyCategory != null) {
             proxyCategory.setTitle("Proxy");
         }
-        setPreferencesVisible(TURN_PROXY_PREFERENCE_KEYS, turnBackend);
+        setPreferencesVisible(TURN_PROXY_PREFERENCE_KEYS, false);
+        setPreferencesVisible(VK_TURN_RELAY_PREFERENCE_KEYS, vkTurnRelay);
+        setPreferenceVisible(AppPrefs.KEY_LOCAL_ENDPOINT, relaySettings);
         setPreferencesVisible(WIREGUARD_PREFERENCE_KEYS, wireGuardBackend);
         setPreferencesVisible(AMNEZIA_PREFERENCE_KEYS, awgBackend);
     }

@@ -121,7 +121,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
-        hasProfilesTab = ProxyTunnelService.getVisibleBackendType(this) == BackendType.XRAY;
+        BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
+        hasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
         hasSharingTab = AppPrefs.isRootModeEnabled(this);
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
@@ -511,7 +512,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void syncNavigationState() {
-        boolean nextHasProfilesTab = ProxyTunnelService.getVisibleBackendType(this) == BackendType.XRAY;
+        BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
+        boolean nextHasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
         boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
             rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
@@ -598,7 +600,8 @@ public class MainActivity extends AppCompatActivity {
             requestReconnectAfterImport(rawData);
             Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
             intent.setData(null);
-            boolean nextHasProfilesTab = XrayStore.getBackendType(this) == BackendType.XRAY;
+            BackendType backendType = XrayStore.getBackendType(this);
+            boolean nextHasProfilesTab = backendType != null && backendType.usesXrayCore();
             boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
             if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
                 rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);

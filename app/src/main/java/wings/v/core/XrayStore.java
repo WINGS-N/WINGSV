@@ -53,12 +53,13 @@ public final class XrayStore {
                 AppPrefs.KEY_BACKEND_TYPE,
                 backendType == null ? BackendType.VK_TURN_WIREGUARD.prefValue : backendType.prefValue
             )
-            .apply();
+            .commit();
         QuickSettingsTiles.requestRefresh(appContext);
     }
 
     public static XraySettings getXraySettings(Context context) {
         SharedPreferences prefs = prefs(context);
+        BackendType backendType = getBackendType(context);
         SocksAuthCredentials.Pair credentials = SocksAuthCredentials.ensure(
             prefs,
             AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME,
@@ -81,6 +82,9 @@ public final class XrayStore {
         settings.sniffingEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, true);
         settings.proxyQuicEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, false);
         settings.restartOnNetworkChange = prefs.getBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, false);
+        settings.transportMode = XrayTransportMode.fromPrefValue(
+            prefs.getString(AppPrefs.KEY_XRAY_TRANSPORT_MODE, XrayTransportMode.DIRECT.prefValue)
+        );
         return settings;
     }
 
@@ -110,6 +114,10 @@ public final class XrayStore {
             .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, value.proxyQuicEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
+            .putString(
+                AppPrefs.KEY_XRAY_TRANSPORT_MODE,
+                value.transportMode == null ? XrayTransportMode.DIRECT.prefValue : value.transportMode.prefValue
+            )
             .apply();
     }
 

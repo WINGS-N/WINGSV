@@ -440,7 +440,10 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     private boolean shouldUseVpnServiceUpstream() {
         BackendType backendType = XrayStore.getBackendType(this);
-        if (backendType == BackendType.XRAY || (backendType != null && backendType.usesAmneziaSettings())) {
+        if (
+            (backendType != null && backendType.usesXrayCore()) ||
+            (backendType != null && backendType.usesAmneziaSettings())
+        ) {
             return true;
         }
         return (

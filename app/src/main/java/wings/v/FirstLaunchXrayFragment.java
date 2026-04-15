@@ -219,7 +219,7 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
         try {
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            if (importedConfig.backendType != BackendType.XRAY) {
+            if (importedConfig.backendType == null || !importedConfig.backendType.usesXrayCore()) {
                 Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
                 return;
             }
