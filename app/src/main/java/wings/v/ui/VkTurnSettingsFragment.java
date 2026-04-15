@@ -15,7 +15,9 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceManager;
 import androidx.preference.SwitchPreferenceCompat;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Set;
 import wings.v.R;
 import wings.v.core.AmneziaStore;
 import wings.v.core.AppPrefs;
@@ -25,11 +27,13 @@ import wings.v.core.ProxySettings;
 import wings.v.core.UiFormatter;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTransportMode;
+import wings.v.service.ProxyTunnelService;
 
 public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
     private static final String[] TURN_PROXY_PREFERENCE_KEYS = {
+        AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINK,
         AppPrefs.KEY_THREADS,
@@ -42,6 +46,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_TURN_PORT,
     };
     private static final String[] VK_TURN_RELAY_PREFERENCE_KEYS = {
+        AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINK,
         AppPrefs.KEY_THREADS,
@@ -103,6 +108,58 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE,
         "pref_inset_after_awg_peer",
     };
+    private static final Set<String> RUNTIME_AFFECTING_KEYS = new LinkedHashSet<>();
+
+    static {
+        addPreferenceKeys(RUNTIME_AFFECTING_KEYS, TURN_PROXY_PREFERENCE_KEYS);
+        addPreferenceKeys(RUNTIME_AFFECTING_KEYS, WIREGUARD_PREFERENCE_KEYS);
+        addPreferenceKeys(RUNTIME_AFFECTING_KEYS, AMNEZIA_PREFERENCE_KEYS);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_AWG_QUICK_CONFIG);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_PRIVATE_KEY);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_ADDRESSES);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_DNS);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_LISTEN_PORT);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_MTU);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_JC);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_JMIN);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_JMAX);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_S1);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_S2);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_S3);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_S4);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_H1);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_H2);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_H3);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_H4);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I1);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I2);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I3);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I4);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I5);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_PUBLIC_KEY);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_PRESHARED_KEY);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_ALLOWED_IPS);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_ENDPOINT);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE);
+        RUNTIME_AFFECTING_KEYS.remove(AmneziaStore.KEY_IMPORT_FROM_CLIPBOARD);
+        RUNTIME_AFFECTING_KEYS.remove(AmneziaStore.KEY_INFO);
+        RUNTIME_AFFECTING_KEYS.remove("pref_category_wg_interface");
+        RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_wg_interface");
+        RUNTIME_AFFECTING_KEYS.remove("pref_category_wg_peer");
+        RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_wg_peer");
+        RUNTIME_AFFECTING_KEYS.remove("pref_category_awg_raw");
+        RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_awg_raw");
+        RUNTIME_AFFECTING_KEYS.remove("pref_category_awg_interface");
+        RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_awg_interface");
+        RUNTIME_AFFECTING_KEYS.remove("pref_category_awg_peer");
+        RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_awg_peer");
+    }
+
+    private static void addPreferenceKeys(Set<String> target, String[] keys) {
+        for (String key : keys) {
+            target.add(key);
+        }
+    }
 
     private boolean suppressPreferenceSync;
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
@@ -122,6 +179,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AmneziaStore.KEY_INTERFACE_S3);
         bindNumericPreference(AmneziaStore.KEY_INTERFACE_S4);
         bindNumericPreference(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE);
+        bindListPreference(AppPrefs.KEY_VK_TURN_RUNTIME_MODE);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
         bindRawConfigPreference();
         bindImportFromClipboardPreference();
@@ -266,13 +324,19 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             Haptics.softSelection(getListView() != null ? getListView() : requireView());
             if (AppPrefs.KEY_TURN_SESSION_MODE.equals(key)) {
                 String normalizedValue = normalizeTurnSessionMode(newValue);
-                PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
-                    .edit()
-                    .putString(key, normalizedValue)
-                    .apply();
-                if (!TextUtils.equals(preference.getValue(), normalizedValue)) {
-                    preference.setValue(normalizedValue);
+                suppressPreferenceSync = true;
+                try {
+                    PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
+                        .edit()
+                        .putString(key, normalizedValue)
+                        .apply();
+                    if (!TextUtils.equals(preference.getValue(), normalizedValue)) {
+                        preference.setValue(normalizedValue);
+                    }
+                } finally {
+                    suppressPreferenceSync = false;
                 }
+                requestRuntimeReconnectIfActive("VK TURN settings changed");
                 return false;
             }
             return true;
@@ -291,6 +355,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 suppressPreferenceSync = true;
                 AmneziaStore.applyRawConfig(requireContext(), rawConfig);
                 syncFromStore();
+                requestRuntimeReconnectIfActive("AmneziaWG settings changed");
                 return false;
             } catch (Exception error) {
                 Toast.makeText(
@@ -334,6 +399,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 suppressPreferenceSync = true;
                 AmneziaStore.applyRawConfig(requireContext(), rawConfig);
                 syncFromStore();
+                requestRuntimeReconnectIfActive("AmneziaWG settings changed");
                 Toast.makeText(
                     requireContext(),
                     R.string.awg_settings_clipboard_import_success,
@@ -354,8 +420,11 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     private String normalizeTurnSessionMode(Object value) {
         String normalizedValue = value == null ? "auto" : String.valueOf(value).trim().toLowerCase(Locale.ROOT);
-        if ("mainline".equals(normalizedValue) || "mux".equals(normalizedValue)) {
+        if ("mainline".equals(normalizedValue)) {
             return normalizedValue;
+        }
+        if ("mu".equals(normalizedValue) || "mux".equals(normalizedValue)) {
+            return "mu";
         }
         return "auto";
     }
@@ -377,27 +446,37 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void syncFromStore() {
-        ProxySettings settings = AppPrefs.getSettings(requireContext());
+        boolean previousSuppressState = suppressPreferenceSync;
+        suppressPreferenceSync = true;
+        try {
+            ProxySettings settings = AppPrefs.getSettings(requireContext());
 
-        syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
-        syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
-        syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
-        syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
-        syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
-        syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
-        syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
-        syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
-        syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
-        syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
-        syncEditTextPreference(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
-        syncEditTextPreference(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
-        syncEditTextPreference(AppPrefs.KEY_WG_DNS, settings.wgDns);
-        syncEditTextPreference(AppPrefs.KEY_WG_MTU, String.valueOf(settings.wgMtu));
-        syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
-        syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
-        syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
-        syncEditTextPreference(AppPrefs.KEY_WG_ENDPOINT, AppPrefs.getWireGuardEndpoint(requireContext()));
-        syncAmneziaStructuredPrefs();
+            syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
+            syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
+            syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
+            syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
+            syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
+            syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
+            syncListPreference(
+                AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
+                settings.vkTurnRuntimeMode == null ? "vpn" : settings.vkTurnRuntimeMode.prefValue
+            );
+            syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
+            syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
+            syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
+            syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
+            syncEditTextPreference(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
+            syncEditTextPreference(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
+            syncEditTextPreference(AppPrefs.KEY_WG_DNS, settings.wgDns);
+            syncEditTextPreference(AppPrefs.KEY_WG_MTU, String.valueOf(settings.wgMtu));
+            syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
+            syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
+            syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
+            syncEditTextPreference(AppPrefs.KEY_WG_ENDPOINT, AppPrefs.getWireGuardEndpoint(requireContext()));
+            syncAmneziaStructuredPrefs();
+        } finally {
+            suppressPreferenceSync = previousSuppressState;
+        }
     }
 
     private void refreshBackendSections() {
@@ -435,16 +514,21 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             if (suppressPreferenceSync || TextUtils.isEmpty(key)) {
                 return;
             }
-            if (!AmneziaStore.isStructuredPreferenceKey(key)) {
-                return;
+            boolean structuredPreference = AmneziaStore.isStructuredPreferenceKey(key);
+            if (structuredPreference) {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                suppressPreferenceSync = true;
+                try {
+                    AmneziaStore.syncRawConfigFromStructuredPrefs(requireContext());
+                    syncFromStore();
+                } finally {
+                    suppressPreferenceSync = false;
+                }
             }
-            Haptics.softSelection(getListView() != null ? getListView() : requireView());
-            suppressPreferenceSync = true;
-            try {
-                AmneziaStore.syncRawConfigFromStructuredPrefs(requireContext());
-                syncFromStore();
-            } finally {
-                suppressPreferenceSync = false;
+            if (isRuntimeAffectingKey(key)) {
+                requestRuntimeReconnectIfActive(
+                    structuredPreference ? "AmneziaWG settings changed" : "VK TURN settings changed"
+                );
             }
         };
         sharedPreferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
@@ -553,5 +637,16 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE,
             prefs.getString(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE, "")
         );
+    }
+
+    private boolean isRuntimeAffectingKey(@Nullable String key) {
+        return !TextUtils.isEmpty(key) && RUNTIME_AFFECTING_KEYS.contains(key);
+    }
+
+    private void requestRuntimeReconnectIfActive(String reason) {
+        if (!ProxyTunnelService.isActive()) {
+            return;
+        }
+        ProxyTunnelService.requestReconnect(requireContext().getApplicationContext(), reason);
     }
 }

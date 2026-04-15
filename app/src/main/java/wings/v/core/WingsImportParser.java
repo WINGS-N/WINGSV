@@ -947,7 +947,9 @@ public final class WingsImportParser {
         }
 
         if (!handled) {
-            throw new IllegalArgumentException("Поддерживается только type=vk/xray/amneziawg/all/app_routing/xray_routing");
+            throw new IllegalArgumentException(
+                "Поддерживается только type=vk/xray/amneziawg/all/app_routing/xray_routing"
+            );
         }
         return importedConfig;
     }

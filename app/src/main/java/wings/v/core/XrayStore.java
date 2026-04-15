@@ -82,6 +82,9 @@ public final class XrayStore {
         settings.sniffingEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, true);
         settings.proxyQuicEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, false);
         settings.restartOnNetworkChange = prefs.getBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, false);
+        settings.runtimeMode = ProxyRuntimeMode.fromPrefValue(
+            prefs.getString(AppPrefs.KEY_XRAY_RUNTIME_MODE, ProxyRuntimeMode.VPN.prefValue)
+        );
         settings.transportMode = XrayTransportMode.fromPrefValue(
             prefs.getString(AppPrefs.KEY_XRAY_TRANSPORT_MODE, XrayTransportMode.DIRECT.prefValue)
         );
@@ -114,6 +117,10 @@ public final class XrayStore {
             .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, value.proxyQuicEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
+            .putString(
+                AppPrefs.KEY_XRAY_RUNTIME_MODE,
+                value.runtimeMode == null ? ProxyRuntimeMode.VPN.prefValue : value.runtimeMode.prefValue
+            )
             .putString(
                 AppPrefs.KEY_XRAY_TRANSPORT_MODE,
                 value.transportMode == null ? XrayTransportMode.DIRECT.prefValue : value.transportMode.prefValue
