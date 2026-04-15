@@ -56,12 +56,35 @@ public final class XrayConfigFactory {
         return buildConfigJson(context, settings, null, 0, settings != null ? settings.byeDpiSettings : null);
     }
 
+    public static String buildConfigJson(Context context, ProxySettings settings, boolean includeTunInbound)
+        throws Exception {
+        return buildConfigJson(
+            context,
+            settings,
+            null,
+            0,
+            settings != null ? settings.byeDpiSettings : null,
+            includeTunInbound
+        );
+    }
+
     public static String buildConfigJson(
         Context context,
         ProxySettings settings,
         String outboundHostOverride,
         int outboundPortOverride,
         ByeDpiSettings byeDpiSettings
+    ) throws Exception {
+        return buildConfigJson(context, settings, outboundHostOverride, outboundPortOverride, byeDpiSettings, true);
+    }
+
+    public static String buildConfigJson(
+        Context context,
+        ProxySettings settings,
+        String outboundHostOverride,
+        int outboundPortOverride,
+        ByeDpiSettings byeDpiSettings,
+        boolean includeTunInbound
     ) throws Exception {
         if (
             settings == null ||
@@ -84,9 +107,9 @@ public final class XrayConfigFactory {
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
-        root.put("inbounds", buildInbounds(context, xraySettings));
+        root.put("inbounds", buildInbounds(context, xraySettings, includeTunInbound));
         root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, byeDpiSettings));
-        root.put("routing", buildRouting(context, xraySettings));
+        root.put("routing", buildRouting(context, xraySettings, includeTunInbound));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
         return configJson;
@@ -255,18 +278,21 @@ public final class XrayConfigFactory {
         return values;
     }
 
-    private static JSONArray buildInbounds(Context context, XraySettings settings) throws Exception {
+    private static JSONArray buildInbounds(Context context, XraySettings settings, boolean includeTunInbound)
+        throws Exception {
         JSONArray inbounds = new JSONArray();
-        JSONObject tunInbound = new JSONObject();
-        tunInbound.put("tag", TUN_TAG);
-        tunInbound.put("protocol", "tun");
-        tunInbound.put("port", 0);
-        JSONObject tunSettings = new JSONObject();
-        tunSettings.put("MTU", DEFAULT_MTU);
-        tunSettings.put("user_level", 0);
-        tunInbound.put("settings", tunSettings);
-        tunInbound.put("sniffing", buildSniffing(settings));
-        inbounds.put(tunInbound);
+        if (includeTunInbound) {
+            JSONObject tunInbound = new JSONObject();
+            tunInbound.put("tag", TUN_TAG);
+            tunInbound.put("protocol", "tun");
+            tunInbound.put("port", 0);
+            JSONObject tunSettings = new JSONObject();
+            tunSettings.put("MTU", DEFAULT_MTU);
+            tunSettings.put("user_level", 0);
+            tunInbound.put("settings", tunSettings);
+            tunInbound.put("sniffing", buildSniffing(settings));
+            inbounds.put(tunInbound);
+        }
 
         if (isLocalProxyEnabled(settings)) {
             JSONObject socksInbound = new JSONObject();
@@ -348,19 +374,16 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static JSONObject buildRouting(Context context, XraySettings settings) throws Exception {
+    private static JSONObject buildRouting(Context context, XraySettings settings, boolean includeTunInbound)
+        throws Exception {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
         JSONArray rules = new JSONArray();
 
+        JSONArray trafficInboundTags = buildTrafficInboundTags(settings, includeTunInbound);
         JSONObject dnsRule = new JSONObject();
         dnsRule.put("type", "field");
-        JSONArray dnsInboundTags = new JSONArray();
-        dnsInboundTags.put(TUN_TAG);
-        if (isLocalProxyEnabled(settings)) {
-            dnsInboundTags.put(SOCKS_TAG);
-        }
-        dnsRule.put("inboundTag", dnsInboundTags);
+        dnsRule.put("inboundTag", trafficInboundTags);
         dnsRule.put("network", "udp,tcp");
         dnsRule.put("port", "53");
         dnsRule.put("outboundTag", DNS_OUT_TAG);
@@ -375,28 +398,18 @@ public final class XrayConfigFactory {
         if (!settings.proxyQuicEnabled) {
             JSONObject blockQuicRule = new JSONObject();
             blockQuicRule.put("type", "field");
-            JSONArray quicInboundTags = new JSONArray();
-            quicInboundTags.put(TUN_TAG);
-            if (isLocalProxyEnabled(settings)) {
-                quicInboundTags.put(SOCKS_TAG);
-            }
-            blockQuicRule.put("inboundTag", quicInboundTags);
+            blockQuicRule.put("inboundTag", trafficInboundTags);
             blockQuicRule.put("network", "udp");
             blockQuicRule.put("port", "443");
             blockQuicRule.put("outboundTag", BLOCK_TAG);
             rules.put(blockQuicRule);
         }
 
-        addCustomRoutingRules(rules, settings, context);
+        addCustomRoutingRules(rules, settings, context, trafficInboundTags);
 
         JSONObject trafficRule = new JSONObject();
         trafficRule.put("type", "field");
-        JSONArray inboundTags = new JSONArray();
-        inboundTags.put(TUN_TAG);
-        if (isLocalProxyEnabled(settings)) {
-            inboundTags.put(SOCKS_TAG);
-        }
-        trafficRule.put("inboundTag", inboundTags);
+        trafficRule.put("inboundTag", trafficInboundTags);
         trafficRule.put("outboundTag", PROXY_TAG);
         rules.put(trafficRule);
 
@@ -410,19 +423,29 @@ public final class XrayConfigFactory {
         return routing;
     }
 
-    private static void addCustomRoutingRules(JSONArray rules, XraySettings settings, Context context)
-        throws Exception {
+    private static JSONArray buildTrafficInboundTags(XraySettings settings, boolean includeTunInbound) {
+        JSONArray inboundTags = new JSONArray();
+        if (includeTunInbound) {
+            inboundTags.put(TUN_TAG);
+        }
+        if (isLocalProxyEnabled(settings)) {
+            inboundTags.put(SOCKS_TAG);
+        }
+        return inboundTags;
+    }
+
+    private static void addCustomRoutingRules(
+        JSONArray rules,
+        XraySettings settings,
+        Context context,
+        JSONArray inboundTags
+    ) throws Exception {
         for (XrayRoutingRule rule : XrayRoutingStore.getValidRules(context)) {
             if (rule == null || !rule.enabled || TextUtils.isEmpty(rule.code)) {
                 continue;
             }
             JSONObject routingRule = new JSONObject();
             routingRule.put("type", "field");
-            JSONArray inboundTags = new JSONArray();
-            inboundTags.put(TUN_TAG);
-            if (isLocalProxyEnabled(settings)) {
-                inboundTags.put(SOCKS_TAG);
-            }
             routingRule.put("inboundTag", inboundTags);
             if (!putCustomRoutingMatcher(routingRule, rule)) {
                 continue;

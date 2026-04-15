@@ -15,7 +15,10 @@ import androidx.preference.PreferenceFragmentCompat;
 import wings.v.R;
 import wings.v.core.AmneziaStore;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.XrayStore;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -128,6 +131,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
                 suppressPreferenceSync = true;
                 AmneziaStore.applyRawConfig(requireContext(), rawConfig);
                 syncFromPrefs();
+                requestRuntimeReconnectIfActive();
                 Toast.makeText(
                     requireContext(),
                     R.string.awg_settings_clipboard_import_success,
@@ -165,6 +169,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
                 suppressPreferenceSync = true;
                 AmneziaStore.applyRawConfig(requireContext(), rawConfig);
                 syncFromPrefs();
+                requestRuntimeReconnectIfActive();
                 return false;
             } catch (Exception error) {
                 Toast.makeText(
@@ -227,6 +232,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
             try {
                 AmneziaStore.syncRawConfigFromStructuredPrefs(requireContext());
                 syncFromPrefs();
+                requestRuntimeReconnectIfActive();
             } finally {
                 suppressPreferenceSync = false;
             }
@@ -303,5 +309,16 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
         if (!TextUtils.equals(preference.getText(), normalized)) {
             preference.setText(normalized);
         }
+    }
+
+    private void requestRuntimeReconnectIfActive() {
+        if (!ProxyTunnelService.isActive()) {
+            return;
+        }
+        BackendType backendType = XrayStore.getBackendType(requireContext());
+        if (backendType == null || !backendType.usesAmneziaSettings()) {
+            return;
+        }
+        ProxyTunnelService.requestReconnect(requireContext().getApplicationContext(), "AmneziaWG settings changed");
     }
 }

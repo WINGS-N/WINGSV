@@ -11,6 +11,16 @@
         <item>mu</item>
     </string-array>
 
+    <string-array name="runtime_mode_entries">
+        <item>@string/runtime_mode_vpn</item>
+        <item>@string/runtime_mode_proxy</item>
+    </string-array>
+
+    <string-array name="runtime_mode_values">
+        <item>vpn</item>
+        <item>proxy</item>
+    </string-array>
+
     <string-array name="xray_transport_mode_entries">
         <item>@string/xray_transport_mode_direct</item>
         <item>@string/xray_transport_mode_vk_turn_tcp</item>

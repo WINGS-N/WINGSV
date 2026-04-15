@@ -27,6 +27,7 @@ public class ProxySettings {
     public boolean useUdp;
     public boolean noObfuscation;
     public boolean manualCaptcha;
+    public ProxyRuntimeMode vkTurnRuntimeMode = ProxyRuntimeMode.VPN;
     public String turnSessionMode;
     public String localEndpoint;
     public String turnHost;
@@ -63,6 +64,11 @@ public class ProxySettings {
                     return "Локальный endpoint не заполнен";
                 }
             }
+            if (xraySettings != null && xraySettings.runtimeMode != null && xraySettings.runtimeMode.isProxyOnly()) {
+                if (!xraySettings.localProxyEnabled || xraySettings.localProxyPort <= 0) {
+                    return "Для режима только proxy включите локальный SOCKS proxy Xray";
+                }
+            }
             return null;
         }
         if (backendType != null && backendType.usesAmneziaSettings()) {
@@ -75,6 +81,9 @@ public class ProxySettings {
                 }
                 if (TextUtils.isEmpty(localEndpoint)) {
                     return "Локальный endpoint не заполнен";
+                }
+                if (vkTurnRuntimeMode != null && vkTurnRuntimeMode.isProxyOnly()) {
+                    return null;
                 }
             }
             if (TextUtils.isEmpty(awgQuickConfig)) {
@@ -96,6 +105,9 @@ public class ProxySettings {
             }
             if (TextUtils.isEmpty(localEndpoint)) {
                 return "Локальный endpoint не заполнен";
+            }
+            if (vkTurnRuntimeMode != null && vkTurnRuntimeMode.isProxyOnly()) {
+                return null;
             }
         }
         if (TextUtils.isEmpty(wgPrivateKey)) {
