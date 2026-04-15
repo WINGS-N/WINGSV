@@ -26,8 +26,13 @@ import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -46,6 +51,7 @@ import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayProfile;
+import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.core.XraySubscription;
 import wings.v.core.XraySubscriptionUpdater;
@@ -53,6 +59,8 @@ import wings.v.databinding.FragmentProfilesBinding;
 import wings.v.databinding.ItemProfileEntryBinding;
 import wings.v.databinding.ItemProfileGroupHeaderBinding;
 import wings.v.service.ProxyTunnelService;
+import wings.v.xray.XrayAutoSearchConfigFactory;
+import wings.v.xray.XrayBridge;
 
 @SuppressWarnings(
     {
@@ -85,19 +93,21 @@ import wings.v.service.ProxyTunnelService;
 public class ProfilesFragment extends Fragment {
 
     private static final int TCPING_TIMEOUT_MS = 1000;
-    private static final int TCPING_PARALLELISM = 5;
+    private static final int CONNECTION_TEST_PARALLELISM = 5;
+    private static final int REAL_DELAY_TIMEOUT_SECONDS = 8;
     private static final int PING_GOOD_THRESHOLD_MS = 150;
     private static final int PING_WARNING_THRESHOLD_MS = 350;
     private static final int PAGE_SIZE = 5;
     private static final int LOAD_MORE_THRESHOLD_DP = 320;
     private static final int GROUP_QUOTA_PROGRESS_MAX = 1000;
     private static final long TRAFFIC_REFRESH_INTERVAL_MS = 1_000L;
+    private static final String REAL_DELAY_TEST_URL = "https://cp.cloudflare.com/generate_204";
     private static final String FILTER_ALL = "__all__";
     private static final String FILTER_NO_SUBSCRIPTION = "__manual__";
 
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService renderExecutor = Executors.newSingleThreadExecutor();
-    private final ExecutorService tcpingExecutor = Executors.newFixedThreadPool(TCPING_PARALLELISM);
+    private final ExecutorService connectionTestExecutor = Executors.newFixedThreadPool(CONNECTION_TEST_PARALLELISM);
     private final LinkedHashMap<String, FilterSpec> filterSpecs = new LinkedHashMap<>();
     private final LinkedHashMap<String, ProfileRowViews> rowViews = new LinkedHashMap<>();
     private final LinkedHashMap<String, PingState> pingStates = new LinkedHashMap<>();
@@ -129,9 +139,9 @@ public class ProfilesFragment extends Fragment {
     private String currentRenderSignature = "";
     private boolean selectionMode;
     private boolean refreshingSubscriptions;
-    private boolean tcpingRunning;
+    private boolean connectionTestRunning;
     private boolean pageAppendRunning;
-    private int tcpingGeneration;
+    private int connectionTestGeneration;
     private int renderGeneration;
     private int renderedItemCount;
     private RoundedLinearLayout currentAppendGroupContainer;
@@ -164,7 +174,7 @@ public class ProfilesFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         binding.rowRefreshSubscriptions.setTitle(getString(R.string.xray_profiles_refresh_subscriptions_title));
-        binding.rowTcppingActiveProfile.setTitle(getString(R.string.xray_profiles_tcping_title));
+        binding.rowTcppingActiveProfile.setTitle(getString(R.string.xray_profiles_connection_test_title));
 
         binding.rowRefreshSubscriptions.setOnClickListener(v -> {
             Haptics.softSelection(v);
@@ -172,7 +182,7 @@ public class ProfilesFragment extends Fragment {
         });
         binding.rowTcppingActiveProfile.setOnClickListener(v -> {
             Haptics.softSelection(v);
-            runTcpingForCurrentFilter();
+            showConnectionTestMenu(v);
         });
         binding.buttonProfileSelectAll.setOnClickListener(v -> {
             Haptics.softSelection(v);
@@ -244,7 +254,7 @@ public class ProfilesFragment extends Fragment {
     public void onDestroy() {
         workExecutor.shutdownNow();
         renderExecutor.shutdownNow();
-        tcpingExecutor.shutdownNow();
+        connectionTestExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -552,7 +562,7 @@ public class ProfilesFragment extends Fragment {
         if (filterSpec == null || TextUtils.equals(activeFilterId, filterSpec.id)) {
             return;
         }
-        cancelRunningTcping();
+        cancelRunningConnectionTest();
         clearSelectionMode();
         activeFilterId = filterSpec.id;
         refreshUi();
@@ -743,7 +753,7 @@ public class ProfilesFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        binding.rowRefreshSubscriptions.setEnabled(!refreshingSubscriptions && !tcpingRunning);
+        binding.rowRefreshSubscriptions.setEnabled(!refreshingSubscriptions && !connectionTestRunning);
         binding.rowRefreshSubscriptions.setSummary(
             refreshingSubscriptions
                 ? getString(R.string.xray_profiles_refresh_subscriptions_running)
@@ -751,16 +761,16 @@ public class ProfilesFragment extends Fragment {
         );
         binding.progressRefreshSubscriptions.setVisibility(refreshingSubscriptions ? View.VISIBLE : View.GONE);
 
-        binding.rowTcppingActiveProfile.setEnabled(!tcpingRunning && !refreshingSubscriptions);
+        binding.rowTcppingActiveProfile.setEnabled(!connectionTestRunning && !refreshingSubscriptions);
         binding.rowTcppingActiveProfile.setSummary(
-            tcpingRunning
-                ? getString(R.string.xray_profiles_tcping_running)
-                : getString(R.string.xray_profiles_tcping_summary_filter, currentFilterTitle())
+            connectionTestRunning
+                ? getString(R.string.xray_profiles_connection_test_running)
+                : getString(R.string.xray_profiles_connection_test_summary_filter, currentFilterTitle())
         );
     }
 
     private void refreshSubscriptions() {
-        if (refreshingSubscriptions || tcpingRunning || !isAdded()) {
+        if (refreshingSubscriptions || connectionTestRunning || !isAdded()) {
             return;
         }
         refreshingSubscriptions = true;
@@ -788,19 +798,48 @@ public class ProfilesFragment extends Fragment {
         });
     }
 
-    private void runTcpingForCurrentFilter() {
-        if (tcpingRunning || refreshingSubscriptions || !isAdded()) {
+    private void showConnectionTestMenu(View anchor) {
+        if (!isAdded() || connectionTestRunning || refreshingSubscriptions) {
             return;
         }
-        List<XrayProfile> targets = pingTargets(filterProfiles(currentProfiles, activeFilterId));
+        PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
+        popupMenu.inflate(R.menu.menu_profile_connection_tests);
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_profile_connection_test_tcping) {
+                runConnectionTestForCurrentFilter(ConnectionTestMode.TCPING);
+                return true;
+            }
+            if (itemId == R.id.menu_profile_connection_test_real_delay) {
+                runConnectionTestForCurrentFilter(ConnectionTestMode.REAL_DELAY);
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
+    private void runConnectionTestForCurrentFilter(ConnectionTestMode mode) {
+        if (connectionTestRunning || refreshingSubscriptions || !isAdded()) {
+            return;
+        }
+        List<XrayProfile> targets = connectionTestTargets(filterProfiles(currentProfiles, activeFilterId), mode);
         if (targets.isEmpty()) {
-            Toast.makeText(requireContext(), R.string.xray_profiles_tcping_unavailable, Toast.LENGTH_SHORT).show();
+            Toast.makeText(
+                requireContext(),
+                mode == ConnectionTestMode.TCPING
+                    ? R.string.xray_profiles_tcping_unavailable
+                    : R.string.xray_profiles_real_delay_unavailable,
+                Toast.LENGTH_SHORT
+            ).show();
             return;
         }
 
-        tcpingRunning = true;
-        tcpingGeneration++;
-        final int generation = tcpingGeneration;
+        connectionTestRunning = true;
+        connectionTestGeneration++;
+        final int generation = connectionTestGeneration;
+        final Context appContext = requireContext().getApplicationContext();
+        final XraySettings xraySettings = XrayStore.getXraySettings(appContext);
         final AtomicInteger remaining = new AtomicInteger(targets.size());
         for (XrayProfile profile : targets) {
             pingStates.put(pingStateKey(profile), PingState.loading());
@@ -809,15 +848,18 @@ public class ProfilesFragment extends Fragment {
         updateAllRowStates(currentActiveProfileId);
 
         for (XrayProfile profile : targets) {
-            tcpingExecutor.execute(() -> {
-                PingState result = generation == tcpingGeneration ? tcping(profile) : PingState.none();
+            connectionTestExecutor.execute(() -> {
+                PingState result =
+                    generation == connectionTestGeneration
+                        ? runConnectionTest(appContext, xraySettings, profile, mode)
+                        : PingState.none();
                 postToUi(() -> {
-                    if (generation != tcpingGeneration || binding == null) {
+                    if (generation != connectionTestGeneration || binding == null) {
                         return;
                     }
                     pingStates.put(pingStateKey(profile), result);
                     XrayStore.putProfilePingResult(
-                        requireContext(),
+                        appContext,
                         pingStateKey(profile),
                         result.state == PingDisplayState.SUCCESS,
                         result.latencyMs
@@ -829,16 +871,28 @@ public class ProfilesFragment extends Fragment {
                 });
                 if (remaining.decrementAndGet() == 0) {
                     postToUi(() -> {
-                        if (generation != tcpingGeneration || binding == null) {
+                        if (generation != connectionTestGeneration || binding == null) {
                             return;
                         }
-                        tcpingRunning = false;
+                        connectionTestRunning = false;
                         updateActionRows();
                         refreshUi();
                     });
                 }
             });
         }
+    }
+
+    private PingState runConnectionTest(
+        Context appContext,
+        XraySettings xraySettings,
+        XrayProfile profile,
+        ConnectionTestMode mode
+    ) {
+        if (mode == ConnectionTestMode.REAL_DELAY) {
+            return realDelay(appContext, xraySettings, profile);
+        }
+        return tcping(profile);
     }
 
     private PingState tcping(XrayProfile profile) {
@@ -852,12 +906,76 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private void cancelRunningTcping() {
-        if (!tcpingRunning) {
+    private PingState realDelay(Context appContext, XraySettings xraySettings, XrayProfile profile) {
+        File configFile = null;
+        try {
+            int localProxyPort = findAvailableTcpPort();
+            XraySettings testSettings = buildRealDelaySettings(xraySettings, localProxyPort);
+            String configJson = XrayAutoSearchConfigFactory.buildConfigJson(
+                appContext,
+                profile,
+                testSettings,
+                localProxyPort,
+                null,
+                false
+            );
+            configFile = writeConnectionTestConfig(appContext, configJson);
+            long delayMs = XrayBridge.pingConfig(
+                appContext,
+                configFile,
+                REAL_DELAY_TIMEOUT_SECONDS,
+                REAL_DELAY_TEST_URL,
+                "socks://127.0.0.1:" + localProxyPort
+            );
+            if (delayMs <= 0L || delayMs > Integer.MAX_VALUE) {
+                return PingState.failed();
+            }
+            return PingState.success(Math.max((int) delayMs, 1));
+        } catch (Exception ignored) {
+            return PingState.failed();
+        } finally {
+            if (configFile != null && configFile.exists()) {
+                configFile.delete();
+            }
+        }
+    }
+
+    private XraySettings buildRealDelaySettings(@Nullable XraySettings source, int localProxyPort) {
+        XraySettings settings = source == null ? new XraySettings() : source.copy();
+        settings.allowLan = false;
+        settings.localProxyEnabled = true;
+        settings.localProxyAuthEnabled = false;
+        settings.localProxyUsername = "";
+        settings.localProxyPassword = "";
+        settings.localProxyPort = localProxyPort;
+        return settings;
+    }
+
+    private int findAvailableTcpPort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            socket.setReuseAddress(true);
+            return socket.getLocalPort();
+        }
+    }
+
+    private File writeConnectionTestConfig(Context context, String configJson) throws IOException {
+        File dir = new File(context.getCacheDir(), "xray/profile-tests");
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        File file = new File(dir, "real-delay-" + System.nanoTime() + ".json");
+        try (FileOutputStream outputStream = new FileOutputStream(file, false)) {
+            outputStream.write(configJson.getBytes(StandardCharsets.UTF_8));
+        }
+        return file;
+    }
+
+    private void cancelRunningConnectionTest() {
+        if (!connectionTestRunning) {
             return;
         }
-        tcpingGeneration++;
-        tcpingRunning = false;
+        connectionTestGeneration++;
+        connectionTestRunning = false;
         ArrayList<String> loadingKeys = new ArrayList<>();
         for (Map.Entry<String, PingState> entry : pingStates.entrySet()) {
             if (entry.getValue() != null && entry.getValue().state == PingDisplayState.LOADING) {
@@ -1269,10 +1387,28 @@ public class ProfilesFragment extends Fragment {
         return builder.toString();
     }
 
-    private List<XrayProfile> pingTargets(List<XrayProfile> profiles) {
+    private List<XrayProfile> connectionTestTargets(List<XrayProfile> profiles, ConnectionTestMode mode) {
+        if (mode == ConnectionTestMode.REAL_DELAY) {
+            return realDelayTargets(profiles);
+        }
+        return tcpingTargets(profiles);
+    }
+
+    private List<XrayProfile> tcpingTargets(List<XrayProfile> profiles) {
         ArrayList<XrayProfile> result = new ArrayList<>();
         for (XrayProfile profile : profiles) {
             if (profile == null || TextUtils.isEmpty(profile.address) || profile.port <= 0) {
+                continue;
+            }
+            result.add(profile);
+        }
+        return result;
+    }
+
+    private List<XrayProfile> realDelayTargets(List<XrayProfile> profiles) {
+        ArrayList<XrayProfile> result = new ArrayList<>();
+        for (XrayProfile profile : profiles) {
+            if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
                 continue;
             }
             result.add(profile);
@@ -1601,6 +1737,11 @@ public class ProfilesFragment extends Fragment {
         LOADING,
         SUCCESS,
         FAILED,
+    }
+
+    private enum ConnectionTestMode {
+        TCPING,
+        REAL_DELAY,
     }
 
     private static final class PingState {
