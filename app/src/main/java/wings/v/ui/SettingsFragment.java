@@ -44,7 +44,8 @@ import wings.v.core.ThemeModeController;
 import wings.v.core.UiFormatter;
 import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
-import wings.v.service.ProxyTunnelService;
+import wings.v.core.XrayStore;
+import wings.v.core.XrayTransportMode;
 
 @SuppressWarnings(
     {
@@ -85,7 +86,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     };
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private AppUpdateManager appUpdateManager;
-    private BackendType lastRuntimeVisibleBackendType;
+    private BackendType lastConfiguredBackendType;
     private final AppUpdateManager.Listener updateStateListener = this::refreshAboutPreferenceBadge;
 
     @Override
@@ -129,14 +130,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(context);
-        if (!force && visibleBackendType == lastRuntimeVisibleBackendType) {
+        BackendType configuredBackendType = XrayStore.getBackendType(context);
+        if (!force && configuredBackendType == lastConfiguredBackendType) {
             return;
         }
-        lastRuntimeVisibleBackendType = visibleBackendType;
-        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, visibleBackendType.prefValue);
-        configureRootPreferences(visibleBackendType);
-        configureXrayPreferences(visibleBackendType);
+        lastConfiguredBackendType = configuredBackendType;
+        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, configuredBackendType.prefValue);
+        configureRootPreferences(configuredBackendType);
+        configureXrayPreferences(configuredBackendType);
     }
 
     private void configurePreferences() {
@@ -250,7 +251,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (xraySettingsPreference != null) {
             xraySettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                if (ProxyTunnelService.getVisibleBackendType(requireContext()) != BackendType.XRAY) {
+                BackendType backendType = XrayStore.getBackendType(requireContext());
+                if (backendType == null || !backendType.usesXrayCore()) {
                     return true;
                 }
                 startActivity(XraySettingsActivity.createIntent(requireContext()));
@@ -262,8 +264,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (vkTurnSettingsPreference != null) {
             vkTurnSettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                BackendType backendType = ProxyTunnelService.getVisibleBackendType(requireContext());
-                if (!backendType.isVkTurnLike()) {
+                BackendType backendType = XrayStore.getBackendType(requireContext());
+                if (
+                    (backendType == null || !backendType.usesXrayCore()) &&
+                    (backendType == null || !backendType.isVkTurnLike())
+                ) {
                     return true;
                 }
                 startActivity(VkTurnSettingsActivity.createIntent(requireContext()));
@@ -275,7 +280,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (byeDpiSettingsPreference != null) {
             byeDpiSettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
-                if (ProxyTunnelService.getVisibleBackendType(requireContext()) != BackendType.XRAY) {
+                if (XrayStore.getBackendType(requireContext()) != BackendType.XRAY) {
                     return true;
                 }
                 startActivity(ByeDpiSettingsActivity.createIntent(requireContext()));
@@ -331,7 +336,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        configureRootPreferences(ProxyTunnelService.getVisibleBackendType(context));
+        configureRootPreferences(XrayStore.getBackendType(context));
     }
 
     private void configureRootPreferences(@Nullable BackendType backendType) {
@@ -390,7 +395,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             Context preferenceContext = preference.getContext();
             String reason = RootUtils.getRootModeUnavailableReason(
                 preferenceContext,
-                ProxyTunnelService.getVisibleBackendType(preferenceContext),
+                XrayStore.getBackendType(preferenceContext),
                 false
             );
             if (!TextUtils.isEmpty(reason)) {
@@ -420,7 +425,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             Context preferenceContext = preference.getContext();
             String reason = RootUtils.getKernelWireGuardUnavailableReason(
                 preferenceContext,
-                ProxyTunnelService.getVisibleBackendType(preferenceContext),
+                XrayStore.getBackendType(preferenceContext),
                 false
             );
             if (!TextUtils.isEmpty(reason)) {
@@ -440,12 +445,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        configureXrayPreferences(ProxyTunnelService.getVisibleBackendType(context));
+        configureXrayPreferences(XrayStore.getBackendType(context));
     }
 
     private void configureXrayPreferences(@Nullable BackendType backendType) {
-        boolean xrayBackend = backendType == BackendType.XRAY;
-        boolean vkTurnLikeBackend = backendType != null && backendType.isVkTurnLike();
+        boolean xrayBackend = backendType != null && backendType.usesXrayCore();
+        XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
+        boolean relaySettingsAvailable = (backendType != null && backendType.isVkTurnLike()) || xrayBackend;
         Preference subscriptionsPreference = findPreference("pref_open_subscriptions");
         Preference xraySettingsPreference = findPreference("pref_open_xray_settings");
         Preference vkTurnSettingsPreference = findPreference(AppPrefs.KEY_OPEN_VK_TURN_SETTINGS);
@@ -459,8 +465,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             xraySettingsPreference.setSummary(getString(R.string.drawer_xray_settings_summary));
         }
         if (vkTurnSettingsPreference != null) {
-            vkTurnSettingsPreference.setVisible(vkTurnLikeBackend);
-            vkTurnSettingsPreference.setEnabled(vkTurnLikeBackend);
+            vkTurnSettingsPreference.setVisible(relaySettingsAvailable);
+            vkTurnSettingsPreference.setEnabled(relaySettingsAvailable);
             if (backendType == BackendType.WIREGUARD) {
                 vkTurnSettingsPreference.setTitle(getString(R.string.wireguard_settings_title));
                 vkTurnSettingsPreference.setSummary(getString(R.string.wireguard_settings_summary));
@@ -470,16 +476,22 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             } else if (backendType == BackendType.AMNEZIAWG) {
                 vkTurnSettingsPreference.setTitle(getString(R.string.vk_turn_awg_settings_title));
                 vkTurnSettingsPreference.setSummary(getString(R.string.vk_turn_awg_settings_summary));
+            } else if (xrayTransportMode != null && xrayTransportMode.usesTurnProxy()) {
+                vkTurnSettingsPreference.setTitle(getString(R.string.vk_turn_settings_title));
+                vkTurnSettingsPreference.setSummary(getString(R.string.vk_turn_xray_tcp_settings_summary));
             } else {
                 vkTurnSettingsPreference.setTitle(getString(R.string.vk_turn_settings_title));
                 vkTurnSettingsPreference.setSummary(getString(R.string.vk_turn_settings_summary));
             }
         }
         if (byeDpiSettingsPreference != null) {
-            byeDpiSettingsPreference.setVisible(true);
-            byeDpiSettingsPreference.setEnabled(xrayBackend);
+            boolean plainXrayBackend = backendType == BackendType.XRAY;
+            byeDpiSettingsPreference.setVisible(plainXrayBackend);
+            byeDpiSettingsPreference.setEnabled(plainXrayBackend);
             byeDpiSettingsPreference.setSummary(
-                xrayBackend ? getString(R.string.byedpi_open_summary) : getString(R.string.byedpi_xray_only_summary)
+                plainXrayBackend
+                    ? getString(R.string.byedpi_open_summary)
+                    : getString(R.string.byedpi_xray_only_summary)
             );
         }
     }
@@ -622,7 +634,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(context));
         syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
         syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
-        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, ProxyTunnelService.getVisibleBackendType(context).prefValue);
+        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
         syncPreferenceSummary(
             AppPrefs.KEY_THEME_MODE,
             getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context)))

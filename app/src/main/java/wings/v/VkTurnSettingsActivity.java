@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.core.BackendType;
 import wings.v.core.XrayStore;
+import wings.v.core.XrayTransportMode;
 import wings.v.databinding.ActivityVkTurnSettingsBinding;
 import wings.v.ui.VkTurnSettingsFragment;
 
@@ -42,6 +43,7 @@ public class VkTurnSettingsActivity extends AppCompatActivity {
 
     private String resolveTitle() {
         final BackendType backendType = XrayStore.getBackendType(this);
+        final XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(this).transportMode;
         String title = getString(R.string.vk_turn_settings_title);
         if (backendType == BackendType.WIREGUARD) {
             title = getString(R.string.wireguard_settings_title);

@@ -41,6 +41,14 @@
         android:summary="@string/xray_settings_restart_on_network_change_summary"
         android:defaultValue="false" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_xray_transport_mode"
+        android:title="@string/xray_settings_transport_mode_title"
+        android:summary="@string/xray_settings_transport_mode_summary"
+        android:defaultValue="direct"
+        android:entries="@array/xray_transport_mode_entries"
+        android:entryValues="@array/xray_transport_mode_values" />
+
     <Preference
         android:key="pref_xray_routing_open"
         android:title="@string/xray_settings_routing_title"
