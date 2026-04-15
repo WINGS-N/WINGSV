@@ -119,6 +119,7 @@ public final class XraySubscriptionUpdater {
                         profiles.put(XrayStore.getProfileStorageKey(profile), profile);
                     }
                 }
+                SubscriptionMetadata metadata = fetched.metadata.withFallback(subscription);
                 updatedSubscriptions.add(
                     new XraySubscription(
                         subscription.id,
@@ -128,10 +129,10 @@ public final class XraySubscriptionUpdater {
                         subscription.refreshIntervalMinutes,
                         subscription.autoUpdate,
                         now,
-                        fetched.metadata.uploadBytes,
-                        fetched.metadata.downloadBytes,
-                        fetched.metadata.totalBytes,
-                        fetched.metadata.expireAt
+                        metadata.uploadBytes,
+                        metadata.downloadBytes,
+                        metadata.totalBytes,
+                        metadata.expireAt
                     )
                 );
                 anySubscriptionUpdated = true;
@@ -229,7 +230,7 @@ public final class XraySubscriptionUpdater {
         }
         connection.connect();
         int responseCode = connection.getResponseCode();
-        SubscriptionMetadata metadata = parseSubscriptionMetadata(connection.getHeaderField("Subscription-Userinfo"));
+        SubscriptionMetadata metadata = parseSubscriptionMetadata(readSubscriptionUserinfoHeader(connection));
         try (
             InputStream inputStream =
                 responseCode >= 200 && responseCode < 400 ? connection.getInputStream() : connection.getErrorStream();
@@ -276,7 +277,35 @@ public final class XraySubscriptionUpdater {
                 expireAt = value > 0L ? value * 1000L : 0L;
             }
         }
-        return new SubscriptionMetadata(uploadBytes, downloadBytes, totalBytes, expireAt);
+        return new SubscriptionMetadata(uploadBytes, downloadBytes, totalBytes, expireAt, true);
+    }
+
+    private static String readSubscriptionUserinfoHeader(HttpURLConnection connection) {
+        String header = connection.getHeaderField("Subscription-Userinfo");
+        if (!TextUtils.isEmpty(header)) {
+            return header;
+        }
+        Map<String, List<String>> headerFields = connection.getHeaderFields();
+        if (headerFields == null) {
+            return "";
+        }
+        for (Map.Entry<String, List<String>> entry : headerFields.entrySet()) {
+            String key = entry.getKey();
+            if (key == null || !"Subscription-Userinfo".equalsIgnoreCase(key)) {
+                continue;
+            }
+            List<String> values = entry.getValue();
+            if (values == null) {
+                return "";
+            }
+            for (String value : values) {
+                if (!TextUtils.isEmpty(value)) {
+                    return value;
+                }
+            }
+            return "";
+        }
+        return "";
     }
 
     private static long parsePositiveLong(String rawValue) {
@@ -336,18 +365,39 @@ public final class XraySubscriptionUpdater {
 
     private static final class SubscriptionMetadata {
 
-        static final SubscriptionMetadata EMPTY = new SubscriptionMetadata(0L, 0L, 0L, 0L);
+        static final SubscriptionMetadata EMPTY = new SubscriptionMetadata(0L, 0L, 0L, 0L, false);
 
         final long uploadBytes;
         final long downloadBytes;
         final long totalBytes;
         final long expireAt;
+        final boolean hasUserinfoHeader;
 
-        SubscriptionMetadata(long uploadBytes, long downloadBytes, long totalBytes, long expireAt) {
+        SubscriptionMetadata(
+            long uploadBytes,
+            long downloadBytes,
+            long totalBytes,
+            long expireAt,
+            boolean hasUserinfoHeader
+        ) {
             this.uploadBytes = Math.max(uploadBytes, 0L);
             this.downloadBytes = Math.max(downloadBytes, 0L);
             this.totalBytes = Math.max(totalBytes, 0L);
             this.expireAt = Math.max(expireAt, 0L);
+            this.hasUserinfoHeader = hasUserinfoHeader;
+        }
+
+        SubscriptionMetadata withFallback(XraySubscription subscription) {
+            if (hasUserinfoHeader || subscription == null) {
+                return this;
+            }
+            return new SubscriptionMetadata(
+                subscription.advertisedUploadBytes,
+                subscription.advertisedDownloadBytes,
+                subscription.advertisedTotalBytes,
+                subscription.advertisedExpireAt,
+                false
+            );
         }
     }
 }

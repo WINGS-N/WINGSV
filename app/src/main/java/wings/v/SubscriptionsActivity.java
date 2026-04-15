@@ -3,6 +3,7 @@ package wings.v;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -58,6 +59,12 @@ public class SubscriptionsActivity extends AppCompatActivity {
     private final LinkedHashMap<String, SubscriptionRowViews> rowViews = new LinkedHashMap<>();
 
     private ActivitySubscriptionsBinding binding;
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferencesListener = (preferences, key) -> {
+        if (!isSubscriptionUiPreference(key) || binding == null) {
+            return;
+        }
+        binding.getRoot().post(this::refreshUi);
+    };
     private final ArrayList<XraySubscription> currentSubscriptions = new ArrayList<>();
     private boolean selectionMode;
     private boolean refreshingSubscriptions;
@@ -125,11 +132,17 @@ public class SubscriptionsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(
+            preferencesListener
+        );
         refreshUi();
     }
 
     @Override
     protected void onPause() {
+        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(
+            preferencesListener
+        );
         clearSelectionMode();
         super.onPause();
     }
@@ -220,6 +233,15 @@ public class SubscriptionsActivity extends AppCompatActivity {
         updateRefreshStateUi();
         updateSelectionUi();
         updateAllRowStates();
+    }
+
+    private boolean isSubscriptionUiPreference(@Nullable String key) {
+        return (
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_PROFILES_JSON, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, key)
+        );
     }
 
     private void refreshSubscriptionHwidRow() {
