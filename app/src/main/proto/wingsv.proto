@@ -23,6 +23,8 @@ enum ConfigType {
   CONFIG_TYPE_XRAY = 2;
   CONFIG_TYPE_AMNEZIAWG = 3;
   CONFIG_TYPE_ALL = 4;
+  CONFIG_TYPE_APP_ROUTING = 5;
+  CONFIG_TYPE_XRAY_ROUTING = 6;
 }
 
 enum BackendType {
@@ -166,4 +168,11 @@ message XraySettings {
   string local_proxy_username = 11;
   string local_proxy_password = 12;
   optional bool restart_on_network_change = 13;
+  XrayTransportMode transport_mode = 14;
+}
+
+enum XrayTransportMode {
+  XRAY_TRANSPORT_MODE_UNSPECIFIED = 0;
+  XRAY_TRANSPORT_MODE_DIRECT = 1;
+  XRAY_TRANSPORT_MODE_VK_TURN_TCP = 2;
 }

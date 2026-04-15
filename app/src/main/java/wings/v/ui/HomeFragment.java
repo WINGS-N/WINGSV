@@ -35,6 +35,7 @@ import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayProfile;
 import wings.v.core.XraySubscriptionImportHelper;
+import wings.v.core.XrayTransportMode;
 import wings.v.databinding.FragmentHomeBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -65,7 +66,6 @@ import wings.v.service.ProxyTunnelService;
 public class HomeFragment extends Fragment {
 
     private static final long NO_DURATION_MS = 0L;
-    private static final long MILLIS_PER_SECOND = 1_000L;
     private static final int COUNTRY_CODE_LENGTH = 2;
     private static final long UI_REFRESH_INTERVAL_MS = 250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -180,15 +180,7 @@ public class HomeFragment extends Fragment {
         }
 
         if (connecting) {
-            long vpnHandoffRemainingMs = ProxyTunnelService.getVpnHandoffRemainingMs();
-            if (vpnHandoffRemainingMs > NO_DURATION_MS) {
-                setTextIfChanged(
-                    binding.textServiceState,
-                    getString(R.string.service_handoff_waiting, ceilSeconds(vpnHandoffRemainingMs))
-                );
-            } else {
-                setTextIfChanged(binding.textServiceState, getString(R.string.service_connecting));
-            }
+            setTextIfChanged(binding.textServiceState, getString(R.string.service_connecting));
             long captchaLockoutRemainingMs = ProxyTunnelService.getProxyCaptchaLockoutRemainingMs();
             if (captchaLockoutRemainingMs > NO_DURATION_MS) {
                 setTextIfChanged(
@@ -205,7 +197,7 @@ public class HomeFragment extends Fragment {
             setTextIfChanged(
                 binding.textServiceState,
                 getString(
-                    visibleBackendType == BackendType.XRAY
+                    visibleBackendType != null && visibleBackendType.usesXrayCore()
                         ? R.string.service_stopping_xray
                         : R.string.service_stopping_vk_turn
                 )
@@ -355,23 +347,31 @@ public class HomeFragment extends Fragment {
         lastPowerGlowBytesPerSecond = Long.MIN_VALUE;
     }
 
-    private long ceilSeconds(long durationMs) {
-        return Math.max(1L, (durationMs + MILLIS_PER_SECOND - 1L) / MILLIS_PER_SECOND);
-    }
-
     private String resolveConnectionSummary(ProxySettings settings) {
         if (settings == null || settings.backendType == null) {
             return getString(R.string.backend_vk_turn_wireguard_title);
         }
-        if (settings.backendType == BackendType.XRAY) {
+        if (settings.backendType != null && settings.backendType.usesXrayCore()) {
             XrayProfile activeProfile = settings.activeXrayProfile;
+            XrayTransportMode transportMode =
+                settings.xraySettings != null && settings.xraySettings.transportMode != null
+                    ? settings.xraySettings.transportMode
+                    : XrayTransportMode.DIRECT;
+            String relaySuffix = "";
+            if (transportMode.usesTurnProxy()) {
+                relaySuffix = " · VK TURN TCP";
+            }
             if (activeProfile != null) {
                 if (!TextUtils.isEmpty(activeProfile.title)) {
-                    return activeProfile.title;
+                    return activeProfile.title + relaySuffix;
                 }
                 if (!TextUtils.isEmpty(activeProfile.address) && activeProfile.port > 0) {
-                    return activeProfile.address + ":" + activeProfile.port;
+                    String endpoint = activeProfile.address + ":" + activeProfile.port;
+                    return endpoint + relaySuffix;
                 }
+            }
+            if (transportMode.usesTurnProxy()) {
+                return getString(R.string.xray_transport_mode_vk_turn_tcp);
             }
             return getString(R.string.backend_xray_title);
         }
@@ -617,7 +617,7 @@ public class HomeFragment extends Fragment {
         try {
             ProxySettings settings = AppPrefs.getSettings(context);
             String link;
-            if (settings.backendType == BackendType.XRAY) {
+            if (settings.backendType != null && settings.backendType.usesXrayCore()) {
                 XrayProfile activeProfile = settings.activeXrayProfile;
                 if (activeProfile == null || TextUtils.isEmpty(activeProfile.rawLink)) {
                     throw new IllegalArgumentException("No active Xray profile");

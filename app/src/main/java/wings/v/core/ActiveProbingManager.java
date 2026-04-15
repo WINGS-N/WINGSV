@@ -168,7 +168,7 @@ public final class ActiveProbingManager {
             return false;
         }
         BackendType backendType = XrayStore.getBackendType(context);
-        return backendType == BackendType.XRAY || backendType.isPlainBackend();
+        return (backendType != null && (backendType.usesXrayCore() || backendType.isPlainBackend()));
     }
 
     @NonNull
@@ -181,14 +181,9 @@ public final class ActiveProbingManager {
 
     @NonNull
     public static String getBackendLabel(@Nullable Context context, @Nullable BackendType backendType) {
-        BackendType resolved =
-            backendType == null
-                ? BackendType.VK_TURN_WIREGUARD
-                : backendType == BackendType.XRAY
-                    ? BackendType.XRAY
-                    : backendType;
+        BackendType resolved = backendType == null ? BackendType.VK_TURN_WIREGUARD : backendType;
         if (context == null) {
-            if (resolved == BackendType.XRAY) {
+            if (resolved != null && resolved.usesXrayCore()) {
                 return "Xray";
             }
             if (resolved == BackendType.AMNEZIAWG) {
@@ -202,7 +197,7 @@ public final class ActiveProbingManager {
             }
             return "VK TURN + WireGuard";
         }
-        if (resolved == BackendType.XRAY) {
+        if (resolved != null && resolved.usesXrayCore()) {
             return context.getString(R.string.backend_xray_title);
         }
         if (resolved == BackendType.AMNEZIAWG) {
