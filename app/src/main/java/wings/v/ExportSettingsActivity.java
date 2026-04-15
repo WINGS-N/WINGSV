@@ -31,6 +31,8 @@ public class ExportSettingsActivity extends AppCompatActivity {
         VK_TURN,
         WIREGUARD,
         AMNEZIA,
+        APP_ROUTING_BYPASS,
+        XRAY_ROUTING,
     }
 
     public static Intent createIntent(final Context context) {
@@ -79,6 +81,12 @@ public class ExportSettingsActivity extends AppCompatActivity {
         if (action == ExportAction.AMNEZIA) {
             return WingsImportParser.buildAmneziaSettingsLink(this);
         }
+        if (action == ExportAction.APP_ROUTING_BYPASS) {
+            return WingsImportParser.buildAppRoutingBypassLink(this);
+        }
+        if (action == ExportAction.XRAY_ROUTING) {
+            return WingsImportParser.buildXrayRoutingLink(this);
+        }
         return WingsImportParser.buildAllSettingsLink(this);
     }
 
@@ -92,6 +100,8 @@ public class ExportSettingsActivity extends AppCompatActivity {
             bindExportPreference("pref_export_vk_turn_settings", ExportAction.VK_TURN);
             bindExportPreference("pref_export_wireguard_settings", ExportAction.WIREGUARD);
             bindExportPreference("pref_export_amnezia_settings", ExportAction.AMNEZIA);
+            bindExportPreference("pref_export_app_routing_bypass", ExportAction.APP_ROUTING_BYPASS);
+            bindExportPreference("pref_export_xray_routing", ExportAction.XRAY_ROUTING);
         }
 
         private void bindExportPreference(final String key, final ExportAction action) {

@@ -16,6 +16,11 @@
         android:summary="@string/settings_export_xray_summary" />
 
     <Preference
+        android:key="pref_export_xray_routing"
+        android:title="@string/settings_export_xray_routing_title"
+        android:summary="@string/settings_export_xray_routing_summary" />
+
+    <Preference
         android:key="pref_export_vk_turn_settings"
         android:title="@string/settings_export_vk_turn_title"
         android:summary="@string/settings_export_vk_turn_summary" />
@@ -29,5 +34,10 @@
         android:key="pref_export_amnezia_settings"
         android:title="@string/settings_export_amnezia_title"
         android:summary="@string/settings_export_amnezia_summary" />
+
+    <Preference
+        android:key="pref_export_app_routing_bypass"
+        android:title="@string/settings_export_app_routing_bypass_title"
+        android:summary="@string/settings_export_app_routing_bypass_summary" />
 
 </PreferenceScreen>
