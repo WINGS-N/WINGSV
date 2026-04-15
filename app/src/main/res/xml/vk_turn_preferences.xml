@@ -6,6 +6,14 @@
         android:key="pref_category_vk_proxy"
         android:title="Proxy" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_vk_turn_runtime_mode"
+        android:title="@string/runtime_mode_title"
+        android:summary="@string/runtime_mode_summary"
+        android:defaultValue="vpn"
+        android:entries="@array/runtime_mode_entries"
+        android:entryValues="@array/runtime_mode_values" />
+
     <EditTextPreference
         android:key="pref_endpoint"
         android:title="Endpoint"

@@ -12,6 +12,7 @@ import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
+import wings.v.service.ProxyTunnelService;
 
 public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
 
@@ -60,6 +61,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
                     .apply();
                 preference.setText(normalizedDefault);
                 updateSummaries();
+                requestRuntimeReconnectIfActive();
                 return false;
             }
             if (!validator.isValid(rawValue)) {
@@ -78,9 +80,11 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
                     .apply();
                 preference.setText(normalized);
                 updateSummaries();
+                requestRuntimeReconnectIfActive();
                 return false;
             }
             updateSummaries();
+            requestRuntimeReconnectAfterPersist();
             return true;
         });
     }
@@ -98,6 +102,29 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
         preference.setSummary(
             getString(R.string.root_interface_wireguard_summary_value, UiFormatter.truncate(value, 32))
         );
+    }
+
+    private void requestRuntimeReconnectIfActive() {
+        if (
+            !ProxyTunnelService.isActive() ||
+            !AppPrefs.isRootModeEnabled(requireContext()) ||
+            !AppPrefs.isKernelWireGuardEnabled(requireContext())
+        ) {
+            return;
+        }
+        ProxyTunnelService.requestReconnect(
+            requireContext().getApplicationContext(),
+            "Root interface settings changed"
+        );
+    }
+
+    private void requestRuntimeReconnectAfterPersist() {
+        android.view.View view = getView();
+        if (view != null) {
+            view.post(this::requestRuntimeReconnectIfActive);
+            return;
+        }
+        requestRuntimeReconnectIfActive();
     }
 
     @FunctionalInterface
