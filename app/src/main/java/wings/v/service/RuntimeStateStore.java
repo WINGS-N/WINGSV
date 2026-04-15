@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.AtomicFile;
+import androidx.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -41,7 +42,6 @@ public final class RuntimeStateStore {
     private static final String KEY_DISMISSED_ERROR_SESSION = "dismissed_error_session";
     private static final String KEY_PUBLIC_IP_REFRESHING = "public_ip_refreshing";
     private static final String KEY_CAPTCHA_LOCKOUT_UNTIL = "captcha_lockout_until";
-    private static final String KEY_HANDOFF_WAIT_UNTIL = "handoff_wait_until";
     private static final String KEY_RUNTIME_LOG_VERSION = "runtime_log_version";
     private static final String KEY_PROXY_LOG_VERSION = "proxy_log_version";
 
@@ -85,7 +85,6 @@ public final class RuntimeStateStore {
                 readLong(properties, KEY_DISMISSED_ERROR_SESSION),
                 readBoolean(properties, KEY_PUBLIC_IP_REFRESHING),
                 readLong(properties, KEY_CAPTCHA_LOCKOUT_UNTIL),
-                readLong(properties, KEY_HANDOFF_WAIT_UNTIL),
                 readLong(properties, KEY_RUNTIME_LOG_VERSION),
                 readLong(properties, KEY_PROXY_LOG_VERSION)
             );
@@ -97,6 +96,13 @@ public final class RuntimeStateStore {
 
     static void writeState(String state) {
         updateProperties(properties -> properties.setProperty(KEY_STATE, firstNonEmpty(state, STATE_STOPPED)));
+    }
+
+    static void writeRuntimeState(String state, @Nullable String backendType) {
+        updateProperties(properties -> {
+            properties.setProperty(KEY_STATE, firstNonEmpty(state, STATE_STOPPED));
+            setNullable(properties, KEY_BACKEND_TYPE, backendType);
+        });
     }
 
     static void writeBackendType(String backendType) {
@@ -139,12 +145,6 @@ public final class RuntimeStateStore {
         );
     }
 
-    static void writeHandoffWaitUntil(long deadlineElapsedMs) {
-        updateProperties(properties ->
-            properties.setProperty(KEY_HANDOFF_WAIT_UNTIL, String.valueOf(Math.max(0L, deadlineElapsedMs)))
-        );
-    }
-
     static void resetEphemeralState() {
         updateProperties(properties -> {
             properties.setProperty(KEY_STATE, STATE_STOPPED);
@@ -162,7 +162,6 @@ public final class RuntimeStateStore {
             properties.setProperty(KEY_DISMISSED_ERROR_SESSION, "0");
             properties.setProperty(KEY_PUBLIC_IP_REFRESHING, "false");
             properties.setProperty(KEY_CAPTCHA_LOCKOUT_UNTIL, "0");
-            properties.setProperty(KEY_HANDOFF_WAIT_UNTIL, "0");
         });
     }
 
@@ -380,7 +379,6 @@ public final class RuntimeStateStore {
         final long dismissedErrorSessionId;
         final boolean publicIpRefreshing;
         final long captchaLockoutUntilElapsedMs;
-        final long handoffWaitUntilElapsedMs;
         final long runtimeLogVersion;
         final long proxyLogVersion;
 
@@ -400,7 +398,6 @@ public final class RuntimeStateStore {
             long dismissedErrorSessionId,
             boolean publicIpRefreshing,
             long captchaLockoutUntilElapsedMs,
-            long handoffWaitUntilElapsedMs,
             long runtimeLogVersion,
             long proxyLogVersion
         ) {
@@ -419,7 +416,6 @@ public final class RuntimeStateStore {
             this.dismissedErrorSessionId = dismissedErrorSessionId;
             this.publicIpRefreshing = publicIpRefreshing;
             this.captchaLockoutUntilElapsedMs = captchaLockoutUntilElapsedMs;
-            this.handoffWaitUntilElapsedMs = handoffWaitUntilElapsedMs;
             this.runtimeLogVersion = runtimeLogVersion;
             this.proxyLogVersion = proxyLogVersion;
         }

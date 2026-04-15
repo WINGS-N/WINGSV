@@ -49,9 +49,13 @@ public class ActiveProbingReceiver extends BroadcastReceiver {
                 if (!TextUtils.isEmpty(fallbackSettings.validate())) {
                     return;
                 }
+                BackendType restoreBackend = XrayStore.getBackendType(appContext);
+                if (restoreBackend == null || !restoreBackend.usesXrayCore()) {
+                    restoreBackend = BackendType.XRAY;
+                }
                 triggered = true;
                 ActiveProbingManager.showBackgroundFallbackNotification(appContext, result, fallbackBackend);
-                ActiveProbingManager.setRestoreBackend(appContext, BackendType.XRAY);
+                ActiveProbingManager.setRestoreBackend(appContext, restoreBackend);
                 XrayStore.setBackendType(appContext, fallbackBackend);
                 ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
                 ActiveProbingBackgroundScheduler.cancel(appContext);

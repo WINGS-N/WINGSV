@@ -2,13 +2,23 @@
     <string-array name="turn_session_mode_entries">
         <item>@string/turn_session_mode_auto</item>
         <item>@string/turn_session_mode_mainline</item>
-        <item>@string/turn_session_mode_mux</item>
+        <item>@string/turn_session_mode_mu</item>
     </string-array>
 
     <string-array name="turn_session_mode_values">
         <item>auto</item>
         <item>mainline</item>
-        <item>mux</item>
+        <item>mu</item>
+    </string-array>
+
+    <string-array name="xray_transport_mode_entries">
+        <item>@string/xray_transport_mode_direct</item>
+        <item>@string/xray_transport_mode_vk_turn_tcp</item>
+    </string-array>
+
+    <string-array name="xray_transport_mode_values">
+        <item>direct</item>
+        <item>vk_turn_tcp</item>
     </string-array>
 
     <string-array name="backend_entries">

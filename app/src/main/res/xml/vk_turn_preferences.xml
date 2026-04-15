@@ -42,7 +42,7 @@
     <androidx.preference.DropDownPreference
         android:key="pref_turn_session_mode"
         android:title="@string/turn_session_mode_title"
-        android:defaultValue="auto"
+        android:defaultValue="mainline"
         android:entries="@array/turn_session_mode_entries"
         android:entryValues="@array/turn_session_mode_values" />
 

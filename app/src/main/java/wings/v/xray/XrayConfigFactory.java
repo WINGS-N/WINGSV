@@ -53,6 +53,16 @@ public final class XrayConfigFactory {
     private XrayConfigFactory() {}
 
     public static String buildConfigJson(Context context, ProxySettings settings) throws Exception {
+        return buildConfigJson(context, settings, null, 0, settings != null ? settings.byeDpiSettings : null);
+    }
+
+    public static String buildConfigJson(
+        Context context,
+        ProxySettings settings,
+        String outboundHostOverride,
+        int outboundPortOverride,
+        ByeDpiSettings byeDpiSettings
+    ) throws Exception {
         if (
             settings == null ||
             settings.activeXrayProfile == null ||
@@ -67,12 +77,15 @@ public final class XrayConfigFactory {
         proxyOutbound.remove("sendThrough");
         sanitizeOutbound(proxyOutbound, settings.activeXrayProfile);
         applySecurityOverrides(proxyOutbound, xraySettings);
+        if (!TextUtils.isEmpty(trim(outboundHostOverride)) && outboundPortOverride > 0) {
+            rewritePrimaryOutboundEndpoint(proxyOutbound, trim(outboundHostOverride), outboundPortOverride);
+        }
 
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
         root.put("inbounds", buildInbounds(context, xraySettings));
-        root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, settings.byeDpiSettings));
+        root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, byeDpiSettings));
         root.put("routing", buildRouting(context, xraySettings));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
@@ -564,6 +577,38 @@ public final class XrayConfigFactory {
         if (tlsSettings != null) {
             tlsSettings.put("allowInsecure", true);
         }
+    }
+
+    static void rewritePrimaryOutboundEndpoint(JSONObject outbound, String host, int port) throws Exception {
+        JSONObject settings = outbound == null ? null : outbound.optJSONObject("settings");
+        if (settings == null || TextUtils.isEmpty(trim(host)) || port <= 0) {
+            throw new IllegalStateException("Xray outbound override не может быть применён");
+        }
+        if (
+            rewriteEndpointArray(settings.optJSONArray("vnext"), trim(host), port) ||
+            rewriteEndpointArray(settings.optJSONArray("servers"), trim(host), port)
+        ) {
+            return;
+        }
+        if (settings.has("address")) {
+            settings.put("address", trim(host));
+            settings.put("port", port);
+            return;
+        }
+        throw new IllegalStateException("Текущий Xray outbound не поддерживает VK TURN TCP relay");
+    }
+
+    private static boolean rewriteEndpointArray(JSONArray servers, String host, int port) throws Exception {
+        if (servers == null || servers.length() == 0) {
+            return false;
+        }
+        JSONObject server = servers.optJSONObject(0);
+        if (server == null) {
+            return false;
+        }
+        server.put("address", host);
+        server.put("port", port);
+        return true;
     }
 
     static void sanitizeOutbound(JSONObject outbound, XrayProfile activeProfile) throws Exception {

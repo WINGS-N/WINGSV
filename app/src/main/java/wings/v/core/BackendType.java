@@ -17,16 +17,17 @@ public enum BackendType {
     }
 
     public static BackendType fromPrefValue(String rawValue) {
-        if (TextUtils.equals(WIREGUARD.prefValue, trim(rawValue))) {
+        String normalized = trim(rawValue);
+        if (TextUtils.equals(WIREGUARD.prefValue, normalized)) {
             return WIREGUARD;
         }
-        if (TextUtils.equals(AMNEZIAWG.prefValue, trim(rawValue))) {
+        if (TextUtils.equals(AMNEZIAWG.prefValue, normalized)) {
             return AMNEZIAWG;
         }
-        if (TextUtils.equals(AMNEZIAWG_PLAIN.prefValue, trim(rawValue))) {
+        if (TextUtils.equals(AMNEZIAWG_PLAIN.prefValue, normalized)) {
             return AMNEZIAWG_PLAIN;
         }
-        if (TextUtils.equals(XRAY.prefValue, trim(rawValue))) {
+        if (TextUtils.equals(XRAY.prefValue, normalized)) {
             return XRAY;
         }
         return VK_TURN_WIREGUARD;
@@ -66,6 +67,10 @@ public enum BackendType {
 
     public boolean isVkTurnLike() {
         return this != XRAY;
+    }
+
+    public boolean usesXrayCore() {
+        return this == XRAY;
     }
 
     public boolean usesTurnProxy() {

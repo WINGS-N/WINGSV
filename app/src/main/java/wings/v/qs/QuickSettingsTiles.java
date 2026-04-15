@@ -70,7 +70,10 @@ public final class QuickSettingsTiles {
 
     public static void bindBackendTile(Context context, Tile tile, BackendType backendType) {
         BackendType currentBackend = XrayStore.getBackendType(context);
-        boolean selected = currentBackend == backendType;
+        boolean selected =
+            backendType == BackendType.XRAY
+                ? currentBackend != null && currentBackend.usesXrayCore()
+                : currentBackend == backendType;
         @DrawableRes
         int iconRes = backendType == BackendType.XRAY ? R.drawable.ic_profiles : R.drawable.ic_sharing_nav;
         int labelRes =

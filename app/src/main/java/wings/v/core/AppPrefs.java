@@ -25,7 +25,7 @@ public final class AppPrefs {
 
     private static final String TURN_SESSION_MODE_AUTO = "auto";
     private static final String TURN_SESSION_MODE_MAINLINE = "mainline";
-    private static final String TURN_SESSION_MODE_MUX = "mux";
+    private static final String TURN_SESSION_MODE_MU = "mu";
     private static final String DEFAULT_ROOT_WIREGUARD_INTERFACE_NAME = "wingsv-{{hex}}";
     private static final int MAX_INTERFACE_NAME_LENGTH = 15;
     private static final String HEX_PLACEHOLDER = "{{hex}}";
@@ -67,6 +67,7 @@ public final class AppPrefs {
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
     public static final String KEY_XRAY_PROXY_QUIC_ENABLED = "pref_xray_proxy_quic_enabled";
     public static final String KEY_XRAY_RESTART_ON_NETWORK_CHANGE = "pref_xray_restart_on_network_change";
+    public static final String KEY_XRAY_TRANSPORT_MODE = "pref_xray_transport_mode";
     public static final String KEY_XRAY_ROUTING_GEOIP_URL = "pref_xray_routing_geoip_url";
     public static final String KEY_XRAY_ROUTING_GEOSITE_URL = "pref_xray_routing_geosite_url";
     public static final String KEY_XRAY_ROUTING_RULES_JSON = "pref_xray_routing_rules_json";
@@ -636,7 +637,7 @@ public final class AppPrefs {
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
         settings.manualCaptcha = prefs.getBoolean(KEY_MANUAL_CAPTCHA, false);
-        settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "auto"));
+        settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
         settings.turnPort = trim(prefs.getString(KEY_TURN_PORT, ""));
@@ -662,11 +663,16 @@ public final class AppPrefs {
         }
         BackendType backendType =
             importedConfig.backendType != null ? importedConfig.backendType : BackendType.VK_TURN_WIREGUARD;
-        if (backendType == BackendType.XRAY && importedConfig.xrayMergeOnly) {
+        if (backendType.usesXrayCore() && importedConfig.xrayMergeOnly) {
             mergeImportedXrayPayload(context, importedConfig);
             ActiveProbingManager.clearRestoreBackend(context);
             if (shouldActivateImportedXrayPayload(importedConfig)) {
-                XrayStore.setBackendType(context, BackendType.XRAY);
+                XrayStore.setBackendType(
+                    context,
+                    importedConfig.backendType != null && importedConfig.backendType.usesXrayCore()
+                        ? importedConfig.backendType
+                        : BackendType.XRAY
+                );
             }
             return;
         }
@@ -705,8 +711,10 @@ public final class AppPrefs {
             setAppRoutingPackages(context, new LinkedHashSet<>(importedConfig.appRoutingPackages));
         }
 
-        ActiveProbingManager.clearRestoreBackend(context);
-        XrayStore.setBackendType(context, backendType);
+        if (importedConfig.updateBackendType) {
+            ActiveProbingManager.clearRestoreBackend(context);
+            XrayStore.setBackendType(context, backendType);
+        }
     }
 
     private static void applyImportedTurnSettings(
@@ -1018,8 +1026,8 @@ public final class AppPrefs {
         if (TextUtils.isEmpty(normalized) || TURN_SESSION_MODE_AUTO.equals(normalized)) {
             return TURN_SESSION_MODE_AUTO;
         }
-        if (TURN_SESSION_MODE_MUX.equals(normalized)) {
-            return TURN_SESSION_MODE_MUX;
+        if ("mux".equals(normalized) || TURN_SESSION_MODE_MU.equals(normalized)) {
+            return TURN_SESSION_MODE_MU;
         }
         if (TURN_SESSION_MODE_MAINLINE.equals(normalized)) {
             return TURN_SESSION_MODE_MAINLINE;

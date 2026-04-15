@@ -87,7 +87,6 @@
     <string name="service_notification_traffic_summary">%1$s · %2$s · %3$s</string>
     <string name="service_notification_lockout_summary">%1$s · ожидание капчи %2$s</string>
     <string name="service_connecting">Подключение…</string>
-    <string name="service_handoff_waiting">Ожидание %1$d s</string>
     <string name="service_stopping">Остановка…</string>
     <string name="service_stopping_xray">Останавливаем Xray…</string>
     <string name="service_stopping_vk_turn">Останавливаем vk-turn-proxy…</string>
@@ -313,7 +312,7 @@
     <string name="turn_session_mode_title">TURN session mode</string>
     <string name="turn_session_mode_auto">Auto</string>
     <string name="turn_session_mode_mainline">Mainline</string>
-    <string name="turn_session_mode_mux">Mux</string>
+    <string name="turn_session_mode_mu">mu/v1</string>
     <string name="settings_backend_category">Backend</string>
     <string name="settings_backend_title">Активный backend</string>
     <string name="backend_vk_turn_wireguard_title">VK TURN + WireGuard</string>
@@ -377,6 +376,7 @@
     <string name="drawer_xray_settings_inactive_summary">Inactive until backend is Xray</string>
     <string name="vk_turn_settings_title">Настройки VK TURN</string>
     <string name="vk_turn_settings_summary">Proxy, transport и WireGuard/AmneziaWG параметры</string>
+    <string name="vk_turn_xray_tcp_settings_summary">Endpoint, VK Link и параметры для Xray поверх VK TURN TCP</string>
     <string name="wireguard_settings_title">Настройки WireGuard</string>
     <string name="wireguard_settings_summary">Endpoint и параметры WireGuard</string>
     <string name="amneziawg_settings_title">Настройки AmneziaWG</string>
@@ -532,6 +532,10 @@
     <string name="xray_settings_proxy_quic_summary">Разрешить отправку UDP/443 через Xray. Если выключено, QUIC блокируется и приложения откатываются на TCP</string>
     <string name="xray_settings_restart_on_network_change_title">Перезапускать Xray при смене сетевого интерфейса</string>
     <string name="xray_settings_restart_on_network_change_summary">Переподнимать Xray при переключении между Wi-Fi, мобильной сетью и другими физическими сетями</string>
+    <string name="xray_settings_transport_mode_title">Транспорт outbound</string>
+    <string name="xray_settings_transport_mode_summary">Как Xray доставляет TCP-соединение до удалённого сервера</string>
+    <string name="xray_transport_mode_direct">Прямое подключение</string>
+    <string name="xray_transport_mode_vk_turn_tcp">VK TURN TCP (VLESS)</string>
     <string name="xray_settings_routing_title">Маршрутизация</string>
     <string name="xray_settings_routing_summary">Настройка geoip/geosite файлов и пользовательских routing правил</string>
     <string name="xray_settings_remote_dns_title">Удалённый DNS</string>
@@ -822,12 +826,16 @@
     <string name="settings_export_all_summary">Все proto настройки приложения, подписки и маршрутизация без профилей из подписок</string>
     <string name="settings_export_xray_title">Экспортировать Xray настройки</string>
     <string name="settings_export_xray_summary">Профили вручную, подписки, параметры Xray и правила маршрутизации</string>
+    <string name="settings_export_xray_routing_title">Экспортировать правила маршрутизации Xray</string>
+    <string name="settings_export_xray_routing_summary">Только пользовательские правила маршрутизации Xray и ссылки geo-файлов</string>
     <string name="settings_export_vk_turn_title">Экспортировать VK TURN настройки</string>
     <string name="settings_export_vk_turn_summary">Endpoint, VK Link, режим сессии и параметры vk-turn-proxy</string>
     <string name="settings_export_wireguard_title">Экспортировать WireGuard настройки</string>
     <string name="settings_export_wireguard_summary">Endpoint, Interface и Peer для WireGuard</string>
     <string name="settings_export_amnezia_title">Экспортировать AmneziaWG настройки</string>
     <string name="settings_export_amnezia_summary">Raw AmneziaWG конфигурация и выбранный AmneziaWG backend</string>
+    <string name="settings_export_app_routing_bypass_title">Экспортировать bypass приложения</string>
+    <string name="settings_export_app_routing_bypass_summary">Только список выбранных приложений для обхода VPN</string>
     <string name="settings_export_clip_label">WINGSV settings</string>
     <string name="settings_export_done">Ссылка скопирована</string>
     <string name="settings_export_failed">Не удалось экспортировать настройки</string>

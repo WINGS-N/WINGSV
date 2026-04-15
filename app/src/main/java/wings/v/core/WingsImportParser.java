@@ -57,6 +57,8 @@ public final class WingsImportParser {
         VK_TURN,
         WIREGUARD,
         AMNEZIAWG,
+        APP_ROUTING_BYPASS,
+        XRAY_ROUTING,
     }
 
     private WingsImportParser() {}
@@ -113,6 +115,18 @@ public final class WingsImportParser {
             scopedSettings(context, ExportScope.AMNEZIAWG),
             ExportScope.AMNEZIAWG
         );
+        return encodeConfig(config);
+    }
+
+    public static String buildAppRoutingBypassLink(Context context) throws Exception {
+        requireContext(context);
+        WingsvProto.Config config = buildProtoConfig(context, null, ExportScope.APP_ROUTING_BYPASS);
+        return encodeConfig(config);
+    }
+
+    public static String buildXrayRoutingLink(Context context) throws Exception {
+        requireContext(context);
+        WingsvProto.Config config = buildProtoConfig(context, null, ExportScope.XRAY_ROUTING);
         return encodeConfig(config);
     }
 
@@ -306,7 +320,8 @@ public final class WingsImportParser {
     public static boolean isSubscriptionOnlyXrayImport(ImportedConfig importedConfig) {
         return (
             importedConfig != null &&
-            importedConfig.backendType == BackendType.XRAY &&
+            importedConfig.backendType != null &&
+            importedConfig.backendType.usesXrayCore() &&
             importedConfig.xrayMergeOnly &&
             !importedConfig.xraySubscriptions.isEmpty() &&
             importedConfig.xrayProfiles.isEmpty()
@@ -405,7 +420,9 @@ public final class WingsImportParser {
             settings.endpoint = AppPrefs.resolveEndpointForBackend(context, settings.backendType);
             settings.awgQuickConfig = AmneziaStore.getEffectiveQuickConfig(context);
         } else if (scope == ExportScope.XRAY) {
-            settings.backendType = BackendType.XRAY;
+            BackendType currentBackend = XrayStore.getBackendType(context);
+            settings.backendType =
+                currentBackend != null && currentBackend.usesXrayCore() ? currentBackend : BackendType.XRAY;
             settings.activeXrayProfile = XrayStore.getActiveProfile(context);
             settings.xraySettings = XrayStore.getXraySettings(context);
         }
@@ -448,6 +465,24 @@ public final class WingsImportParser {
             }
             return builder.build();
         }
+        if (scope == ExportScope.APP_ROUTING_BYPASS) {
+            requireContext(context);
+            return WingsvProto.Config.newBuilder()
+                .setVer(CURRENT_VERSION)
+                .setType(WingsvProto.ConfigType.CONFIG_TYPE_APP_ROUTING)
+                .setAppRouting(buildAppRouting(context, true))
+                .build();
+        }
+        if (scope == ExportScope.XRAY_ROUTING) {
+            requireContext(context);
+            WingsvProto.Xray xray = WingsvProto.Xray.newBuilder().setRouting(toProtoXrayRouting(context)).build();
+            return WingsvProto.Config.newBuilder()
+                .setVer(CURRENT_VERSION)
+                .setBackend(BackendType.XRAY.toProto())
+                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY_ROUTING)
+                .setXray(xray)
+                .build();
+        }
 
         BackendType backendType =
             settings != null && settings.backendType != null ? settings.backendType : BackendType.VK_TURN_WIREGUARD;
@@ -456,7 +491,7 @@ public final class WingsImportParser {
             .setBackend(backendType.toProto())
             .setType(resolveConfigType(scope, backendType));
 
-        if (settings != null && (scope == ExportScope.XRAY || backendType == BackendType.XRAY)) {
+        if (settings != null && (scope == ExportScope.XRAY || (backendType != null && backendType.usesXrayCore()))) {
             boolean includeSubscriptionProfiles = scope == ExportScope.ACTIVE;
             WingsvProto.Xray xray = buildXray(
                 context,
@@ -468,6 +503,16 @@ public final class WingsImportParser {
             );
             if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
                 builder.setXray(xray);
+            }
+            boolean xrayUsesTurnProxy =
+                settings.xraySettings != null &&
+                settings.xraySettings.transportMode != null &&
+                settings.xraySettings.transportMode.usesTurnProxy();
+            if (xrayUsesTurnProxy) {
+                WingsvProto.Turn turn = buildTurn(settings, scope != ExportScope.ACTIVE);
+                if (!turn.equals(WingsvProto.Turn.getDefaultInstance())) {
+                    builder.setTurn(turn);
+                }
             }
             return builder.build();
         }
@@ -502,7 +547,7 @@ public final class WingsImportParser {
     }
 
     private static WingsvProto.ConfigType resolveConfigType(ExportScope scope, BackendType backendType) {
-        if (scope == ExportScope.XRAY || backendType == BackendType.XRAY) {
+        if (scope == ExportScope.XRAY || (backendType != null && backendType.usesXrayCore())) {
             return WingsvProto.ConfigType.CONFIG_TYPE_XRAY;
         }
         if (scope == ExportScope.AMNEZIAWG || (backendType != null && backendType.usesAmneziaSettings())) {
@@ -520,9 +565,12 @@ public final class WingsImportParser {
     }
 
     private static WingsvProto.AppRouting buildAppRouting(Context context) {
-        WingsvProto.AppRouting.Builder builder = WingsvProto.AppRouting.newBuilder().setBypass(
-            AppPrefs.isAppRoutingBypassEnabled(context)
-        );
+        return buildAppRouting(context, null);
+    }
+
+    private static WingsvProto.AppRouting buildAppRouting(Context context, Boolean bypassOverride) {
+        boolean bypass = bypassOverride != null ? bypassOverride : AppPrefs.isAppRoutingBypassEnabled(context);
+        WingsvProto.AppRouting.Builder builder = WingsvProto.AppRouting.newBuilder().setBypass(bypass);
         Set<String> packages = AppPrefs.getAppRoutingPackages(context);
         for (String packageName : packages) {
             if (!TextUtils.isEmpty(value(packageName))) {
@@ -829,17 +877,35 @@ public final class WingsImportParser {
         if (allSettings && config.hasAppRouting()) {
             parseAppRouting(config.getAppRouting(), importedConfig);
         }
+        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_APP_ROUTING) {
+            importedConfig.updateBackendType = false;
+            if (config.hasAppRouting()) {
+                parseAppRouting(config.getAppRouting(), importedConfig);
+            }
+            return importedConfig;
+        }
+        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XRAY_ROUTING) {
+            importedConfig.updateBackendType = false;
+            importedConfig.backendType = BackendType.XRAY;
+            if (config.hasXray() && config.getXray().hasRouting()) {
+                parseXrayRouting(config.getXray().getRouting(), importedConfig);
+            }
+            return importedConfig;
+        }
 
         if (
             allSettings ||
             config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XRAY ||
-            importedConfig.backendType == BackendType.XRAY ||
+            (importedConfig.backendType != null && importedConfig.backendType.usesXrayCore()) ||
             config.hasXray()
         ) {
-            if (!allSettings) {
+            if (!allSettings && (importedConfig.backendType == null || !importedConfig.backendType.usesXrayCore())) {
                 importedConfig.backendType = BackendType.XRAY;
             }
             parseXray(config, importedConfig);
+            if (config.hasTurn()) {
+                parseTurn(config.getTurn(), importedConfig);
+            }
             handled = true;
             if (!allSettings) {
                 return importedConfig;
@@ -881,7 +947,7 @@ public final class WingsImportParser {
         }
 
         if (!handled) {
-            throw new IllegalArgumentException("Поддерживается только type=vk/xray/amneziawg/all");
+            throw new IllegalArgumentException("Поддерживается только type=vk/xray/amneziawg/all/app_routing/xray_routing");
         }
         return importedConfig;
     }
@@ -1339,6 +1405,9 @@ public final class WingsImportParser {
         if (settings.hasRestartOnNetworkChange()) {
             result.restartOnNetworkChange = settings.getRestartOnNetworkChange();
         }
+        if (settings.getTransportMode() != WingsvProto.XrayTransportMode.XRAY_TRANSPORT_MODE_UNSPECIFIED) {
+            result.transportMode = fromProtoXrayTransportMode(settings.getTransportMode());
+        }
         return result;
     }
 
@@ -1390,6 +1459,9 @@ public final class WingsImportParser {
         if (includeDefaults || settings.restartOnNetworkChange) {
             builder.setRestartOnNetworkChange(settings.restartOnNetworkChange);
         }
+        if (includeDefaults || settings.transportMode != XrayTransportMode.DIRECT) {
+            builder.setTransportMode(toProtoXrayTransportMode(settings.transportMode));
+        }
         return builder.build();
     }
 
@@ -1430,6 +1502,7 @@ public final class WingsImportParser {
         settings.sniffingEnabled = true;
         settings.proxyQuicEnabled = false;
         settings.restartOnNetworkChange = false;
+        settings.transportMode = XrayTransportMode.DIRECT;
         return settings;
     }
 
@@ -1441,7 +1514,7 @@ public final class WingsImportParser {
         if ("mainline".equals(normalized)) {
             return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MAINLINE;
         }
-        if ("mux".equals(normalized)) {
+        if ("mux".equals(normalized) || "mu".equals(normalized)) {
             return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MUX;
         }
         return WingsvProto.TurnSessionMode.TURN_SESSION_MODE_AUTO;
@@ -1452,14 +1525,29 @@ public final class WingsImportParser {
             return "mainline";
         }
         if (value == WingsvProto.TurnSessionMode.TURN_SESSION_MODE_MUX) {
-            return "mux";
+            return "mu";
         }
         return DEFAULT_SESSION_MODE;
+    }
+
+    private static WingsvProto.XrayTransportMode toProtoXrayTransportMode(XrayTransportMode transportMode) {
+        if (transportMode == XrayTransportMode.VK_TURN_TCP) {
+            return WingsvProto.XrayTransportMode.XRAY_TRANSPORT_MODE_VK_TURN_TCP;
+        }
+        return WingsvProto.XrayTransportMode.XRAY_TRANSPORT_MODE_DIRECT;
+    }
+
+    private static XrayTransportMode fromProtoXrayTransportMode(WingsvProto.XrayTransportMode transportMode) {
+        if (transportMode == WingsvProto.XrayTransportMode.XRAY_TRANSPORT_MODE_VK_TURN_TCP) {
+            return XrayTransportMode.VK_TURN_TCP;
+        }
+        return XrayTransportMode.DIRECT;
     }
 
     public static final class ImportedConfig {
 
         public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
+        public boolean updateBackendType = true;
         public boolean hasAllSettings;
         public boolean hasTurnSettings;
         public boolean hasWireGuardSettings;
