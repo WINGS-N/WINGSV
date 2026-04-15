@@ -2,6 +2,7 @@ package wings.v.ui;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -23,6 +24,7 @@ import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
+import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -115,6 +117,12 @@ public class ProfilesFragment extends Fragment {
     };
 
     private FragmentProfilesBinding binding;
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferencesListener = (preferences, key) -> {
+        if (!isSubscriptionUiPreference(key) || binding == null || !isAdded()) {
+            return;
+        }
+        binding.getRoot().post(this::refreshUi);
+    };
     private List<XrayProfile> currentProfiles = new ArrayList<>();
     private String currentActiveProfileId = "";
     private String activeFilterId = FILTER_ALL;
@@ -204,6 +212,9 @@ public class ProfilesFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        PreferenceManager.getDefaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(
+            preferencesListener
+        );
         refreshUi();
         scheduleTrafficRefresh();
     }
@@ -211,6 +222,9 @@ public class ProfilesFragment extends Fragment {
     @Override
     public void onPause() {
         stopTrafficRefresh();
+        PreferenceManager.getDefaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(
+            preferencesListener
+        );
         clearSelectionMode();
         super.onPause();
     }
@@ -276,6 +290,15 @@ public class ProfilesFragment extends Fragment {
             );
             postToUi(() -> applyUiModel(generation, uiModel));
         });
+    }
+
+    private boolean isSubscriptionUiPreference(@Nullable String key) {
+        return (
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_PROFILES_JSON, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, key)
+        );
     }
 
     private void applyUiModel(int generation, ProfilesUiModel uiModel) {
@@ -552,7 +575,8 @@ public class ProfilesFragment extends Fragment {
         XrayStore.setActiveProfileId(requireContext(), profile.id);
         updateAllRowStates(currentActiveProfileId);
         refreshVisibleProfileTrafficStats(true);
-        if (XrayStore.getBackendType(requireContext()) == BackendType.XRAY && ProxyTunnelService.isActive()) {
+        BackendType backendType = XrayStore.getBackendType(requireContext());
+        if (backendType != null && backendType.usesXrayCore() && ProxyTunnelService.isActive()) {
             try {
                 ContextCompat.startForegroundService(
                     requireContext(),
