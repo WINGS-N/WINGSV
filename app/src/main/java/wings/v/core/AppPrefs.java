@@ -37,6 +37,7 @@ public final class AppPrefs {
     public static final String KEY_USE_UDP = "pref_use_udp";
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
     public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
+    public static final String KEY_VK_TURN_RUNTIME_MODE = "pref_vk_turn_runtime_mode";
     public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
@@ -67,6 +68,7 @@ public final class AppPrefs {
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
     public static final String KEY_XRAY_PROXY_QUIC_ENABLED = "pref_xray_proxy_quic_enabled";
     public static final String KEY_XRAY_RESTART_ON_NETWORK_CHANGE = "pref_xray_restart_on_network_change";
+    public static final String KEY_XRAY_RUNTIME_MODE = "pref_xray_runtime_mode";
     public static final String KEY_XRAY_TRANSPORT_MODE = "pref_xray_transport_mode";
     public static final String KEY_XRAY_ROUTING_GEOIP_URL = "pref_xray_routing_geoip_url";
     public static final String KEY_XRAY_ROUTING_GEOSITE_URL = "pref_xray_routing_geosite_url";
@@ -637,6 +639,9 @@ public final class AppPrefs {
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
         settings.manualCaptcha = prefs.getBoolean(KEY_MANUAL_CAPTCHA, false);
+        settings.vkTurnRuntimeMode = ProxyRuntimeMode.fromPrefValue(
+            prefs.getString(KEY_VK_TURN_RUNTIME_MODE, ProxyRuntimeMode.VPN.prefValue)
+        );
         settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
@@ -810,6 +815,12 @@ public final class AppPrefs {
             .putBoolean(KEY_USE_UDP, settings.useUdp)
             .putBoolean(KEY_NO_OBFUSCATION, settings.noObfuscation)
             .putBoolean(KEY_MANUAL_CAPTCHA, settings.manualCaptcha)
+            .putString(
+                KEY_VK_TURN_RUNTIME_MODE,
+                settings.vkTurnRuntimeMode == null
+                    ? ProxyRuntimeMode.VPN.prefValue
+                    : settings.vkTurnRuntimeMode.prefValue
+            )
             .putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(settings.turnSessionMode))
             .putString(
                 KEY_LOCAL_ENDPOINT,

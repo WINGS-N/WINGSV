@@ -14,11 +14,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.core.XrayRoutingRule;
 import wings.v.core.XrayRoutingStore;
+import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityXrayRoutingSettingsBinding;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -55,6 +58,7 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
     private XrayRoutingRule.MatchType pendingImportType;
     private boolean geoipDownloading;
     private boolean geositeDownloading;
+    private boolean runtimeRoutingChanged;
 
     public static Intent createIntent(Context context) {
         return new Intent(context, XrayRoutingSettingsActivity.class);
@@ -79,6 +83,12 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         renderAll();
+    }
+
+    @Override
+    protected void onStop() {
+        requestDeferredReconnectIfNeeded();
+        super.onStop();
     }
 
     @Override
@@ -237,6 +247,7 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
             try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
                 XrayRoutingStore.importGeoFile(this, matchType, inputStream);
                 runOnUiThread(() -> {
+                    runtimeRoutingChanged = true;
                     renderAll();
                     toast(
                         getString(
@@ -274,6 +285,7 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
             try {
                 XrayRoutingStore.downloadGeoFile(this, matchType, XrayRoutingStore.getSourceUrl(this, matchType));
                 runOnUiThread(() -> {
+                    runtimeRoutingChanged = true;
                     setDownloadInProgress(matchType, false);
                     renderAll();
                     toast(getString(R.string.xray_routing_download_done, fileLabel));
@@ -303,5 +315,19 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
 
     private void toast(String value) {
         Toast.makeText(this, value, Toast.LENGTH_SHORT).show();
+    }
+
+    private void requestDeferredReconnectIfNeeded() {
+        if (!runtimeRoutingChanged || !ProxyTunnelService.isActive()) {
+            runtimeRoutingChanged = false;
+            return;
+        }
+        BackendType backendType = XrayStore.getBackendType(this);
+        if (backendType == null || !backendType.usesXrayCore()) {
+            runtimeRoutingChanged = false;
+            return;
+        }
+        runtimeRoutingChanged = false;
+        ProxyTunnelService.requestReconnect(getApplicationContext(), "Xray routing changed");
     }
 }

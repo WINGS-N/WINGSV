@@ -22,12 +22,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.Collections;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.XrayRoutingRule;
 import wings.v.core.XrayRoutingStore;
+import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityXrayRoutingRulesBinding;
 import wings.v.databinding.DialogXrayRoutingRuleBinding;
 import wings.v.databinding.ItemXrayRoutingRuleBinding;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -58,6 +61,7 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
     private ArrayList<XrayRoutingRule> rules;
     private RulesAdapter adapter;
     private ItemTouchHelper itemTouchHelper;
+    private boolean runtimeRoutingChanged;
 
     public static Intent createIntent(Context context) {
         return new Intent(context, XrayRoutingRulesActivity.class);
@@ -87,6 +91,12 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         renderRules();
+    }
+
+    @Override
+    protected void onStop() {
+        requestDeferredReconnectIfNeeded();
+        super.onStop();
     }
 
     private void renderRules() {
@@ -310,6 +320,21 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
 
     private void persistRules() {
         XrayRoutingStore.setRules(this, rules);
+        runtimeRoutingChanged = true;
+    }
+
+    private void requestDeferredReconnectIfNeeded() {
+        if (!runtimeRoutingChanged || !ProxyTunnelService.isActive()) {
+            runtimeRoutingChanged = false;
+            return;
+        }
+        BackendType backendType = XrayStore.getBackendType(this);
+        if (backendType == null || !backendType.usesXrayCore()) {
+            runtimeRoutingChanged = false;
+            return;
+        }
+        runtimeRoutingChanged = false;
+        ProxyTunnelService.requestReconnect(getApplicationContext(), "Xray routing changed");
     }
 
     private final class RulesAdapter extends RecyclerView.Adapter<RulesAdapter.RuleViewHolder> {

@@ -42,6 +42,14 @@
         android:defaultValue="false" />
 
     <androidx.preference.DropDownPreference
+        android:key="pref_xray_runtime_mode"
+        android:title="@string/runtime_mode_title"
+        android:summary="@string/runtime_mode_summary"
+        android:defaultValue="vpn"
+        android:entries="@array/runtime_mode_entries"
+        android:entryValues="@array/runtime_mode_values" />
+
+    <androidx.preference.DropDownPreference
         android:key="pref_xray_transport_mode"
         android:title="@string/xray_settings_transport_mode_title"
         android:summary="@string/xray_settings_transport_mode_summary"

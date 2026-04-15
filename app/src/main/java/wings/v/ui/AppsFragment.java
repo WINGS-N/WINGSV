@@ -39,6 +39,7 @@ import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentAppsBinding;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -82,6 +83,7 @@ public class AppsFragment extends Fragment {
     private boolean searchOverlayVisible;
     private boolean searchBarHidden;
     private boolean selectedOnlyMode;
+    private boolean appRoutingChanged;
     private String activeAppTypeFilter = FILTER_ALL;
 
     @Override
@@ -239,6 +241,12 @@ public class AppsFragment extends Fragment {
     }
 
     @Override
+    public void onPause() {
+        requestDeferredReconnectIfNeeded();
+        super.onPause();
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         binding.recyclerApps.setAdapter(null);
@@ -258,6 +266,7 @@ public class AppsFragment extends Fragment {
             return;
         }
         AppPrefs.setAppRoutingPackageEnabled(context, packageName, enabled);
+        appRoutingChanged = true;
         if (enabled) {
             enabledPackages.add(packageName);
         } else {
@@ -275,8 +284,18 @@ public class AppsFragment extends Fragment {
 
     private void onBypassModeChanged(boolean enabled, View sourceView) {
         AppPrefs.setAppRoutingBypassEnabled(requireContext(), enabled);
+        appRoutingChanged = true;
         adapter.setBypassEnabled(enabled);
         Haptics.softSliderStep(sourceView);
+    }
+
+    private void requestDeferredReconnectIfNeeded() {
+        if (!appRoutingChanged || !ProxyTunnelService.isActive()) {
+            appRoutingChanged = false;
+            return;
+        }
+        appRoutingChanged = false;
+        ProxyTunnelService.requestReconnect(requireContext().getApplicationContext(), "App routing changed");
     }
 
     private void onSearchQueryChanged(String query) {

@@ -17,6 +17,7 @@ public final class XraySettings {
     public boolean sniffingEnabled;
     public boolean proxyQuicEnabled;
     public boolean restartOnNetworkChange;
+    public ProxyRuntimeMode runtimeMode = ProxyRuntimeMode.VPN;
     public XrayTransportMode transportMode = XrayTransportMode.DIRECT;
 
     public XraySettings copy() {
@@ -34,6 +35,7 @@ public final class XraySettings {
         copy.sniffingEnabled = sniffingEnabled;
         copy.proxyQuicEnabled = proxyQuicEnabled;
         copy.restartOnNetworkChange = restartOnNetworkChange;
+        copy.runtimeMode = runtimeMode;
         copy.transportMode = transportMode;
         return copy;
     }
@@ -57,6 +59,7 @@ public final class XraySettings {
             sniffingEnabled == that.sniffingEnabled &&
             proxyQuicEnabled == that.proxyQuicEnabled &&
             restartOnNetworkChange == that.restartOnNetworkChange &&
+            runtimeMode == that.runtimeMode &&
             transportMode == that.transportMode &&
             Objects.equals(localProxyUsername, that.localProxyUsername) &&
             Objects.equals(localProxyPassword, that.localProxyPassword) &&
@@ -81,6 +84,7 @@ public final class XraySettings {
             sniffingEnabled,
             proxyQuicEnabled,
             restartOnNetworkChange,
+            runtimeMode,
             transportMode
         );
     }

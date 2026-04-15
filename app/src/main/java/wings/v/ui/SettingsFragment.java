@@ -16,6 +16,8 @@ import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 import dev.oneuiproject.oneui.preference.UpdatableWidgetPreference;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import wings.v.AboutAppActivity;
 import wings.v.ActiveProbingSettingsActivity;
 import wings.v.AutoSearchActivity;
@@ -46,6 +48,7 @@ import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTransportMode;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -76,6 +79,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
     private static final long RUNTIME_BACKEND_REFRESH_INTERVAL_MS = 500L;
+    private static final Set<String> RUNTIME_AFFECTING_KEYS = new LinkedHashSet<>();
+
+    static {
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_ROOT_MODE);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_KERNEL_WIREGUARD);
+    }
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable runtimeBackendRefreshRunnable = new Runnable() {
         @Override
@@ -87,6 +97,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private AppUpdateManager appUpdateManager;
     private BackendType lastConfiguredBackendType;
+    private boolean suppressRuntimeReconnect;
     private final AppUpdateManager.Listener updateStateListener = this::refreshAboutPreferenceBadge;
 
     @Override
@@ -265,10 +276,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             vkTurnSettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 BackendType backendType = XrayStore.getBackendType(requireContext());
-                if (
-                    (backendType == null || !backendType.usesXrayCore()) &&
-                    (backendType == null || !backendType.isVkTurnLike())
-                ) {
+                if (!isVkTurnSettingsAvailable(backendType)) {
                     return true;
                 }
                 startActivity(VkTurnSettingsActivity.createIntent(requireContext()));
@@ -451,7 +459,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     private void configureXrayPreferences(@Nullable BackendType backendType) {
         boolean xrayBackend = backendType != null && backendType.usesXrayCore();
         XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
-        boolean relaySettingsAvailable = (backendType != null && backendType.isVkTurnLike()) || xrayBackend;
+        boolean relaySettingsAvailable = isVkTurnSettingsAvailable(backendType, xrayTransportMode);
         Preference subscriptionsPreference = findPreference("pref_open_subscriptions");
         Preference xraySettingsPreference = findPreference("pref_open_xray_settings");
         Preference vkTurnSettingsPreference = findPreference(AppPrefs.KEY_OPEN_VK_TURN_SETTINGS);
@@ -494,6 +502,27 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     : getString(R.string.byedpi_xray_only_summary)
             );
         }
+    }
+
+    private boolean isVkTurnSettingsAvailable(@Nullable BackendType backendType) {
+        XrayTransportMode transportMode =
+            backendType != null && backendType.usesXrayCore()
+                ? XrayStore.getXraySettings(requireContext()).transportMode
+                : null;
+        return isVkTurnSettingsAvailable(backendType, transportMode);
+    }
+
+    private boolean isVkTurnSettingsAvailable(
+        @Nullable BackendType backendType,
+        @Nullable XrayTransportMode transportMode
+    ) {
+        return (
+            (backendType != null && backendType.isVkTurnLike()) ||
+            (backendType != null &&
+                backendType.usesXrayCore() &&
+                transportMode != null &&
+                transportMode.usesTurnProxy())
+        );
     }
 
     private void setPreferenceVisible(String key, boolean visible) {
@@ -591,6 +620,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
             syncPreferenceValuesFromPrefs();
             refreshRuntimeBackedPreferences(true);
+            requestRuntimeReconnectIfNeeded(key);
         };
         getPreferenceManager()
             .getSharedPreferences()
@@ -612,33 +642,39 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        ProxySettings settings = AppPrefs.getSettings(context);
+        boolean previousSuppressState = suppressRuntimeReconnect;
+        suppressRuntimeReconnect = true;
+        try {
+            ProxySettings settings = AppPrefs.getSettings(context);
 
-        syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
-        syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
-        syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
-        syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
-        syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
-        syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
-        syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
-        syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
-        syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
-        syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
-        syncEditTextPreference(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
-        syncEditTextPreference(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
-        syncEditTextPreference(AppPrefs.KEY_WG_DNS, settings.wgDns);
-        syncEditTextPreference(AppPrefs.KEY_WG_MTU, String.valueOf(settings.wgMtu));
-        syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
-        syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
-        syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
-        syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(context));
-        syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
-        syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
-        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
-        syncPreferenceSummary(
-            AppPrefs.KEY_THEME_MODE,
-            getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context)))
-        );
+            syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
+            syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
+            syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
+            syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
+            syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
+            syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
+            syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
+            syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
+            syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
+            syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
+            syncEditTextPreference(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
+            syncEditTextPreference(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
+            syncEditTextPreference(AppPrefs.KEY_WG_DNS, settings.wgDns);
+            syncEditTextPreference(AppPrefs.KEY_WG_MTU, String.valueOf(settings.wgMtu));
+            syncEditTextPreference(AppPrefs.KEY_WG_PUBLIC_KEY, settings.wgPublicKey);
+            syncEditTextPreference(AppPrefs.KEY_WG_PRESHARED_KEY, settings.wgPresharedKey);
+            syncEditTextPreference(AppPrefs.KEY_WG_ALLOWED_IPS, settings.wgAllowedIps);
+            syncSwitchPreference(AppPrefs.KEY_ROOT_MODE, AppPrefs.isRootModeEnabled(context));
+            syncSwitchPreference(AppPrefs.KEY_KERNEL_WIREGUARD, AppPrefs.isKernelWireGuardEnabled(context));
+            syncSwitchPreference(AppPrefs.KEY_AUTO_START_ON_BOOT, AppPrefs.isAutoStartOnBootEnabled(context));
+            syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(context).prefValue);
+            syncPreferenceSummary(
+                AppPrefs.KEY_THEME_MODE,
+                getString(ThemeModeController.resolveLabelRes(AppPrefs.getThemeMode(context)))
+            );
+        } finally {
+            suppressRuntimeReconnect = previousSuppressState;
+        }
     }
 
     private void syncEditTextPreference(String key, @Nullable String value) {
@@ -704,5 +740,16 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         preference.setSummary(summary);
+    }
+
+    private void requestRuntimeReconnectIfNeeded(@Nullable String key) {
+        if (suppressRuntimeReconnect || TextUtils.isEmpty(key) || !RUNTIME_AFFECTING_KEYS.contains(key)) {
+            return;
+        }
+        Context context = getContext();
+        if (context == null || !ProxyTunnelService.isActive()) {
+            return;
+        }
+        ProxyTunnelService.requestReconnect(context.getApplicationContext(), "Runtime settings changed");
     }
 }
