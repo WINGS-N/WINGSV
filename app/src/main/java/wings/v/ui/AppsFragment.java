@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
+import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.databinding.FragmentAppsBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -60,6 +61,7 @@ public class AppsFragment extends Fragment {
     private static final String STATE_SELECTED_ONLY_MODE = "apps_selected_only_mode";
     private static final String STATE_APP_TYPE_FILTER = "apps_type_filter";
     private static final String FILTER_ALL = "all";
+    private static final String FILTER_RECOMMENDED = "recommended";
     private static final String FILTER_SYSTEM = "system";
     private static final String FILTER_USER = "user";
     private static final long SEARCH_BAR_ANIMATION_MS = 180L;
@@ -247,6 +249,12 @@ public class AppsFragment extends Fragment {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        loadApplications();
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         binding.recyclerApps.setAdapter(null);
@@ -264,6 +272,15 @@ public class AppsFragment extends Fragment {
         Context context = requireContext();
         if (TextUtils.equals(packageName, context.getPackageName())) {
             return;
+        }
+        boolean recommendedPackage = RuStoreRecommendedAppsAsset.getApps(context).containsKey(packageName);
+        boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(context);
+        if (recommendedPackage) {
+            if (enabled) {
+                AppPrefs.setAppRoutingRecommendedPackageDismissed(context, packageName, false);
+            } else if (bypassEnabled) {
+                AppPrefs.setAppRoutingRecommendedPackageDismissed(context, packageName, true);
+            }
         }
         AppPrefs.setAppRoutingPackageEnabled(context, packageName, enabled);
         appRoutingChanged = true;
@@ -285,7 +302,13 @@ public class AppsFragment extends Fragment {
     private void onBypassModeChanged(boolean enabled, View sourceView) {
         AppPrefs.setAppRoutingBypassEnabled(requireContext(), enabled);
         appRoutingChanged = true;
-        adapter.setBypassEnabled(enabled);
+        if (enabled && syncRecommendedPackages()) {
+            adapter.replaceItems(filterEntries("", false), enabledPackages, true);
+            updateMainEmptyState();
+            updateSearchResults();
+        } else {
+            adapter.setBypassEnabled(enabled);
+        }
         Haptics.softSliderStep(sourceView);
     }
 
@@ -322,6 +345,11 @@ public class AppsFragment extends Fragment {
         binding.textAppsEmpty.setVisibility(View.GONE);
         executor.execute(() -> {
             List<AppRoutingEntry> entries = queryInstalledApps(appContext);
+            Set<String> installedPackages = new LinkedHashSet<>();
+            for (AppRoutingEntry entry : entries) {
+                installedPackages.add(entry.packageName);
+            }
+            boolean autoSelected = AppPrefs.syncRecommendedAppRoutingPackages(appContext, installedPackages);
             AppPrefs.setAppRoutingPackageEnabled(appContext, appContext.getPackageName(), false);
             Set<String> storedEnabledPackages = AppPrefs.getAppRoutingPackages(appContext);
             boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(appContext);
@@ -334,12 +362,29 @@ public class AppsFragment extends Fragment {
                 appEntries.addAll(entries);
                 enabledPackages.clear();
                 enabledPackages.addAll(storedEnabledPackages);
+                if (autoSelected) {
+                    appRoutingChanged = true;
+                }
                 adapter.replaceItems(filterEntries("", false), enabledPackages, bypassEnabled);
                 updateMainEmptyState();
                 updateSearchResults();
                 updateScrollToTopButton();
             });
         });
+    }
+
+    private boolean syncRecommendedPackages() {
+        Context appContext = requireContext().getApplicationContext();
+        Set<String> installedPackages = new LinkedHashSet<>();
+        for (AppRoutingEntry entry : appEntries) {
+            installedPackages.add(entry.packageName);
+        }
+        boolean changed = AppPrefs.syncRecommendedAppRoutingPackages(appContext, installedPackages);
+        if (changed) {
+            enabledPackages.clear();
+            enabledPackages.addAll(AppPrefs.getAppRoutingPackages(appContext));
+        }
+        return changed;
     }
 
     private void updateMainEmptyState() {
@@ -426,11 +471,14 @@ public class AppsFragment extends Fragment {
         if (entry == null || TextUtils.equals(activeAppTypeFilter, FILTER_ALL)) {
             return true;
         }
-        if (TextUtils.equals(activeAppTypeFilter, FILTER_SYSTEM)) {
-            return entry.systemApp;
+        if (TextUtils.equals(activeAppTypeFilter, FILTER_RECOMMENDED)) {
+            return entry.recommendedApp;
         }
         if (TextUtils.equals(activeAppTypeFilter, FILTER_USER)) {
             return !entry.systemApp;
+        }
+        if (TextUtils.equals(activeAppTypeFilter, FILTER_SYSTEM)) {
+            return entry.systemApp;
         }
         return true;
     }
@@ -441,8 +489,9 @@ public class AppsFragment extends Fragment {
         }
         binding.groupAppTypeFilters.removeAllViews();
         addFilterChip(FILTER_ALL, getString(R.string.apps_filter_all));
-        addFilterChip(FILTER_SYSTEM, getString(R.string.apps_filter_system));
+        addFilterChip(FILTER_RECOMMENDED, getString(R.string.apps_filter_recommended));
         addFilterChip(FILTER_USER, getString(R.string.apps_filter_user));
+        addFilterChip(FILTER_SYSTEM, getString(R.string.apps_filter_system));
     }
 
     private void addFilterChip(@NonNull String filterId, @NonNull String title) {
@@ -624,6 +673,7 @@ public class AppsFragment extends Fragment {
         }
 
         List<AppRoutingEntry> entries = new ArrayList<>(installedApplications.size());
+        Set<String> recommendedPackages = RuStoreRecommendedAppsAsset.getPackageNames(context);
         for (ApplicationInfo applicationInfo : installedApplications) {
             if (TextUtils.equals(applicationInfo.packageName, ownPackageName)) {
                 continue;
@@ -638,7 +688,8 @@ public class AppsFragment extends Fragment {
                     applicationInfo.packageName,
                     applicationInfo.loadIcon(packageManager),
                     (applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                        (applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                        (applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
+                    recommendedPackages.contains(applicationInfo.packageName)
                 )
             );
         }

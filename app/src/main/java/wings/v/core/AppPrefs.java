@@ -95,6 +95,7 @@ public final class AppPrefs {
     public static final String KEY_SUBSCRIPTION_HWID_DEVICE_MODEL = "pref_subscription_hwid_device_model";
     public static final String KEY_APP_ROUTING_BYPASS = "pref_app_routing_bypass";
     public static final String KEY_APP_ROUTING_PACKAGES = "pref_app_routing_packages";
+    public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
     public static final String KEY_ROOT_ACCESS_GRANTED = "pref_root_access_granted";
@@ -627,6 +628,86 @@ public final class AppPrefs {
             }
         }
         prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, normalizedPackages).apply();
+    }
+
+    public static Set<String> getAppRoutingRecommendedDismissedPackages(Context context) {
+        Set<String> stored = prefs(context).getStringSet(KEY_APP_ROUTING_RECOMMENDED_DISMISSED, null);
+        if (stored == null || stored.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+        LinkedHashSet<String> packages = new LinkedHashSet<>(stored);
+        packages.remove(context.getPackageName());
+        return packages;
+    }
+
+    public static void setAppRoutingRecommendedPackageDismissed(Context context, String packageName, boolean dismissed) {
+        String normalizedPackageName = trim(packageName);
+        if (TextUtils.isEmpty(normalizedPackageName) || TextUtils.equals(normalizedPackageName, context.getPackageName())) {
+            return;
+        }
+        Set<String> packages = getAppRoutingRecommendedDismissedPackages(context);
+        if (dismissed) {
+            packages.add(normalizedPackageName);
+        } else {
+            packages.remove(normalizedPackageName);
+        }
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_RECOMMENDED_DISMISSED, packages).apply();
+    }
+
+    public static boolean maybeAutoEnableRecommendedAppRoutingPackage(Context context, String packageName) {
+        String normalizedPackageName = trim(packageName);
+        if (
+            TextUtils.isEmpty(normalizedPackageName) ||
+            TextUtils.equals(normalizedPackageName, context.getPackageName()) ||
+            !isAppRoutingBypassEnabled(context)
+        ) {
+            return false;
+        }
+        if (!RuStoreRecommendedAppsAsset.getApps(context).containsKey(normalizedPackageName)) {
+            return false;
+        }
+        Set<String> dismissedPackages = getAppRoutingRecommendedDismissedPackages(context);
+        if (dismissedPackages.contains(normalizedPackageName)) {
+            return false;
+        }
+        Set<String> enabledPackages = getAppRoutingPackages(context);
+        if (enabledPackages.contains(normalizedPackageName)) {
+            return false;
+        }
+        enabledPackages.add(normalizedPackageName);
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, enabledPackages).apply();
+        return true;
+    }
+
+    public static boolean syncRecommendedAppRoutingPackages(Context context, Set<String> installedPackages) {
+        if (!isAppRoutingBypassEnabled(context) || installedPackages == null || installedPackages.isEmpty()) {
+            return false;
+        }
+        Set<String> dismissedPackages = getAppRoutingRecommendedDismissedPackages(context);
+        Set<String> recommendedPackages = RuStoreRecommendedAppsAsset.getPackageNames(context);
+        if (recommendedPackages.isEmpty()) {
+            return false;
+        }
+        Set<String> enabledPackages = getAppRoutingPackages(context);
+        boolean changed = false;
+        for (String packageName : installedPackages) {
+            String normalizedPackageName = trim(packageName);
+            if (
+                TextUtils.isEmpty(normalizedPackageName) ||
+                TextUtils.equals(normalizedPackageName, context.getPackageName()) ||
+                !recommendedPackages.contains(normalizedPackageName) ||
+                dismissedPackages.contains(normalizedPackageName) ||
+                enabledPackages.contains(normalizedPackageName)
+            ) {
+                continue;
+            }
+            enabledPackages.add(normalizedPackageName);
+            changed = true;
+        }
+        if (changed) {
+            prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, enabledPackages).apply();
+        }
+        return changed;
     }
 
     public static ProxySettings getSettings(Context context) {

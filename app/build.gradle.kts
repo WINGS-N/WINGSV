@@ -1,10 +1,17 @@
 import java.util.Properties
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.io.BufferedReader
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
+import java.time.Instant
 import org.gradle.api.file.Directory
 import org.gradle.api.provider.Provider
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.plugins.quality.Pmd
 import org.gradle.api.tasks.TaskProvider
+import org.gradle.api.tasks.Copy
 
 plugins {
     alias(libs.plugins.android.application)
@@ -34,8 +41,25 @@ val libXrayRepoDir: File = rootProject.file("external/libXray")
 val generatedLibXrayDir: Provider<Directory> = layout.buildDirectory.dir("generated/xray")
 val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "work") }
 val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
+val ruStoreParserRepoDir: File = rootProject.file("external/librustoreparser")
+val ruStoreRecommendedAppsCacheFile: File = rootProject.file(".gradle/rustore/recommended_apps.json")
+val generatedRuStoreAssetsDir: Provider<Directory> = layout.buildDirectory.dir("generated/assets/rustore")
+val generatedRuStoreResDir: Provider<Directory> = layout.buildDirectory.dir("generated/res/rustore")
+val generatedRuStoreRecommendedAsset: Provider<File> = generatedRuStoreAssetsDir.map {
+    File(it.asFile, "rustore_recommended_apps.json")
+}
+val generatedRuStoreXposedScopeXml: Provider<File> = generatedRuStoreResDir.map {
+    File(it.asFile, "values/rustore_xposed_scope.xml")
+}
 val protoSourceDir: File = project.file("src/main/proto")
 val generatedProtoJavaDir: Provider<Directory> = layout.buildDirectory.dir("generated/source/proto/main/java")
+
+data class RuStoreRecommendedAppRecord(
+    val packageName: String,
+    val appName: String?,
+    val developerName: String?,
+    val developerPath: String?
+)
 
 fun versionCodeFromSemanticVersion(versionName: String): Int {
     val parts: List<String> = versionName.split('.')
@@ -139,6 +163,140 @@ fun resolveToolBinDir(toolName: String, fallbackToolName: String = "go"): String
     val resolved: File = File(resolveGoBinary(toolName))
     resolved.parentFile?.let { return it.absolutePath }
     return File(resolveGoBinary(fallbackToolName)).parentFile.absolutePath
+}
+
+fun escapeJsonString(value: String): String = buildString(value.length + 8) {
+    append('"')
+    value.forEach { character ->
+        when (character) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '\b' -> append("\\b")
+            '\u000C' -> append("\\f")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            else -> {
+                if (character.code < 0x20) {
+                    append("\\u%04x".format(character.code))
+                } else {
+                    append(character)
+                }
+            }
+        }
+    }
+    append('"')
+}
+
+fun nullableJsonString(value: String?): String = if (value == null) "null" else escapeJsonString(value)
+
+fun parseRuStoreCrawlerFullOutput(rawOutput: String): List<RuStoreRecommendedAppRecord> {
+    val packageNamePattern: Regex = Regex("""[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+""")
+    val byPackage: LinkedHashMap<String, RuStoreRecommendedAppRecord> = LinkedHashMap()
+    rawOutput.lineSequence().forEach { rawLine ->
+        val line: String = rawLine.trimEnd()
+        if (line.isBlank()) {
+            return@forEach
+        }
+        val columns: List<String> = line.split('\t', limit = 4)
+        val packageName: String = columns.getOrNull(0)?.trim().orEmpty()
+        if (!packageNamePattern.matches(packageName)) {
+            return@forEach
+        }
+        fun nullableColumn(index: Int): String? = columns.getOrNull(index)?.trim()?.takeIf { it.isNotEmpty() }
+        byPackage[packageName] = RuStoreRecommendedAppRecord(
+            packageName = packageName,
+            appName = nullableColumn(1),
+            developerName = nullableColumn(2),
+            developerPath = nullableColumn(3)
+        )
+    }
+    return byPackage.values.sortedBy { it.packageName }
+}
+
+fun buildRuStoreRecommendedAppsJson(apps: List<RuStoreRecommendedAppRecord>): String = buildString {
+    append("{\n")
+    append("  \"source\": ").append(escapeJsonString("librustoreparser")).append(",\n")
+    append("  \"generated_at_utc\": ").append(escapeJsonString(Instant.now().toString())).append(",\n")
+    append("  \"package_count\": ").append(apps.size).append(",\n")
+    append("  \"packages\": [\n")
+    apps.forEachIndexed { index, app ->
+        append("    {\n")
+        append("      \"package_name\": ").append(escapeJsonString(app.packageName)).append(",\n")
+        append("      \"app_name\": ").append(nullableJsonString(app.appName)).append(",\n")
+        append("      \"developer_name\": ").append(nullableJsonString(app.developerName)).append(",\n")
+        append("      \"developer_path\": ").append(nullableJsonString(app.developerPath)).append("\n")
+        append("    }")
+        if (index != apps.lastIndex) {
+            append(',')
+        }
+        append('\n')
+    }
+    append("  ]\n")
+    append("}\n")
+}
+
+fun parseRuStoreRecommendedPackageNames(rawJson: String): List<String> {
+    val packageNamePattern = Regex("""[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+""")
+    val packageNameFieldPattern = Regex(""""package_name"\s*:\s*"([^"]+)"""")
+    val byPackage: LinkedHashSet<String> = linkedSetOf()
+    packageNameFieldPattern.findAll(rawJson).forEach { match ->
+        val packageName = match.groupValues[1].trim()
+        if (packageNamePattern.matches(packageName)) {
+            byPackage.add(packageName)
+        }
+    }
+    return byPackage.toList()
+}
+
+fun escapeXmlText(value: String): String = buildString(value.length) {
+    value.forEach { character ->
+        when (character) {
+            '&' -> append("&amp;")
+            '<' -> append("&lt;")
+            '>' -> append("&gt;")
+            '"' -> append("&quot;")
+            '\'' -> append("&apos;")
+            else -> append(character)
+        }
+    }
+}
+
+fun buildRuStoreXposedScopeXml(packageNames: List<String>): String = buildString {
+    append("""<?xml version="1.0" encoding="utf-8"?>""").append('\n')
+    append("<resources>\n")
+    append("    <string-array name=\"xposed_recommended_scope_packages\">\n")
+    packageNames.forEach { packageName ->
+        append("        <item>")
+            .append(escapeXmlText(packageName))
+            .append("</item>\n")
+    }
+    append("    </string-array>\n")
+    append("</resources>\n")
+}
+
+fun captureProcessStream(
+    input: InputStream,
+    sink: ByteArrayOutputStream,
+    lineConsumer: ((String) -> Unit)? = null
+) {
+    BufferedReader(InputStreamReader(input, StandardCharsets.UTF_8)).use { reader ->
+        while (true) {
+            val line: String = reader.readLine() ?: break
+            sink.write(line.toByteArray(StandardCharsets.UTF_8))
+            sink.write('\n'.code)
+            lineConsumer?.invoke(line)
+        }
+    }
+}
+
+fun gradleWrapperCommand(rootDir: File): List<String> {
+    val isWindows: Boolean = System.getProperty("os.name").contains("Windows", ignoreCase = true)
+    return if (isWindows) {
+        listOf("cmd", "/c", rootDir.resolve("gradlew.bat").absolutePath)
+    } else {
+        listOf(rootDir.resolve("gradlew").absolutePath)
+    }
 }
 
 fun isLintInvocation(): Boolean {
@@ -312,6 +470,102 @@ val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class)
     }
 }
 
+val generateRuStoreRecommendedAppsCache by tasks.registering {
+    group = "build"
+    description = "Crawls RuStore recommended apps once and caches the JSON. Re-run with --rerun-tasks to refresh."
+
+    outputs.file(ruStoreRecommendedAppsCacheFile)
+
+    doLast {
+        check(ruStoreParserRepoDir.isDirectory) {
+            "librustoreparser submodule not found at ${ruStoreParserRepoDir.absolutePath}."
+        }
+
+        ruStoreRecommendedAppsCacheFile.parentFile.mkdirs()
+
+        val stdout = ByteArrayOutputStream()
+        val stderr = ByteArrayOutputStream()
+        val process = ProcessBuilder(
+            gradleWrapperCommand(rootProject.rootDir) +
+                listOf(
+                    "-p",
+                    ruStoreParserRepoDir.absolutePath,
+                    "--no-daemon",
+                    "--quiet",
+                    "--console=plain",
+                    "runCrawlerCli",
+                    "--args=--full --progress"
+                )
+        )
+            .directory(rootProject.rootDir)
+            .start()
+
+        val stdoutReader = Thread {
+            captureProcessStream(process.inputStream, stdout)
+        }
+        val stderrReader = Thread {
+            captureProcessStream(process.errorStream, stderr) { line ->
+                logger.lifecycle(line)
+            }
+        }
+        stdoutReader.start()
+        stderrReader.start()
+        val exitCode = process.waitFor()
+        stdoutReader.join()
+        stderrReader.join()
+        check(exitCode == 0) {
+            "RuStore crawler command failed with exit code $exitCode.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
+        }
+
+        val parsedApps: List<RuStoreRecommendedAppRecord> = parseRuStoreCrawlerFullOutput(
+            stdout.toString(StandardCharsets.UTF_8)
+        )
+        check(parsedApps.isNotEmpty()) {
+            "RuStore crawler returned no app records.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
+        }
+
+        ruStoreRecommendedAppsCacheFile.writeText(
+            buildRuStoreRecommendedAppsJson(parsedApps),
+            StandardCharsets.UTF_8
+        )
+    }
+}
+
+val syncRuStoreRecommendedAppsAsset: TaskProvider<Copy> by tasks.registering(Copy::class) {
+    group = "build"
+    description = "Copies cached RuStore recommended apps JSON into generated Android assets."
+
+    dependsOn(generateRuStoreRecommendedAppsCache)
+    from(ruStoreRecommendedAppsCacheFile)
+    into(generatedRuStoreAssetsDir)
+    rename { generatedRuStoreRecommendedAsset.get().name }
+}
+
+val syncRuStoreRecommendedXposedScopeRes by tasks.registering {
+    group = "build"
+    description = "Generates LSPosed recommended scope resources from cached RuStore recommendations."
+
+    dependsOn(generateRuStoreRecommendedAppsCache)
+    inputs.file(ruStoreRecommendedAppsCacheFile)
+    outputs.file(generatedRuStoreXposedScopeXml)
+
+    doLast {
+        val packageNames = parseRuStoreRecommendedPackageNames(
+            ruStoreRecommendedAppsCacheFile.readText(StandardCharsets.UTF_8)
+        )
+        check(packageNames.isNotEmpty()) {
+            "RuStore recommended apps cache contains no package names."
+        }
+
+        val outputFile = generatedRuStoreXposedScopeXml.get()
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText(
+            buildRuStoreXposedScopeXml(packageNames),
+            StandardCharsets.UTF_8
+        )
+    }
+}
+
 configurations.configureEach {
     exclude(group = "androidx.core", module = "core")
     exclude(group = "androidx.core", module = "core-ktx")
@@ -388,6 +642,8 @@ android {
     sourceSets.getByName("main") {
         jniLibs.directories.clear()
         jniLibs.directories.add(generatedVkTurnJniLibsDir.get().asFile.absolutePath)
+        assets.directories.add(generatedRuStoreAssetsDir.get().asFile.absolutePath)
+        res.directories.add(generatedRuStoreResDir.get().asFile.absolutePath)
         java.directories.clear()
         java.directories.addAll(listOf("src/main/java", generatedProtoJavaDir.get().asFile.absolutePath))
     }
@@ -423,7 +679,9 @@ if (!isLintInvocation()) {
             generateVkTurnProxyProtoGo,
             buildVkTurnProxyArm64,
             generateWingsProtoJava,
-            buildLibXrayAndroidAar
+            buildLibXrayAndroidAar,
+            syncRuStoreRecommendedAppsAsset,
+            syncRuStoreRecommendedXposedScopeRes
         )
     }
 }

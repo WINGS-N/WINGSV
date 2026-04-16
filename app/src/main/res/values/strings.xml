@@ -155,6 +155,7 @@
     <string name="apps_search_close">Закрыть поиск</string>
     <string name="apps_scroll_to_top">Наверх</string>
     <string name="apps_filter_all">Все</string>
+    <string name="apps_filter_recommended">Рекомендуемые</string>
     <string name="apps_filter_system">Системные</string>
     <string name="apps_filter_user">Пользовательские</string>
     <string name="apps_toggle">Включить правило для приложения</string>
