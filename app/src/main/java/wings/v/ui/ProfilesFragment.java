@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.ResultReceiver;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -26,13 +29,9 @@ import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,8 +44,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import wings.v.MainActivity;
 import wings.v.R;
+import wings.v.byedpi.ByeDpiLocalRunner;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
+import wings.v.core.ByeDpiSettings;
+import wings.v.core.ByeDpiStore;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
@@ -59,8 +61,7 @@ import wings.v.databinding.FragmentProfilesBinding;
 import wings.v.databinding.ItemProfileEntryBinding;
 import wings.v.databinding.ItemProfileGroupHeaderBinding;
 import wings.v.service.ProxyTunnelService;
-import wings.v.xray.XrayAutoSearchConfigFactory;
-import wings.v.xray.XrayBridge;
+import wings.v.service.XrayRealDelayTestService;
 
 @SuppressWarnings(
     {
@@ -94,14 +95,13 @@ public class ProfilesFragment extends Fragment {
 
     private static final int TCPING_TIMEOUT_MS = 1000;
     private static final int CONNECTION_TEST_PARALLELISM = 5;
-    private static final int REAL_DELAY_TIMEOUT_SECONDS = 8;
     private static final int PING_GOOD_THRESHOLD_MS = 150;
     private static final int PING_WARNING_THRESHOLD_MS = 350;
     private static final int PAGE_SIZE = 5;
     private static final int LOAD_MORE_THRESHOLD_DP = 320;
     private static final int GROUP_QUOTA_PROGRESS_MAX = 1000;
     private static final long TRAFFIC_REFRESH_INTERVAL_MS = 1_000L;
-    private static final String REAL_DELAY_TEST_URL = "https://cp.cloudflare.com/generate_204";
+    private static final long REAL_DELAY_BYEDPI_START_TIMEOUT_MS = 5_000L;
     private static final String FILTER_ALL = "__all__";
     private static final String FILTER_NO_SUBSCRIPTION = "__manual__";
 
@@ -144,6 +144,7 @@ public class ProfilesFragment extends Fragment {
     private int connectionTestGeneration;
     private int renderGeneration;
     private int renderedItemCount;
+    private ByeDpiLocalRunner realDelayByeDpiRunner;
     private RoundedLinearLayout currentAppendGroupContainer;
     private OnBackPressedCallback selectionBackCallback;
 
@@ -255,6 +256,7 @@ public class ProfilesFragment extends Fragment {
         workExecutor.shutdownNow();
         renderExecutor.shutdownNow();
         connectionTestExecutor.shutdownNow();
+        closeRealDelayByeDpiRunner();
         super.onDestroy();
     }
 
@@ -847,52 +849,29 @@ public class ProfilesFragment extends Fragment {
         updateActionRows();
         updateAllRowStates(currentActiveProfileId);
 
-        for (XrayProfile profile : targets) {
+        if (mode == ConnectionTestMode.REAL_DELAY) {
             connectionTestExecutor.execute(() -> {
-                PingState result =
-                    generation == connectionTestGeneration
-                        ? runConnectionTest(appContext, xraySettings, profile, mode)
-                        : PingState.none();
+                prepareRealDelayByeDpi(appContext);
                 postToUi(() -> {
-                    if (generation != connectionTestGeneration || binding == null) {
+                    if (generation != connectionTestGeneration || !connectionTestRunning) {
+                        closeRealDelayByeDpiRunner();
                         return;
                     }
-                    pingStates.put(pingStateKey(profile), result);
-                    XrayStore.putProfilePingResult(
-                        appContext,
-                        pingStateKey(profile),
-                        result.state == PingDisplayState.SUCCESS,
-                        result.latencyMs
-                    );
-                    ProfileRowViews row = rowViews.get(profile.id);
-                    if (row != null) {
-                        applyRowState(row, TextUtils.equals(currentActiveProfileId, profile.id));
-                    }
+                    runRealDelayTests(targets, xraySettings, generation, remaining, appContext);
                 });
-                if (remaining.decrementAndGet() == 0) {
-                    postToUi(() -> {
-                        if (generation != connectionTestGeneration || binding == null) {
-                            return;
-                        }
-                        connectionTestRunning = false;
-                        updateActionRows();
-                        refreshUi();
-                    });
-                }
+            });
+            return;
+        }
+
+        for (XrayProfile profile : targets) {
+            connectionTestExecutor.execute(() -> {
+                PingState result = generation == connectionTestGeneration ? tcping(profile) : PingState.none();
+                postToUi(() -> {
+                    applyConnectionTestResult(generation, appContext, profile.id, pingStateKey(profile), result);
+                });
+                finishConnectionTestIfComplete(generation, remaining);
             });
         }
-    }
-
-    private PingState runConnectionTest(
-        Context appContext,
-        XraySettings xraySettings,
-        XrayProfile profile,
-        ConnectionTestMode mode
-    ) {
-        if (mode == ConnectionTestMode.REAL_DELAY) {
-            return realDelay(appContext, xraySettings, profile);
-        }
-        return tcping(profile);
     }
 
     private PingState tcping(XrayProfile profile) {
@@ -906,68 +885,124 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private PingState realDelay(Context appContext, XraySettings xraySettings, XrayProfile profile) {
-        File configFile = null;
-        try {
-            int localProxyPort = findAvailableTcpPort();
-            XraySettings testSettings = buildRealDelaySettings(xraySettings, localProxyPort);
-            String configJson = XrayAutoSearchConfigFactory.buildConfigJson(
+    private void runRealDelayTests(
+        List<XrayProfile> targets,
+        XraySettings xraySettings,
+        int generation,
+        AtomicInteger remaining,
+        Context appContext
+    ) {
+        ResultReceiver receiver = new ResultReceiver(new Handler(Looper.getMainLooper())) {
+            @Override
+            protected void onReceiveResult(int resultCode, Bundle resultData) {
+                if (resultData == null) {
+                    finishConnectionTestIfComplete(generation, remaining);
+                    return;
+                }
+                int latencyMs = Math.max(0, resultData.getInt(XrayRealDelayTestService.RESULT_LATENCY_MS, 0));
+                PingState result =
+                    resultCode == XrayRealDelayTestService.RESULT_SUCCESS && latencyMs > 0
+                        ? PingState.success(latencyMs)
+                        : PingState.failed();
+                applyConnectionTestResult(
+                    generation,
+                    appContext,
+                    resultData.getString(XrayRealDelayTestService.RESULT_PROFILE_ID, ""),
+                    resultData.getString(XrayRealDelayTestService.RESULT_PING_KEY, ""),
+                    result
+                );
+                finishConnectionTestIfComplete(generation, remaining);
+            }
+        };
+
+        int workerIndex = 0;
+        for (XrayProfile profile : targets) {
+            String pingKey = pingStateKey(profile);
+            boolean started = XrayRealDelayTestService.startTest(
                 appContext,
+                workerIndex,
                 profile,
-                testSettings,
-                localProxyPort,
-                null,
-                false
+                pingKey,
+                xraySettings,
+                receiver
             );
-            configFile = writeConnectionTestConfig(appContext, configJson);
-            long delayMs = XrayBridge.pingConfig(
-                appContext,
-                configFile,
-                REAL_DELAY_TIMEOUT_SECONDS,
-                REAL_DELAY_TEST_URL,
-                "socks://127.0.0.1:" + localProxyPort
-            );
-            if (delayMs <= 0L || delayMs > Integer.MAX_VALUE) {
-                return PingState.failed();
+            workerIndex++;
+            if (!started) {
+                applyConnectionTestResult(generation, appContext, profile.id, pingKey, PingState.failed());
+                finishConnectionTestIfComplete(generation, remaining);
             }
-            return PingState.success(Math.max((int) delayMs, 1));
+        }
+    }
+
+    private void applyConnectionTestResult(
+        int generation,
+        Context appContext,
+        String profileId,
+        String pingKey,
+        PingState result
+    ) {
+        if (generation != connectionTestGeneration || binding == null || TextUtils.isEmpty(pingKey)) {
+            return;
+        }
+        pingStates.put(pingKey, result);
+        XrayStore.putProfilePingResult(appContext, pingKey, result.state == PingDisplayState.SUCCESS, result.latencyMs);
+        ProfileRowViews row = rowViews.get(profileId);
+        if (row != null) {
+            applyRowState(row, TextUtils.equals(currentActiveProfileId, profileId));
+        }
+    }
+
+    private void finishConnectionTestIfComplete(int generation, AtomicInteger remaining) {
+        if (remaining.decrementAndGet() != 0) {
+            return;
+        }
+        postToUi(() -> {
+            if (generation != connectionTestGeneration || binding == null) {
+                return;
+            }
+            connectionTestRunning = false;
+            closeRealDelayByeDpiRunner();
+            updateActionRows();
+            refreshUi();
+        });
+    }
+
+    private void prepareRealDelayByeDpi(Context appContext) {
+        closeRealDelayByeDpiRunner();
+        ByeDpiSettings settings = ByeDpiStore.getSettings(appContext);
+        if (settings == null || !settings.launchOnXrayStart) {
+            return;
+        }
+        if (isLocalTcpPortReady(settings.resolveRuntimeDialHost(), settings.resolveRuntimeListenPort())) {
+            return;
+        }
+        ByeDpiLocalRunner runner = new ByeDpiLocalRunner();
+        try {
+            runner.start(settings, null, REAL_DELAY_BYEDPI_START_TIMEOUT_MS);
+            realDelayByeDpiRunner = runner;
         } catch (Exception ignored) {
-            return PingState.failed();
-        } finally {
-            if (configFile != null && configFile.exists()) {
-                configFile.delete();
-            }
+            runner.close();
         }
     }
 
-    private XraySettings buildRealDelaySettings(@Nullable XraySettings source, int localProxyPort) {
-        XraySettings settings = source == null ? new XraySettings() : source.copy();
-        settings.allowLan = false;
-        settings.localProxyEnabled = true;
-        settings.localProxyAuthEnabled = false;
-        settings.localProxyUsername = "";
-        settings.localProxyPassword = "";
-        settings.localProxyPort = localProxyPort;
-        return settings;
-    }
-
-    private int findAvailableTcpPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            socket.setReuseAddress(true);
-            return socket.getLocalPort();
+    private boolean isLocalTcpPortReady(String host, int port) {
+        if (TextUtils.isEmpty(host) || port <= 0) {
+            return false;
+        }
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), TCPING_TIMEOUT_MS);
+            return true;
+        } catch (IOException ignored) {
+            return false;
         }
     }
 
-    private File writeConnectionTestConfig(Context context, String configJson) throws IOException {
-        File dir = new File(context.getCacheDir(), "xray/profile-tests");
-        if (!dir.exists()) {
-            dir.mkdirs();
+    private void closeRealDelayByeDpiRunner() {
+        ByeDpiLocalRunner runner = realDelayByeDpiRunner;
+        realDelayByeDpiRunner = null;
+        if (runner != null) {
+            runner.close();
         }
-        File file = new File(dir, "real-delay-" + System.nanoTime() + ".json");
-        try (FileOutputStream outputStream = new FileOutputStream(file, false)) {
-            outputStream.write(configJson.getBytes(StandardCharsets.UTF_8));
-        }
-        return file;
     }
 
     private void cancelRunningConnectionTest() {
@@ -976,6 +1011,7 @@ public class ProfilesFragment extends Fragment {
         }
         connectionTestGeneration++;
         connectionTestRunning = false;
+        closeRealDelayByeDpiRunner();
         ArrayList<String> loadingKeys = new ArrayList<>();
         for (Map.Entry<String, PingState> entry : pingStates.entrySet()) {
             if (entry.getValue() != null && entry.getValue().state == PingDisplayState.LOADING) {
