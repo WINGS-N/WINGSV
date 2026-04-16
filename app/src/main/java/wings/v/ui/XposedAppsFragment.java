@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import wings.v.R;
 import wings.v.XposedAppsActivity;
 import wings.v.core.Haptics;
+import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.core.XposedModulePrefs;
 import wings.v.databinding.FragmentAppsBinding;
 
@@ -60,6 +61,7 @@ public class XposedAppsFragment extends Fragment {
     private static final String STATE_SEARCH_VISIBLE = "xposed_apps_search_visible";
     private static final String STATE_APP_TYPE_FILTER = "xposed_apps_type_filter";
     private static final String FILTER_ALL = "all";
+    private static final String FILTER_RECOMMENDED = "recommended";
     private static final String FILTER_SYSTEM = "system";
     private static final String FILTER_USER = "user";
     private static final long SEARCH_BAR_ANIMATION_MS = 180L;
@@ -344,11 +346,14 @@ public class XposedAppsFragment extends Fragment {
         if (entry == null || TextUtils.equals(activeAppTypeFilter, FILTER_ALL)) {
             return true;
         }
-        if (TextUtils.equals(activeAppTypeFilter, FILTER_SYSTEM)) {
-            return entry.systemApp;
+        if (TextUtils.equals(activeAppTypeFilter, FILTER_RECOMMENDED)) {
+            return entry.recommendedApp;
         }
         if (TextUtils.equals(activeAppTypeFilter, FILTER_USER)) {
             return !entry.systemApp;
+        }
+        if (TextUtils.equals(activeAppTypeFilter, FILTER_SYSTEM)) {
+            return entry.systemApp;
         }
         return true;
     }
@@ -359,8 +364,11 @@ public class XposedAppsFragment extends Fragment {
         }
         binding.groupAppTypeFilters.removeAllViews();
         addFilterChip(FILTER_ALL, getString(R.string.apps_filter_all));
-        addFilterChip(FILTER_SYSTEM, getString(R.string.apps_filter_system));
+        if (XposedAppsActivity.MODE_TARGET_APPS.equals(mode)) {
+            addFilterChip(FILTER_RECOMMENDED, getString(R.string.apps_filter_recommended));
+        }
         addFilterChip(FILTER_USER, getString(R.string.apps_filter_user));
+        addFilterChip(FILTER_SYSTEM, getString(R.string.apps_filter_system));
     }
 
     private void addFilterChip(@NonNull String filterId, @NonNull String title) {
@@ -493,6 +501,9 @@ public class XposedAppsFragment extends Fragment {
             installedApplications = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
         }
         List<AppRoutingEntry> entries = new ArrayList<>(installedApplications.size());
+        Set<String> recommendedPackages = XposedAppsActivity.MODE_TARGET_APPS.equals(mode)
+            ? RuStoreRecommendedAppsAsset.getPackageNames(context)
+            : java.util.Collections.emptySet();
         for (ApplicationInfo applicationInfo : installedApplications) {
             String label = applicationInfo.loadLabel(packageManager).toString().trim();
             if (label.isEmpty()) {
@@ -504,7 +515,8 @@ public class XposedAppsFragment extends Fragment {
                     applicationInfo.packageName,
                     applicationInfo.loadIcon(packageManager),
                     (applicationInfo.flags & ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                        (applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                        (applicationInfo.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
+                    recommendedPackages.contains(applicationInfo.packageName)
                 )
             );
         }
