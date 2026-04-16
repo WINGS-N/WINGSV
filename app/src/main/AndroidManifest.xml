@@ -301,6 +301,26 @@
         </service>
 
         <service
+            android:name=".service.XrayRealDelayTestWorker0Service"
+            android:exported="false"
+            android:process=":xray_test" />
+
+        <service
+            android:name=".service.XrayRealDelayTestWorker1Service"
+            android:exported="false"
+            android:process=":xray_test_1" />
+
+        <service
+            android:name=".service.XrayRealDelayTestWorker2Service"
+            android:exported="false"
+            android:process=":xray_test_2" />
+
+        <service
+            android:name=".service.XrayRealDelayTestWorker3Service"
+            android:exported="false"
+            android:process=":xray_test_3" />
+
+        <service
             android:name=".qs.TunnelQuickSettingsTileService"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true"
