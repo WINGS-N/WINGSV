@@ -56,6 +56,10 @@
             android:name="xposedminversion"
             android:value="82" />
 
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_recommended_scope_packages" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -338,6 +342,16 @@
             android:name=".receiver.ActiveProbingReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name=".receiver.RecommendedBypassAppsReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+                <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".receiver.XraySubscriptionRefreshReceiver"
