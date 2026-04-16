@@ -1,0 +1,2455 @@
+{
+  "source": "librustoreparser",
+  "generated_at_utc": "2026-04-16T10:37:52.437478051Z",
+  "package_count": 408,
+  "packages": [
+    {
+      "package_name": "app.subscab.android",
+      "app_name": "app.subscab.android",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "apps.yclients1",
+      "app_name": "apps.yclients1",
+      "developer_name": "YCLIENTS",
+      "developer_path": "/catalog/developer/5ff74c45"
+    },
+    {
+      "package_name": "az.vtb.android",
+      "app_name": "az.vtb.android",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "business.gid.hero",
+      "app_name": "business.gid.hero",
+      "developer_name": "ООО \"Оператор Газпром ИД\"",
+      "developer_path": "/catalog/developer/a15900d5"
+    },
+    {
+      "package_name": "business.gid.universe",
+      "app_name": "business.gid.universe",
+      "developer_name": "ООО \"Оператор Газпром ИД\"",
+      "developer_path": "/catalog/developer/a15900d5"
+    },
+    {
+      "package_name": "chat.strelka",
+      "app_name": "chat.strelka",
+      "developer_name": "ООО \"Умное пространство\"",
+      "developer_path": "/catalog/developer/cc01aebe"
+    },
+    {
+      "package_name": "club.chizhik",
+      "app_name": "club.chizhik",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "com.asmo.infometeos",
+      "app_name": "com.asmo.infometeos",
+      "developer_name": "ООО \"ИНФОМЕТЕОС\"",
+      "developer_path": "/catalog/developer/taavi9x0"
+    },
+    {
+      "package_name": "com.b2bdomru.domrubusiness",
+      "app_name": "com.b2bdomru.domrubusiness",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "com.birzha_rt",
+      "app_name": "com.birzha_rt",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "com.chaevieprosto.app",
+      "app_name": "com.chaevieprosto.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.dartit.RTcabinet",
+      "app_name": "com.dartit.RTcabinet",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "com.dartit.mobileagent",
+      "app_name": "com.dartit.mobileagent",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "com.deliveryclub",
+      "app_name": "com.deliveryclub",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.dexp01.reoka01.com",
+      "app_name": "com.dexp01.reoka01.com",
+      "developer_name": "ДНС",
+      "developer_path": "/catalog/developer/5e533ced"
+    },
+    {
+      "package_name": "com.dnsriteil.delivery",
+      "app_name": "com.dnsriteil.delivery",
+      "developer_name": "ДНС",
+      "developer_path": "/catalog/developer/5e533ced"
+    },
+    {
+      "package_name": "com.dnsriteil.dns_authenticator",
+      "app_name": "com.dnsriteil.dns_authenticator",
+      "developer_name": "ДНС",
+      "developer_path": "/catalog/developer/5e533ced"
+    },
+    {
+      "package_name": "com.drweb",
+      "app_name": "com.drweb",
+      "developer_name": "ООО \"Доктор Веб\"",
+      "developer_path": "/catalog/developer/pkktcyox"
+    },
+    {
+      "package_name": "com.drweb.familysecure",
+      "app_name": "com.drweb.familysecure",
+      "developer_name": "ООО \"Доктор Веб\"",
+      "developer_path": "/catalog/developer/pkktcyox"
+    },
+    {
+      "package_name": "com.edadeal.android",
+      "app_name": "com.edadeal.android",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.equeo.megafondraiv",
+      "app_name": "com.equeo.megafondraiv",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "com.ertelecom.agent",
+      "app_name": "com.ertelecom.agent",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "com.ertelecom.domrutv",
+      "app_name": "com.ertelecom.domrutv",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "com.ertelecom.domrutvstb",
+      "app_name": "com.ertelecom.domrutvstb",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "com.ertelecom.smarthome",
+      "app_name": "com.ertelecom.smarthome",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "com.ertelecom.vats",
+      "app_name": "com.ertelecom.vats",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "com.flowwow",
+      "app_name": "com.flowwow",
+      "developer_name": "ООО \"ФЛАУВАУ\"",
+      "developer_path": "/catalog/developer/42d293c2"
+    },
+    {
+      "package_name": "com.gmeteos.infometeos",
+      "app_name": "com.gmeteos.infometeos",
+      "developer_name": "ООО \"ИНФОМЕТЕОС\"",
+      "developer_path": "/catalog/developer/taavi9x0"
+    },
+    {
+      "package_name": "com.goodok.mts",
+      "app_name": "com.goodok.mts",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "com.grotem.match",
+      "app_name": "com.grotem.match",
+      "developer_name": "ООО \"НСТ\"",
+      "developer_path": "/catalog/developer/35702095"
+    },
+    {
+      "package_name": "com.gsgroup.secondscreen",
+      "app_name": "com.gsgroup.secondscreen",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "com.gsgroup.smarthome",
+      "app_name": "com.gsgroup.smarthome",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "com.gsgroup.tricoloronline",
+      "app_name": "com.gsgroup.tricoloronline",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "com.gsgroup.tricoloronline.mobile",
+      "app_name": "com.gsgroup.tricoloronline.mobile",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "com.horosho.tips",
+      "app_name": "com.horosho.tips",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "com.icemobile.lenta.prod",
+      "app_name": "com.icemobile.lenta.prod",
+      "developer_name": "ООО \"Лента\"",
+      "developer_path": "/catalog/developer/63d0ea9f"
+    },
+    {
+      "package_name": "com.idamob.tinkoff.android",
+      "app_name": "com.idamob.tinkoff.android",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "com.indygomobi.detifm",
+      "app_name": "com.indygomobi.detifm",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "com.indygomobi.relaxfm",
+      "app_name": "com.indygomobi.relaxfm",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "com.indygomobi.zenit",
+      "app_name": "com.indygomobi.zenit",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "com.info.smartphone.a1cmobilecomponent",
+      "app_name": "com.info.smartphone.a1cmobilecomponent",
+      "developer_name": "ДНС",
+      "developer_path": "/catalog/developer/5e533ced"
+    },
+    {
+      "package_name": "com.iwedia.ui.beeline.atv",
+      "app_name": "com.iwedia.ui.beeline.atv",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "com.journal_tj",
+      "app_name": "com.journal_tj",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "com.kaspersky.kes",
+      "app_name": "com.kaspersky.kes",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.kaspersky.passwordmanager",
+      "app_name": "com.kaspersky.passwordmanager",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.kaspersky.petka",
+      "app_name": "com.kaspersky.petka",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.kaspersky.safekids",
+      "app_name": "com.kaspersky.safekids",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.kaspersky.secure.connection",
+      "app_name": "com.kaspersky.secure.connection",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.kaspersky.who_calls",
+      "app_name": "com.kaspersky.who_calls",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.kazanexpress.ke_app",
+      "app_name": "com.kazanexpress.ke_app",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "com.kms.free",
+      "app_name": "com.kms.free",
+      "developer_name": "АО \"Лаборатория Касперского\"",
+      "developer_path": "/catalog/developer/d7ae51b3"
+    },
+    {
+      "package_name": "com.lamoda.lite",
+      "app_name": "com.lamoda.lite",
+      "developer_name": "Lamoda",
+      "developer_path": "/catalog/developer/77a2530c"
+    },
+    {
+      "package_name": "com.lenta.employee",
+      "app_name": "com.lenta.employee",
+      "developer_name": "ООО \"Лента\"",
+      "developer_path": "/catalog/developer/63d0ea9f"
+    },
+    {
+      "package_name": "com.lenta.lentochka_service",
+      "app_name": "com.lenta.lentochka_service",
+      "developer_name": "ООО \"Лента\"",
+      "developer_path": "/catalog/developer/63d0ea9f"
+    },
+    {
+      "package_name": "com.logistic.sdek",
+      "app_name": "com.logistic.sdek",
+      "developer_name": "CDEK Digital",
+      "developer_path": "/catalog/developer/2b19ctbj"
+    },
+    {
+      "package_name": "com.magnit.delivery.courier",
+      "app_name": "com.magnit.delivery.courier",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "com.match.club",
+      "app_name": "com.match.club",
+      "developer_name": "ООО \"НСТ\"",
+      "developer_path": "/catalog/developer/35702095"
+    },
+    {
+      "package_name": "com.matchtv.rustore",
+      "app_name": "com.matchtv.rustore",
+      "developer_name": "ООО \"НСТ\"",
+      "developer_path": "/catalog/developer/35702095"
+    },
+    {
+      "package_name": "com.mcd.superapp",
+      "app_name": "com.mcd.superapp",
+      "developer_name": "РАМБЛЕР ИНТЕРНЕТ ХОЛДИНГ",
+      "developer_path": "/catalog/developer/8f8f8250"
+    },
+    {
+      "package_name": "com.mcptt",
+      "app_name": "com.mcptt",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "com.megafon.kk",
+      "app_name": "com.megafon.kk",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "com.megafon.maps",
+      "app_name": "com.megafon.maps",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "com.megafon.mcca.android.store",
+      "app_name": "com.megafon.mcca.android.store",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "com.megafon.rk",
+      "app_name": "com.megafon.rk",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "com.mts.who_calls",
+      "app_name": "com.mts.who_calls",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "com.mvideo.mvseller",
+      "app_name": "com.mvideo.mvseller",
+      "developer_name": "ООО «М Тех»",
+      "developer_path": "/catalog/developer/f0f99c7d"
+    },
+    {
+      "package_name": "com.navplatform.navigator.public",
+      "app_name": "com.navplatform.navigator.public",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "com.ncloudtech.cloudoffice",
+      "app_name": "com.ncloudtech.cloudoffice",
+      "developer_name": "ООО \"НОВЫЕ ОБЛАЧНЫЕ ТЕХНОЛОГИИ\"",
+      "developer_path": "/catalog/developer/3a7b8579"
+    },
+    {
+      "package_name": "com.ncloudtech.cloudoffice.b2b",
+      "app_name": "com.ncloudtech.cloudoffice.b2b",
+      "developer_name": "ООО \"НОВЫЕ ОБЛАЧНЫЕ ТЕХНОЛОГИИ\"",
+      "developer_path": "/catalog/developer/3a7b8579"
+    },
+    {
+      "package_name": "com.notissimus.allinstruments.android",
+      "app_name": "com.notissimus.allinstruments.android",
+      "developer_name": "ООО «ВсеИнструменты.ру»",
+      "developer_path": "/catalog/developer/d2ef9d4c"
+    },
+    {
+      "package_name": "com.octopod.russianpost.client.android",
+      "app_name": "com.octopod.russianpost.client.android",
+      "developer_name": "Почта России",
+      "developer_path": "/catalog/developer/a1407e2c"
+    },
+    {
+      "package_name": "com.pobeda.anniversary",
+      "app_name": "com.pobeda.anniversary",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "com.pogoda.infometeos",
+      "app_name": "com.pogoda.infometeos",
+      "developer_name": "ООО \"ИНФОМЕТЕОС\"",
+      "developer_path": "/catalog/developer/taavi9x0"
+    },
+    {
+      "package_name": "com.programmisty.emiasapp",
+      "app_name": "com.programmisty.emiasapp",
+      "developer_name": "ИАЦ в сфере здравоохранения города Москвы",
+      "developer_path": "/catalog/developer/b2730967"
+    },
+    {
+      "package_name": "com.reserveonline.tablet.sr.suffix",
+      "app_name": "com.reserveonline.tablet.sr.suffix",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.rostelecom.printservice",
+      "app_name": "com.rostelecom.printservice",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "com.routeq.app",
+      "app_name": "com.routeq.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.rzd.eventsrzd",
+      "app_name": "com.rzd.eventsrzd",
+      "developer_name": "ОАО \"РЖД\"",
+      "developer_path": "/catalog/developer/041fcfd1"
+    },
+    {
+      "package_name": "com.sberbank.sberpravo",
+      "app_name": "com.sberbank.sberpravo",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "com.sdkit.search.app",
+      "app_name": "com.sdkit.search.app",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "com.spbtv.rosing",
+      "app_name": "com.spbtv.rosing",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "com.uchebnik_tj",
+      "app_name": "com.uchebnik_tj",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "com.vkusvill.courier",
+      "app_name": "com.vkusvill.courier",
+      "developer_name": "АО \"Вкусвилл\"",
+      "developer_path": "/catalog/developer/55a9d1b1"
+    },
+    {
+      "package_name": "com.vkusvill.vacancy",
+      "app_name": "com.vkusvill.vacancy",
+      "developer_name": "АО \"Вкусвилл\"",
+      "developer_path": "/catalog/developer/55a9d1b1"
+    },
+    {
+      "package_name": "com.wbextdelivery",
+      "app_name": "com.wbextdelivery",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "com.wbpoint.android.prod.release",
+      "app_name": "com.wbpoint.android.prod.release",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "com.wbstream_app",
+      "app_name": "com.wbstream_app",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "com.wildberries.consultations",
+      "app_name": "com.wildberries.consultations",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "com.wildberries.ru",
+      "app_name": "com.wildberries.ru",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "com.wildberries.wbkey",
+      "app_name": "com.wildberries.wbkey",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "com.wms_mm_point.mm_delivery_point",
+      "app_name": "com.wms_mm_point.mm_delivery_point",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "com.x5.courierapp",
+      "app_name": "com.x5.courierapp",
+      "developer_name": "X5 Digital",
+      "developer_path": "/catalog/developer/mbtttt4v"
+    },
+    {
+      "package_name": "com.x5.pickerapp.ff",
+      "app_name": "com.x5.pickerapp.ff",
+      "developer_name": "X5 Digital",
+      "developer_path": "/catalog/developer/mbtttt4v"
+    },
+    {
+      "package_name": "com.yandex.aliceapp",
+      "app_name": "com.yandex.aliceapp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.bank",
+      "app_name": "com.yandex.bank",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.bluecollars",
+      "app_name": "com.yandex.bluecollars",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser",
+      "app_name": "com.yandex.browser",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser.corp",
+      "app_name": "com.yandex.browser.corp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser.lite",
+      "app_name": "com.yandex.browser.lite",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser.tv",
+      "app_name": "com.yandex.browser.tv",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.calendar.app",
+      "app_name": "com.yandex.calendar.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.corp.tracking.app",
+      "app_name": "com.yandex.corp.tracking.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.internetometer",
+      "app_name": "com.yandex.internetometer",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.iot",
+      "app_name": "com.yandex.iot",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.lavka",
+      "app_name": "com.yandex.lavka",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.mobile.drive",
+      "app_name": "com.yandex.mobile.drive",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.mobile.realty",
+      "app_name": "com.yandex.mobile.realty",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.rhythm",
+      "app_name": "com.yandex.rhythm",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.searchapp",
+      "app_name": "com.yandex.searchapp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.shedevrus",
+      "app_name": "com.yandex.shedevrus",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.tasks.androidapp",
+      "app_name": "com.yandex.tasks.androidapp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.yamb",
+      "app_name": "com.yandex.yamb",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yclients.yplaces",
+      "app_name": "com.yclients.yplaces",
+      "developer_name": "YCLIENTS",
+      "developer_path": "/catalog/developer/5ff74c45"
+    },
+    {
+      "package_name": "com.zebrains.trkid",
+      "app_name": "com.zebrains.trkid",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "com.zebrainy.skazbuka",
+      "app_name": "com.zebrainy.skazbuka",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "gpm.tnt_premier",
+      "app_name": "gpm.tnt_premier",
+      "developer_name": "ООО \"Премьер\"",
+      "developer_path": "/catalog/developer/63ea48cb"
+    },
+    {
+      "package_name": "home.pragma.com",
+      "app_name": "home.pragma.com",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "home.tuvio.com",
+      "app_name": "home.tuvio.com",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "intech.global.com.beeline",
+      "app_name": "intech.global.com.beeline",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "jamhome.ru.lktsj",
+      "app_name": "jamhome.ru.lktsj",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "logo.com.mbanking",
+      "app_name": "logo.com.mbanking",
+      "developer_name": "ПАО \"Банк ПСБ\"",
+      "developer_path": "/catalog/developer/f0f02d9b"
+    },
+    {
+      "package_name": "me.membrana.kids.parent.app",
+      "app_name": "me.membrana.kids.parent.app",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "megafon.transport.mobile",
+      "app_name": "megafon.transport.mobile",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "one.premier.rustoretv",
+      "app_name": "one.premier.rustoretv",
+      "developer_name": "ООО \"Премьер\"",
+      "developer_path": "/catalog/developer/63ea48cb"
+    },
+    {
+      "package_name": "org.rtk.cleaning",
+      "app_name": "org.rtk.cleaning",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "otello.dgis.ru",
+      "app_name": "otello.dgis.ru",
+      "developer_name": "ООО \"ДубльГИС\"",
+      "developer_path": "/catalog/developer/d32f20ae"
+    },
+    {
+      "package_name": "psb.market.app",
+      "app_name": "psb.market.app",
+      "developer_name": "ПСБ Маркет",
+      "developer_path": "/catalog/developer/lm5fnpob"
+    },
+    {
+      "package_name": "ru.aeroflot",
+      "app_name": "ru.aeroflot",
+      "developer_name": "ПАО \"Аэрофлот\"",
+      "developer_path": "/catalog/developer/3ac7c3c3"
+    },
+    {
+      "package_name": "ru.alfabank.mobile.android",
+      "app_name": "ru.alfabank.mobile.android",
+      "developer_name": "АО \"Альфа-Банк\"",
+      "developer_path": "/catalog/developer/a1243e95"
+    },
+    {
+      "package_name": "ru.alfabank.oavdo.amc",
+      "app_name": "ru.alfabank.oavdo.amc",
+      "developer_name": "АО \"Альфа-Банк\"",
+      "developer_path": "/catalog/developer/a1243e95"
+    },
+    {
+      "package_name": "ru.alfadirect.app",
+      "app_name": "ru.alfadirect.app",
+      "developer_name": "АО \"Альфа-Банк\"",
+      "developer_path": "/catalog/developer/a1243e95"
+    },
+    {
+      "package_name": "ru.aliexpress.buyer",
+      "app_name": "ru.aliexpress.buyer",
+      "developer_name": "ALIEXPRESS CIS HOLDING PTE. LTD.",
+      "developer_path": "/catalog/developer/3x3cjaw2"
+    },
+    {
+      "package_name": "ru.beeline.beebookreader",
+      "app_name": "ru.beeline.beebookreader",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.cloud",
+      "app_name": "ru.beeline.cloud",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.dol",
+      "app_name": "ru.beeline.dol",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.messengerx",
+      "app_name": "ru.beeline.messengerx",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.mwpsapp",
+      "app_name": "ru.beeline.mwpsapp",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.pro",
+      "app_name": "ru.beeline.pro",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.services",
+      "app_name": "ru.beeline.services",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beeline.tve.android",
+      "app_name": "ru.beeline.tve.android",
+      "developer_name": "ПАО \"ВымпелКом\"",
+      "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "ru.beru.android",
+      "app_name": "ru.beru.android",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.cctvb2b.dom.app",
+      "app_name": "ru.cctvb2b.dom.app",
+      "developer_name": "ЭР-Телеком Холдинг",
+      "developer_path": "/catalog/developer/07c20ddf"
+    },
+    {
+      "package_name": "ru.cdek.courier",
+      "app_name": "ru.cdek.courier",
+      "developer_name": "CDEK Digital",
+      "developer_path": "/catalog/developer/2b19ctbj"
+    },
+    {
+      "package_name": "ru.cdek.ek5",
+      "app_name": "ru.cdek.ek5",
+      "developer_name": "CDEK Digital",
+      "developer_path": "/catalog/developer/2b19ctbj"
+    },
+    {
+      "package_name": "ru.cian.main",
+      "app_name": "ru.cian.main",
+      "developer_name": "ООО «Айриэлтор»",
+      "developer_path": "/catalog/developer/bc26d940"
+    },
+    {
+      "package_name": "ru.compass.tag",
+      "app_name": "ru.compass.tag",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.crpt.localmodule",
+      "app_name": "ru.crpt.localmodule",
+      "developer_name": "Центр развития перспективных технологий",
+      "developer_path": "/catalog/developer/692ed825"
+    },
+    {
+      "package_name": "ru.crptech.b2bmark",
+      "app_name": "ru.crptech.b2bmark",
+      "developer_name": "Центр развития перспективных технологий",
+      "developer_path": "/catalog/developer/692ed825"
+    },
+    {
+      "package_name": "ru.crptech.foiv",
+      "app_name": "ru.crptech.foiv",
+      "developer_name": "Центр развития перспективных технологий",
+      "developer_path": "/catalog/developer/692ed825"
+    },
+    {
+      "package_name": "ru.crptech.mark",
+      "app_name": "ru.crptech.mark",
+      "developer_name": "Центр развития перспективных технологий",
+      "developer_path": "/catalog/developer/692ed825"
+    },
+    {
+      "package_name": "ru.crptech.pharma_scanner",
+      "app_name": "ru.crptech.pharma_scanner",
+      "developer_name": "Центр развития перспективных технологий",
+      "developer_path": "/catalog/developer/692ed825"
+    },
+    {
+      "package_name": "ru.dns.shop.android",
+      "app_name": "ru.dns.shop.android",
+      "developer_name": "ДНС",
+      "developer_path": "/catalog/developer/5e533ced"
+    },
+    {
+      "package_name": "ru.dublgis.dgismobile",
+      "app_name": "ru.dublgis.dgismobile",
+      "developer_name": "ООО \"ДубльГИС\"",
+      "developer_path": "/catalog/developer/d32f20ae"
+    },
+    {
+      "package_name": "ru.dublgis.dgismobile4preview",
+      "app_name": "ru.dublgis.dgismobile4preview",
+      "developer_name": "ООО \"ДубльГИС\"",
+      "developer_path": "/catalog/developer/d32f20ae"
+    },
+    {
+      "package_name": "ru.eapteka.courier",
+      "app_name": "ru.eapteka.courier",
+      "developer_name": "ООО \"еАптека\"",
+      "developer_path": "/catalog/developer/097f5ee0"
+    },
+    {
+      "package_name": "ru.fanid",
+      "app_name": "ru.fanid",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.fdoctor.fdocmob",
+      "app_name": "ru.fdoctor.fdocmob",
+      "developer_name": "Семейный доктор",
+      "developer_path": "/catalog/developer/e955a92e"
+    },
+    {
+      "package_name": "ru.filit.mvideo.b2c",
+      "app_name": "ru.filit.mvideo.b2c",
+      "developer_name": "ООО «М Тех»",
+      "developer_path": "/catalog/developer/f0f99c7d"
+    },
+    {
+      "package_name": "ru.foodfox.client",
+      "app_name": "ru.foodfox.client",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.foodfox.vendor",
+      "app_name": "ru.foodfox.vendor",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.gazprombank.android.mobilebank.app",
+      "app_name": "ru.gazprombank.android.mobilebank.app",
+      "developer_name": "Газпромбанк",
+      "developer_path": "/catalog/developer/9ddbb7d9"
+    },
+    {
+      "package_name": "ru.gazprombank.broker",
+      "app_name": "ru.gazprombank.broker",
+      "developer_name": "Газпромбанк",
+      "developer_path": "/catalog/developer/9ddbb7d9"
+    },
+    {
+      "package_name": "ru.gazprombank.mobile.gpbbusiness",
+      "app_name": "ru.gazprombank.mobile.gpbbusiness",
+      "developer_name": "Газпромбанк",
+      "developer_path": "/catalog/developer/9ddbb7d9"
+    },
+    {
+      "package_name": "ru.gazprompay.android",
+      "app_name": "ru.gazprompay.android",
+      "developer_name": "ООО \"Оператор Газпром ИД\"",
+      "developer_path": "/catalog/developer/a15900d5"
+    },
+    {
+      "package_name": "ru.getpharma.eapteka",
+      "app_name": "ru.getpharma.eapteka",
+      "developer_name": "ООО \"еАптека\"",
+      "developer_path": "/catalog/developer/097f5ee0"
+    },
+    {
+      "package_name": "ru.gid.app",
+      "app_name": "ru.gid.app",
+      "developer_name": "ООО \"Оператор Газпром ИД\"",
+      "developer_path": "/catalog/developer/a15900d5"
+    },
+    {
+      "package_name": "ru.gid.eventsapp",
+      "app_name": "ru.gid.eventsapp",
+      "developer_name": "ООО \"Оператор Газпром ИД\"",
+      "developer_path": "/catalog/developer/a15900d5"
+    },
+    {
+      "package_name": "ru.gid.most",
+      "app_name": "ru.gid.most",
+      "developer_name": "ООО \"Оператор Газпром ИД\"",
+      "developer_path": "/catalog/developer/a15900d5"
+    },
+    {
+      "package_name": "ru.gosuslugi.auto",
+      "app_name": "ru.gosuslugi.auto",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.culture",
+      "app_name": "ru.gosuslugi.culture",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.goskey",
+      "app_name": "ru.gosuslugi.goskey",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.migrant",
+      "app_name": "ru.gosuslugi.migrant",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.pos",
+      "app_name": "ru.gosuslugi.pos",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.pos.executor",
+      "app_name": "ru.gosuslugi.pos.executor",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.school",
+      "app_name": "ru.gosuslugi.school",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.gosuslugi.volunteer",
+      "app_name": "ru.gosuslugi.volunteer",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.hh.android",
+      "app_name": "ru.hh.android",
+      "developer_name": "ООО \"Хэдхантер\"",
+      "developer_path": "/catalog/developer/2c6a10fd"
+    },
+    {
+      "package_name": "ru.hh.employer.android",
+      "app_name": "ru.hh.employer.android",
+      "developer_name": "ООО \"Хэдхантер\"",
+      "developer_path": "/catalog/developer/2c6a10fd"
+    },
+    {
+      "package_name": "ru.ideast.championat",
+      "app_name": "ru.ideast.championat",
+      "developer_name": "РАМБЛЕР ИНТЕРНЕТ ХОЛДИНГ",
+      "developer_path": "/catalog/developer/8f8f8250"
+    },
+    {
+      "package_name": "ru.ideast.humor",
+      "app_name": "ru.ideast.humor",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.ideast.nrj",
+      "app_name": "ru.ideast.nrj",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.ideast.romantika",
+      "app_name": "ru.ideast.romantika",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.ideast.ru101.rustore",
+      "app_name": "ru.ideast.ru101.rustore",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.iflex.android.a3colortv",
+      "app_name": "ru.iflex.android.a3colortv",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "ru.imteleport.plp2",
+      "app_name": "ru.imteleport.plp2",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.intech.lki",
+      "app_name": "ru.intech.lki",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.ivi.client",
+      "app_name": "ru.ivi.client",
+      "developer_name": "ООО \"Иви.ру\"",
+      "developer_path": "/catalog/developer/25cb8eb5"
+    },
+    {
+      "package_name": "ru.kinopoisk",
+      "app_name": "ru.kinopoisk",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.kinopoisk.tv",
+      "app_name": "ru.kinopoisk.tv",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.lenta.lentochka",
+      "app_name": "ru.lenta.lentochka",
+      "developer_name": "ООО \"Лента\"",
+      "developer_path": "/catalog/developer/63d0ea9f"
+    },
+    {
+      "package_name": "ru.leroymerlin.employee",
+      "app_name": "ru.leroymerlin.employee",
+      "developer_name": "Лемана ПРО",
+      "developer_path": "/catalog/developer/3smwwz3s"
+    },
+    {
+      "package_name": "ru.leroymerlin.mobile",
+      "app_name": "ru.leroymerlin.mobile",
+      "developer_name": "Лемана ПРО",
+      "developer_path": "/catalog/developer/3smwwz3s"
+    },
+    {
+      "package_name": "ru.lifepay.pos.alfapos",
+      "app_name": "ru.lifepay.pos.alfapos",
+      "developer_name": "АО \"Альфа-Банк\"",
+      "developer_path": "/catalog/developer/a1243e95"
+    },
+    {
+      "package_name": "ru.lifepay.pos.vtb",
+      "app_name": "ru.lifepay.pos.vtb",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "ru.litres.android",
+      "app_name": "ru.litres.android",
+      "developer_name": "ООО \"ЛитРес\"",
+      "developer_path": "/catalog/developer/100677d1"
+    },
+    {
+      "package_name": "ru.litres.android.readfree",
+      "app_name": "ru.litres.android.readfree",
+      "developer_name": "ООО \"ЛитРес\"",
+      "developer_path": "/catalog/developer/100677d1"
+    },
+    {
+      "package_name": "ru.litres.androidtv",
+      "app_name": "ru.litres.androidtv",
+      "developer_name": "ООО \"ЛитРес\"",
+      "developer_path": "/catalog/developer/100677d1"
+    },
+    {
+      "package_name": "ru.livelib.client",
+      "app_name": "ru.livelib.client",
+      "developer_name": "ООО \"ЛитРес\"",
+      "developer_path": "/catalog/developer/100677d1"
+    },
+    {
+      "package_name": "ru.m4bank.softpos.alfaru",
+      "app_name": "ru.m4bank.softpos.alfaru",
+      "developer_name": "АО \"Альфа-Банк\"",
+      "developer_path": "/catalog/developer/a1243e95"
+    },
+    {
+      "package_name": "ru.m4bank.softpos.rshb",
+      "app_name": "ru.m4bank.softpos.rshb",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.m4bank.softpos.vtbpos",
+      "app_name": "ru.m4bank.softpos.vtbpos",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "ru.magnit.hrtest.android",
+      "app_name": "ru.magnit.hrtest.android",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.magnit.mesmag",
+      "app_name": "ru.magnit.mesmag",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.magnit.tag",
+      "app_name": "ru.magnit.tag",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.magnit.tms.armhde",
+      "app_name": "ru.magnit.tms.armhde",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.magnit.vendorapp",
+      "app_name": "ru.magnit.vendorapp",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.megafon.mlk",
+      "app_name": "ru.megafon.mlk",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "ru.megafon.vn.client",
+      "app_name": "ru.megafon.vn.client",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "ru.megalabs.multifon",
+      "app_name": "ru.megalabs.multifon",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "ru.megapolis.rms.servicedesk",
+      "app_name": "ru.megapolis.rms.servicedesk",
+      "developer_name": "Дептранс Москвы",
+      "developer_path": "/catalog/developer/8c1fc8f1"
+    },
+    {
+      "package_name": "ru.mercaux.app",
+      "app_name": "ru.mercaux.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.mgfoms.pandora",
+      "app_name": "ru.mgfoms.pandora",
+      "developer_name": "ИАЦ в сфере здравоохранения города Москвы",
+      "developer_path": "/catalog/developer/b2730967"
+    },
+    {
+      "package_name": "ru.mntk.dostavka.prod",
+      "app_name": "ru.mntk.dostavka.prod",
+      "developer_name": "ООО \"Лента\"",
+      "developer_path": "/catalog/developer/63d0ea9f"
+    },
+    {
+      "package_name": "ru.more.play",
+      "app_name": "ru.more.play",
+      "developer_name": "Okko LLC",
+      "developer_path": "/catalog/developer/18c4231b"
+    },
+    {
+      "package_name": "ru.mos.helper",
+      "app_name": "ru.mos.helper",
+      "developer_name": "Дептранс Москвы",
+      "developer_path": "/catalog/developer/8c1fc8f1"
+    },
+    {
+      "package_name": "ru.mosgorpass",
+      "app_name": "ru.mosgorpass",
+      "developer_name": "Дептранс Москвы",
+      "developer_path": "/catalog/developer/8c1fc8f1"
+    },
+    {
+      "package_name": "ru.mosmetro.metro",
+      "app_name": "ru.mosmetro.metro",
+      "developer_name": "Дептранс Москвы",
+      "developer_path": "/catalog/developer/8c1fc8f1"
+    },
+    {
+      "package_name": "ru.mosparking.appnew",
+      "app_name": "ru.mosparking.appnew",
+      "developer_name": "Дептранс Москвы",
+      "developer_path": "/catalog/developer/8c1fc8f1"
+    },
+    {
+      "package_name": "ru.mts.books.droid",
+      "app_name": "ru.mts.books.droid",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.live.app",
+      "app_name": "ru.mts.live.app",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.mtscode",
+      "app_name": "ru.mts.mtscode",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.mtstv",
+      "app_name": "ru.mts.mtstv",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.music.android",
+      "app_name": "ru.mts.music.android",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.mymts",
+      "app_name": "ru.mts.mymts",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.pay",
+      "app_name": "ru.mts.pay",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.twomem",
+      "app_name": "ru.mts.twomem",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mts.vdome.resident",
+      "app_name": "ru.mts.vdome.resident",
+      "developer_name": "ПАО МТС",
+      "developer_path": "/catalog/developer/94c9fae3"
+    },
+    {
+      "package_name": "ru.mvideo.service",
+      "app_name": "ru.mvideo.service",
+      "developer_name": "ООО «М Тех»",
+      "developer_path": "/catalog/developer/f0f99c7d"
+    },
+    {
+      "package_name": "ru.mvm.eldo",
+      "app_name": "ru.mvm.eldo",
+      "developer_name": "ООО «М Тех»",
+      "developer_path": "/catalog/developer/f0f99c7d"
+    },
+    {
+      "package_name": "ru.mybook",
+      "app_name": "ru.mybook",
+      "developer_name": "ООО \"ЛитРес\"",
+      "developer_path": "/catalog/developer/100677d1"
+    },
+    {
+      "package_name": "ru.ncloudtech.mec",
+      "app_name": "ru.ncloudtech.mec",
+      "developer_name": "ООО \"НОВЫЕ ОБЛАЧНЫЕ ТЕХНОЛОГИИ\"",
+      "developer_path": "/catalog/developer/3a7b8579"
+    },
+    {
+      "package_name": "ru.ncloudtech.squadus",
+      "app_name": "ru.ncloudtech.squadus",
+      "developer_name": "ООО \"НОВЫЕ ОБЛАЧНЫЕ ТЕХНОЛОГИИ\"",
+      "developer_path": "/catalog/developer/3a7b8579"
+    },
+    {
+      "package_name": "ru.netbynet.app.personal_cabinet",
+      "app_name": "ru.netbynet.app.personal_cabinet",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "ru.newamelia.mvideo",
+      "app_name": "ru.newamelia.mvideo",
+      "developer_name": "ООО «М Тех»",
+      "developer_path": "/catalog/developer/f0f99c7d"
+    },
+    {
+      "package_name": "ru.nspk.mir.loyalty",
+      "app_name": "ru.nspk.mir.loyalty",
+      "developer_name": "АО «НСПК»",
+      "developer_path": "/catalog/developer/cb96cc4c"
+    },
+    {
+      "package_name": "ru.nspk.mirpay",
+      "app_name": "ru.nspk.mirpay",
+      "developer_name": "АО «НСПК»",
+      "developer_path": "/catalog/developer/cb96cc4c"
+    },
+    {
+      "package_name": "ru.nspk.sbpay",
+      "app_name": "ru.nspk.sbpay",
+      "developer_name": "АО «НСПК»",
+      "developer_path": "/catalog/developer/cb96cc4c"
+    },
+    {
+      "package_name": "ru.ntv.client",
+      "app_name": "ru.ntv.client",
+      "developer_name": "АО \"Телекомпания НТВ\"",
+      "developer_path": "/catalog/developer/75883313"
+    },
+    {
+      "package_name": "ru.ntv.client.tv",
+      "app_name": "ru.ntv.client.tv",
+      "developer_name": "АО \"Телекомпания НТВ\"",
+      "developer_path": "/catalog/developer/75883313"
+    },
+    {
+      "package_name": "ru.ntv.today",
+      "app_name": "ru.ntv.today",
+      "developer_name": "АО \"Телекомпания НТВ\"",
+      "developer_path": "/catalog/developer/75883313"
+    },
+    {
+      "package_name": "ru.ntvplus.service",
+      "app_name": "ru.ntvplus.service",
+      "developer_name": "Общество с ограниченной ответственностью «НТВ‑ПЛЮС»",
+      "developer_path": "/catalog/developer/68416ebf"
+    },
+    {
+      "package_name": "ru.okbmei.gosservice",
+      "app_name": "ru.okbmei.gosservice",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.oneme.app",
+      "app_name": "ru.oneme.app",
+      "developer_name": "МАХ",
+      "developer_path": "/catalog/developer/xashx42f"
+    },
+    {
+      "package_name": "ru.onlime.my.app",
+      "app_name": "ru.onlime.my.app",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.ozon.app.android",
+      "app_name": "ru.ozon.app.android",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.chatzone",
+      "app_name": "ru.ozon.chatzone",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.fintech.apvz",
+      "app_name": "ru.ozon.fintech.apvz",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.fintech.finance",
+      "app_name": "ru.ozon.fintech.finance",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.fintech.sme",
+      "app_name": "ru.ozon.fintech.sme",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.flex",
+      "app_name": "ru.ozon.flex",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.fresh",
+      "app_name": "ru.ozon.fresh",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.hire",
+      "app_name": "ru.ozon.hire",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.magistral",
+      "app_name": "ru.ozon.magistral",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.maple_app",
+      "app_name": "ru.ozon.maple_app",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.ozon_pvz",
+      "app_name": "ru.ozon.ozon_pvz",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.profit",
+      "app_name": "ru.ozon.profit",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.select",
+      "app_name": "ru.ozon.select",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.seller_app",
+      "app_name": "ru.ozon.seller_app",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.ozon.tv",
+      "app_name": "ru.ozon.tv",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "ru.perekrestok.app",
+      "app_name": "ru.perekrestok.app",
+      "developer_name": "Перекрёсток",
+      "developer_path": "/catalog/developer/78c1c8ed"
+    },
+    {
+      "package_name": "ru.pikabu.android",
+      "app_name": "ru.pikabu.android",
+      "developer_name": "Пикабу",
+      "developer_path": "/catalog/developer/457798ab"
+    },
+    {
+      "package_name": "ru.plazius.cofix",
+      "app_name": "Cofix Club",
+      "developer_name": "CofixGlobal",
+      "developer_path": null
+    },
+    {
+      "package_name": "ru.plus.bookmate",
+      "app_name": "ru.plus.bookmate",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.profmedia.avtoradio",
+      "app_name": "ru.profmedia.avtoradio",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.profmedia.likefm",
+      "app_name": "ru.profmedia.likefm",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.psbank.invest",
+      "app_name": "ru.psbank.invest",
+      "developer_name": "ПАО \"Банк ПСБ\"",
+      "developer_path": "/catalog/developer/f0f02d9b"
+    },
+    {
+      "package_name": "ru.psbank.msb.dev.psb_appstore",
+      "app_name": "ru.psbank.msb.dev.psb_appstore",
+      "developer_name": "ПАО \"Банк ПСБ\"",
+      "developer_path": "/catalog/developer/f0f02d9b"
+    },
+    {
+      "package_name": "ru.pyaterochka.app.browser",
+      "app_name": "ru.pyaterochka.app.browser",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.rambler.horoscopes.twa",
+      "app_name": "ru.rambler.horoscopes.twa",
+      "developer_name": "РАМБЛЕР ИНТЕРНЕТ ХОЛДИНГ",
+      "developer_path": "/catalog/developer/8f8f8250"
+    },
+    {
+      "package_name": "ru.rambler.mail",
+      "app_name": "ru.rambler.mail",
+      "developer_name": "РАМБЛЕР ИНТЕРНЕТ ХОЛДИНГ",
+      "developer_path": "/catalog/developer/8f8f8250"
+    },
+    {
+      "package_name": "ru.ritmmedia.yappy",
+      "app_name": "ru.ritmmedia.yappy",
+      "developer_name": "ООО \"РИТМ Медиа\"",
+      "developer_path": "/catalog/developer/d57e19b3"
+    },
+    {
+      "package_name": "ru.rostel",
+      "app_name": "ru.rostel",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "ru.rostelecom.ideas",
+      "app_name": "ru.rostelecom.ideas",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rostelecom.vatsmobilelk",
+      "app_name": "ru.rostelecom.vatsmobilelk",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rshb.dbo",
+      "app_name": "ru.rshb.dbo",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.dboul",
+      "app_name": "ru.rshb.dboul",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.digitalCoworkerOffice",
+      "app_name": "ru.rshb.digitalCoworkerOffice",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.ips_qr",
+      "app_name": "ru.rshb.ips_qr",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.privatebusiness",
+      "app_name": "ru.rshb.privatebusiness",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.svoe_rodnoe",
+      "app_name": "ru.rshb.svoe_rodnoe",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.svoedom_android",
+      "app_name": "ru.rshb.svoedom_android",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rshb.svojfermer",
+      "app_name": "ru.rshb.svojfermer",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "ru.rt.key",
+      "app_name": "ru.rt.key",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.life",
+      "app_name": "ru.rt.life",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.masterkey",
+      "app_name": "ru.rt.masterkey",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.mb_installer",
+      "app_name": "ru.rt.mb_installer",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.mobileoffice",
+      "app_name": "ru.rt.mobileoffice",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.ritm",
+      "app_name": "ru.rt.ritm",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.smarthome",
+      "app_name": "ru.rt.smarthome",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.video.app.mobile",
+      "app_name": "ru.rt.video.app.mobile",
+      "developer_name": "Рестрим Медиа",
+      "developer_path": "/catalog/developer/47fc945b"
+    },
+    {
+      "package_name": "ru.rt.video.app.mobile.b2b",
+      "app_name": "ru.rt.video.app.mobile.b2b",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.video.app.tv",
+      "app_name": "ru.rt.video.app.tv",
+      "developer_name": "Рестрим Медиа",
+      "developer_path": "/catalog/developer/47fc945b"
+    },
+    {
+      "package_name": "ru.rt.videocomfort",
+      "app_name": "ru.rt.videocomfort",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rt.wfm",
+      "app_name": "ru.rt.wfm",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.rtdc.kakdela",
+      "app_name": "ru.rtdc.kakdela",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ru.russianpost.pechkin",
+      "app_name": "ru.russianpost.pechkin",
+      "developer_name": "Почта России",
+      "developer_path": "/catalog/developer/a1407e2c"
+    },
+    {
+      "package_name": "ru.rzd.cargolk",
+      "app_name": "ru.rzd.cargolk",
+      "developer_name": "ОАО \"РЖД\"",
+      "developer_path": "/catalog/developer/041fcfd1"
+    },
+    {
+      "package_name": "ru.rzd.newsdo.skills",
+      "app_name": "ru.rzd.newsdo.skills",
+      "developer_name": "ОАО \"РЖД\"",
+      "developer_path": "/catalog/developer/041fcfd1"
+    },
+    {
+      "package_name": "ru.rzd.pass",
+      "app_name": "ru.rzd.pass",
+      "developer_name": "ОАО \"РЖД\"",
+      "developer_path": "/catalog/developer/041fcfd1"
+    },
+    {
+      "package_name": "ru.sbcs.store",
+      "app_name": "ru.sbcs.store",
+      "developer_name": "ООО \"Умное пространство\"",
+      "developer_path": "/catalog/developer/cc01aebe"
+    },
+    {
+      "package_name": "ru.sber.csradar",
+      "app_name": "ru.sber.csradar",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.sberbank.investor",
+      "app_name": "ru.sberbank.investor",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.sberbank.onlineencashment",
+      "app_name": "ru.sberbank.onlineencashment",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.sberbank.sberkids",
+      "app_name": "ru.sberbank.sberkids",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.sberbank.sbersign",
+      "app_name": "ru.sberbank.sbersign",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.sberbank_sbbol",
+      "app_name": "ru.sberbank_sbbol",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.sberbankmobile",
+      "app_name": "ru.sberbankmobile",
+      "developer_name": "ПАО Сбербанк",
+      "developer_path": "/catalog/developer/a65961e0"
+    },
+    {
+      "package_name": "ru.setka",
+      "app_name": "ru.setka",
+      "developer_name": "ООО \"Хэдхантер\"",
+      "developer_path": "/catalog/developer/2c6a10fd"
+    },
+    {
+      "package_name": "ru.sigma.gisgkh",
+      "app_name": "ru.sigma.gisgkh",
+      "developer_name": "Оператор информационной системы",
+      "developer_path": "/catalog/developer/4ba404e1"
+    },
+    {
+      "package_name": "ru.systtech.megafon.mobile",
+      "app_name": "ru.systtech.megafon.mobile",
+      "developer_name": "МегаФон",
+      "developer_path": "/catalog/developer/25bd713d"
+    },
+    {
+      "package_name": "ru.t2.wfmapp.prod",
+      "app_name": "ru.t2.wfmapp.prod",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tander.magnit",
+      "app_name": "ru.tander.magnit",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.tander.mobile_scout_flutter",
+      "app_name": "ru.tander.mobile_scout_flutter",
+      "developer_name": "ПАО \"Магнит\"",
+      "developer_path": "/catalog/developer/aabea2de"
+    },
+    {
+      "package_name": "ru.tbank.myt",
+      "app_name": "ru.tbank.myt",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tele2.app.wtt",
+      "app_name": "ru.tele2.app.wtt",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tele2.appseller",
+      "app_name": "ru.tele2.appseller",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tele2.cyberhero.pro",
+      "app_name": "ru.tele2.cyberhero.pro",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tele2.mytele2",
+      "app_name": "ru.tele2.mytele2",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tele2.nasvyzi",
+      "app_name": "ru.tele2.nasvyzi",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tele2.sms.blocker",
+      "app_name": "ru.tele2.sms.blocker",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "ru.tinkoff.bnpl",
+      "app_name": "ru.tinkoff.bnpl",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tinkoff.investing",
+      "app_name": "ru.tinkoff.investing",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tinkoff.lifestyle.fuel.sme",
+      "app_name": "ru.tinkoff.lifestyle.fuel.sme",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tinkoff.mvno",
+      "app_name": "ru.tinkoff.mvno",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tinkoff.posterminal",
+      "app_name": "ru.tinkoff.posterminal",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tinkoff.sme",
+      "app_name": "ru.tinkoff.sme",
+      "developer_name": "АО «ТБанк»",
+      "developer_path": "/catalog/developer/fc3ecc0d"
+    },
+    {
+      "package_name": "ru.tntmusic.tv",
+      "app_name": "ru.tntmusic.tv",
+      "developer_name": "ООО \"Фонбет ТВ\"",
+      "developer_path": "/catalog/developer/8ccdebf0"
+    },
+    {
+      "package_name": "ru.tutu.etrains",
+      "app_name": "ru.tutu.etrains",
+      "developer_name": "Общество с ограниченной ответственностью  «Новые Туристические Технологии»",
+      "developer_path": "/catalog/developer/a5ce9c44"
+    },
+    {
+      "package_name": "ru.tutu.tutu_emp",
+      "app_name": "ru.tutu.tutu_emp",
+      "developer_name": "Общество с ограниченной ответственностью  «Новые Туристические Технологии»",
+      "developer_path": "/catalog/developer/a5ce9c44"
+    },
+    {
+      "package_name": "ru.utk.dostavka",
+      "app_name": "ru.utk.dostavka",
+      "developer_name": "ООО \"Лента\"",
+      "developer_path": "/catalog/developer/63d0ea9f"
+    },
+    {
+      "package_name": "ru.vkpm.comedy",
+      "app_name": "ru.vkpm.comedy",
+      "developer_name": "ООО \"ГПМ Радио\"",
+      "developer_path": "/catalog/developer/e1d653c2"
+    },
+    {
+      "package_name": "ru.vkusvill",
+      "app_name": "ru.vkusvill",
+      "developer_name": "АО \"Вкусвилл\"",
+      "developer_path": "/catalog/developer/55a9d1b1"
+    },
+    {
+      "package_name": "ru.vtb.corporate.android.main_application",
+      "app_name": "ru.vtb.corporate.android.main_application",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "ru.vtb.invest",
+      "app_name": "ru.vtb.invest",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "ru.vtb.smb",
+      "app_name": "ru.vtb.smb",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "ru.vtb24.mobilebanking.android",
+      "app_name": "ru.vtb24.mobilebanking.android",
+      "developer_name": "Банк ВТБ (ПАО)",
+      "developer_path": "/catalog/developer/80e24324"
+    },
+    {
+      "package_name": "ru.wb.courier",
+      "app_name": "ru.wb.courier",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wb.go",
+      "app_name": "ru.wb.go",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wb.guru",
+      "app_name": "ru.wb.guru",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wb.wband",
+      "app_name": "ru.wb.wband",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wb.workspace",
+      "app_name": "ru.wb.workspace",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wildberries.books",
+      "app_name": "ru.wildberries.books",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wildberries.manager",
+      "app_name": "ru.wildberries.manager",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wildberries.team",
+      "app_name": "ru.wildberries.team",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wildberries.team2",
+      "app_name": "ru.wildberries.team2",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wildberries.wbpayclient",
+      "app_name": "ru.wildberries.wbpayclient",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "ru.wink.music",
+      "app_name": "ru.wink.music",
+      "developer_name": "Рестрим Медиа",
+      "developer_path": "/catalog/developer/47fc945b"
+    },
+    {
+      "package_name": "ru.wink.music.tv",
+      "app_name": "ru.wink.music.tv",
+      "developer_name": "Рестрим Медиа",
+      "developer_path": "/catalog/developer/47fc945b"
+    },
+    {
+      "package_name": "ru.x5.foodru.rs",
+      "app_name": "ru.x5.foodru.rs",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.key",
+      "app_name": "ru.x5.key",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.mfpnew",
+      "app_name": "ru.x5.mfpnew",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.mrm_android.personalDevice",
+      "app_name": "ru.x5.mrm_android.personalDevice",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.omni",
+      "app_name": "ru.x5.omni",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.opermax.aura",
+      "app_name": "ru.x5.opermax.aura",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.rooms",
+      "app_name": "ru.x5.rooms",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.wl.slata",
+      "app_name": "ru.x5.wl.slata",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.wrs2",
+      "app_name": "ru.x5.wrs2",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.x5.x5job",
+      "app_name": "ru.x5.x5job",
+      "developer_name": "ООО «ИТ ИКС 5 Технологии»",
+      "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.yandex.androidkeyboard",
+      "app_name": "ru.yandex.androidkeyboard",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.cloud",
+      "app_name": "ru.yandex.cloud",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.cloud.tracker",
+      "app_name": "ru.yandex.cloud.tracker",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.direct",
+      "app_name": "ru.yandex.direct",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.disk",
+      "app_name": "ru.yandex.disk",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.drawie",
+      "app_name": "ru.yandex.drawie",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.games",
+      "app_name": "ru.yandex.games",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.games.tv",
+      "app_name": "ru.yandex.games.tv",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.key",
+      "app_name": "ru.yandex.key",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mail",
+      "app_name": "ru.yandex.mail",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.market.partner",
+      "app_name": "ru.yandex.market.partner",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.market.pickuppointpro",
+      "app_name": "ru.yandex.market.pickuppointpro",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.metro",
+      "app_name": "ru.yandex.metro",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.afisha",
+      "app_name": "ru.yandex.mobile.afisha",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.avia",
+      "app_name": "ru.yandex.mobile.avia",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.fmradio",
+      "app_name": "ru.yandex.mobile.fmradio",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.gasstations",
+      "app_name": "ru.yandex.mobile.gasstations",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.music",
+      "app_name": "ru.yandex.music",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.practicum.flutter_practicum",
+      "app_name": "ru.yandex.practicum.flutter_practicum",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.rasp",
+      "app_name": "ru.yandex.rasp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.readie",
+      "app_name": "ru.yandex.readie",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.rovertoy.app",
+      "app_name": "ru.yandex.rovertoy.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.searchplugin",
+      "app_name": "ru.yandex.searchplugin",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.smartreserve.aon",
+      "app_name": "ru.yandex.smartreserve.aon",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.subtitles",
+      "app_name": "ru.yandex.subtitles",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.taxi",
+      "app_name": "ru.yandex.taxi",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.taximeter",
+      "app_name": "ru.yandex.taximeter",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.telemost",
+      "app_name": "ru.yandex.telemost",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.translate",
+      "app_name": "ru.yandex.translate",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.travel",
+      "app_name": "ru.yandex.travel",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.travel.extranet",
+      "app_name": "ru.yandex.travel.extranet",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.uber",
+      "app_name": "ru.yandex.uber",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.weatherplugin",
+      "app_name": "ru.yandex.weatherplugin",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.yandexmaps",
+      "app_name": "ru.yandex.yandexmaps",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.yandexnavi",
+      "app_name": "ru.yandex.yandexnavi",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex_team.calendar_app",
+      "app_name": "ru.yandex_team.calendar_app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yota.android",
+      "app_name": "ru.yota.android",
+      "developer_name": "ООО \"Скартел\"",
+      "developer_path": "/catalog/developer/30001e4c"
+    },
+    {
+      "package_name": "ru.yozhka",
+      "app_name": "ru.yozhka",
+      "developer_name": "ПАО «Ростелеком»",
+      "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "ruagro.start.tech",
+      "app_name": "ruagro.start.tech",
+      "developer_name": "АО «Россельхозбанк»",
+      "developer_path": "/catalog/developer/31f09962"
+    },
+    {
+      "package_name": "sodruzhestvo.android.app",
+      "app_name": "sodruzhestvo.android.app",
+      "developer_name": "ПАО \"Банк ПСБ\"",
+      "developer_path": "/catalog/developer/f0f02d9b"
+    },
+    {
+      "package_name": "team.rtds.checkcontrol",
+      "app_name": "team.rtds.checkcontrol",
+      "developer_name": "Министерство цифрового развития, связи и массовых коммуникаций Российской Федерации",
+      "developer_path": "/catalog/developer/b46d9f81"
+    },
+    {
+      "package_name": "tech.clink.emias.emiasqrcode",
+      "app_name": "tech.clink.emias.emiasqrcode",
+      "developer_name": "ИАЦ в сфере здравоохранения города Москвы",
+      "developer_path": "/catalog/developer/b2730967"
+    },
+    {
+      "package_name": "tele2.vats",
+      "app_name": "tele2.vats",
+      "developer_name": "ООО «Т2 Мобайл»",
+      "developer_path": "/catalog/developer/3022b99c"
+    },
+    {
+      "package_name": "travel.ozon.mobile",
+      "app_name": "travel.ozon.mobile",
+      "developer_name": "ООО \"Интернет Решения\"",
+      "developer_path": "/catalog/developer/d91661ae"
+    },
+    {
+      "package_name": "tv.ntvplus.app",
+      "app_name": "tv.ntvplus.app",
+      "developer_name": "Общество с ограниченной ответственностью «НТВ‑ПЛЮС»",
+      "developer_path": "/catalog/developer/68416ebf"
+    },
+    {
+      "package_name": "tv.ntvplus.app.tv",
+      "app_name": "tv.ntvplus.app.tv",
+      "developer_name": "Общество с ограниченной ответственностью «НТВ‑ПЛЮС»",
+      "developer_path": "/catalog/developer/68416ebf"
+    },
+    {
+      "package_name": "tv.okko.androidtv",
+      "app_name": "tv.okko.androidtv",
+      "developer_name": "Okko LLC",
+      "developer_path": "/catalog/developer/18c4231b"
+    },
+    {
+      "package_name": "tv.tricolor.video",
+      "app_name": "tv.tricolor.video",
+      "developer_name": "НАО «Национальная спутниковая компания»",
+      "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "wb.partners",
+      "app_name": "wb.partners",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    },
+    {
+      "package_name": "wildberries.business",
+      "app_name": "wildberries.business",
+      "developer_name": "ООО \"Вайлдберриз\"",
+      "developer_path": "/catalog/developer/7a17e879"
+    }
+  ]
+}

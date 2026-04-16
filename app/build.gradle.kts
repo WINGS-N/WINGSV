@@ -11,7 +11,6 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.plugins.quality.Checkstyle
 import org.gradle.api.plugins.quality.Pmd
 import org.gradle.api.tasks.TaskProvider
-import org.gradle.api.tasks.Copy
 
 plugins {
     alias(libs.plugins.android.application)
@@ -42,15 +41,8 @@ val generatedLibXrayDir: Provider<Directory> = layout.buildDirectory.dir("genera
 val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "work") }
 val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
 val ruStoreParserRepoDir: File = rootProject.file("external/librustoreparser")
-val ruStoreRecommendedAppsCacheFile: File = rootProject.file(".gradle/rustore/recommended_apps.json")
-val generatedRuStoreAssetsDir: Provider<Directory> = layout.buildDirectory.dir("generated/assets/rustore")
-val generatedRuStoreResDir: Provider<Directory> = layout.buildDirectory.dir("generated/res/rustore")
-val generatedRuStoreRecommendedAsset: Provider<File> = generatedRuStoreAssetsDir.map {
-    File(it.asFile, "rustore_recommended_apps.json")
-}
-val generatedRuStoreXposedScopeXml: Provider<File> = generatedRuStoreResDir.map {
-    File(it.asFile, "values/rustore_xposed_scope.xml")
-}
+val ruStoreRecommendedAppsAssetFile: File = project.file("src/main/assets/rustore_recommended_apps.json")
+val ruStoreXposedScopeXmlFile: File = project.file("src/main/res/values/rustore_xposed_scope.xml")
 val protoSourceDir: File = project.file("src/main/proto")
 val generatedProtoJavaDir: Provider<Directory> = layout.buildDirectory.dir("generated/source/proto/main/java")
 
@@ -234,19 +226,6 @@ fun buildRuStoreRecommendedAppsJson(apps: List<RuStoreRecommendedAppRecord>): St
     }
     append("  ]\n")
     append("}\n")
-}
-
-fun parseRuStoreRecommendedPackageNames(rawJson: String): List<String> {
-    val packageNamePattern = Regex("""[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+""")
-    val packageNameFieldPattern = Regex(""""package_name"\s*:\s*"([^"]+)"""")
-    val byPackage: LinkedHashSet<String> = linkedSetOf()
-    packageNameFieldPattern.findAll(rawJson).forEach { match ->
-        val packageName = match.groupValues[1].trim()
-        if (packageNamePattern.matches(packageName)) {
-            byPackage.add(packageName)
-        }
-    }
-    return byPackage.toList()
 }
 
 fun escapeXmlText(value: String): String = buildString(value.length) {
@@ -472,16 +451,14 @@ val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class)
 
 val generateRuStoreRecommendedAppsCache by tasks.registering {
     group = "build"
-    description = "Crawls RuStore recommended apps once and caches the JSON. Re-run with --rerun-tasks to refresh."
+    description = "Crawls RuStore recommended apps and refreshes checked-in Android assets/resources. Re-run with --rerun-tasks to refresh."
 
-    outputs.file(ruStoreRecommendedAppsCacheFile)
+    outputs.files(ruStoreRecommendedAppsAssetFile, ruStoreXposedScopeXmlFile)
 
     doLast {
         check(ruStoreParserRepoDir.isDirectory) {
             "librustoreparser submodule not found at ${ruStoreParserRepoDir.absolutePath}."
         }
-
-        ruStoreRecommendedAppsCacheFile.parentFile.mkdirs()
 
         val stdout = ByteArrayOutputStream()
         val stderr = ByteArrayOutputStream()
@@ -524,43 +501,15 @@ val generateRuStoreRecommendedAppsCache by tasks.registering {
             "RuStore crawler returned no app records.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
         }
 
-        ruStoreRecommendedAppsCacheFile.writeText(
+        ruStoreRecommendedAppsAssetFile.parentFile.mkdirs()
+        ruStoreRecommendedAppsAssetFile.writeText(
             buildRuStoreRecommendedAppsJson(parsedApps),
             StandardCharsets.UTF_8
         )
-    }
-}
 
-val syncRuStoreRecommendedAppsAsset: TaskProvider<Copy> by tasks.registering(Copy::class) {
-    group = "build"
-    description = "Copies cached RuStore recommended apps JSON into generated Android assets."
-
-    dependsOn(generateRuStoreRecommendedAppsCache)
-    from(ruStoreRecommendedAppsCacheFile)
-    into(generatedRuStoreAssetsDir)
-    rename { generatedRuStoreRecommendedAsset.get().name }
-}
-
-val syncRuStoreRecommendedXposedScopeRes by tasks.registering {
-    group = "build"
-    description = "Generates LSPosed recommended scope resources from cached RuStore recommendations."
-
-    dependsOn(generateRuStoreRecommendedAppsCache)
-    inputs.file(ruStoreRecommendedAppsCacheFile)
-    outputs.file(generatedRuStoreXposedScopeXml)
-
-    doLast {
-        val packageNames = parseRuStoreRecommendedPackageNames(
-            ruStoreRecommendedAppsCacheFile.readText(StandardCharsets.UTF_8)
-        )
-        check(packageNames.isNotEmpty()) {
-            "RuStore recommended apps cache contains no package names."
-        }
-
-        val outputFile = generatedRuStoreXposedScopeXml.get()
-        outputFile.parentFile.mkdirs()
-        outputFile.writeText(
-            buildRuStoreXposedScopeXml(packageNames),
+        ruStoreXposedScopeXmlFile.parentFile.mkdirs()
+        ruStoreXposedScopeXmlFile.writeText(
+            buildRuStoreXposedScopeXml(parsedApps.map { it.packageName }),
             StandardCharsets.UTF_8
         )
     }
@@ -642,8 +591,6 @@ android {
     sourceSets.getByName("main") {
         jniLibs.directories.clear()
         jniLibs.directories.add(generatedVkTurnJniLibsDir.get().asFile.absolutePath)
-        assets.directories.add(generatedRuStoreAssetsDir.get().asFile.absolutePath)
-        res.directories.add(generatedRuStoreResDir.get().asFile.absolutePath)
         java.directories.clear()
         java.directories.addAll(listOf("src/main/java", generatedProtoJavaDir.get().asFile.absolutePath))
     }
@@ -679,9 +626,7 @@ if (!isLintInvocation()) {
             generateVkTurnProxyProtoGo,
             buildVkTurnProxyArm64,
             generateWingsProtoJava,
-            buildLibXrayAndroidAar,
-            syncRuStoreRecommendedAppsAsset,
-            syncRuStoreRecommendedXposedScopeRes
+            buildLibXrayAndroidAar
         )
     }
 }
