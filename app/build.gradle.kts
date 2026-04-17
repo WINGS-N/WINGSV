@@ -37,6 +37,10 @@ val vkTurnGeneratedProtoGo: File = vkTurnRepoDir.resolve("sessionproto/session.p
 val generatedVkTurnJniLibsDir: Provider<Directory> = layout.buildDirectory.dir("generated/jni/libs")
 val generatedVkTurnBinary: Provider<File> = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
 val libXrayRepoDir: File = rootProject.file("external/libXray")
+val libXrayGoModCacheDir: File = rootProject.file(".gradle/libxray/go-mod-cache")
+val libXrayGoCacheDir: File = rootProject.file(".gradle/libxray/go-cache")
+val libXrayGoPathDir: File = rootProject.file(".gradle/libxray/go-path")
+val libXrayGoBinDir: File = rootProject.file(".gradle/libxray/go-bin")
 val generatedLibXrayDir: Provider<Directory> = layout.buildDirectory.dir("generated/xray")
 val generatedLibXrayWorkDir: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "work") }
 val generatedLibXrayAar: Provider<File> = generatedLibXrayDir.map { File(it.asFile, "libXray.aar") }
@@ -321,6 +325,10 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         }
         val outputDir: File = generatedLibXrayDir.get().asFile
         val workDir: File = generatedLibXrayWorkDir.get()
+        libXrayGoModCacheDir.mkdirs()
+        libXrayGoCacheDir.mkdirs()
+        libXrayGoPathDir.mkdirs()
+        libXrayGoBinDir.mkdirs()
         outputDir.mkdirs()
         delete(workDir)
         copy {
@@ -336,6 +344,10 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
                 "GOTOOLCHAIN" to "go1.26.0",
                 "ANDROID_SDK_ROOT" to resolveAndroidSdkDir().absolutePath,
                 "ANDROID_HOME" to resolveAndroidSdkDir().absolutePath,
+                "GOMODCACHE" to libXrayGoModCacheDir.absolutePath,
+                "GOCACHE" to libXrayGoCacheDir.absolutePath,
+                "GOPATH" to libXrayGoPathDir.absolutePath,
+                "GOBIN" to libXrayGoBinDir.absolutePath,
                 "PATH" to buildString {
                     append(File(resolveAndroidSdkDir(), "platform-tools").absolutePath)
                     append(File.pathSeparator)
@@ -343,7 +355,7 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
                     append(File.pathSeparator)
                     append(File(resolveAndroidNdkDir(), "toolchains/llvm/prebuilt/linux-x86_64/bin").absolutePath)
                     append(File.pathSeparator)
-                    append(resolveToolBinDir("gomobile"))
+                    append(libXrayGoBinDir.absolutePath)
                     append(File.pathSeparator)
                     append(System.getenv("PATH") ?: "")
                 }
@@ -415,6 +427,22 @@ val generateRuStoreRecommendedAppsCache by tasks.registering {
             .map { it.equals("true", ignoreCase = true) }
             .orElse(false)
             .get()
+        val rustoreRerunDevelopers: List<String> = providers.gradleProperty("rustoreRerunDevelopers")
+            .map { propertyValue ->
+                propertyValue.split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+            }
+            .orElse(emptyList())
+            .get()
+        val rustoreRerunDirectPackages: List<String> = providers.gradleProperty("rustoreRerunDirectPackages")
+            .map { propertyValue ->
+                propertyValue.split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+            }
+            .orElse(emptyList())
+            .get()
         val rustoreOverwriteAll: Boolean = providers.gradleProperty("rustoreOverwriteAll")
             .map { it.equals("true", ignoreCase = true) }
             .orElse(false)
@@ -426,6 +454,12 @@ val generateRuStoreRecommendedAppsCache by tasks.registering {
         )
         if (rustoreRerunFails) {
             crawlerArgs += "--rerun-fails"
+        }
+        if (rustoreRerunDevelopers.isNotEmpty()) {
+            crawlerArgs += "--rerun-developers=${rustoreRerunDevelopers.joinToString(",")}"
+        }
+        if (rustoreRerunDirectPackages.isNotEmpty()) {
+            crawlerArgs += "--rerun-direct-packages=${rustoreRerunDirectPackages.joinToString(",")}"
         }
         if (rustoreOverwriteAll) {
             crawlerArgs += "--overwrite-all"

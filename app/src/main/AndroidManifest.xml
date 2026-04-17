@@ -152,6 +152,12 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".XrayProfileEditorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ActiveProbingSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

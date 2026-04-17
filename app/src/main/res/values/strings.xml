@@ -475,6 +475,16 @@
     <string name="xray_profiles_share_format_chooser">Формат экспорта</string>
     <string name="xray_profiles_share_format_wingsv">wingsv://</string>
     <string name="xray_profiles_share_format_vless">vless://</string>
+    <string name="xray_profile_long_press_select">Выбрать</string>
+    <string name="xray_profile_long_press_edit_json">Редактировать JSON</string>
+    <string name="xray_profile_long_press_edit_vless">Редактировать VLESS</string>
+    <string name="xray_profile_editor_title">Редактор профиля Xray</string>
+    <string name="xray_profile_editor_wrap_lines">Перенос строк</string>
+    <string name="xray_profile_editor_mode_json">JSON</string>
+    <string name="xray_profile_editor_mode_vless">VLESS</string>
+    <string name="xray_profile_editor_save">Сохранить</string>
+    <string name="xray_profile_editor_saved">Профиль сохранён</string>
+    <string name="xray_profile_editor_save_failed">Не удалось сохранить профиль: %1$s</string>
     <string name="xray_profiles_share_failed">Не удалось сформировать ссылку для выбранных профилей</string>
     <string name="xray_profiles_select_all_action">Выбрать все</string>
     <string name="xray_profiles_deselect_all_action">Снять всё</string>

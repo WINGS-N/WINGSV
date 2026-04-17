@@ -23,6 +23,7 @@ import wings.v.R;
 )
 public final class AppPrefs {
 
+    private static final String RUNTIME_PREFS_NAME = "wingsv_runtime_state";
     private static final String TURN_SESSION_MODE_AUTO = "auto";
     private static final String TURN_SESSION_MODE_MAINLINE = "mainline";
     private static final String TURN_SESSION_MODE_MU = "mu";
@@ -177,11 +178,11 @@ public final class AppPrefs {
     }
 
     public static boolean isExternalActionTransientLaunchPending(Context context) {
-        return prefs(context).getBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, false);
+        return runtimePrefs(context).getBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, false);
     }
 
     public static void setExternalActionTransientLaunchPending(Context context, boolean pending) {
-        prefs(context).edit().putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending).apply();
+        runtimePrefs(context).edit().putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending).apply();
     }
 
     public static void setPendingProfilesFilterId(Context context, String filterId) {
@@ -311,23 +312,23 @@ public final class AppPrefs {
 
     public static boolean hasRootRuntimeState(Context context) {
         return (
-            prefs(context).getBoolean(KEY_ROOT_RUNTIME_ACTIVE, false) &&
+            runtimePrefs(context).getBoolean(KEY_ROOT_RUNTIME_ACTIVE, false) &&
             !TextUtils.isEmpty(getRootRuntimeTunnelName(context))
         );
     }
 
     public static String getRootRuntimeTunnelName(Context context) {
-        return trim(prefs(context).getString(KEY_ROOT_RUNTIME_TUNNEL, ""));
+        return trim(runtimePrefs(context).getString(KEY_ROOT_RUNTIME_TUNNEL, ""));
     }
 
     public static long getRootRuntimeProxyPid(Context context) {
-        return prefs(context).getLong(KEY_ROOT_RUNTIME_PROXY_PID, 0L);
+        return runtimePrefs(context).getLong(KEY_ROOT_RUNTIME_PROXY_PID, 0L);
     }
 
     public static void setRootRuntimeState(Context context, String tunnelName, long proxyPid) {
         String normalizedTunnelName = trim(tunnelName);
         boolean active = !TextUtils.isEmpty(normalizedTunnelName);
-        prefs(context)
+        runtimePrefs(context)
             .edit()
             .putBoolean(KEY_ROOT_RUNTIME_ACTIVE, active)
             .putString(KEY_ROOT_RUNTIME_TUNNEL, normalizedTunnelName)
@@ -336,7 +337,7 @@ public final class AppPrefs {
     }
 
     public static void clearRootRuntimeState(Context context) {
-        prefs(context)
+        runtimePrefs(context)
             .edit()
             .remove(KEY_ROOT_RUNTIME_ACTIVE)
             .remove(KEY_ROOT_RUNTIME_TUNNEL)
@@ -345,11 +346,11 @@ public final class AppPrefs {
     }
 
     public static String getRuntimeUpstreamInterface(Context context) {
-        return trim(prefs(context).getString(KEY_RUNTIME_UPSTREAM_INTERFACE, ""));
+        return trim(runtimePrefs(context).getString(KEY_RUNTIME_UPSTREAM_INTERFACE, ""));
     }
 
     public static String getRuntimeUpstreamRootDns(Context context) {
-        return trim(prefs(context).getString(KEY_RUNTIME_UPSTREAM_ROOT_DNS, ""));
+        return trim(runtimePrefs(context).getString(KEY_RUNTIME_UPSTREAM_ROOT_DNS, ""));
     }
 
     public static String getRootRuntimeRecoveryTunnelHint(Context context) {
@@ -365,7 +366,11 @@ public final class AppPrefs {
     }
 
     public static void clearRuntimeUpstreamState(Context context) {
-        prefs(context).edit().remove(KEY_RUNTIME_UPSTREAM_INTERFACE).remove(KEY_RUNTIME_UPSTREAM_ROOT_DNS).apply();
+        runtimePrefs(context)
+            .edit()
+            .remove(KEY_RUNTIME_UPSTREAM_INTERFACE)
+            .remove(KEY_RUNTIME_UPSTREAM_ROOT_DNS)
+            .apply();
     }
 
     private static String normalizeInterfaceName(String value, String defaultValue, boolean allowHexPlaceholder) {
@@ -640,9 +645,16 @@ public final class AppPrefs {
         return packages;
     }
 
-    public static void setAppRoutingRecommendedPackageDismissed(Context context, String packageName, boolean dismissed) {
+    public static void setAppRoutingRecommendedPackageDismissed(
+        Context context,
+        String packageName,
+        boolean dismissed
+    ) {
         String normalizedPackageName = trim(packageName);
-        if (TextUtils.isEmpty(normalizedPackageName) || TextUtils.equals(normalizedPackageName, context.getPackageName())) {
+        if (
+            TextUtils.isEmpty(normalizedPackageName) ||
+            TextUtils.equals(normalizedPackageName, context.getPackageName())
+        ) {
             return;
         }
         Set<String> packages = getAppRoutingRecommendedDismissedPackages(context);
@@ -1103,6 +1115,10 @@ public final class AppPrefs {
 
     private static SharedPreferences prefs(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+    }
+
+    private static SharedPreferences runtimePrefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE);
     }
 
     private static int parseInt(String rawValue, int fallback) {

@@ -1,7 +1,7 @@
 {
   "source": "librustoreparser",
-  "generated_at_utc": "2026-04-16T18:16:26.345277143Z",
-  "package_count": 417,
+  "generated_at_utc": "2026-04-17T14:17:39.030583005Z",
+  "package_count": 487,
   "packages": [
     {
       "package_name": "app.subscab.android",
@@ -88,6 +88,12 @@
       "developer_path": "/catalog/developer/9ef76af6"
     },
     {
+      "package_name": "com.chaevieprosto.app",
+      "app_name": "com.chaevieprosto.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
       "package_name": "com.dartit.RTcabinet",
       "app_name": "com.dartit.RTcabinet",
       "developer_name": "ПАО «Ростелеком»",
@@ -98,6 +104,12 @@
       "app_name": "com.dartit.mobileagent",
       "developer_name": "ПАО «Ростелеком»",
       "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "com.deliveryclub",
+      "app_name": "com.deliveryclub",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "com.dexp01.reoka01.com",
@@ -134,6 +146,12 @@
       "app_name": "com.drweb.familysecure",
       "developer_name": "ООО \"Доктор Веб\"",
       "developer_path": "/catalog/developer/pkktcyox"
+    },
+    {
+      "package_name": "com.edadeal.android",
+      "app_name": "com.edadeal.android",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "com.equeo.megafondraiv",
@@ -520,10 +538,22 @@
       "developer_path": "/catalog/developer/b2730967"
     },
     {
+      "package_name": "com.reserveonline.tablet.sr.suffix",
+      "app_name": "com.reserveonline.tablet.sr.suffix",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
       "package_name": "com.rostelecom.printservice",
       "app_name": "com.rostelecom.printservice",
       "developer_name": "ПАО «Ростелеком»",
       "developer_path": "/catalog/developer/9ef76af6"
+    },
+    {
+      "package_name": "com.routeq.app",
+      "app_name": "com.routeq.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "com.rzd.eventsrzd",
@@ -700,6 +730,114 @@
       "developer_path": "/catalog/developer/mbtttt4v"
     },
     {
+      "package_name": "com.yandex.aliceapp",
+      "app_name": "com.yandex.aliceapp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.bank",
+      "app_name": "com.yandex.bank",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.bluecollars",
+      "app_name": "com.yandex.bluecollars",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser",
+      "app_name": "com.yandex.browser",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser.corp",
+      "app_name": "com.yandex.browser.corp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser.lite",
+      "app_name": "com.yandex.browser.lite",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.browser.tv",
+      "app_name": "com.yandex.browser.tv",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.calendar.app",
+      "app_name": "com.yandex.calendar.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.corp.tracking.app",
+      "app_name": "com.yandex.corp.tracking.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.internetometer",
+      "app_name": "com.yandex.internetometer",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.iot",
+      "app_name": "com.yandex.iot",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.lavka",
+      "app_name": "com.yandex.lavka",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.mobile.drive",
+      "app_name": "com.yandex.mobile.drive",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.mobile.realty",
+      "app_name": "com.yandex.mobile.realty",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.searchapp",
+      "app_name": "com.yandex.searchapp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.shedevrus",
+      "app_name": "com.yandex.shedevrus",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.tasks.androidapp",
+      "app_name": "com.yandex.tasks.androidapp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "com.yandex.yamb",
+      "app_name": "com.yandex.yamb",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
       "package_name": "com.yclients.yplaces",
       "app_name": "com.yclients.yplaces",
       "developer_name": "YCLIENTS",
@@ -710,6 +848,12 @@
       "app_name": "com.zebrains.trkid",
       "developer_name": "НАО «Национальная спутниковая компания»",
       "developer_path": "/catalog/developer/0f7f523b"
+    },
+    {
+      "package_name": "com.zebrainy.skazbuka",
+      "app_name": "com.zebrainy.skazbuka",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "games.my.cloud",
@@ -730,10 +874,28 @@
       "developer_path": "/catalog/developer/63ea48cb"
     },
     {
+      "package_name": "home.pragma.com",
+      "app_name": "home.pragma.com",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "home.tuvio.com",
+      "app_name": "home.tuvio.com",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
       "package_name": "intech.global.com.beeline",
       "app_name": "intech.global.com.beeline",
       "developer_name": "ПАО \"ВымпелКом\"",
       "developer_path": "/catalog/developer/0e6451b5"
+    },
+    {
+      "package_name": "jamhome.ru.lktsj",
+      "app_name": "jamhome.ru.lktsj",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "live.vkplay.app",
@@ -886,6 +1048,12 @@
       "developer_path": "/catalog/developer/0e6451b5"
     },
     {
+      "package_name": "ru.beru.android",
+      "app_name": "ru.beru.android",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
       "package_name": "ru.cctvb2b.dom.app",
       "app_name": "ru.cctvb2b.dom.app",
       "developer_name": "ЭР-Телеком Холдинг",
@@ -1010,6 +1178,18 @@
       "app_name": "ru.filit.mvideo.b2c",
       "developer_name": "ООО «М Тех»",
       "developer_path": "/catalog/developer/f0f99c7d"
+    },
+    {
+      "package_name": "ru.foodfox.client",
+      "app_name": "ru.foodfox.client",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.foodfox.vendor",
+      "app_name": "ru.foodfox.vendor",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "ru.gazprombank.android.mobilebank.app",
@@ -1180,6 +1360,18 @@
       "developer_path": "/catalog/developer/25cb8eb5"
     },
     {
+      "package_name": "ru.kinopoisk",
+      "app_name": "ru.kinopoisk",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.kinopoisk.tv",
+      "app_name": "ru.kinopoisk.tv",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
       "package_name": "ru.lenta.lentochka",
       "app_name": "ru.lenta.lentochka",
       "developer_name": "ООО \"Лента\"",
@@ -1346,6 +1538,12 @@
       "app_name": "ru.megapolis.rms.servicedesk",
       "developer_name": "Дептранс Москвы",
       "developer_path": "/catalog/developer/8c1fc8f1"
+    },
+    {
+      "package_name": "ru.mercaux.app",
+      "app_name": "ru.mercaux.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "ru.mgfoms.pandora",
@@ -1778,6 +1976,12 @@
       "app_name": "ru.plazius.cofix",
       "developer_name": null,
       "developer_path": null
+    },
+    {
+      "package_name": "ru.plus.bookmate",
+      "app_name": "ru.plus.bookmate",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "ru.profmedia.avtoradio",
@@ -2414,6 +2618,222 @@
       "app_name": "ru.x5.x5job",
       "developer_name": "ООО «ИТ ИКС 5 Технологии»",
       "developer_path": "/catalog/developer/9607cd14"
+    },
+    {
+      "package_name": "ru.yandex.androidkeyboard",
+      "app_name": "ru.yandex.androidkeyboard",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.cloud",
+      "app_name": "ru.yandex.cloud",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.cloud.tracker",
+      "app_name": "ru.yandex.cloud.tracker",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.direct",
+      "app_name": "ru.yandex.direct",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.disk",
+      "app_name": "ru.yandex.disk",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.drawie",
+      "app_name": "ru.yandex.drawie",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.games",
+      "app_name": "ru.yandex.games",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.games.tv",
+      "app_name": "ru.yandex.games.tv",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.key",
+      "app_name": "ru.yandex.key",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mail",
+      "app_name": "ru.yandex.mail",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.market.partner",
+      "app_name": "ru.yandex.market.partner",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.market.pickuppointpro",
+      "app_name": "ru.yandex.market.pickuppointpro",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.metro",
+      "app_name": "ru.yandex.metro",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.afisha",
+      "app_name": "ru.yandex.mobile.afisha",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.avia",
+      "app_name": "ru.yandex.mobile.avia",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.fmradio",
+      "app_name": "ru.yandex.mobile.fmradio",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.mobile.gasstations",
+      "app_name": "ru.yandex.mobile.gasstations",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.music",
+      "app_name": "ru.yandex.music",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.practicum.flutter_practicum",
+      "app_name": "ru.yandex.practicum.flutter_practicum",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.rasp",
+      "app_name": "ru.yandex.rasp",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.readie",
+      "app_name": "ru.yandex.readie",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.rovertoy.app",
+      "app_name": "ru.yandex.rovertoy.app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.searchplugin",
+      "app_name": "ru.yandex.searchplugin",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.smartreserve.aon",
+      "app_name": "ru.yandex.smartreserve.aon",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.subtitles",
+      "app_name": "ru.yandex.subtitles",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.taxi",
+      "app_name": "ru.yandex.taxi",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.taximeter",
+      "app_name": "ru.yandex.taximeter",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.telemost",
+      "app_name": "ru.yandex.telemost",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.translate",
+      "app_name": "ru.yandex.translate",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.travel",
+      "app_name": "ru.yandex.travel",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.travel.extranet",
+      "app_name": "ru.yandex.travel.extranet",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.uber",
+      "app_name": "ru.yandex.uber",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.weatherplugin",
+      "app_name": "ru.yandex.weatherplugin",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.yandexmaps",
+      "app_name": "ru.yandex.yandexmaps",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex.yandexnavi",
+      "app_name": "ru.yandex.yandexnavi",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
+    },
+    {
+      "package_name": "ru.yandex_team.calendar_app",
+      "app_name": "ru.yandex_team.calendar_app",
+      "developer_name": "ООО \"ЯНДЕКС\"",
+      "developer_path": "/catalog/developer/c184ae7c"
     },
     {
       "package_name": "ru.yota.android",

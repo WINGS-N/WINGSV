@@ -60,7 +60,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
                     .putString(key, normalizedDefault)
                     .apply();
                 preference.setText(normalizedDefault);
-                updateSummaries();
+                updateWireGuardSummary(normalizedDefault);
                 requestRuntimeReconnectIfActive();
                 return false;
             }
@@ -79,11 +79,11 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
                     .putString(key, normalized)
                     .apply();
                 preference.setText(normalized);
-                updateSummaries();
+                updateWireGuardSummary(normalized);
                 requestRuntimeReconnectIfActive();
                 return false;
             }
-            updateSummaries();
+            updateWireGuardSummary(normalized);
             requestRuntimeReconnectAfterPersist();
             return true;
         });
@@ -98,9 +98,17 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        String value = AppPrefs.normalizeRootWireGuardInterfaceNameTemplate(preference.getText());
+        updateWireGuardSummary(preference.getText());
+    }
+
+    private void updateWireGuardSummary(String value) {
+        EditTextPreference preference = findPreference(AppPrefs.KEY_ROOT_WIREGUARD_INTERFACE_NAME);
+        if (preference == null) {
+            return;
+        }
+        String normalizedValue = AppPrefs.normalizeRootWireGuardInterfaceNameTemplate(value);
         preference.setSummary(
-            getString(R.string.root_interface_wireguard_summary_value, UiFormatter.truncate(value, 32))
+            getString(R.string.root_interface_wireguard_summary_value, UiFormatter.truncate(normalizedValue, 32))
         );
     }
 

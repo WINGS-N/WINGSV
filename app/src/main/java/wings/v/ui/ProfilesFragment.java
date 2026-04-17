@@ -44,6 +44,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import wings.v.MainActivity;
 import wings.v.R;
+import wings.v.XrayProfileEditorActivity;
 import wings.v.byedpi.ByeDpiLocalRunner;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
@@ -277,7 +278,7 @@ public class ProfilesFragment extends Fragment {
             List<XraySubscription> subscriptions = XrayStore.getSubscriptions(appContext);
             XrayProfile activeProfile = XrayStore.getActiveProfile(appContext);
             String activeProfileId = activeProfile != null ? activeProfile.id : "";
-            LinkedHashMap<String, FilterSpec> computedFilters = buildFilters(profiles, appContext);
+            LinkedHashMap<String, FilterSpec> computedFilters = buildFilters(profiles, subscriptions, appContext);
             String resolvedFilterId = computedFilters.containsKey(requestedFilterId) ? requestedFilterId : FILTER_ALL;
             List<XrayProfile> filteredProfiles = filterProfiles(profiles, resolvedFilterId);
             sortProfilesByStoredTcping(filteredProfiles, XrayStore.getProfilePingResultsMap(appContext));
@@ -427,7 +428,7 @@ public class ProfilesFragment extends Fragment {
             rowBinding.rowProfileEntry.setOnClickListener(v -> onProfileClicked(profile));
             rowBinding.rowProfileEntry.setOnLongClickListener(v -> {
                 Haptics.softSelection(v);
-                beginSelection(profile.id);
+                showProfileLongPressMenu(v, profile);
                 return true;
             });
 
@@ -499,10 +500,26 @@ public class ProfilesFragment extends Fragment {
         binding.progressProfilesPageLoading.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
-    private LinkedHashMap<String, FilterSpec> buildFilters(List<XrayProfile> profiles, Context context) {
+    private LinkedHashMap<String, FilterSpec> buildFilters(
+        List<XrayProfile> profiles,
+        List<XraySubscription> subscriptions,
+        Context context
+    ) {
         LinkedHashMap<String, FilterSpec> result = new LinkedHashMap<>();
         result.put(FILTER_ALL, new FilterSpec(FILTER_ALL, context.getString(R.string.xray_profiles_filter_all)));
-        LinkedHashMap<String, FilterSpec> subscriptions = new LinkedHashMap<>();
+        LinkedHashMap<String, FilterSpec> subscriptionFilters = new LinkedHashMap<>();
+        if (subscriptions != null) {
+            for (XraySubscription subscription : subscriptions) {
+                if (subscription == null || TextUtils.isEmpty(subscription.id)) {
+                    continue;
+                }
+                String filterId = "sub:" + subscription.id;
+                String title = TextUtils.isEmpty(subscription.title)
+                    ? context.getString(R.string.xray_profiles_filter_no_subscription)
+                    : subscription.title;
+                subscriptionFilters.put(filterId, new FilterSpec(filterId, title));
+            }
+        }
         boolean hasManualProfiles = false;
         for (XrayProfile profile : profiles) {
             if (profile == null) {
@@ -513,14 +530,14 @@ public class ProfilesFragment extends Fragment {
                 continue;
             }
             String filterId = "sub:" + profile.subscriptionId;
-            if (!subscriptions.containsKey(filterId)) {
+            if (!subscriptionFilters.containsKey(filterId)) {
                 String title = TextUtils.isEmpty(profile.subscriptionTitle)
                     ? context.getString(R.string.xray_profiles_filter_no_subscription)
                     : profile.subscriptionTitle;
-                subscriptions.put(filterId, new FilterSpec(filterId, title));
+                subscriptionFilters.put(filterId, new FilterSpec(filterId, title));
             }
         }
-        result.putAll(subscriptions);
+        result.putAll(subscriptionFilters);
         if (hasManualProfiles) {
             result.put(
                 FILTER_NO_SUBSCRIPTION,
@@ -597,6 +614,35 @@ public class ProfilesFragment extends Fragment {
             } catch (Exception ignored) {}
         }
         Toast.makeText(requireContext(), R.string.xray_profiles_selected, Toast.LENGTH_SHORT).show();
+    }
+
+    private void showProfileLongPressMenu(View anchor, XrayProfile profile) {
+        if (profile == null || !isAdded()) {
+            return;
+        }
+        if (selectionMode) {
+            beginSelection(profile.id);
+            return;
+        }
+        PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
+        popupMenu.inflate(R.menu.menu_profile_long_press_actions);
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_profile_long_press_select) {
+                beginSelection(profile.id);
+                return true;
+            }
+            if (itemId == R.id.menu_profile_long_press_edit_json) {
+                startActivity(XrayProfileEditorActivity.createIntent(requireContext(), profile.id, false));
+                return true;
+            }
+            if (itemId == R.id.menu_profile_long_press_edit_vless) {
+                startActivity(XrayProfileEditorActivity.createIntent(requireContext(), profile.id, true));
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
     }
 
     private void beginSelection(String profileId) {
