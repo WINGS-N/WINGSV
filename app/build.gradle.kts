@@ -5,7 +5,7 @@ import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
-import java.time.Instant
+import groovy.json.JsonSlurper
 import org.gradle.api.file.Directory
 import org.gradle.api.provider.Provider
 import org.gradle.api.plugins.quality.Checkstyle
@@ -157,75 +157,24 @@ fun resolveToolBinDir(toolName: String, fallbackToolName: String = "go"): String
     return File(resolveGoBinary(fallbackToolName)).parentFile.absolutePath
 }
 
-fun escapeJsonString(value: String): String = buildString(value.length + 8) {
-    append('"')
-    value.forEach { character ->
-        when (character) {
-            '\\' -> append("\\\\")
-            '"' -> append("\\\"")
-            '\b' -> append("\\b")
-            '\u000C' -> append("\\f")
-            '\n' -> append("\\n")
-            '\r' -> append("\\r")
-            '\t' -> append("\\t")
-            else -> {
-                if (character.code < 0x20) {
-                    append("\\u%04x".format(character.code))
-                } else {
-                    append(character)
-                }
-            }
+@Suppress("UNCHECKED_CAST")
+fun readRuStoreRecommendedAppsJson(jsonFile: File): List<RuStoreRecommendedAppRecord> {
+    val root: Map<String, Any?> = JsonSlurper().parseText(jsonFile.readText(StandardCharsets.UTF_8)) as? Map<String, Any?>
+        ?: return emptyList()
+    val packages: List<Map<String, Any?>> = root["packages"] as? List<Map<String, Any?>> ?: return emptyList()
+    return packages.mapNotNull { item ->
+        val packageName: String = item["package_name"]?.toString()?.trim().orEmpty()
+        if (packageName.isEmpty()) {
+            return@mapNotNull null
         }
-    }
-    append('"')
-}
-
-fun nullableJsonString(value: String?): String = if (value == null) "null" else escapeJsonString(value)
-
-fun parseRuStoreCrawlerFullOutput(rawOutput: String): List<RuStoreRecommendedAppRecord> {
-    val packageNamePattern: Regex = Regex("""[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+""")
-    val byPackage: LinkedHashMap<String, RuStoreRecommendedAppRecord> = LinkedHashMap()
-    rawOutput.lineSequence().forEach { rawLine ->
-        val line: String = rawLine.trimEnd()
-        if (line.isBlank()) {
-            return@forEach
-        }
-        val columns: List<String> = line.split('\t', limit = 4)
-        val packageName: String = columns.getOrNull(0)?.trim().orEmpty()
-        if (!packageNamePattern.matches(packageName)) {
-            return@forEach
-        }
-        fun nullableColumn(index: Int): String? = columns.getOrNull(index)?.trim()?.takeIf { it.isNotEmpty() }
-        byPackage[packageName] = RuStoreRecommendedAppRecord(
+        fun nullable(key: String): String? = item[key]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        RuStoreRecommendedAppRecord(
             packageName = packageName,
-            appName = nullableColumn(1),
-            developerName = nullableColumn(2),
-            developerPath = nullableColumn(3)
+            appName = nullable("app_name"),
+            developerName = nullable("developer_name"),
+            developerPath = nullable("developer_path")
         )
-    }
-    return byPackage.values.sortedBy { it.packageName }
-}
-
-fun buildRuStoreRecommendedAppsJson(apps: List<RuStoreRecommendedAppRecord>): String = buildString {
-    append("{\n")
-    append("  \"source\": ").append(escapeJsonString("librustoreparser")).append(",\n")
-    append("  \"generated_at_utc\": ").append(escapeJsonString(Instant.now().toString())).append(",\n")
-    append("  \"package_count\": ").append(apps.size).append(",\n")
-    append("  \"packages\": [\n")
-    apps.forEachIndexed { index, app ->
-        append("    {\n")
-        append("      \"package_name\": ").append(escapeJsonString(app.packageName)).append(",\n")
-        append("      \"app_name\": ").append(nullableJsonString(app.appName)).append(",\n")
-        append("      \"developer_name\": ").append(nullableJsonString(app.developerName)).append(",\n")
-        append("      \"developer_path\": ").append(nullableJsonString(app.developerPath)).append("\n")
-        append("    }")
-        if (index != apps.lastIndex) {
-            append(',')
-        }
-        append('\n')
-    }
-    append("  ]\n")
-    append("}\n")
+    }.sortedBy { it.packageName }
 }
 
 fun escapeXmlText(value: String): String = buildString(value.length) {
@@ -460,8 +409,27 @@ val generateRuStoreRecommendedAppsCache by tasks.registering {
             "librustoreparser submodule not found at ${ruStoreParserRepoDir.absolutePath}."
         }
 
-        val stdout = ByteArrayOutputStream()
         val stderr = ByteArrayOutputStream()
+        val ruStoreStateDir: File = ruStoreParserRepoDir.resolve("state")
+        val rustoreRerunFails: Boolean = providers.gradleProperty("rustoreRerunFails")
+            .map { it.equals("true", ignoreCase = true) }
+            .orElse(false)
+            .get()
+        val rustoreOverwriteAll: Boolean = providers.gradleProperty("rustoreOverwriteAll")
+            .map { it.equals("true", ignoreCase = true) }
+            .orElse(false)
+            .get()
+        val crawlerArgs: MutableList<String> = mutableListOf(
+            "--json-output=${ruStoreRecommendedAppsAssetFile.absolutePath}",
+            "--state-dir=${ruStoreStateDir.absolutePath}",
+            "--progress"
+        )
+        if (rustoreRerunFails) {
+            crawlerArgs += "--rerun-fails"
+        }
+        if (rustoreOverwriteAll) {
+            crawlerArgs += "--overwrite-all"
+        }
         val process = ProcessBuilder(
             gradleWrapperCommand(rootProject.rootDir) +
                 listOf(
@@ -471,41 +439,31 @@ val generateRuStoreRecommendedAppsCache by tasks.registering {
                     "--quiet",
                     "--console=plain",
                     "runCrawlerCli",
-                    "--args=--full --progress"
+                    "--args=${crawlerArgs.joinToString(" ")}"
                 )
         )
             .directory(rootProject.rootDir)
             .start()
 
-        val stdoutReader = Thread {
-            captureProcessStream(process.inputStream, stdout)
-        }
         val stderrReader = Thread {
             captureProcessStream(process.errorStream, stderr) { line ->
                 logger.lifecycle(line)
             }
         }
-        stdoutReader.start()
         stderrReader.start()
         val exitCode = process.waitFor()
-        stdoutReader.join()
         stderrReader.join()
         check(exitCode == 0) {
             "RuStore crawler command failed with exit code $exitCode.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
         }
 
-        val parsedApps: List<RuStoreRecommendedAppRecord> = parseRuStoreCrawlerFullOutput(
-            stdout.toString(StandardCharsets.UTF_8)
-        )
-        check(parsedApps.isNotEmpty()) {
-            "RuStore crawler returned no app records.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
+        check(ruStoreRecommendedAppsAssetFile.isFile) {
+            "RuStore crawler did not produce ${ruStoreRecommendedAppsAssetFile.absolutePath}.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
         }
-
-        ruStoreRecommendedAppsAssetFile.parentFile.mkdirs()
-        ruStoreRecommendedAppsAssetFile.writeText(
-            buildRuStoreRecommendedAppsJson(parsedApps),
-            StandardCharsets.UTF_8
-        )
+        val parsedApps: List<RuStoreRecommendedAppRecord> = readRuStoreRecommendedAppsJson(ruStoreRecommendedAppsAssetFile)
+        check(parsedApps.isNotEmpty()) {
+            "RuStore crawler produced no app records in ${ruStoreRecommendedAppsAssetFile.absolutePath}.\nstderr:\n${stderr.toString(StandardCharsets.UTF_8)}"
+        }
 
         ruStoreXposedScopeXmlFile.parentFile.mkdirs()
         ruStoreXposedScopeXmlFile.writeText(
