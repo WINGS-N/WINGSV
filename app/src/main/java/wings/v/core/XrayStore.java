@@ -126,7 +126,7 @@ public final class XrayStore {
                 AppPrefs.KEY_XRAY_TRANSPORT_MODE,
                 value.transportMode == null ? XrayTransportMode.DIRECT.prefValue : value.transportMode.prefValue
             )
-            .apply();
+            .commit();
     }
 
     public static List<XraySubscription> getSubscriptions(Context context) {
@@ -189,7 +189,7 @@ public final class XrayStore {
             .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, array.toString())
             .putBoolean(AppPrefs.KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED, true)
             .putBoolean(AppPrefs.KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED, true)
-            .apply();
+            .commit();
         XraySubscriptionBackgroundScheduler.refresh(context.getApplicationContext());
     }
 
@@ -251,7 +251,7 @@ public final class XrayStore {
                 array.put(profile.toJson());
             } catch (Exception ignored) {}
         }
-        prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILES_JSON, array.toString()).apply();
+        prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILES_JSON, array.toString()).commit();
         pruneProfileTrafficStats(context, collectProfileIds(deduped.values()));
         pruneProfilePingResults(context, collectProfilePingKeys(deduped.values()));
     }
@@ -420,7 +420,7 @@ public final class XrayStore {
     }
 
     public static void setActiveProfileId(Context context, String profileId) {
-        prefs(context).edit().putString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_ID, trim(profileId)).apply();
+        prefs(context).edit().putString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_ID, trim(profileId)).commit();
     }
 
     public static XrayProfile getActiveProfile(Context context) {

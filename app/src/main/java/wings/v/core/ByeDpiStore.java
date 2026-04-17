@@ -189,7 +189,7 @@ public final class ByeDpiStore {
         if (TextUtils.isEmpty(normalized)) {
             return;
         }
-        prefs(context).edit().putBoolean(KEY_USE_COMMAND_SETTINGS, true).putString(KEY_CMD_ARGS, normalized).apply();
+        prefs(context).edit().putBoolean(KEY_USE_COMMAND_SETTINGS, true).putString(KEY_CMD_ARGS, normalized).commit();
     }
 
     @NonNull
