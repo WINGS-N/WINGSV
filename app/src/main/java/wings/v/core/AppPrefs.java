@@ -663,7 +663,10 @@ public final class AppPrefs {
         } else {
             packages.remove(normalizedPackageName);
         }
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_RECOMMENDED_DISMISSED, new LinkedHashSet<>(packages)).commit();
+        prefs(context)
+            .edit()
+            .putStringSet(KEY_APP_ROUTING_RECOMMENDED_DISMISSED, new LinkedHashSet<>(packages))
+            .commit();
     }
 
     public static boolean maybeAutoEnableRecommendedAppRoutingPackage(Context context, String packageName) {
