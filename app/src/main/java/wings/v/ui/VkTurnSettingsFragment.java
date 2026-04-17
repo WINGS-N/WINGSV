@@ -330,7 +330,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                     PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
                         .edit()
                         .putString(key, normalizedValue)
-                        .apply();
+                        .commit();
                     if (!TextUtils.equals(preference.getValue(), normalizedValue)) {
                         preference.setValue(normalizedValue);
                     }
