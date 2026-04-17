@@ -1977,6 +1977,14 @@ public class ProxyTunnelService extends Service {
         }
         appendRuntimeLogLine("Waiting for Xray VPN service teardown before starting userspace WireGuard backend");
         XrayVpnService.stopService(getApplicationContext());
+        if (XrayVpnService.waitForStopped(XRAY_VPN_STOP_WAIT_MS)) {
+            ensureRuntimeStillWanted(generation);
+            return;
+        }
+        appendRuntimeLogLine(
+            "Xray VPN service did not stop gracefully; forcing stop before starting userspace WireGuard backend"
+        );
+        XrayVpnService.forceStopService(getApplicationContext());
         if (!XrayVpnService.waitForStopped(XRAY_VPN_STOP_WAIT_MS)) {
             throw new IllegalStateException(
                 "Xray VPN service ещё не перешёл в DOWN; запуск userspace WireGuard невозможен"

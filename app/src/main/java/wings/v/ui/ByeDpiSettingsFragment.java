@@ -290,7 +290,10 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
                     () -> {
                         SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
                         if (preferences != null) {
-                            preferences.edit().putString(key, newValue == null ? "" : String.valueOf(newValue)).commit();
+                            preferences
+                                .edit()
+                                .putString(key, newValue == null ? "" : String.valueOf(newValue))
+                                .commit();
                         }
                     },
                     getString(R.string.warning_socks_password_weak)

@@ -383,7 +383,7 @@ public class XposedAppsFragment extends Fragment {
         }
         binding.groupAppTypeFilters.removeAllViews();
         addFilterChip(FILTER_ALL, getString(R.string.apps_filter_all));
-        if (XposedAppsActivity.MODE_TARGET_APPS.equals(mode)) {
+        if (XposedAppsActivity.MODE_TARGET_APPS.equals(mode) || XposedAppsActivity.MODE_HIDDEN_VPN_APPS.equals(mode)) {
             addFilterChip(FILTER_RECOMMENDED, getString(R.string.apps_filter_recommended));
         }
         addFilterChip(FILTER_USER, getString(R.string.apps_filter_user));
@@ -522,7 +522,9 @@ public class XposedAppsFragment extends Fragment {
         List<AppRoutingEntry> entries = new ArrayList<>(installedApplications.size());
         Set<String> recommendedPackages = XposedAppsActivity.MODE_TARGET_APPS.equals(mode)
             ? RuStoreRecommendedAppsAsset.getPackageNames(context)
-            : java.util.Collections.emptySet();
+            : XposedAppsActivity.MODE_HIDDEN_VPN_APPS.equals(mode)
+                ? XposedModulePrefs.getRecommendedHiddenVpnPackages(context)
+                : java.util.Collections.emptySet();
         for (ApplicationInfo applicationInfo : installedApplications) {
             String label = applicationInfo.loadLabel(packageManager).toString().trim();
             if (label.isEmpty()) {
