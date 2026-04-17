@@ -99,7 +99,7 @@ public final class XrayRoutingStore {
         PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext())
             .edit()
             .putString(key, TextUtils.isEmpty(trim(value)) ? defaultValue : trim(value))
-            .apply();
+            .commit();
     }
 
     public static void ensureGeoFilesBootstrap(Context context) {
@@ -153,7 +153,7 @@ public final class XrayRoutingStore {
         PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext())
             .edit()
             .putString(AppPrefs.KEY_XRAY_ROUTING_RULES_JSON, array.toString())
-            .apply();
+            .commit();
     }
 
     public static List<XrayRoutingRule> getValidRules(Context context) {

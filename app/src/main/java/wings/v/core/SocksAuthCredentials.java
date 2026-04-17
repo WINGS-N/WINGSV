@@ -31,7 +31,7 @@ public final class SocksAuthCredentials {
         if (TextUtils.isEmpty(password)) {
             password = generateToken();
         }
-        preferences.edit().putString(usernameKey, username).putString(passwordKey, password).apply();
+        preferences.edit().putString(usernameKey, username).putString(passwordKey, password).commit();
         return new Pair(username, password);
     }
 

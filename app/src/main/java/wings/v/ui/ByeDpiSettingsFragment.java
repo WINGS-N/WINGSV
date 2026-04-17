@@ -238,7 +238,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
                     () -> {
                         SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
                         if (preferences != null) {
-                            preferences.edit().putBoolean(key, false).apply();
+                            preferences.edit().putBoolean(key, false).commit();
                         }
                     },
                     getString(R.string.warning_socks_auth_disable)
@@ -290,7 +290,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
                     () -> {
                         SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
                         if (preferences != null) {
-                            preferences.edit().putString(key, newValue == null ? "" : String.valueOf(newValue)).apply();
+                            preferences.edit().putString(key, newValue == null ? "" : String.valueOf(newValue)).commit();
                         }
                     },
                     getString(R.string.warning_socks_password_weak)

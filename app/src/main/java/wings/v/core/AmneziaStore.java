@@ -65,7 +65,7 @@ public final class AmneziaStore {
         editor.putString(AppPrefs.KEY_AWG_QUICK_CONFIG, normalized);
         StructuredConfig structured = parseRawConfig(normalized);
         writeStructuredConfig(editor, structured);
-        editor.apply();
+        editor.commit();
     }
 
     public static void syncRawConfigFromStructuredPrefs(Context context) {
@@ -73,7 +73,7 @@ public final class AmneziaStore {
         prefs(appContext)
             .edit()
             .putString(AppPrefs.KEY_AWG_QUICK_CONFIG, buildRawConfigFromStructuredPrefs(appContext))
-            .apply();
+            .commit();
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -91,7 +91,7 @@ public final class AmneziaStore {
             StructuredConfig structured = parseRawConfig(raw);
             SharedPreferences.Editor editor = sharedPreferences.edit();
             writeStructuredConfig(editor, structured);
-            editor.apply();
+            editor.commit();
         } catch (Exception ignored) {}
     }
 

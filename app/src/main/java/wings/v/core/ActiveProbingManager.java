@@ -235,14 +235,14 @@ public final class ActiveProbingManager {
             clearRestoreBackend(context);
             return;
         }
-        prefs(context.getApplicationContext()).edit().putString(KEY_RESTORE_BACKEND, backendType.prefValue).apply();
+        prefs(context.getApplicationContext()).edit().putString(KEY_RESTORE_BACKEND, backendType.prefValue).commit();
     }
 
     public static void clearRestoreBackend(@Nullable Context context) {
         if (context == null) {
             return;
         }
-        prefs(context.getApplicationContext()).edit().remove(KEY_RESTORE_BACKEND).apply();
+        prefs(context.getApplicationContext()).edit().remove(KEY_RESTORE_BACKEND).commit();
     }
 
     @NonNull
@@ -267,7 +267,7 @@ public final class ActiveProbingManager {
             return;
         }
         Context appContext = context.getApplicationContext();
-        prefs(appContext).edit().putString(KEY_URLS, serializeUrls(urls)).apply();
+        prefs(appContext).edit().putString(KEY_URLS, serializeUrls(urls)).commit();
         ActiveProbingBackgroundScheduler.refresh(appContext);
     }
 

@@ -107,7 +107,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                         androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
                             .edit()
                             .putBoolean(key, false)
-                            .apply();
+                            .commit();
                         requestRuntimeReconnectIfActive(key);
                     },
                     getString(R.string.warning_socks_auth_disable)
@@ -138,7 +138,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                         androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
                             .edit()
                             .putString(key, newValue == null ? "" : String.valueOf(newValue))
-                            .apply();
+                            .commit();
                         requestRuntimeReconnectIfActive(key);
                     },
                     getString(R.string.warning_socks_password_weak)
@@ -294,7 +294,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                 androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
                     .edit()
                     .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, true)
-                    .apply();
+                    .commit();
                 requireView().post(this::syncFromStore);
             }
             requestRuntimeReconnectAfterPersist(key);

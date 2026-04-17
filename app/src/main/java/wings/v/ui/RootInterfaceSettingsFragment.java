@@ -58,7 +58,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
                 PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
                     .edit()
                     .putString(key, normalizedDefault)
-                    .apply();
+                    .commit();
                 preference.setText(normalizedDefault);
                 updateWireGuardSummary(normalizedDefault);
                 requestRuntimeReconnectIfActive();
@@ -77,7 +77,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
                 PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
                     .edit()
                     .putString(key, normalized)
-                    .apply();
+                    .commit();
                 preference.setText(normalized);
                 updateWireGuardSummary(normalized);
                 requestRuntimeReconnectIfActive();

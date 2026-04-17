@@ -182,7 +182,7 @@ public final class AppPrefs {
     }
 
     public static void setExternalActionTransientLaunchPending(Context context, boolean pending) {
-        runtimePrefs(context).edit().putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending).apply();
+        runtimePrefs(context).edit().putBoolean(KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH, pending).commit();
     }
 
     public static void setPendingProfilesFilterId(Context context, String filterId) {
@@ -211,7 +211,7 @@ public final class AppPrefs {
     }
 
     public static void setRootModeEnabled(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_ROOT_MODE, enabled).apply();
+        prefs(context).edit().putBoolean(KEY_ROOT_MODE, enabled).commit();
     }
 
     public static boolean isKernelWireGuardEnabled(Context context) {
@@ -223,7 +223,7 @@ public final class AppPrefs {
     }
 
     public static void setKernelWireGuardEnabled(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_KERNEL_WIREGUARD, enabled).apply();
+        prefs(context).edit().putBoolean(KEY_KERNEL_WIREGUARD, enabled).commit();
     }
 
     public static String getThemeMode(Context context) {
@@ -593,7 +593,7 @@ public final class AppPrefs {
     }
 
     public static void setAppRoutingBypassEnabled(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_APP_ROUTING_BYPASS, enabled).apply();
+        prefs(context).edit().putBoolean(KEY_APP_ROUTING_BYPASS, enabled).commit();
     }
 
     public static Set<String> getAppRoutingPackages(Context context) {
@@ -616,7 +616,7 @@ public final class AppPrefs {
         } else {
             packages.remove(packageName);
         }
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, packages).apply();
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, new LinkedHashSet<>(packages)).commit();
     }
 
     public static void setAppRoutingPackages(Context context, Set<String> packages) {
@@ -632,7 +632,7 @@ public final class AppPrefs {
                 }
             }
         }
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, normalizedPackages).apply();
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, normalizedPackages).commit();
     }
 
     public static Set<String> getAppRoutingRecommendedDismissedPackages(Context context) {
@@ -663,7 +663,7 @@ public final class AppPrefs {
         } else {
             packages.remove(normalizedPackageName);
         }
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_RECOMMENDED_DISMISSED, packages).apply();
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_RECOMMENDED_DISMISSED, new LinkedHashSet<>(packages)).commit();
     }
 
     public static boolean maybeAutoEnableRecommendedAppRoutingPackage(Context context, String packageName) {
@@ -687,7 +687,7 @@ public final class AppPrefs {
             return false;
         }
         enabledPackages.add(normalizedPackageName);
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, enabledPackages).apply();
+        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, new LinkedHashSet<>(enabledPackages)).commit();
         return true;
     }
 
@@ -717,7 +717,7 @@ public final class AppPrefs {
             changed = true;
         }
         if (changed) {
-            prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, enabledPackages).apply();
+            prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, new LinkedHashSet<>(enabledPackages)).commit();
         }
         return changed;
     }
