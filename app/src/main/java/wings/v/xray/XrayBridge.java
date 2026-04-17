@@ -118,6 +118,19 @@ public final class XrayBridge {
         }
     }
 
+    public static String convertXrayJsonToShareLinks(String configJson) throws Exception {
+        ensureLoaded();
+        synchronized (JNI_LOCK) {
+            String request = Base64.encodeToString(configJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+            JSONObject response = decodeResponse(LibXray.convertXrayJsonToShareLinks(request));
+            Object data = response.opt("data");
+            if (data != null) {
+                return String.valueOf(data);
+            }
+            throw new IllegalStateException("libXray вернул пустые share links");
+        }
+    }
+
     public static void runFromJson(Context context, String configJson, int tunFd) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {

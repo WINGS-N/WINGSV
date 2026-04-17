@@ -190,6 +190,7 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
+    private static final String EXTRA_RECONNECT_BACKEND = "wings.v.extra.RECONNECT_BACKEND";
     private static final String NOTIFICATION_CHANNEL_ID = "wingsv_tunnel";
     private static final String CAPTCHA_NOTIFICATION_CHANNEL_ID = "wingsv_captcha";
     private static final int SERVICE_NOTIFICATION_ID = 1;
@@ -604,6 +605,10 @@ public class ProxyTunnelService extends Service {
     }
 
     public static void requestReconnect(Context context, @Nullable String reason) {
+        requestReconnect(context, reason, null);
+    }
+
+    public static void requestReconnect(Context context, @Nullable String reason, @Nullable BackendType targetBackend) {
         Context appContext = context != null ? context.getApplicationContext() : null;
         if (appContext == null || !isActive()) {
             return;
@@ -611,7 +616,7 @@ public class ProxyTunnelService extends Service {
         if (!TextUtils.isEmpty(reason)) {
             appendRuntimeLogLine(reason);
         }
-        Intent intent = createReconnectIntent(appContext);
+        Intent intent = createReconnectIntent(appContext, targetBackend);
         try {
             appContext.startService(intent);
         } catch (IllegalStateException | SecurityException startError) {
@@ -640,7 +645,15 @@ public class ProxyTunnelService extends Service {
     }
 
     public static Intent createReconnectIntent(Context context) {
-        return new Intent(context, ProxyTunnelService.class).setAction(ACTION_RECONNECT);
+        return createReconnectIntent(context, null);
+    }
+
+    public static Intent createReconnectIntent(Context context, @Nullable BackendType targetBackend) {
+        Intent intent = new Intent(context, ProxyTunnelService.class).setAction(ACTION_RECONNECT);
+        if (targetBackend != null) {
+            intent.putExtra(EXTRA_RECONNECT_BACKEND, targetBackend.prefValue);
+        }
+        return intent;
     }
 
     public static Intent createReapplySharingIntent(Context context) {
@@ -1070,15 +1083,19 @@ public class ProxyTunnelService extends Service {
             return START_STICKY;
         }
         if (ACTION_RECONNECT.equals(action)) {
+            BackendType requestedBackend = parseReconnectBackend(intent);
+            if (requestedBackend != null) {
+                XrayStore.setBackendType(getApplicationContext(), requestedBackend);
+            }
             if (!isActive()) {
-                activeBackendType = getConfiguredBackendType();
+                activeBackendType = requestedBackend != null ? requestedBackend : getConfiguredBackendType();
                 setServiceState(ServiceState.CONNECTING);
                 startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 startWork(true);
                 return START_STICKY;
             }
             BackendType backendToStop = activeBackendType;
-            BackendType targetBackend = getConfiguredBackendType();
+            BackendType targetBackend = requestedBackend != null ? requestedBackend : getConfiguredBackendType();
             activeBackendType = targetBackend;
             setServiceState(ServiceState.CONNECTING);
             startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
@@ -1115,6 +1132,18 @@ public class ProxyTunnelService extends Service {
     private BackendType getConfiguredBackendType() {
         ProxySettings settings = AppPrefs.getSettings(getApplicationContext());
         return settings != null && settings.backendType != null ? settings.backendType : BackendType.VK_TURN_WIREGUARD;
+    }
+
+    @Nullable
+    private BackendType parseReconnectBackend(@Nullable Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        String rawBackend = intent.getStringExtra(EXTRA_RECONNECT_BACKEND);
+        if (TextUtils.isEmpty(rawBackend)) {
+            return null;
+        }
+        return BackendType.fromPrefValue(rawBackend);
     }
 
     @Nullable
@@ -6185,6 +6214,7 @@ public class ProxyTunnelService extends Service {
         stopping = false;
         beginErrorNoticeSession();
         clearLastError();
+        XrayStore.setBackendType(getApplicationContext(), resolvedTargetBackend);
         activeBackendType = resolvedTargetBackend;
         setServiceState(ServiceState.CONNECTING);
         try {

@@ -30,6 +30,7 @@ import wings.v.qs.QuickSettingsTiles;
 )
 public final class XrayStore {
 
+    private static final String RUNTIME_PREFS_NAME = "wingsv_xray_runtime";
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
     private static final String DEFAULT_SUBSCRIPTION_URL =
         "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt";
@@ -255,6 +256,22 @@ public final class XrayStore {
         pruneProfilePingResults(context, collectProfilePingKeys(deduped.values()));
     }
 
+    public static boolean replaceProfile(Context context, XrayProfile profile) {
+        if (profile == null || TextUtils.isEmpty(profile.id) || TextUtils.isEmpty(profile.rawLink)) {
+            return false;
+        }
+        ArrayList<XrayProfile> profiles = new ArrayList<>(getProfiles(context));
+        for (int index = 0; index < profiles.size(); index++) {
+            XrayProfile candidate = profiles.get(index);
+            if (candidate != null && TextUtils.equals(candidate.id, profile.id)) {
+                profiles.set(index, profile);
+                setProfiles(context, profiles);
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static String getProfilePingKey(XrayProfile profile) {
         return getProfileStorageKey(profile);
     }
@@ -269,7 +286,11 @@ public final class XrayStore {
 
     public static Map<String, ProfileTrafficStats> getProfileTrafficStatsMap(Context context) {
         LinkedHashMap<String, ProfileTrafficStats> result = new LinkedHashMap<>();
-        JSONObject object = parseObject(prefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, "{}"));
+        String rawJson = runtimePrefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, null);
+        if (TextUtils.isEmpty(rawJson)) {
+            rawJson = prefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, "{}");
+        }
+        JSONObject object = parseObject(rawJson);
         if (object == null) {
             return result;
         }
@@ -337,7 +358,11 @@ public final class XrayStore {
 
     public static Map<String, ProfilePingResult> getProfilePingResultsMap(Context context) {
         LinkedHashMap<String, ProfilePingResult> result = new LinkedHashMap<>();
-        JSONObject object = parseObject(prefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, "{}"));
+        String rawJson = runtimePrefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, null);
+        if (TextUtils.isEmpty(rawJson)) {
+            rawJson = prefs(context).getString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, "{}");
+        }
+        JSONObject object = parseObject(rawJson);
         if (object == null) {
             return result;
         }
@@ -522,6 +547,10 @@ public final class XrayStore {
         return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
     }
 
+    private static SharedPreferences runtimePrefs(Context context) {
+        return context.getApplicationContext().getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE);
+    }
+
     private static int parseInt(String rawValue, int fallback) {
         try {
             return Integer.parseInt(trim(rawValue));
@@ -564,7 +593,7 @@ public final class XrayStore {
                 } catch (Exception ignored) {}
             }
         }
-        prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, object.toString()).apply();
+        runtimePrefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILE_TRAFFIC_JSON, object.toString()).apply();
     }
 
     private static void pruneProfileTrafficStats(Context context, Collection<String> activeProfileIds) {
@@ -601,7 +630,7 @@ public final class XrayStore {
                 } catch (Exception ignored) {}
             }
         }
-        prefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, object.toString()).apply();
+        runtimePrefs(context).edit().putString(AppPrefs.KEY_XRAY_PROFILE_TCPING_JSON, object.toString()).apply();
     }
 
     private static void pruneProfilePingResults(Context context, Collection<String> activeProfilePingKeys) {

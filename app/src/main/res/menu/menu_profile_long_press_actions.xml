@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_profile_long_press_select"
+        android:title="@string/xray_profile_long_press_select" />
+
+    <item
+        android:id="@+id/menu_profile_long_press_edit_json"
+        android:title="@string/xray_profile_long_press_edit_json" />
+
+    <item
+        android:id="@+id/menu_profile_long_press_edit_vless"
+        android:title="@string/xray_profile_long_press_edit_vless" />
+
+</menu>

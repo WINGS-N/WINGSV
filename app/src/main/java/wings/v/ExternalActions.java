@@ -105,7 +105,8 @@ public final class ExternalActions {
             }
             ProxyTunnelService.requestReconnect(
                 appContext,
-                "Switching backend: " + currentBackend.prefValue + " -> " + targetBackend.prefValue
+                "Switching backend: " + currentBackend.prefValue + " -> " + targetBackend.prefValue,
+                targetBackend
             );
         }
         QuickSettingsTiles.requestRefresh(appContext);
