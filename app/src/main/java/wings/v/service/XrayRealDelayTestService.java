@@ -180,6 +180,12 @@ public abstract class XrayRealDelayTestService extends Service {
                 useByeDpi
             );
             configFile = writeConnectionTestConfig(configJson);
+            String protectSocketName = RuntimeStateStore.readProtectSocketName();
+            if (!TextUtils.isEmpty(protectSocketName)) {
+                XrayBridge.prepareRuntimeViaProtectSocket(protectSocketName, settings.remoteDns, settings.directDns);
+            } else {
+                XrayBridge.prepareRuntimeDirect(settings.remoteDns, settings.directDns);
+            }
             long delayMs = XrayBridge.pingConfig(
                 getApplicationContext(),
                 configFile,
