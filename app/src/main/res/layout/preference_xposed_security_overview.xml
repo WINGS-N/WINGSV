@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_surface_card"
+        android:clipToOutline="true"
+        android:outlineProvider="background">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/xposed_security_title"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:textColor="?android:textColorPrimary"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_xposed_security_level"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:textColor="?android:textColorPrimary"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_xposed_security_score"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary" />
+
+        <wings.v.widget.XposedSecurityLevelBarView
+            android:id="@+id/view_xposed_security_bar"
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:layout_marginTop="14dp" />
+
+        <TextView
+            android:id="@+id/text_xposed_security_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="18dp"
+            android:background="@color/wingsv_surface_alt" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/xposed_weekly_title"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:textColor="?android:textColorPrimary"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_xposed_weekly_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:textColor="?android:textColorPrimary" />
+
+        <com.github.mikephil.charting.charts.BarChart
+            android:id="@+id/view_xposed_weekly_graph"
+            android:layout_width="match_parent"
+            android:layout_height="188dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+            <LinearLayout
+            android:id="@+id/row_xposed_history"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="2dp"
+            android:paddingVertical="10dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/xposed_history_title"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorPrimary"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_selected_apps_disclosure" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+</FrameLayout>

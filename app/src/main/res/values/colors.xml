@@ -4,6 +4,7 @@
     <color name="wingsv_window">#F5F6FA</color>
     <color name="wingsv_surface">#FFFFFFFF</color>
     <color name="wingsv_surface_alt">#EEF2F8</color>
+    <color name="wingsv_surface_chip_dim">#3C4048</color>
     <color name="wingsv_text_primary">#10131A</color>
     <color name="wingsv_text_secondary">#646D7C</color>
     <color name="wingsv_success">#16965A</color>
