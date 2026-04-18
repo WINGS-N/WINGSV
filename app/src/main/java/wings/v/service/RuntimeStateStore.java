@@ -44,6 +44,7 @@ public final class RuntimeStateStore {
     private static final String KEY_CAPTCHA_LOCKOUT_UNTIL = "captcha_lockout_until";
     private static final String KEY_RUNTIME_LOG_VERSION = "runtime_log_version";
     private static final String KEY_PROXY_LOG_VERSION = "proxy_log_version";
+    private static final String KEY_PROTECT_SOCKET_NAME = "protect_socket_name";
 
     private static volatile Context appContext;
     private static volatile Snapshot cachedSnapshot;
@@ -86,7 +87,8 @@ public final class RuntimeStateStore {
                 readBoolean(properties, KEY_PUBLIC_IP_REFRESHING),
                 readLong(properties, KEY_CAPTCHA_LOCKOUT_UNTIL),
                 readLong(properties, KEY_RUNTIME_LOG_VERSION),
-                readLong(properties, KEY_PROXY_LOG_VERSION)
+                readLong(properties, KEY_PROXY_LOG_VERSION),
+                emptyToNull(properties.getProperty(KEY_PROTECT_SOCKET_NAME))
             );
             cachedSnapshot = snapshot;
             cachedSnapshotAtElapsedMs = now;
@@ -145,6 +147,15 @@ public final class RuntimeStateStore {
         );
     }
 
+    static void writeProtectSocketName(@Nullable String socketName) {
+        updateProperties(properties -> setNullable(properties, KEY_PROTECT_SOCKET_NAME, socketName));
+    }
+
+    @Nullable
+    static String readProtectSocketName() {
+        return readSnapshot().protectSocketName;
+    }
+
     static void resetEphemeralState() {
         updateProperties(properties -> {
             properties.setProperty(KEY_STATE, STATE_STOPPED);
@@ -162,6 +173,7 @@ public final class RuntimeStateStore {
             properties.setProperty(KEY_DISMISSED_ERROR_SESSION, "0");
             properties.setProperty(KEY_PUBLIC_IP_REFRESHING, "false");
             properties.setProperty(KEY_CAPTCHA_LOCKOUT_UNTIL, "0");
+            properties.remove(KEY_PROTECT_SOCKET_NAME);
         });
     }
 
@@ -381,6 +393,7 @@ public final class RuntimeStateStore {
         final long captchaLockoutUntilElapsedMs;
         final long runtimeLogVersion;
         final long proxyLogVersion;
+        final String protectSocketName;
 
         Snapshot(
             String state,
@@ -399,7 +412,8 @@ public final class RuntimeStateStore {
             boolean publicIpRefreshing,
             long captchaLockoutUntilElapsedMs,
             long runtimeLogVersion,
-            long proxyLogVersion
+            long proxyLogVersion,
+            String protectSocketName
         ) {
             this.state = state;
             this.backendType = backendType;
@@ -418,6 +432,7 @@ public final class RuntimeStateStore {
             this.captchaLockoutUntilElapsedMs = captchaLockoutUntilElapsedMs;
             this.runtimeLogVersion = runtimeLogVersion;
             this.proxyLogVersion = proxyLogVersion;
+            this.protectSocketName = protectSocketName;
         }
     }
 }

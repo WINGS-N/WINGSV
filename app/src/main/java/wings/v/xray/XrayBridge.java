@@ -1,12 +1,18 @@
 package wings.v.xray;
 
 import android.content.Context;
+import android.net.LocalSocket;
+import android.net.LocalSocketAddress;
 import android.net.Uri;
+import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 import android.util.Base64;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,13 +84,7 @@ public final class XrayBridge {
                 throw new IllegalStateException("Xray VpnService не готов");
             }
             ACTIVE_NETWORK_CONTROLLER.set(vpnService);
-            ensureControllersRegisteredLocked();
-            String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
-            if (!TextUtils.isEmpty(runtimeDns)) {
-                LibXray.initDns(DELEGATING_CONTROLLER, runtimeDns);
-            } else {
-                LibXray.resetDns();
-            }
+            configureRuntimeNetworkingLocked(remoteDns, directDns);
         }
     }
 
@@ -92,13 +92,22 @@ public final class XrayBridge {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             ACTIVE_NETWORK_CONTROLLER.set(DIRECT_NETWORK_CONTROLLER);
-            ensureControllersRegisteredLocked();
-            String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
-            if (!TextUtils.isEmpty(runtimeDns)) {
-                LibXray.initDns(DELEGATING_CONTROLLER, runtimeDns);
-            } else {
-                LibXray.resetDns();
+            configureRuntimeNetworkingLocked(remoteDns, directDns);
+        }
+    }
+
+    public static synchronized void prepareRuntimeViaProtectSocket(
+        String socketName,
+        String remoteDns,
+        String directDns
+    ) {
+        ensureLoaded();
+        synchronized (JNI_LOCK) {
+            if (TextUtils.isEmpty(socketName)) {
+                throw new IllegalArgumentException("Protect socket name is empty");
             }
+            ACTIVE_NETWORK_CONTROLLER.set(new ProtectBridgeDialerController(socketName));
+            configureRuntimeNetworkingLocked(remoteDns, directDns);
         }
     }
 
@@ -277,6 +286,16 @@ public final class XrayBridge {
         }
     }
 
+    private static void configureRuntimeNetworkingLocked(String remoteDns, String directDns) {
+        ensureControllersRegisteredLocked();
+        String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
+        if (!TextUtils.isEmpty(runtimeDns)) {
+            LibXray.initDns(DELEGATING_CONTROLLER, runtimeDns);
+        } else {
+            LibXray.resetDns();
+        }
+    }
+
     private static String resolveBootstrapDnsDialTarget(String remoteDns, String directDns) {
         String candidate = normalizePlainDnsDialTarget(remoteDns);
         if (!TextUtils.isEmpty(candidate)) {
@@ -398,5 +417,48 @@ public final class XrayBridge {
             throw new IllegalStateException(response.optString("error", "libXray request failed"));
         }
         return response;
+    }
+
+    private static final class ProtectBridgeDialerController implements DialerController {
+
+        private final String socketName;
+
+        private ProtectBridgeDialerController(String socketName) {
+            this.socketName = socketName;
+        }
+
+        @Override
+        public boolean protectFd(long fd) {
+            if (fd <= 0L || TextUtils.isEmpty(socketName)) {
+                return false;
+            }
+            LocalSocket socket = new LocalSocket();
+            try {
+                socket.connect(new LocalSocketAddress(socketName, LocalSocketAddress.Namespace.ABSTRACT));
+                try (
+                    ParcelFileDescriptor adoptedFd = ParcelFileDescriptor.adoptFd((int) fd);
+                    InputStream inputStream = socket.getInputStream();
+                    OutputStream outputStream = socket.getOutputStream()
+                ) {
+                    FileDescriptor fileDescriptor = adoptedFd.getFileDescriptor();
+                    if (fileDescriptor == null) {
+                        return false;
+                    }
+                    socket.setFileDescriptorsForSend(new FileDescriptor[] { fileDescriptor });
+                    outputStream.write(1);
+                    outputStream.flush();
+                    socket.setFileDescriptorsForSend(null);
+                    int result = inputStream.read();
+                    adoptedFd.detachFd();
+                    return result == 1;
+                }
+            } catch (Exception ignored) {
+                return false;
+            } finally {
+                try {
+                    socket.close();
+                } catch (Exception ignored) {}
+            }
+        }
     }
 }
