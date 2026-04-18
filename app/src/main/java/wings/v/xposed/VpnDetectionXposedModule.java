@@ -55,11 +55,67 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
     private static final String LOG_TAG = "WINGS-Xposed";
     private static final String FALLBACK_INTERFACE = "wlan0";
     private static final String VPN_SERVICE_PERMISSION = "android.permission.BIND_VPN_SERVICE";
+    private static final String[] CRITICAL_INFRASTRUCTURE_PACKAGES = new String[] {
+        "system",
+        "com.android.systemui",
+        "com.android.phone",
+        "com.android.networkstack.process",
+        "com.android.permissioncontroller",
+        "com.google.android.permissioncontroller",
+        "com.android.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.samsung.android.packageinstaller",
+        "com.sec.android.app.packageinstaller",
+        "com.android.webview",
+        "com.google.android.webview",
+        "com.google.android.trichromelibrary",
+        "com.google.android.setupwizard",
+        "com.samsung.android.setupwizard",
+        "com.sec.android.app.SecSetupWizard",
+        "com.android.managedprovisioning",
+        "com.android.vending",
+        "com.android.networkstack",
+        "com.google.android.networkstack.process",
+        "com.google.android.networkstack",
+        "com.google.android.gms",
+        "com.google.android.gsf",
+        "com.google.process.gservices",
+        "com.sec.imsservice",
+        "com.sec.epdg",
+        "com.samsung.android.mcfds",
+    };
+    private static final String[] CRITICAL_INFRASTRUCTURE_PREFIXES = new String[] {
+        "com.android.providers.",
+        "com.google.android.providers.",
+        "com.qualcomm.qti.",
+        "com.qualcomm.qcril",
+        "org.codeaurora.ims",
+        "com.mediatek.",
+        "com.sec.ims",
+        "com.sec.epdg",
+        "com.sec.phone",
+        "com.samsung.android.telephony",
+        "com.samsung.android.network",
+    };
+    private static final String[] CRITICAL_INFRASTRUCTURE_PROCESS_KEYWORDS = new String[] {
+        "ril",
+        "qcril",
+        "radio",
+        "telephony",
+        "ims",
+        "epdg",
+    };
     private static final String[] WEBVIEW_STACK_PREFIXES = new String[] {
         "org.chromium.",
         "com.android.webview.chromium.",
         "android.webkit.",
         "androidx.webkit.",
+    };
+    private static final String[] FRAMEWORK_NETWORK_INTERNAL_STACK_PREFIXES = new String[] {
+        "android.net.LinkProperties$",
+        "android.net.ConnectivityManager$",
+        "android.os.Parcel",
+        "android.os.BaseBundle",
     };
     private static final ThreadLocal<Boolean> CALLING_ORIGINAL = ThreadLocal.withInitial(() -> false);
 
@@ -69,7 +125,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             return;
         }
 
-        if (MODULE_PACKAGE.equals(loadPackageParam.packageName)) {
+        final String packageName = loadPackageParam.packageName;
+
+        if (MODULE_PACKAGE.equals(packageName)) {
             return;
         }
 
@@ -78,10 +136,37 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             return;
         }
 
-        if ("android".equals(loadPackageParam.packageName)) {
-            XposedBridge.log(LOG_TAG + ": Hooking system_server for network services and dumpsys");
+        if ("android".equals(packageName)) {
+            if (!isSystemServerProcess(loadPackageParam)) {
+                Log.i(
+                    LOG_TAG,
+                    "Skipping framework hooks outside system_server: package=" +
+                        packageName +
+                        ", process=" +
+                        loadPackageParam.processName
+                );
+                return;
+            }
             Log.i(LOG_TAG, "Hooking system_server for network services and dumpsys...");
             hookSystemServices(loadPackageParam.classLoader, config);
+            return;
+        }
+
+        if (isCriticalInfrastructureTarget(loadPackageParam)) {
+            Log.i(LOG_TAG, "Skipping in-process hooks for critical system package: " + packageName);
+            return;
+        }
+        if (isProtectedSystemTarget(loadPackageParam) && !config.targetPackages.contains(packageName)) {
+            Log.i(LOG_TAG, "Skipping in-process hooks for system app: " + packageName);
+            return;
+        }
+        if (
+            config.allApps && isPreinstalledSystemApp(loadPackageParam) && !config.targetPackages.contains(packageName)
+        ) {
+            Log.i(
+                LOG_TAG,
+                "Skipping in-process hooks for preinstalled system app outside explicit targets: " + packageName
+            );
             return;
         }
 
@@ -89,28 +174,101 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         if (config.allApps) {
             shouldApplyHooks = true;
         } else {
-            shouldApplyHooks = config.targetPackages.contains(loadPackageParam.packageName);
+            shouldApplyHooks = config.targetPackages.contains(packageName);
         }
 
         if (!shouldApplyHooks) {
             return;
         }
 
-        Log.i(LOG_TAG, "Applying in-process hooks to " + loadPackageParam.packageName + ", allApps=" + config.allApps);
+        Log.i(LOG_TAG, "Applying in-process hooks to " + packageName + ", allApps=" + config.allApps);
         hookInProcessApis(loadPackageParam.classLoader, config);
     }
 
+    private static boolean isSystemServerProcess(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+        if (loadPackageParam == null) {
+            return false;
+        }
+        final String processName = loadPackageParam.processName;
+        if (!"android".equals(processName) && !"system_server".equals(processName)) {
+            return false;
+        }
+        return loadPackageParam.appInfo != null && loadPackageParam.appInfo.uid == Process.SYSTEM_UID;
+    }
+
+    private static boolean isProtectedSystemTarget(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+        if (loadPackageParam == null || loadPackageParam.appInfo == null) {
+            return false;
+        }
+        final int flags = loadPackageParam.appInfo.flags;
+        return (
+            (flags & ApplicationInfo.FLAG_PERSISTENT) != 0 ||
+            loadPackageParam.appInfo.uid < Process.FIRST_APPLICATION_UID
+        );
+    }
+
+    private static boolean isPreinstalledSystemApp(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+        if (loadPackageParam == null || loadPackageParam.appInfo == null) {
+            return false;
+        }
+        final int flags = loadPackageParam.appInfo.flags;
+        return ((flags & ApplicationInfo.FLAG_SYSTEM) != 0 || (flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0);
+    }
+
+    private static boolean isCriticalInfrastructureTarget(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+        if (loadPackageParam == null) {
+            return false;
+        }
+        final String packageName = loadPackageParam.packageName;
+        final String processName = loadPackageParam.processName;
+        for (String candidate : CRITICAL_INFRASTRUCTURE_PACKAGES) {
+            if (matchesCriticalName(packageName, candidate) || matchesCriticalName(processName, candidate)) {
+                return true;
+            }
+        }
+        for (String candidate : CRITICAL_INFRASTRUCTURE_PREFIXES) {
+            if (
+                (packageName != null && packageName.startsWith(candidate)) ||
+                (processName != null && processName.startsWith(candidate))
+            ) {
+                return true;
+            }
+        }
+        if (processName == null) {
+            return false;
+        }
+        final String normalizedProcessName = processName.toLowerCase(Locale.ROOT);
+        for (String keyword : CRITICAL_INFRASTRUCTURE_PROCESS_KEYWORDS) {
+            if (normalizedProcessName.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean matchesCriticalName(String value, String candidate) {
+        if (value == null || candidate == null) {
+            return false;
+        }
+        return (value.equals(candidate) || value.startsWith(candidate + ":") || value.startsWith(candidate + "."));
+    }
+
     private static boolean shouldSpoofForCaller(final ModuleConfig config) {
-        if (config == null) {
+        if (config == null || config.targetPackages == null || config.targetPackages.isEmpty()) {
             return false;
         }
         final int callingUid;
+        final int callingPid;
         try {
             callingUid = Binder.getCallingUid();
+            callingPid = Binder.getCallingPid();
         } catch (RuntimeException ignored) {
             return false;
         }
         if (callingUid < Process.FIRST_APPLICATION_UID) {
+            return false;
+        }
+        if (callingPid <= 0 || callingPid == Process.myPid()) {
             return false;
         }
         try {
@@ -119,10 +277,13 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 return false;
             }
             for (final String packageName : packages) {
-                if (packageName == null || MODULE_PACKAGE.equals(packageName) || "android".equals(packageName)) {
+                if (packageName == null) {
                     continue;
                 }
-                if (config.allApps || config.shouldHook(packageName)) {
+                if (MODULE_PACKAGE.equals(packageName)) {
+                    continue;
+                }
+                if (config.targetPackages.contains(packageName)) {
                     Log.d(LOG_TAG, "Spoofing for UID " + callingUid + " (" + packageName + ")");
                     return true;
                 }
@@ -140,7 +301,6 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 classLoader
             );
 
-            // getActiveNetworkForUid
             XposedBridge.hookAllMethods(
                 connectivityServiceClass,
                 "getActiveNetworkForUid",
@@ -155,7 +315,6 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 }
             );
 
-            // getNetworkCapabilities
             XposedBridge.hookAllMethods(
                 connectivityServiceClass,
                 "getNetworkCapabilities",
@@ -174,7 +333,6 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 }
             );
 
-            // getLinkProperties
             XposedBridge.hookAllMethods(
                 connectivityServiceClass,
                 "getLinkProperties",
@@ -286,6 +444,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
+                    if (isFrameworkNetworkInternalCall()) {
+                        return;
+                    }
                     if (
                         param.args != null &&
                         param.args.length == 1 &&
@@ -304,6 +465,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
+                    if (isFrameworkNetworkInternalCall()) {
+                        return;
+                    }
                     Object transportInfo = param.getResult();
                     if (isVpnTransportInfo(transportInfo)) {
                         param.setResult(null);
@@ -320,6 +484,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
+                    if (isFrameworkNetworkInternalCall()) {
+                        return;
+                    }
                     String interfaceName = (String) param.getResult();
                     if (isTunnelInterface(interfaceName)) {
                         param.setResult(FALLBACK_INTERFACE);
@@ -335,6 +502,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) {
+                        if (isFrameworkNetworkInternalCall()) {
+                            return;
+                        }
                         Object result = param.getResult();
                         if (!(result instanceof List<?>)) {
                             return;
@@ -358,6 +528,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
+                    if (isFrameworkNetworkInternalCall()) {
+                        return;
+                    }
                     Object result = param.getResult();
                     if (!(result instanceof List<?>)) {
                         return;
@@ -380,6 +553,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
+                    if (isFrameworkNetworkInternalCall()) {
+                        return;
+                    }
                     Object result = param.getResult();
                     if (!(result instanceof List<?>)) {
                         return;
@@ -418,8 +594,6 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             }
         );
     }
-
-    //...
 
     private static void hookSystemProperties() {
         XposedHelpers.findAndHookMethod(
@@ -865,11 +1039,6 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         final LinkProperties props = (LinkProperties) value;
 
         try {
-            final Method setInterfaceName = LinkProperties.class.getMethod("setInterfaceName", String.class);
-            setInterfaceName.invoke(props, FALLBACK_INTERFACE);
-        } catch (final Throwable ignored) {}
-
-        try {
             final List<RouteInfo> originalRoutes = props.getRoutes();
             final List<RouteInfo> filteredRoutes = new ArrayList<>();
             if (originalRoutes != null) {
@@ -956,6 +1125,28 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 continue;
             }
             for (String prefix : WEBVIEW_STACK_PREFIXES) {
+                if (className.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isFrameworkNetworkInternalCall() {
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        if (stackTrace == null || stackTrace.length == 0) {
+            return false;
+        }
+        for (StackTraceElement element : stackTrace) {
+            if (element == null) {
+                continue;
+            }
+            String className = element.getClassName();
+            if (className == null) {
+                continue;
+            }
+            for (String prefix : FRAMEWORK_NETWORK_INTERNAL_STACK_PREFIXES) {
                 if (className.startsWith(prefix)) {
                     return true;
                 }

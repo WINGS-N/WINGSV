@@ -9,15 +9,12 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivityXposedSettingsBinding;
 import wings.v.ui.XposedSettingsFragment;
 
-/** Hosts the Xposed settings screen. */
 public class XposedSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public XposedSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the Xposed settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, XposedSettingsActivity.class);
     }

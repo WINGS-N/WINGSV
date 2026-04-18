@@ -9,6 +9,7 @@
 #include <string.h>
 #include <string>
 #include <sys/system_properties.h>
+#include <unistd.h>
 #include <unordered_map>
 
 #include "xhook.h"
@@ -27,6 +28,58 @@ static std::unordered_map<ifaddrs *, ifaddrs *> g_hidden_lists;
 static bool g_installed = false;
 static constexpr const char *kHookedLibrariesPattern = ".*/libc.*\\.so$";
 static constexpr const char *kProcfsHookModeProp = "persist.wingsv.xposed.procfs_hook_mode";
+static constexpr const char *kCriticalInfrastructureProcesses[] = {
+        "system",
+        "android",
+        "system_server",
+        "com.android.systemui",
+        "com.android.phone",
+        "com.android.networkstack.process",
+        "com.android.networkstack",
+        "com.google.android.networkstack.process",
+        "com.google.android.networkstack",
+        "com.android.permissioncontroller",
+        "com.google.android.permissioncontroller",
+        "com.android.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.samsung.android.packageinstaller",
+        "com.sec.android.app.packageinstaller",
+        "com.android.webview",
+        "com.google.android.webview",
+        "com.google.android.trichromelibrary",
+        "com.google.android.setupwizard",
+        "com.samsung.android.setupwizard",
+        "com.sec.android.app.SecSetupWizard",
+        "com.android.managedprovisioning",
+        "com.android.vending",
+        "com.google.android.gms",
+        "com.google.android.gsf",
+        "com.google.process.gservices",
+        "com.sec.imsservice",
+        "com.sec.epdg",
+        "com.samsung.android.mcfds",
+};
+static constexpr const char *kCriticalInfrastructurePrefixes[] = {
+        "com.android.providers.",
+        "com.google.android.providers.",
+        "com.qualcomm.qti.",
+        "com.qualcomm.qcril",
+        "org.codeaurora.ims",
+        "com.mediatek.",
+        "com.sec.ims",
+        "com.sec.epdg",
+        "com.sec.phone",
+        "com.samsung.android.telephony",
+        "com.samsung.android.network",
+};
+static constexpr const char *kCriticalInfrastructureKeywords[] = {
+        "ril",
+        "qcril",
+        "radio",
+        "telephony",
+        "ims",
+        "epdg",
+};
 
 enum ProcfsHookMode {
     PROCFS_HOOK_MODE_FILE_NOT_FOUND = 0,
@@ -63,17 +116,71 @@ static bool starts_with(const std::string &value, const char *prefix) {
     return value.rfind(prefix, 0) == 0;
 }
 
+static std::string to_lower_ascii(std::string value) {
+    for (char &ch : value) {
+        if (ch >= 'A' && ch <= 'Z') {
+            ch = static_cast<char>(ch - 'A' + 'a');
+        }
+    }
+    return value;
+}
+
+static bool matches_critical_name(const std::string &value, const char *candidate) {
+    if (value.empty() || candidate == nullptr || candidate[0] == '\0') {
+        return false;
+    }
+    return value == candidate
+            || starts_with(value, (std::string(candidate) + ":").c_str())
+            || starts_with(value, (std::string(candidate) + ".").c_str());
+}
+
+static std::string get_current_process_name() {
+    char buffer[512] = {0};
+    int fd = open("/proc/self/cmdline", O_RDONLY);
+    if (fd < 0) {
+        return {};
+    }
+    ssize_t bytes_read = read(fd, buffer, sizeof(buffer) - 1);
+    close(fd);
+    if (bytes_read <= 0) {
+        return {};
+    }
+    buffer[bytes_read] = '\0';
+    return std::string(buffer);
+}
+
+static bool is_critical_infrastructure_process() {
+    const std::string process_name = get_current_process_name();
+    if (process_name.empty()) {
+        return false;
+    }
+
+    for (const char *candidate : kCriticalInfrastructureProcesses) {
+        if (matches_critical_name(process_name, candidate)) {
+            return true;
+        }
+    }
+    for (const char *candidate : kCriticalInfrastructurePrefixes) {
+        if (starts_with(process_name, candidate)) {
+            return true;
+        }
+    }
+
+    const std::string normalized_process_name = to_lower_ascii(process_name);
+    for (const char *keyword : kCriticalInfrastructureKeywords) {
+        if (normalized_process_name.find(keyword) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool is_tunnel_interface(const char *name) {
     if (name == nullptr || name[0] == '\0') {
         return false;
     }
 
-    std::string lowered(name);
-    for (char &ch : lowered) {
-        if (ch >= 'A' && ch <= 'Z') {
-            ch = static_cast<char>(ch - 'A' + 'a');
-        }
-    }
+    std::string lowered = to_lower_ascii(name);
 
     return starts_with(lowered, "tun")
             || starts_with(lowered, "tap")
@@ -251,6 +358,16 @@ JNIEXPORT jboolean JNICALL
 Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *, jclass) {
     if (g_installed) {
         return JNI_TRUE;
+    }
+
+    if (is_critical_infrastructure_process()) {
+        __android_log_print(
+                ANDROID_LOG_INFO,
+                LOG_TAG,
+                "Skipping native hooks for critical process %s",
+                get_current_process_name().c_str()
+        );
+        return JNI_FALSE;
     }
 
     xhook_enable_debug(0);
