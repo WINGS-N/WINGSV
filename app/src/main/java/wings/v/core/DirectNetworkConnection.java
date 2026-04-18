@@ -10,6 +10,7 @@ import androidx.annotation.Nullable;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import wings.v.service.ProxyTunnelService;
 
 /**
  * Opens app control-plane HTTP connections outside the app-owned VPN.
@@ -32,6 +33,18 @@ public final class DirectNetworkConnection {
 
     @NonNull
     public static HttpURLConnection openHttpConnection(@NonNull Context context, @NonNull URL url) throws IOException {
+        return openHttpConnection(context, url, false);
+    }
+
+    @NonNull
+    public static HttpURLConnection openHttpConnection(
+        @NonNull Context context,
+        @NonNull URL url,
+        boolean useTunnelWhenActive
+    ) throws IOException {
+        if (useTunnelWhenActive && ProxyTunnelService.isActive()) {
+            return (HttpURLConnection) url.openConnection();
+        }
         Network network = findUsablePhysicalNetwork(context);
         if (network == null) {
             throw new IOException("No usable physical network");

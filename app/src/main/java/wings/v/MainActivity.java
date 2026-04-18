@@ -257,7 +257,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void startTunnelService() {
         try {
-            ContextCompat.startForegroundService(this, ProxyTunnelService.createStartIntent(this));
+            ContextCompat.startForegroundService(
+                this,
+                ProxyTunnelService.createStartIntent(this, XrayStore.getBackendType(this))
+            );
         } catch (IllegalStateException ignored) {
             Toast.makeText(this, R.string.service_start_failed, Toast.LENGTH_SHORT).show();
         }

@@ -57,7 +57,10 @@ public class ActiveProbingReceiver extends BroadcastReceiver {
                 ActiveProbingManager.showBackgroundFallbackNotification(appContext, result, fallbackBackend);
                 ActiveProbingManager.setRestoreBackend(appContext, restoreBackend);
                 XrayStore.setBackendType(appContext, fallbackBackend);
-                ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
+                ContextCompat.startForegroundService(
+                    appContext,
+                    ProxyTunnelService.createStartIntent(appContext, fallbackBackend)
+                );
                 ActiveProbingBackgroundScheduler.cancel(appContext);
             } catch (Exception ignored) {
             } finally {
