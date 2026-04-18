@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="xposed_recommended_scope_packages">
+        <item>system</item>
+        <item>android</item>
         <item>app.subscab.android</item>
         <item>apps.yclients1</item>
         <item>az.vtb.android</item>

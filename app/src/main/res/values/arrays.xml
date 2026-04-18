@@ -74,6 +74,18 @@
         <item>https://github.com</item>
     </string-array>
 
+    <string-array name="xposed_procfs_hook_mode_entries">
+        <item>@string/xposed_procfs_hook_mode_disabled</item>
+        <item>@string/xposed_procfs_hook_mode_file_not_found</item>
+        <item>@string/xposed_procfs_hook_mode_no_access</item>
+    </string-array>
+
+    <string-array name="xposed_procfs_hook_mode_values">
+        <item>disabled</item>
+        <item>file_not_found</item>
+        <item>no_access</item>
+    </string-array>
+
     <string-array name="byedpi_hosts_mode_entries">
         <item>@string/byedpi_hosts_mode_disable</item>
         <item>@string/byedpi_hosts_mode_blacklist</item>

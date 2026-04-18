@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
+import wings.v.core.XposedModulePrefs;
 import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings({ "PMD.DoNotUseThreads", "PMD.AvoidCatchingGenericException" })
@@ -32,7 +33,18 @@ public class RecommendedBypassAppsReceiver extends BroadcastReceiver {
         PendingResult pendingResult = goAsync();
         EXECUTOR.execute(() -> {
             try {
-                if (AppPrefs.maybeAutoEnableRecommendedAppRoutingPackage(appContext, packageName)) {
+                boolean bypassChanged = AppPrefs.maybeAutoEnableRecommendedAppRoutingPackage(appContext, packageName);
+                XposedModulePrefs.maybeAutoEnableRecommendedPackage(
+                    appContext,
+                    XposedModulePrefs.KEY_TARGET_PACKAGES,
+                    packageName
+                );
+                XposedModulePrefs.maybeAutoEnableRecommendedPackage(
+                    appContext,
+                    XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES,
+                    packageName
+                );
+                if (bypassChanged) {
                     ProxyTunnelService.requestReconnect(appContext, "Recommended bypass app installed");
                 }
             } catch (Exception ignored) {
