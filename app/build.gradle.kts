@@ -195,10 +195,19 @@ fun escapeXmlText(value: String): String = buildString(value.length) {
 }
 
 fun buildRuStoreXposedScopeXml(packageNames: List<String>): String = buildString {
+    val normalizedPackageNames: List<String> = buildList {
+        add("system")
+        add("android")
+        packageNames.forEach { packageName ->
+            if (packageName != "android" && packageName != "system") {
+                add(packageName)
+            }
+        }
+    }.distinct()
     append("""<?xml version="1.0" encoding="utf-8"?>""").append('\n')
     append("<resources>\n")
     append("    <string-array name=\"xposed_recommended_scope_packages\">\n")
-    packageNames.forEach { packageName ->
+    normalizedPackageNames.forEach { packageName ->
         append("        <item>")
             .append(escapeXmlText(packageName))
             .append("</item>\n")
