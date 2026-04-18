@@ -281,7 +281,7 @@ public final class AppUpdateManager {
     }
 
     private HttpURLConnection openConnection(String urlString) throws Exception {
-        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, new URL(urlString));
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, new URL(urlString), true);
         connection.setInstanceFollowRedirects(true);
         connection.setUseCaches(false);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -316,7 +316,12 @@ public final class AppUpdateManager {
         if (!releaseInfo.hasInstallableAsset()) {
             return UpdateState.error("В релизе не найден APK-артефакт", releaseInfo);
         }
-        boolean releaseIsNewer = isRemoteVersionNewer(releaseInfo.versionName, resolveCurrentVersionName());
+        boolean releaseIsNewer = isRemoteVersionNewer(
+            releaseInfo.versionName,
+            releaseInfo.versionCode,
+            resolveCurrentVersionName(),
+            resolveCurrentVersionCode()
+        );
         if (!releaseIsNewer) {
             return UpdateState.upToDate(releaseInfo);
         }
@@ -563,7 +568,15 @@ public final class AppUpdateManager {
         }
     }
 
-    private static boolean isRemoteVersionNewer(String remoteVersion, String currentVersion) {
+    private static boolean isRemoteVersionNewer(
+        String remoteVersion,
+        long remoteVersionCode,
+        String currentVersion,
+        long currentVersionCode
+    ) {
+        if (remoteVersionCode > 0L && currentVersionCode > 0L && remoteVersionCode != currentVersionCode) {
+            return remoteVersionCode > currentVersionCode;
+        }
         return compareVersions(remoteVersion, currentVersion) > 0;
     }
 
@@ -625,6 +638,27 @@ public final class AppUpdateManager {
         return "0";
     }
 
+    private long resolveCurrentVersionCode() {
+        try {
+            PackageInfo packageInfo;
+            if (Build.VERSION.SDK_INT >= TIRAMISU_API) {
+                packageInfo = appContext
+                    .getPackageManager()
+                    .getPackageInfo(appContext.getPackageName(), PackageManager.PackageInfoFlags.of(0));
+            } else {
+                packageInfo = appContext.getPackageManager().getPackageInfo(appContext.getPackageName(), 0);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                return packageInfo.getLongVersionCode();
+            }
+            return packageInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return 0L;
+        } catch (RuntimeException ignored) {
+            return 0L;
+        }
+    }
+
     @FunctionalInterface
     public interface Listener {
         void onUpdateStateChanged(@NonNull UpdateState state);
@@ -668,6 +702,8 @@ public final class AppUpdateManager {
         @NonNull
         public final String versionName;
 
+        public final long versionCode;
+
         ReleaseInfo(
             @Nullable String tagName,
             @Nullable String releaseName,
@@ -687,6 +723,7 @@ public final class AppUpdateManager {
             this.apkAssetUrl = safe(apkAssetUrl);
             this.apkAssetSize = Math.max(0L, apkAssetSize);
             this.versionName = normalizeVersionName(this.tagName);
+            this.versionCode = deriveVersionCode(this.versionName);
         }
 
         public boolean hasInstallableAsset() {
@@ -705,6 +742,20 @@ public final class AppUpdateManager {
 
         private static String safe(String value) {
             return value == null ? "" : value.trim();
+        }
+
+        private static long deriveVersionCode(String versionName) {
+            List<Long> parts = extractVersionParts(versionName);
+            if (parts.isEmpty()) {
+                return 0L;
+            }
+            long major = parts.get(0);
+            long minor = parts.size() > 1 ? parts.get(1) : 0L;
+            long patch = parts.size() > 2 ? parts.get(2) : 0L;
+            if (major < 0L || minor < 0L || patch < 0L || minor > 99L || patch > 99L) {
+                return 0L;
+            }
+            return major * 10_000L + minor * 100L + patch;
         }
     }
 

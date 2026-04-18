@@ -711,9 +711,12 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 } else if (getView() != null) {
                     Haptics.softSelection(getView());
                 }
+                Context preferenceContext = changedPreference.getContext();
                 BackendType nextBackend = BackendType.fromPrefValue(newValue == null ? null : String.valueOf(newValue));
-                ExternalActions.setBackend(changedPreference.getContext(), nextBackend, true, false);
-                return true;
+                ExternalActions.setBackend(preferenceContext, nextBackend, true, false);
+                syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(preferenceContext).prefValue);
+                refreshRuntimeBackedPreferences(true);
+                return false;
             });
             return;
         }

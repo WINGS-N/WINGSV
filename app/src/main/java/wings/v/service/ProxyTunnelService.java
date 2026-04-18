@@ -190,7 +190,7 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
-    private static final String EXTRA_RECONNECT_BACKEND = "wings.v.extra.RECONNECT_BACKEND";
+    private static final String EXTRA_TARGET_BACKEND = "wings.v.extra.TARGET_BACKEND";
     private static final String NOTIFICATION_CHANNEL_ID = "wingsv_tunnel";
     private static final String CAPTCHA_NOTIFICATION_CHANNEL_ID = "wingsv_captcha";
     private static final int SERVICE_NOTIFICATION_ID = 1;
@@ -499,7 +499,15 @@ public class ProxyTunnelService extends Service {
     private volatile boolean pendingSharingRestoreOnBoot;
 
     public static Intent createStartIntent(Context context) {
-        return new Intent(context, ProxyTunnelService.class).setAction(ACTION_START);
+        return createStartIntent(context, null);
+    }
+
+    public static Intent createStartIntent(Context context, @Nullable BackendType targetBackend) {
+        Intent intent = new Intent(context, ProxyTunnelService.class).setAction(ACTION_START);
+        if (targetBackend != null) {
+            intent.putExtra(EXTRA_TARGET_BACKEND, targetBackend.prefValue);
+        }
+        return intent;
     }
 
     public static Intent createStopIntent(Context context) {
@@ -651,7 +659,7 @@ public class ProxyTunnelService extends Service {
     public static Intent createReconnectIntent(Context context, @Nullable BackendType targetBackend) {
         Intent intent = new Intent(context, ProxyTunnelService.class).setAction(ACTION_RECONNECT);
         if (targetBackend != null) {
-            intent.putExtra(EXTRA_RECONNECT_BACKEND, targetBackend.prefValue);
+            intent.putExtra(EXTRA_TARGET_BACKEND, targetBackend.prefValue);
         }
         return intent;
     }
@@ -1083,12 +1091,13 @@ public class ProxyTunnelService extends Service {
             return START_STICKY;
         }
         if (ACTION_RECONNECT.equals(action)) {
-            BackendType requestedBackend = parseReconnectBackend(intent);
+            BackendType requestedBackend = parseRequestedBackend(intent);
             if (requestedBackend != null) {
                 XrayStore.setBackendType(getApplicationContext(), requestedBackend);
             }
             if (!isActive()) {
                 activeBackendType = requestedBackend != null ? requestedBackend : getConfiguredBackendType();
+                RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
                 setServiceState(ServiceState.CONNECTING);
                 startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 startWork(true);
@@ -1097,6 +1106,7 @@ public class ProxyTunnelService extends Service {
             BackendType backendToStop = activeBackendType;
             BackendType targetBackend = requestedBackend != null ? requestedBackend : getConfiguredBackendType();
             activeBackendType = targetBackend;
+            RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
             setServiceState(ServiceState.CONNECTING);
             startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
             workExecutor.execute(() ->
@@ -1122,7 +1132,12 @@ public class ProxyTunnelService extends Service {
         if (isActive()) {
             return START_STICKY;
         }
-        activeBackendType = getConfiguredBackendType();
+        BackendType requestedBackend = parseRequestedBackend(intent);
+        if (requestedBackend != null) {
+            XrayStore.setBackendType(getApplicationContext(), requestedBackend);
+        }
+        activeBackendType = requestedBackend != null ? requestedBackend : getConfiguredBackendType();
+        RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
         setServiceState(ServiceState.CONNECTING);
         startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
         startWork(false);
@@ -1135,11 +1150,11 @@ public class ProxyTunnelService extends Service {
     }
 
     @Nullable
-    private BackendType parseReconnectBackend(@Nullable Intent intent) {
+    private BackendType parseRequestedBackend(@Nullable Intent intent) {
         if (intent == null) {
             return null;
         }
-        String rawBackend = intent.getStringExtra(EXTRA_RECONNECT_BACKEND);
+        String rawBackend = intent.getStringExtra(EXTRA_TARGET_BACKEND);
         if (TextUtils.isEmpty(rawBackend)) {
             return null;
         }
@@ -6242,7 +6257,10 @@ public class ProxyTunnelService extends Service {
 
     private void scheduleTunnelProcessRestart() {
         Context appContext = getApplicationContext();
-        Intent restartIntent = new Intent(appContext, ProxyTunnelService.class).setAction(ACTION_START);
+        Intent restartIntent = createStartIntent(
+            appContext,
+            activeBackendType != null ? activeBackendType : getConfiguredBackendType()
+        );
         PendingIntent restartPendingIntent = PendingIntent.getForegroundService(
             appContext,
             TUNNEL_PROCESS_RESTART_REQUEST_CODE,
