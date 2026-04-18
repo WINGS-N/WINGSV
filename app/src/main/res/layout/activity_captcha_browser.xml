@@ -153,8 +153,8 @@
                     android:clipToPadding="true"
                     android:clipChildren="true">
 
-                    <WebView
-                        android:id="@+id/webview_captcha"
+                    <FrameLayout
+                        android:id="@+id/webview_captcha_container"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent" />
                 </FrameLayout>
