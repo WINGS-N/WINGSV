@@ -67,7 +67,7 @@ public class BootReceiver extends BroadcastReceiver {
                 context,
                 autoStartSharing
                     ? ProxyTunnelService.createRestoreSharingOnBootIntent(context)
-                    : ProxyTunnelService.createStartIntent(context)
+                    : ProxyTunnelService.createStartIntent(context, backendType)
             );
         } catch (Exception ignored) {}
     }

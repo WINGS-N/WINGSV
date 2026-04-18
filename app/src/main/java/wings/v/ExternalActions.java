@@ -73,10 +73,14 @@ public final class ExternalActions {
 
     public static void startTunnel(Context context, boolean transientLaunch) {
         Context appContext = context.getApplicationContext();
+        BackendType targetBackend = XrayStore.getBackendType(appContext);
         if (transientLaunch) {
             AppPrefs.setExternalActionTransientLaunchPending(appContext, true);
         }
-        ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
+        ContextCompat.startForegroundService(
+            appContext,
+            ProxyTunnelService.createStartIntent(appContext, targetBackend)
+        );
         QuickSettingsTiles.requestRefresh(appContext);
     }
 

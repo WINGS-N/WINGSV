@@ -1667,11 +1667,15 @@ public final class AutoSearchManager {
     }
 
     private void startProxyTunnelService() {
+        BackendType targetBackend = XrayStore.getBackendType(appContext);
         try {
-            ContextCompat.startForegroundService(appContext, ProxyTunnelService.createStartIntent(appContext));
+            ContextCompat.startForegroundService(
+                appContext,
+                ProxyTunnelService.createStartIntent(appContext, targetBackend)
+            );
         } catch (IllegalStateException | SecurityException ignored) {
             try {
-                appContext.startService(ProxyTunnelService.createStartIntent(appContext));
+                appContext.startService(ProxyTunnelService.createStartIntent(appContext, targetBackend));
             } catch (IllegalStateException | SecurityException ignoredAgain) {
                 Log.w(TAG, "Unable to start ProxyTunnelService for autosearch", ignoredAgain);
             }

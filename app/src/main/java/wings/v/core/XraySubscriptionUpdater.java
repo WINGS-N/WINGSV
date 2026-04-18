@@ -208,7 +208,7 @@ public final class XraySubscriptionUpdater {
     }
 
     private static FetchResult fetch(Context context, String urlString) throws Exception {
-        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, new URL(urlString));
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, new URL(urlString), true);
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
