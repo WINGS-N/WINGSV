@@ -301,6 +301,13 @@
     <string name="xposed_settings_packages_summary">Открыть список приложений с поиском</string>
     <string name="xposed_settings_native_hook_title">Native хук</string>
     <string name="xposed_settings_native_hook_summary">Скрывает tunnel интерфейсы в native getifaddrs() и if_nametoindex()</string>
+    <string name="xposed_settings_procfs_hook_mode_title">Native /proc хук</string>
+    <string name="xposed_settings_procfs_hook_mode_summary">Что возвращать при доступе к /proc/net через native fopen/open</string>
+    <string name="xposed_procfs_hook_mode_file_not_found">File not found</string>
+    <string name="xposed_procfs_hook_mode_no_access">No access</string>
+    <string name="xposed_procfs_hook_mode_disabled">Отключён</string>
+    <string name="xposed_settings_hide_from_dumpsys_title">Скрывать из dumpsys</string>
+    <string name="xposed_settings_hide_from_dumpsys_summary">Скрывает туннельные интерфейсы из системных отчетов dumpsys. Требуется system_server хук</string>
     <string name="xposed_settings_hide_vpn_apps_title">Скрывать известные VPN приложения</string>
     <string name="xposed_settings_hide_vpn_apps_summary">Фильтрует выбранные пакеты из PackageManager запросов</string>
     <string name="xposed_settings_hidden_packages_title">Скрываемые VPN пакеты</string>

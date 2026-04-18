@@ -1,9 +1,14 @@
 #include <android/log.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <ifaddrs.h>
 #include <jni.h>
 #include <net/if.h>
 #include <pthread.h>
+#include <stdarg.h>
+#include <string.h>
 #include <string>
+#include <sys/system_properties.h>
 #include <unordered_map>
 
 #include "xhook.h"
@@ -14,10 +19,45 @@ static int (*orig_getifaddrs)(ifaddrs **) = nullptr;
 static void (*orig_freeifaddrs)(ifaddrs *) = nullptr;
 static unsigned int (*orig_if_nametoindex)(const char *) = nullptr;
 static char *(*orig_if_indextoname)(unsigned int, char *) = nullptr;
+static FILE *(*orig_fopen)(const char *, const char *) = nullptr;
+static int (*orig_open)(const char *, int, ...) = nullptr;
+
 static pthread_mutex_t g_hidden_lists_lock = PTHREAD_MUTEX_INITIALIZER;
 static std::unordered_map<ifaddrs *, ifaddrs *> g_hidden_lists;
 static bool g_installed = false;
-static constexpr const char *kHookedLibrariesPattern = ".*";
+static constexpr const char *kHookedLibrariesPattern = ".*/libc.*\\.so$";
+static constexpr const char *kProcfsHookModeProp = "persist.wingsv.xposed.procfs_hook_mode";
+
+enum ProcfsHookMode {
+    PROCFS_HOOK_MODE_FILE_NOT_FOUND = 0,
+    PROCFS_HOOK_MODE_NO_ACCESS = 1,
+    PROCFS_HOOK_MODE_DISABLED = 2,
+};
+
+static bool is_proc_net_path(const char *path) {
+    if (path == nullptr) {
+        return false;
+    }
+    return strncmp(path, "/proc/net/", 11) == 0;
+}
+
+static ProcfsHookMode get_procfs_hook_mode() {
+    char value[PROP_VALUE_MAX] = {0};
+    int length = __system_property_get(kProcfsHookModeProp, value);
+    if (length <= 0) {
+        return PROCFS_HOOK_MODE_DISABLED;
+    }
+    if (strcmp(value, "disabled") == 0) {
+        return PROCFS_HOOK_MODE_DISABLED;
+    }
+    if (strcmp(value, "no_access") == 0) {
+        return PROCFS_HOOK_MODE_NO_ACCESS;
+    }
+    if (strcmp(value, "file_not_found") == 0) {
+        return PROCFS_HOOK_MODE_FILE_NOT_FOUND;
+    }
+    return PROCFS_HOOK_MODE_DISABLED;
+}
 
 static bool starts_with(const std::string &value, const char *prefix) {
     return value.rfind(prefix, 0) == 0;
@@ -148,6 +188,52 @@ static char *proxy_if_indextoname(unsigned int ifindex, char *ifname) {
     return result;
 }
 
+static FILE *proxy_fopen(const char *path, const char *mode) {
+    if (is_proc_net_path(path)) {
+        switch (get_procfs_hook_mode()) {
+            case PROCFS_HOOK_MODE_DISABLED:
+                break;
+            case PROCFS_HOOK_MODE_NO_ACCESS:
+                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Denied fopen of %s with EACCES", path);
+                errno = EACCES;
+                return nullptr;
+            case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
+            default:
+                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Blocked fopen of %s with ENOENT", path);
+                errno = ENOENT;
+                return nullptr;
+        }
+    }
+    return orig_fopen(path, mode);
+}
+
+static int proxy_open(const char *path, int flags, ...) {
+    if (is_proc_net_path(path)) {
+        switch (get_procfs_hook_mode()) {
+            case PROCFS_HOOK_MODE_DISABLED:
+                break;
+            case PROCFS_HOOK_MODE_NO_ACCESS:
+                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Denied open of %s with EACCES", path);
+                errno = EACCES;
+                return -1;
+            case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
+            default:
+                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Blocked open of %s with ENOENT", path);
+                errno = ENOENT;
+                return -1;
+        }
+    }
+
+    mode_t mode = 0;
+    if ((flags & O_CREAT) != 0) {
+        va_list args;
+        va_start(args, flags);
+        mode = static_cast<mode_t>(va_arg(args, int));
+        va_end(args);
+    }
+    return orig_open(path, flags, mode);
+}
+
 static int refresh_hooks() {
     int refresh_result = xhook_refresh(0);
     __android_log_print(
@@ -194,6 +280,18 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *, jclass) {
             "if_indextoname",
             reinterpret_cast<void *>(proxy_if_indextoname),
             reinterpret_cast<void **>(&orig_if_indextoname)
+    );
+    result |= xhook_register(
+            kHookedLibrariesPattern,
+            "fopen",
+            reinterpret_cast<void *>(proxy_fopen),
+            reinterpret_cast<void **>(&orig_fopen)
+    );
+    result |= xhook_register(
+            kHookedLibrariesPattern,
+            "open",
+            reinterpret_cast<void *>(proxy_open),
+            reinterpret_cast<void **>(&orig_open)
     );
 
     int refresh_result = refresh_hooks();

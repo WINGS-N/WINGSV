@@ -242,7 +242,20 @@ public class XposedAppsFragment extends Fragment {
     }
 
     private void onPackageToggled(String packageName, boolean enabled, View sourceView) {
-        XposedModulePrefs.setPackageEnabled(requireContext(), getPrefsKey(), packageName, enabled);
+        Context context = requireContext();
+        String prefsKey = getPrefsKey();
+        boolean recommendedPackage = XposedAppsActivity.MODE_TARGET_APPS.equals(mode)
+            ? RuStoreRecommendedAppsAsset.getApps(context).containsKey(packageName)
+            : XposedAppsActivity.MODE_HIDDEN_VPN_APPS.equals(mode) &&
+              XposedModulePrefs.getRecommendedHiddenVpnPackages(context).contains(packageName);
+        if (recommendedPackage) {
+            if (enabled) {
+                XposedModulePrefs.setRecommendedPackageDismissed(context, prefsKey, packageName, false);
+            } else {
+                XposedModulePrefs.setRecommendedPackageDismissed(context, prefsKey, packageName, true);
+            }
+        }
+        XposedModulePrefs.setPackageEnabled(context, prefsKey, packageName, enabled);
         if (enabled) {
             enabledPackages.add(packageName);
         } else {
@@ -261,7 +274,13 @@ public class XposedAppsFragment extends Fragment {
         binding.textAppsEmpty.setVisibility(View.GONE);
         executor.execute(() -> {
             List<AppRoutingEntry> entries = queryInstalledApps(appContext);
-            Set<String> selected = XposedModulePrefs.getPackageSet(appContext, getPrefsKey());
+            Set<String> installedPackages = new LinkedHashSet<>();
+            for (AppRoutingEntry entry : entries) {
+                installedPackages.add(entry.packageName);
+            }
+            String prefsKey = getPrefsKey();
+            XposedModulePrefs.syncRecommendedPackages(appContext, prefsKey, installedPackages);
+            Set<String> selected = XposedModulePrefs.getPackageSet(appContext, prefsKey);
             mainHandler.post(() -> {
                 if (!isAdded() || binding == null) {
                     return;
