@@ -23,6 +23,7 @@ import wings.v.core.AmneziaStore;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.ProxyRuntimeMode;
 import wings.v.core.ProxySettings;
 import wings.v.core.UiFormatter;
 import wings.v.core.XrayStore;
@@ -482,12 +483,16 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     private void refreshBackendSections() {
         BackendType backendType = XrayStore.getBackendType(requireContext());
         XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
+        ProxyRuntimeMode runtimeMode = AppPrefs.getSettings(requireContext()).vkTurnRuntimeMode;
         boolean xrayBackend = backendType != null && backendType.usesXrayCore();
         boolean xrayVkTurnTcp = xrayBackend && xrayTransportMode != null && xrayTransportMode.usesTurnProxy();
         boolean vkTurnRelay = backendType.usesTurnProxy() || xrayVkTurnTcp;
         boolean relaySettings = vkTurnRelay || xrayBackend;
-        boolean wireGuardBackend = backendType.usesWireGuardSettings();
-        boolean awgBackend = backendType.usesAmneziaSettings();
+        boolean proxyOnly = runtimeMode != null && runtimeMode.isProxyOnly();
+        boolean wireGuardBackend = backendType.usesWireGuardSettings() && !proxyOnly;
+        boolean awgBackend = backendType.usesAmneziaSettings() && !proxyOnly;
+        boolean plainWireGuardEndpointVisible = backendType == BackendType.WIREGUARD;
+        boolean plainAwgPeerEndpointVisible = backendType == BackendType.AMNEZIAWG_PLAIN;
 
         setPreferenceVisible("pref_category_vk_proxy", relaySettings);
         setPreferenceVisible("pref_inset_after_vk_proxy", relaySettings);
@@ -500,6 +505,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         setPreferenceVisible(AppPrefs.KEY_LOCAL_ENDPOINT, relaySettings);
         setPreferencesVisible(WIREGUARD_PREFERENCE_KEYS, wireGuardBackend);
         setPreferencesVisible(AMNEZIA_PREFERENCE_KEYS, awgBackend);
+        setPreferenceVisible(AppPrefs.KEY_WG_ENDPOINT, plainWireGuardEndpointVisible);
+        setPreferenceVisible(AmneziaStore.KEY_PEER_ENDPOINT, plainAwgPeerEndpointVisible);
     }
 
     private void registerPreferencesListener() {
@@ -513,6 +520,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         preferencesChangeListener = (prefs, key) -> {
             if (suppressPreferenceSync || TextUtils.isEmpty(key)) {
                 return;
+            }
+            if (TextUtils.equals(AppPrefs.KEY_VK_TURN_RUNTIME_MODE, key)) {
+                refreshBackendSections();
             }
             boolean structuredPreference = AmneziaStore.isStructuredPreferenceKey(key);
             if (structuredPreference) {
