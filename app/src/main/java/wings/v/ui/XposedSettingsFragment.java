@@ -1,9 +1,14 @@
 package wings.v.ui;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.preference.DropDownPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -12,14 +17,27 @@ import androidx.preference.SwitchPreferenceCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import wings.v.R;
 import wings.v.XposedAppsActivity;
+import wings.v.XposedRequestHistoryActivity;
 import wings.v.core.Haptics;
+import wings.v.core.XposedAttackStatsStore;
 import wings.v.core.XposedModulePrefs;
+import wings.v.core.XposedSecurityScore;
+import wings.v.receiver.XposedStatsReceiver;
 
 @SuppressWarnings("PMD.NullAssignment")
 public class XposedSettingsFragment extends PreferenceFragmentCompat {
 
     private static final long PROCFS_ROW_ANIMATION_DURATION_MS = 180L;
+    private static final String KEY_SECURITY_OVERVIEW = "pref_xposed_security_overview";
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+    private final BroadcastReceiver statsUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && XposedStatsReceiver.ACTION_STATS_UPDATED.equals(intent.getAction())) {
+                refreshSecurityOverview();
+            }
+        }
+    };
 
     @Nullable
     private Boolean lastProcfsHookModeVisible;
@@ -37,12 +55,15 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         super.onResume();
         registerPreferencesListener();
         updatePackageSummaries();
+        registerStatsReceiver();
+        refreshSecurityOverview();
         XposedModulePrefs.export(requireContext());
     }
 
     @Override
     public void onPause() {
         unregisterPreferencesListener();
+        unregisterStatsReceiver();
         XposedModulePrefs.export(requireContext());
         super.onPause();
     }
@@ -53,10 +74,12 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED);
         bindSwitchHaptics(XposedModulePrefs.KEY_HIDE_VPN_APPS);
         bindDropDownPreference(XposedModulePrefs.KEY_PROCFS_HOOK_MODE);
+        bindSecurityOverview();
         bindPackagePicker(XposedModulePrefs.KEY_TARGET_PACKAGES, XposedAppsActivity.MODE_TARGET_APPS);
         bindPackagePicker(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES, XposedAppsActivity.MODE_HIDDEN_VPN_APPS);
         updatePackageSummaries();
         updatePreferenceEnabledState();
+        refreshSecurityOverview();
     }
 
     private void bindSwitchHaptics(String key) {
@@ -91,6 +114,17 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSelection(getListView() != null ? getListView() : requireView());
             return true;
+        });
+    }
+
+    private void bindSecurityOverview() {
+        XposedSecurityOverviewPreference preference = findPreference(KEY_SECURITY_OVERVIEW);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnHistoryClickListener(v -> {
+            Haptics.softSelection(v);
+            startActivity(XposedRequestHistoryActivity.createIntent(requireContext()));
         });
     }
 
@@ -215,6 +249,7 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         preferencesChangeListener = (sharedPreferences, key) -> {
             updatePackageSummaries();
             updatePreferenceEnabledState();
+            refreshSecurityOverview();
             XposedModulePrefs.export(requireContext());
         };
         preferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
@@ -228,5 +263,32 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
             .getSharedPreferences()
             .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         preferencesChangeListener = null;
+    }
+
+    private void refreshSecurityOverview() {
+        XposedSecurityOverviewPreference preference = findPreference(KEY_SECURITY_OVERVIEW);
+        if (preference == null || !isAdded()) {
+            return;
+        }
+        preference.bindState(
+            XposedSecurityScore.compute(requireContext()),
+            XposedAttackStatsStore.getWeeklySummary(requireContext())
+        );
+    }
+
+    private void registerStatsReceiver() {
+        IntentFilter filter = new IntentFilter(XposedStatsReceiver.ACTION_STATS_UPDATED);
+        ContextCompat.registerReceiver(
+            requireContext(),
+            statsUpdateReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        );
+    }
+
+    private void unregisterStatsReceiver() {
+        try {
+            requireContext().unregisterReceiver(statsUpdateReceiver);
+        } catch (IllegalArgumentException ignored) {}
     }
 }

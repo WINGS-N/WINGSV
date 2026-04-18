@@ -2,6 +2,10 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <wings.v.ui.XposedSecurityOverviewPreference
+        android:key="pref_xposed_security_overview"
+        android:iconSpaceReserved="false" />
+
     <PreferenceCategory
         android:title="@string/xposed_settings_category_detection" />
 

@@ -22,6 +22,9 @@ static unsigned int (*orig_if_nametoindex)(const char *) = nullptr;
 static char *(*orig_if_indextoname)(unsigned int, char *) = nullptr;
 static FILE *(*orig_fopen)(const char *, const char *) = nullptr;
 static int (*orig_open)(const char *, int, ...) = nullptr;
+static JavaVM *g_vm = nullptr;
+static jclass g_reporter_class = nullptr;
+static jmethodID g_report_method = nullptr;
 
 static pthread_mutex_t g_hidden_lists_lock = PTHREAD_MUTEX_INITIALIZER;
 static std::unordered_map<ifaddrs *, ifaddrs *> g_hidden_lists;
@@ -193,6 +196,31 @@ static bool is_tunnel_interface(const char *name) {
             || lowered.find("vpn") != std::string::npos;
 }
 
+static void report_native_event(const char *vector, const char *detail) {
+    if (g_vm == nullptr || vector == nullptr || g_reporter_class == nullptr || g_report_method == nullptr) {
+        return;
+    }
+
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK || env == nullptr) {
+            return;
+        }
+        attached = true;
+    }
+
+    jstring vector_value = env->NewStringUTF(vector);
+    jstring detail_value = env->NewStringUTF(detail != nullptr ? detail : "");
+    env->CallStaticVoidMethod(g_reporter_class, g_report_method, vector_value, detail_value);
+    env->DeleteLocalRef(vector_value);
+    env->DeleteLocalRef(detail_value);
+
+    if (attached) {
+        g_vm->DetachCurrentThread();
+    }
+}
+
 static void append_node(ifaddrs **head, ifaddrs **tail, ifaddrs *node) {
     node->ifa_next = nullptr;
     if (*tail != nullptr) {
@@ -252,6 +280,7 @@ static int filter_ifaddrs(ifaddrs **ifap) {
     if (hidden_head != nullptr) {
         remember_hidden_list(visible_head, hidden_head);
         *ifap = visible_head;
+        report_native_event("native_getifaddrs", "filtered");
     }
     return 0;
 }
@@ -282,6 +311,7 @@ static void proxy_freeifaddrs(ifaddrs *ifap) {
 
 static unsigned int proxy_if_nametoindex(const char *ifname) {
     if (is_tunnel_interface(ifname)) {
+        report_native_event("native_if_nametoindex", ifname);
         return 0;
     }
     return orig_if_nametoindex != nullptr ? orig_if_nametoindex(ifname) : 0;
@@ -290,6 +320,7 @@ static unsigned int proxy_if_nametoindex(const char *ifname) {
 static char *proxy_if_indextoname(unsigned int ifindex, char *ifname) {
     char *result = orig_if_indextoname != nullptr ? orig_if_indextoname(ifindex, ifname) : nullptr;
     if (is_tunnel_interface(result)) {
+        report_native_event("native_if_indextoname", result);
         return nullptr;
     }
     return result;
@@ -302,11 +333,13 @@ static FILE *proxy_fopen(const char *path, const char *mode) {
                 break;
             case PROCFS_HOOK_MODE_NO_ACCESS:
                 __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Denied fopen of %s with EACCES", path);
+                report_native_event("native_procfs_fopen", path);
                 errno = EACCES;
                 return nullptr;
             case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
             default:
                 __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Blocked fopen of %s with ENOENT", path);
+                report_native_event("native_procfs_fopen", path);
                 errno = ENOENT;
                 return nullptr;
         }
@@ -321,11 +354,13 @@ static int proxy_open(const char *path, int flags, ...) {
                 break;
             case PROCFS_HOOK_MODE_NO_ACCESS:
                 __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Denied open of %s with EACCES", path);
+                report_native_event("native_procfs_open", path);
                 errno = EACCES;
                 return -1;
             case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
             default:
                 __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Blocked open of %s with ENOENT", path);
+                report_native_event("native_procfs_open", path);
                 errno = ENOENT;
                 return -1;
         }
@@ -354,8 +389,15 @@ static int refresh_hooks() {
 }
 
 extern "C"
+JNIEXPORT jint JNICALL
+JNI_OnLoad(JavaVM *vm, void *) {
+    g_vm = vm;
+    return JNI_VERSION_1_6;
+}
+
+extern "C"
 JNIEXPORT jboolean JNICALL
-Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *, jclass) {
+Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *env, jclass) {
     if (g_installed) {
         return JNI_TRUE;
     }
@@ -368,6 +410,24 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *, jclass) {
                 get_current_process_name().c_str()
         );
         return JNI_FALSE;
+    }
+
+    if (g_reporter_class == nullptr || g_report_method == nullptr) {
+        jclass local_reporter_class = env->FindClass("wings/v/xposed/XposedAttackReporter");
+        if (local_reporter_class != nullptr) {
+            g_reporter_class = reinterpret_cast<jclass>(env->NewGlobalRef(local_reporter_class));
+            env->DeleteLocalRef(local_reporter_class);
+        }
+        if (g_reporter_class != nullptr) {
+            g_report_method = env->GetStaticMethodID(
+                    g_reporter_class,
+                    "reportNativeEvent",
+                    "(Ljava/lang/String;Ljava/lang/String;)V"
+            );
+        }
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
     }
 
     xhook_enable_debug(0);
