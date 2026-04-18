@@ -36,6 +36,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import wings.v.core.XposedAttackVector;
 import wings.v.core.XposedModulePrefs;
 
 @SuppressWarnings(
@@ -253,9 +254,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         return (value.equals(candidate) || value.startsWith(candidate + ":") || value.startsWith(candidate + "."));
     }
 
-    private static boolean shouldSpoofForCaller(final ModuleConfig config) {
+    private static String resolveSpoofCallerPackage(final ModuleConfig config) {
         if (config == null || config.targetPackages == null || config.targetPackages.isEmpty()) {
-            return false;
+            return null;
         }
         final int callingUid;
         final int callingPid;
@@ -263,18 +264,18 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             callingUid = Binder.getCallingUid();
             callingPid = Binder.getCallingPid();
         } catch (RuntimeException ignored) {
-            return false;
+            return null;
         }
         if (callingUid < Process.FIRST_APPLICATION_UID) {
-            return false;
+            return null;
         }
         if (callingPid <= 0 || callingPid == Process.myPid()) {
-            return false;
+            return null;
         }
         try {
             final String[] packages = getPackagesForUid(callingUid);
             if (packages == null || packages.length == 0) {
-                return false;
+                return null;
             }
             for (final String packageName : packages) {
                 if (packageName == null) {
@@ -285,13 +286,13 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 }
                 if (config.targetPackages.contains(packageName)) {
                     Log.d(LOG_TAG, "Spoofing for UID " + callingUid + " (" + packageName + ")");
-                    return true;
+                    return packageName;
                 }
             }
         } catch (RuntimeException ignored) {
-            return false;
+            return null;
         }
-        return false;
+        return null;
     }
 
     private static void hookSystemServices(final ClassLoader classLoader, final ModuleConfig config) {
@@ -307,10 +308,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(final MethodHookParam param) {
-                        if (shouldSpoofForCaller(config)) {
-                            final Object realResult = param.getResult();
-                            if (realResult == null) return;
-                        }
+                        resolveSpoofCallerPackage(config);
                     }
                 }
             );
@@ -321,12 +319,18 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(final MethodHookParam param) {
-                        if (shouldSpoofForCaller(config)) {
+                        String callerPackage = resolveSpoofCallerPackage(config);
+                        if (callerPackage != null) {
                             final NetworkCapabilities caps = (NetworkCapabilities) param.getResult();
                             if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
                                 final NetworkCapabilities newCaps = new NetworkCapabilities(caps);
                                 sanitizeNetworkCapabilities(newCaps);
                                 param.setResult(newCaps);
+                                XposedAttackReporter.reportSystemEvent(
+                                    callerPackage,
+                                    XposedAttackVector.SYSTEM_NETWORK_CAPABILITIES,
+                                    "getNetworkCapabilities"
+                                );
                             }
                         }
                     }
@@ -339,7 +343,8 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(final MethodHookParam param) {
-                        if (shouldSpoofForCaller(config)) {
+                        String callerPackage = resolveSpoofCallerPackage(config);
+                        if (callerPackage != null) {
                             final LinkProperties props = (LinkProperties) param.getResult();
                             if (props != null && isTunnelInterface(props.getInterfaceName())) {
                                 try {
@@ -349,6 +354,11 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                                     final LinkProperties newProps = (LinkProperties) copyConstructor.newInstance(props);
                                     sanitizeLinkProperties(newProps);
                                     param.setResult(newProps);
+                                    XposedAttackReporter.reportSystemEvent(
+                                        callerPackage,
+                                        XposedAttackVector.SYSTEM_LINK_PROPERTIES,
+                                        normalizeVectorDetail(props.getInterfaceName())
+                                    );
                                 } catch (final Throwable t) {
                                     Log.e(LOG_TAG, "Failed to create a copy of LinkProperties. Returning null.", t);
                                     param.setResult(null);
@@ -366,10 +376,18 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             final XC_MethodHook dumpHook = new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(final MethodHookParam param) {
-                    if (shouldSpoofForCaller(config)) {
+                    String callerPackage = resolveSpoofCallerPackage(config);
+                    if (callerPackage != null) {
                         Log.i(LOG_TAG, "Filtering dumpsys output for UID " + Binder.getCallingUid());
                         final PrintWriter originalPw = (PrintWriter) param.args[1];
                         param.args[1] = new FilteringPrintWriter(originalPw);
+                        XposedAttackReporter.reportSystemEvent(
+                            callerPackage,
+                            XposedAttackVector.SYSTEM_DUMPSYS,
+                            normalizeVectorDetail(
+                                param.method != null ? param.method.getDeclaringClass().getSimpleName() : "dump"
+                            )
+                        );
                     }
                 }
             };
@@ -454,6 +472,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                         Boolean.TRUE.equals(param.getResult())
                     ) {
                         param.setResult(false);
+                        XposedAttackReporter.reportAppEvent(XposedAttackVector.NETWORK_CAPS_HAS_TRANSPORT_VPN, null);
                     }
                 }
             }
@@ -471,6 +490,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     Object transportInfo = param.getResult();
                     if (isVpnTransportInfo(transportInfo)) {
                         param.setResult(null);
+                        XposedAttackReporter.reportAppEvent(XposedAttackVector.NETWORK_CAPS_TRANSPORT_INFO, null);
                     }
                 }
             }
@@ -490,6 +510,10 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     String interfaceName = (String) param.getResult();
                     if (isTunnelInterface(interfaceName)) {
                         param.setResult(FALLBACK_INTERFACE);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.LINK_PROPERTIES_INTERFACE_NAME,
+                            normalizeVectorDetail(interfaceName)
+                        );
                     }
                 }
             }
@@ -516,7 +540,13 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                                 filtered.add((String) value);
                             }
                         }
-                        param.setResult(filtered);
+                        if (filtered.size() != list.size()) {
+                            param.setResult(filtered);
+                            XposedAttackReporter.reportAppEvent(
+                                XposedAttackVector.LINK_PROPERTIES_ALL_INTERFACES,
+                                "hidden=" + (list.size() - filtered.size())
+                            );
+                        }
                     }
                 }
             );
@@ -542,7 +572,13 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                             filtered.add((RouteInfo) value);
                         }
                     }
-                    param.setResult(filtered);
+                    if (filtered.size() != list.size()) {
+                        param.setResult(filtered);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.LINK_PROPERTIES_ROUTES,
+                            "hidden=" + (list.size() - filtered.size())
+                        );
+                    }
                 }
             }
         );
@@ -567,7 +603,13 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                             filtered.add((InetAddress) value);
                         }
                     }
-                    param.setResult(filtered);
+                    if (filtered.size() != list.size()) {
+                        param.setResult(filtered);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.LINK_PROPERTIES_DNS,
+                            "hidden=" + (list.size() - filtered.size())
+                        );
+                    }
                 }
             }
         );
@@ -588,6 +630,10 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     }
                     String path = (String) param.args[0];
                     if (path != null && path.startsWith("/proc/net/")) {
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.PROCFS_JAVA,
+                            normalizeVectorDetail(path)
+                        );
                         param.setThrowable(new FileNotFoundException(path + " (Permission denied)"));
                     }
                 }
@@ -619,6 +665,10 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                         "socksProxyPort".equals(key)
                     ) {
                         param.setResult(null);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.SYSTEM_PROXY_PROPERTIES,
+                            normalizeVectorDetail(key)
+                        );
                     }
                 }
             }
@@ -655,15 +705,22 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     }
                     Enumeration<?> enumeration = (Enumeration<?>) result;
                     List<NetworkInterface> filtered = new ArrayList<>();
+                    boolean hiddenDetected = false;
                     while (enumeration.hasMoreElements()) {
                         Object next = enumeration.nextElement();
-                        if (
-                            next instanceof NetworkInterface && !isTunnelInterface(((NetworkInterface) next).getName())
-                        ) {
-                            filtered.add((NetworkInterface) next);
+                        if (next instanceof NetworkInterface) {
+                            NetworkInterface networkInterface = (NetworkInterface) next;
+                            if (isTunnelInterface(networkInterface.getName())) {
+                                hiddenDetected = true;
+                            } else {
+                                filtered.add(networkInterface);
+                            }
                         }
                     }
                     param.setResult(Collections.enumeration(filtered));
+                    if (hiddenDetected) {
+                        XposedAttackReporter.reportAppEvent(XposedAttackVector.NETWORK_INTERFACE_LIST, null);
+                    }
                 }
             }
         );
@@ -682,6 +739,10 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                         isTunnelInterface((String) param.args[0])
                     ) {
                         param.setResult(null);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.NETWORK_INTERFACE_BY_NAME,
+                            normalizeVectorDetail((String) param.args[0])
+                        );
                     }
                 }
             }
@@ -713,7 +774,13 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                             filtered.add(block);
                         }
                     }
-                    param.setResult(filtered.toArray(new String[0]));
+                    if (filtered.size() != blocks.length) {
+                        param.setResult(filtered.toArray(new String[0]));
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.NATIVE_GETIFADDRS,
+                            "hidden=" + (blocks.length - filtered.size())
+                        );
+                    }
                 }
             }
         );
@@ -740,7 +807,14 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     if (isWebViewBootstrapCall()) {
                         return;
                     }
-                    param.setResult(filterPackageInfoList(param.getResult(), hiddenPackages));
+                    Object filtered = filterPackageInfoList(param.getResult(), hiddenPackages);
+                    if (filtered != param.getResult()) {
+                        param.setResult(filtered);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.PACKAGE_MANAGER_INSTALLED_PACKAGES,
+                            null
+                        );
+                    }
                 }
             }
         );
@@ -753,7 +827,14 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     if (isWebViewBootstrapCall()) {
                         return;
                     }
-                    param.setResult(filterApplicationInfoList(param.getResult(), hiddenPackages));
+                    Object filtered = filterApplicationInfoList(param.getResult(), hiddenPackages);
+                    if (filtered != param.getResult()) {
+                        param.setResult(filtered);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.PACKAGE_MANAGER_INSTALLED_APPLICATIONS,
+                            null
+                        );
+                    }
                 }
             }
         );
@@ -768,6 +849,12 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     param.args != null && param.args.length > 0 ? param.args[0] : null
                 );
                 if (packageName != null && hiddenPackages.contains(packageName)) {
+                    XposedAttackReporter.reportAppEvent(
+                        "getPackageInfo".equals(param.method.getName())
+                            ? XposedAttackVector.PACKAGE_MANAGER_PACKAGE_INFO
+                            : XposedAttackVector.PACKAGE_MANAGER_APPLICATION_INFO,
+                        normalizeVectorDetail(packageName)
+                    );
                     param.setThrowable(new PackageManager.NameNotFoundException(packageName));
                 }
             }
@@ -781,7 +868,11 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 if (isWebViewBootstrapCall()) {
                     return;
                 }
-                param.setResult(filterResolveInfoList(param.getResult(), hiddenPackages, param.args));
+                Object filtered = filterResolveInfoList(param.getResult(), hiddenPackages, param.args);
+                if (filtered != param.getResult()) {
+                    param.setResult(filtered);
+                    XposedAttackReporter.reportAppEvent(XposedAttackVector.PACKAGE_MANAGER_QUERY_INTENT_SERVICES, null);
+                }
             }
         };
         XposedBridge.hookAllMethods(packageManagerClass, "queryIntentServices", hideVpnServiceAnnouncementsHook);
@@ -797,7 +888,10 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                         return;
                     }
                     ResolveInfo resolveInfo = filterResolveInfo(param.getResult(), hiddenPackages, param.args);
-                    param.setResult(resolveInfo);
+                    if (resolveInfo != param.getResult()) {
+                        param.setResult(resolveInfo);
+                        XposedAttackReporter.reportAppEvent(XposedAttackVector.PACKAGE_MANAGER_RESOLVE_SERVICE, null);
+                    }
                 }
             }
         );
@@ -814,7 +908,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 filtered.add((PackageInfo) item);
             }
         }
-        return filtered;
+        return filtered.size() == source.size() ? value : filtered;
     }
 
     private static Object filterApplicationInfoList(Object value, Set<String> hiddenPackages) {
@@ -828,7 +922,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 filtered.add((ApplicationInfo) item);
             }
         }
-        return filtered;
+        return filtered.size() == source.size() ? value : filtered;
     }
 
     private static String extractPackageName(Object value) {
@@ -861,7 +955,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 filtered.add(resolveInfo);
             }
         }
-        return filtered;
+        return filtered.size() == source.size() ? value : filtered;
     }
 
     private static ResolveInfo filterResolveInfo(Object value, Set<String> hiddenPackages, Object[] args) {
@@ -1095,6 +1189,14 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             normalized.startsWith("ipsec") ||
             normalized.contains("wireguard")
         );
+    }
+
+    private static String normalizeVectorDetail(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > 160 ? trimmed.substring(0, 160) : trimmed;
     }
 
     private static String extractInterfaceName(String block) {

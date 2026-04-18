@@ -671,6 +671,7 @@ dependencies {
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
+    implementation(libs.mpandroidchart)
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))

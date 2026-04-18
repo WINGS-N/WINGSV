@@ -183,6 +183,16 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".XposedRequestHistoryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".XposedRequestHistoryDetailsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".ByeDpiTargetsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
@@ -376,6 +386,15 @@
             <intent-filter>
                 <action android:name="android.intent.action.PACKAGE_ADDED" />
                 <data android:scheme="package" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".receiver.XposedStatsReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="wings.v.intent.action.XPOSED_RECORD_EVENT" />
             </intent-filter>
         </receiver>
 

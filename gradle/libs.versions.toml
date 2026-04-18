@@ -27,6 +27,7 @@ sesl-fragment = "1.8.9+1.0.5-sesl8+rev1"
 sesl-coordinator = "1.3.0+1.0.0-sesl8+rev0"
 sesl-swiperefreshlayout = "1.2.0-alpha01+1.0.0-sesl8+rev0"
 sesl-viewpager2 = "1.1.0+1.0.0-sesl8+rev0"
+mpandroidchart = "3.1.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -58,6 +59,7 @@ sesl-coordinatorlayout = { module = "sesl.androidx.coordinatorlayout:coordinator
 sesl-swiperefreshlayout = { module = "sesl.androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "sesl-swiperefreshlayout" }
 sesl-fragment = { module = "sesl.androidx.fragment:fragment", version.ref = "sesl-fragment" }
 sesl-viewpager2 = { module = "sesl.androidx.viewpager2:viewpager2", version.ref = "sesl-viewpager2" }
+mpandroidchart = { module = "com.github.PhilJay:MPAndroidChart", version.ref = "mpandroidchart" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
