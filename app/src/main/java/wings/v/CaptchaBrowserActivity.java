@@ -5,8 +5,10 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -43,6 +45,9 @@ import wings.v.service.ProxyTunnelService;
 )
 public class CaptchaBrowserActivity extends AppCompatActivity {
 
+    private static final String LOG_TAG = "CaptchaBrowser";
+    private static final int MAX_WEBVIEW_INIT_ATTEMPTS = 3;
+    private static final long WEBVIEW_RETRY_DELAY_MS = 250L;
     private static final String EXTRA_URL = "wings.v.extra.CAPTCHA_URL";
     private static final String EXTRA_TRANSIENT_EXTERNAL_FLOW = "wings.v.extra.TRANSIENT_EXTERNAL_FLOW";
     private static final String EXTRA_CAPTCHA_SOURCE = "wings.v.extra.CAPTCHA_SOURCE";
@@ -62,6 +67,8 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     private boolean stopConnectionOnCancel = true;
     private boolean subtitleExpanded;
     private boolean detailsCollapsed;
+    private WebView captchaWebView;
+    private Intent pendingIntent;
 
     public static Intent createIntent(Context context, String url) {
         return new Intent(context, CaptchaBrowserActivity.class).putExtra(EXTRA_URL, url);
@@ -112,6 +119,7 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         binding = ActivityCaptchaBrowserBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         subtitleExpanded = savedInstanceState != null && savedInstanceState.getBoolean(STATE_SUBTITLE_EXPANDED, false);
+        pendingIntent = getIntent();
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         binding.buttonCaptchaCancel.setOnClickListener(v -> {
             Haptics.softSelection(v);
@@ -126,10 +134,9 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
             toggleDetailsCollapsed();
         });
         configureBackHandling();
-        configureWebView();
         syncSubtitleExpansionUi();
         syncDetailsCollapseUi();
-        loadIntent(getIntent(), true);
+        initializeWebView(0);
     }
 
     @Override
@@ -142,18 +149,60 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        loadIntent(intent, false);
+        pendingIntent = intent;
+        if (captchaWebView != null) {
+            loadIntent(intent, false);
+        }
     }
 
     @Override
     protected void onDestroy() {
-        if (binding != null) {
-            binding.webviewCaptcha.stopLoading();
-            binding.webviewCaptcha.destroy();
-            binding = null;
+        if (captchaWebView != null) {
+            captchaWebView.stopLoading();
+            captchaWebView.destroy();
+            captchaWebView = null;
         }
+        binding = null;
         networkExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+    private void initializeWebView(int attempt) {
+        try {
+            createAndAttachWebView();
+            configureWebView();
+            if (pendingIntent != null) {
+                loadIntent(pendingIntent, true);
+            }
+        } catch (RuntimeException exception) {
+            if (attempt + 1 < MAX_WEBVIEW_INIT_ATTEMPTS && binding != null) {
+                Log.w(LOG_TAG, "WebView init failed, retry " + (attempt + 1), exception);
+                binding.webviewCaptchaContainer.postDelayed(
+                    () -> initializeWebView(attempt + 1),
+                    WEBVIEW_RETRY_DELAY_MS * (attempt + 1)
+                );
+                return;
+            }
+            handleWebViewUnavailable(pendingIntent, exception);
+        }
+    }
+
+    private void createAndAttachWebView() {
+        if (binding == null) {
+            throw new IllegalStateException("Binding is not ready");
+        }
+        if (captchaWebView != null) {
+            binding.webviewCaptchaContainer.removeView(captchaWebView);
+            captchaWebView.destroy();
+            captchaWebView = null;
+        }
+        WebView webView = new WebView(this);
+        webView.setLayoutParams(
+            new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        );
+        binding.webviewCaptchaContainer.removeAllViews();
+        binding.webviewCaptchaContainer.addView(webView);
+        captchaWebView = webView;
     }
 
     private void configureBackHandling() {
@@ -173,7 +222,10 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
     }
 
     private void configureWebView() {
-        WebSettings settings = binding.webviewCaptcha.getSettings();
+        if (captchaWebView == null) {
+            throw new IllegalStateException("WebView is not initialized");
+        }
+        WebSettings settings = captchaWebView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setLoadsImagesAutomatically(true);
@@ -184,9 +236,9 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         settings.setDisplayZoomControls(false);
         defaultUserAgent = settings.getUserAgentString();
 
-        binding.webviewCaptcha.addJavascriptInterface(new CaptchaUiBridge(), "wingsvAndroid");
-        binding.webviewCaptcha.setWebChromeClient(new WebChromeClient());
-        binding.webviewCaptcha.setWebViewClient(
+        captchaWebView.addJavascriptInterface(new CaptchaUiBridge(), "wingsvAndroid");
+        captchaWebView.setWebChromeClient(new WebChromeClient());
+        captchaWebView.setWebViewClient(
             new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -245,6 +297,10 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
             finishSelf();
             return;
         }
+        if (captchaWebView == null) {
+            pendingIntent = intent;
+            return;
+        }
         if (!initial && TextUtils.equals(url, captchaUrl) && TextUtils.equals(nextUserAgent, captchaUserAgent)) {
             return;
         }
@@ -266,11 +322,14 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         );
         binding.textCaptchaStatus.setText(R.string.captcha_browser_status_loading);
         syncDetailsCollapseUi();
-        binding.webviewCaptcha.loadUrl(url);
+        captchaWebView.loadUrl(url);
     }
 
     private void applyWebViewUserAgent(@Nullable String userAgent) {
-        WebSettings settings = binding.webviewCaptcha.getSettings();
+        if (captchaWebView == null) {
+            return;
+        }
+        WebSettings settings = captchaWebView.getSettings();
         settings.setUserAgentString(TextUtils.isEmpty(userAgent) ? defaultUserAgent : userAgent);
     }
 
@@ -299,7 +358,9 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         }
         String redirected = maybeRedirectToLocalProxy(uri);
         if (!TextUtils.isEmpty(redirected)) {
-            binding.webviewCaptcha.loadUrl(redirected);
+            if (captchaWebView != null) {
+                captchaWebView.loadUrl(redirected);
+            }
             return true;
         }
         return false;
@@ -392,6 +453,23 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
         } else {
             finish();
         }
+    }
+
+    private void handleWebViewUnavailable(@Nullable Intent intent, RuntimeException exception) {
+        String url = intent != null ? intent.getStringExtra(EXTRA_URL) : null;
+        Log.e(LOG_TAG, "Failed to initialize captcha WebView", exception);
+        if (TextUtils.isEmpty(url)) {
+            finishSelf();
+            return;
+        }
+        Toast.makeText(this, "WebView недоступен, captcha будет открыта в внешнем браузере", Toast.LENGTH_LONG).show();
+        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (browserIntent.resolveActivity(getPackageManager()) != null) {
+            startActivity(browserIntent);
+        }
+        finishSelf();
     }
 
     private boolean isCompletionUri(Uri uri) {
