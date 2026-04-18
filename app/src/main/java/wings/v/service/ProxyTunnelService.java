@@ -1429,7 +1429,7 @@ public class ProxyTunnelService extends Service {
             xrayTcpRelayEndpoint = parseLocalEndpoint(settings.localEndpoint);
             activeXrayUsesTurnProxy = true;
         }
-        if (!activeXrayProxyOnly && (xrayExternalRelayEnabled || launchByeDpiFrontProxy)) {
+        if (!activeXrayProxyOnly) {
             ensureProtectBridgeReady(XrayVpnService::getServiceNow, null, "Не удалось запустить Xray protect bridge");
         }
         if (xrayExternalRelayEnabled) {
@@ -1449,9 +1449,6 @@ public class ProxyTunnelService extends Service {
         if (launchByeDpiFrontProxy && !xrayExternalRelayEnabled) {
             ensureRuntimeStillWanted(generation);
             startByeDpiFrontProxy(byeDpiSettings, generation);
-        } else if (!xrayExternalRelayEnabled) {
-            closeProtectBridge();
-            protectSocketName = null;
         } else if (launchByeDpiFrontProxy) {
             appendRuntimeLogLine("Skipping ByeDPI front proxy in " + describeXrayTcpRelay(settings) + " mode");
         } else if (activeXrayProxyOnly && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart) {
@@ -3782,8 +3779,10 @@ public class ProxyTunnelService extends Service {
         protectSocketName = "wingsv_protect_" + UUID.randomUUID().toString().replace("-", "");
         try {
             protectBridgeServer = new ProxyProtectBridgeServer(protectSocketName, vpnServiceProvider);
+            RuntimeStateStore.writeProtectSocketName(protectSocketName);
         } catch (Exception error) {
             protectSocketName = null;
+            RuntimeStateStore.writeProtectSocketName(null);
             throw new IllegalStateException(failureMessage + ": " + error.getMessage(), error);
         }
     }
@@ -3793,6 +3792,8 @@ public class ProxyTunnelService extends Service {
             protectBridgeServer.close();
             protectBridgeServer = null;
         }
+        protectSocketName = null;
+        RuntimeStateStore.writeProtectSocketName(null);
     }
 
     private void registerTetherReceiverIfNeeded() {
