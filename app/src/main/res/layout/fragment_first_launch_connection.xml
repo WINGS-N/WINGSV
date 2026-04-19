@@ -26,9 +26,14 @@
         android:textColor="#FF16324C"
         android:textStyle="bold" />
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:orientation="vertical"
         android:paddingTop="18dp">
@@ -123,4 +128,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
+
+    </ScrollView>
+
 </FrameLayout>
