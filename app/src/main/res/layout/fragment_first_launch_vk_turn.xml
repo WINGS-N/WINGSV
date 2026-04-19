@@ -52,24 +52,15 @@
             android:textColor="#EAF9FBFF"
             android:textSize="17sp" />
 
-        <ScrollView
-            android:id="@+id/scroll_vk_turn_fields"
+        <LinearLayout
+            android:id="@+id/container_vk_turn_fields"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
-            android:layout_weight="1"
             android:clipToPadding="false"
-            android:fillViewport="false"
-            android:overScrollMode="ifContentScrolls"
+            android:orientation="vertical"
             android:paddingTop="4dp"
-            android:paddingBottom="12dp">
-
-            <LinearLayout
-                android:id="@+id/container_vk_turn_fields"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-        </ScrollView>
+            android:paddingBottom="12dp" />
 
         <Button
             android:id="@+id/button_import_wingsv"
