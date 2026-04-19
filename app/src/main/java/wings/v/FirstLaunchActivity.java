@@ -3,6 +3,7 @@ package wings.v;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
@@ -24,6 +25,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.viewpager2.widget.ViewPager2;
 import wings.v.core.AppPrefs;
 import wings.v.core.AutoSearchManager;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.databinding.ActivityFirstLaunchBinding;
 import wings.v.ui.FirstLaunchPagerAdapter;
@@ -106,6 +108,12 @@ public class FirstLaunchActivity
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Add safety check for display density to prevent crashes on launch
+        if (!DisplayDensityUtils.validateDisplayDensity(this)) {
+            android.util.Log.w("FirstLaunchActivity", "Display density validation failed, continuing with caution");
+        }
+        
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         startAtPermissions = getIntent().getBooleanExtra(EXTRA_START_AT_PERMISSIONS, false);
 
@@ -148,6 +156,25 @@ public class FirstLaunchActivity
         releaseIntroMusic();
         binding = null;
         super.onDestroy();
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Handle display density and screen size changes using utility
+        DisplayDensityUtils.handleConfigurationChange(this, newConfig);
+        try {
+            if (binding != null) {
+                // Refresh layout to adapt to new display metrics
+                binding.getRoot().invalidate();
+                binding.getRoot().requestLayout();
+                
+                // Reapply insets for new screen configuration
+                applyInsets();
+            }
+        } catch (Exception e) {
+            android.util.Log.w("FirstLaunchActivity", "Error handling configuration change", e);
+        }
     }
 
     @Override
@@ -674,6 +701,6 @@ public class FirstLaunchActivity
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
+        return DisplayDensityUtils.dpToPx(this, value);
     }
 }

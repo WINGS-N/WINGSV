@@ -50,6 +50,7 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ByeDpiStore;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.core.WingsImportParser;
@@ -724,10 +725,11 @@ public class ProfilesFragment extends Fragment {
     }
 
     private void updateBottomNavigationSuppression(boolean suppressed) {
-        if (!(getActivity() instanceof MainActivity)) {
+        android.app.Activity activity = getActivity();
+        if (!(activity instanceof MainActivity)) {
             return;
         }
-        ((MainActivity) getActivity()).setBottomNavigationSuppressed(suppressed);
+        ((MainActivity) activity).setBottomNavigationSuppressed(suppressed);
     }
 
     private void updateAllRowStates(@Nullable String activeProfileId) {
@@ -1716,7 +1718,7 @@ public class ProfilesFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return Math.round(value * requireContext().getResources().getDisplayMetrics().density);
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 
     private static final class FilterSpec {

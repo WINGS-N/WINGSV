@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import wings.v.core.ByeDpiDomainList;
 import wings.v.core.ByeDpiDomainListStore;
 import wings.v.core.ByeDpiStore;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.databinding.ActivityByeDpiTargetsBinding;
 import wings.v.databinding.ItemByeDpiTargetBinding;
@@ -143,7 +144,7 @@ public class ByeDpiTargetsActivity extends AppCompatActivity {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        domainsLayoutParams.topMargin = Math.round(getResources().getDisplayMetrics().density * 12f);
+        domainsLayoutParams.topMargin = DisplayDensityUtils.dpToPx(this, 12);
         form.addView(domainsInput, domainsLayoutParams);
         FrameLayout container = buildDialogContainer(form);
         int titleRes =
@@ -274,8 +275,8 @@ public class ByeDpiTargetsActivity extends AppCompatActivity {
     }
 
     private FrameLayout buildDialogContainer(View child) {
-        int horizontalPadding = Math.round(getResources().getDisplayMetrics().density * 24f);
-        int verticalPadding = Math.round(getResources().getDisplayMetrics().density * 8f);
+        int horizontalPadding = DisplayDensityUtils.dpToPx(this, 24);
+        int verticalPadding = DisplayDensityUtils.dpToPx(this, 8);
         FrameLayout container = new FrameLayout(this);
         container.setPadding(horizontalPadding, verticalPadding, horizontalPadding, 0);
         container.addView(

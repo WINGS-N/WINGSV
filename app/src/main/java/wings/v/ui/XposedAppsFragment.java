@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.R;
 import wings.v.XposedAppsActivity;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.core.XposedModulePrefs;
@@ -486,11 +487,11 @@ public class XposedAppsFragment extends Fragment {
     }
 
     private float dpToPx(int value) {
-        return value * requireContext().getResources().getDisplayMetrics().density;
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 
     private int dpToPxInt(int value) {
-        return Math.round(dpToPx(value));
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 
     private void showKeyboard() {

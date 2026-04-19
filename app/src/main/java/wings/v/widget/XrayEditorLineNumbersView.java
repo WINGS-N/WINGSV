@@ -9,6 +9,7 @@ import android.util.AttributeSet;
 import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatEditText;
+import wings.v.core.DisplayDensityUtils;
 
 public class XrayEditorLineNumbersView extends View {
 
@@ -37,9 +38,8 @@ public class XrayEditorLineNumbersView extends View {
     }
 
     private void init() {
-        float density = getResources().getDisplayMetrics().density;
-        minWidthPx = Math.round(DEFAULT_MIN_WIDTH_DP * density);
-        gapPx = Math.round(DEFAULT_GAP_DP * density);
+        minWidthPx = DisplayDensityUtils.dpToPx(getContext(), DEFAULT_MIN_WIDTH_DP);
+        gapPx = DisplayDensityUtils.dpToPx(getContext(), DEFAULT_GAP_DP);
         textPaint.setTextAlign(Paint.Align.RIGHT);
         setWillNotDraw(false);
     }

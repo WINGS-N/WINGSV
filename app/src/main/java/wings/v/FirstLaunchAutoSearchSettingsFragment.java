@@ -20,6 +20,7 @@ import androidx.fragment.app.Fragment;
 import java.util.ArrayList;
 import java.util.List;
 import wings.v.core.AutoSearchManager;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.databinding.FragmentFirstLaunchAutoSearchSettingsBinding;
 
@@ -219,7 +220,7 @@ public class FirstLaunchAutoSearchSettingsFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 
     private static final class NumberField {

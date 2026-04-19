@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat;
 import java.util.ArrayList;
 import java.util.List;
 import wings.v.R;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.XposedAttackStatsStore;
 
 public class XposedWeeklyStatsGraphView extends View {
@@ -40,16 +41,28 @@ public class XposedWeeklyStatsGraphView extends View {
         super(context, attrs);
         barPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_surface_alt));
         labelPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_text_secondary));
-        labelPaint.setTextSize(getResources().getDisplayMetrics().scaledDensity * 11f);
+        
+        // Safe text size calculation
+        float textSize = 11f;
+        try {
+            float scaledDensity = getResources().getDisplayMetrics().scaledDensity;
+            if (DisplayDensityUtils.isValidDensity(scaledDensity)) {
+                textSize = scaledDensity * 11f;
+            }
+        } catch (Exception e) {
+            android.util.Log.w("XposedWeeklyStatsGraphView", "Error getting scaled density, using default", e);
+        }
+        
+        labelPaint.setTextSize(textSize);
         labelPaint.setTextAlign(Paint.Align.CENTER);
         selectedLabelPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_window));
-        selectedLabelPaint.setTextSize(getResources().getDisplayMetrics().scaledDensity * 11f);
+        selectedLabelPaint.setTextSize(textSize);
         selectedLabelPaint.setTextAlign(Paint.Align.CENTER);
         selectedLabelPaint.setFakeBoldText(true);
         selectedLabelBgPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_accent));
         outlinePaint.setColor(ContextCompat.getColor(context, R.color.wingsv_surface_alt));
         outlinePaint.setStyle(Paint.Style.STROKE);
-        outlinePaint.setStrokeWidth(getResources().getDisplayMetrics().density);
+        outlinePaint.setStrokeWidth(DisplayDensityUtils.dpToPx(context, 1));
         gradientStartColor = ContextCompat.getColor(context, R.color.wingsv_accent);
         gradientEndColor = ContextCompat.getColor(context, R.color.wingsv_success);
     }
@@ -65,7 +78,7 @@ public class XposedWeeklyStatsGraphView extends View {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int desiredHeight = (int) (getResources().getDisplayMetrics().density * 164f);
+        int desiredHeight = DisplayDensityUtils.dpToPx(getContext(), 164);
         int resolvedHeight = resolveSize(desiredHeight, heightMeasureSpec);
         setMeasuredDimension(resolveSize(getSuggestedMinimumWidth(), widthMeasureSpec), resolvedHeight);
     }
@@ -76,7 +89,18 @@ public class XposedWeeklyStatsGraphView extends View {
         if (points.isEmpty()) {
             return;
         }
-        float density = getResources().getDisplayMetrics().density;
+        
+        // Safe density calculations
+        float density = 1.0f;
+        try {
+            float rawDensity = getResources().getDisplayMetrics().density;
+            if (DisplayDensityUtils.isValidDensity(rawDensity)) {
+                density = rawDensity;
+            }
+        } catch (Exception e) {
+            android.util.Log.w("XposedWeeklyStatsGraphView", "Error getting density, using default", e);
+        }
+        
         float chartTop = density * 6f;
         float chartBottom = getHeight() - density * 34f;
         float chartHeight = Math.max(density * 24f, chartBottom - chartTop);

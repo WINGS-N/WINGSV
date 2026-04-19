@@ -17,6 +17,14 @@
 
     <uses-sdk tools:overrideLibrary="dev.oneuiproject.oneui" />
 
+    <supports-screens
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true"
+        android:anyDensity="true"
+        android:resizeable="true" />
+
     <application
         android:name=".WingsApplication"
         android:allowBackup="true"
@@ -73,6 +81,7 @@
         <activity
             android:name=".FirstLaunchActivity"
             android:exported="false"
+            android:configChanges="density|fontScale|orientation|screenSize|smallestScreenSize"
             android:theme="@style/Theme.WINGSV" />
 
         <activity
@@ -216,6 +225,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:configChanges="density|fontScale|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
             android:theme="@style/Theme.WINGSV">
             <meta-data
                 android:name="android.app.shortcuts"

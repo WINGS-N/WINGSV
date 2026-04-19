@@ -3,6 +3,7 @@ package wings.v;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Handler;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateManager;
 import wings.v.core.BackendType;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
@@ -119,6 +121,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Add safety check for display density to prevent crashes on launch
+        if (!DisplayDensityUtils.validateDisplayDensity(this)) {
+            android.util.Log.w("MainActivity", "Display density validation failed, continuing with caution");
+        }
+        
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
         BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
@@ -192,6 +200,14 @@ public class MainActivity extends AppCompatActivity {
         startNavigationRefresh();
         refreshRootStateAsync();
         maybeRecoverRuntimeState();
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Handle display density and screen size changes using utility
+        DisplayDensityUtils.handleConfigurationChange(this, newConfig);
+        handleDisplayDensityChange();
     }
 
     @Override
@@ -654,6 +670,39 @@ public class MainActivity extends AppCompatActivity {
             preferencesChangeListener
         );
         preferencesChangeListener = null;
+    }
+
+    /**
+     * Handles display density and screen configuration changes to prevent app crashes
+     * when users change system display scaling or screen density settings.
+     */
+    private void handleDisplayDensityChange() {
+        try {
+            // Force recreation of views that depend on display metrics
+            if (binding != null && pagerAdapter != null) {
+                // Refresh navigation state
+                syncNavigationState();
+                
+                // Notify adapter of potential layout changes
+                pagerAdapter.notifyDataSetChanged();
+                
+                // Update toolbar configuration
+                configureToolbar();
+                
+                // Refresh bottom navigation layout
+                if (bottomTab != null) {
+                    bottomTab.invalidate();
+                    bottomTab.requestLayout();
+                }
+                
+                // Force layout refresh for the main container
+                binding.getRoot().invalidate();
+                binding.getRoot().requestLayout();
+            }
+        } catch (Exception e) {
+            // Log error but don't crash the app
+            android.util.Log.w("MainActivity", "Error handling display density change", e);
+        }
     }
 
     private static final class ToolbarTitleTypefaceSpan extends MetricAffectingSpan {
