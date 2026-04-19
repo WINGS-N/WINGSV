@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="24dp"
+    android:paddingTop="26dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="24dp">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fontFamily="@font/samsungsharpsans"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:lineSpacingExtra="5dp"
+                android:shadowColor="#3A000000"
+                android:shadowDx="0"
+                android:shadowDy="8"
+                android:shadowRadius="18"
+                android:text="@string/onboarding_title"
+                android:textColor="#FFF9FBFF"
+                android:textSize="38sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:fontFamily="@font/samsungone"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:lineSpacingExtra="4dp"
+                android:shadowColor="#26000000"
+                android:shadowDx="0"
+                android:shadowDy="6"
+                android:shadowRadius="12"
+                android:text="@string/onboarding_subtitle"
+                android:textColor="#EAF9FBFF"
+                android:textSize="17sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical"
+            android:paddingTop="6dp"
+            android:paddingBottom="8dp">
+
+            <include
+                android:id="@+id/row_notifications"
+                layout="@layout/item_permission_status" />
+
+            <include
+                android:id="@+id/row_battery"
+                layout="@layout/item_permission_status" />
+
+            <include
+                android:id="@+id/row_vpn"
+                layout="@layout/item_permission_status" />
+
+            <include
+                android:id="@+id/row_root"
+                layout="@layout/item_permission_status" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/button_first_launch_continue"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_first_launch_primary_button"
+            android:fontFamily="@font/samsungsharpsans"
+            android:text="@string/first_launch_continue"
+            android:textColor="#FF010102"
+            android:textStyle="bold" />
+        </LinearLayout>
+
+    </ScrollView>
+
+</FrameLayout>

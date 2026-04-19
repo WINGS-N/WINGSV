@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="24dp"
+    android:paddingTop="22dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="32dp">
+
+    <LinearLayout
+        android:id="@+id/container_first_launch_intro_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_first_launch_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_first_launch_badge"
+            android:fontFamily="@font/samsungone"
+            android:paddingStart="14dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="8dp"
+            android:text="@string/first_launch_page_welcome_badge"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="#FF16324C"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_first_launch_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="90dp"
+            android:fontFamily="@font/samsungsharpsans"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="6dp"
+            android:maxLines="3"
+            android:shadowColor="#3A000000"
+            android:shadowDx="0"
+            android:shadowDy="8"
+            android:shadowRadius="18"
+            android:textColor="#FFF9FBFF"
+            android:textSize="42sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/container_first_launch_intro_footer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_first_launch_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="72dp"
+            android:fontFamily="@font/samsungone"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="5dp"
+            android:shadowColor="#26000000"
+            android:shadowDx="0"
+            android:shadowDy="6"
+            android:shadowRadius="12"
+            android:textColor="#EAF9FBFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/button_first_launch_action"
+            android:layout_width="wrap_content"
+            android:layout_height="56dp"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/bg_first_launch_primary_button"
+            android:fontFamily="@font/samsungsharpsans"
+            android:minWidth="188dp"
+            android:textColor="#FF010102"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</FrameLayout>

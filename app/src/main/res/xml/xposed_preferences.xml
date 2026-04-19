@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <wings.v.ui.XposedSecurityOverviewPreference
+        android:key="pref_xposed_security_overview"
+        android:iconSpaceReserved="false" />
+
+    <PreferenceCategory
+        android:title="@string/xposed_settings_category_detection" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xposed_enabled"
+        android:title="@string/xposed_settings_enabled_title"
+        android:summary="@string/xposed_settings_enabled_summary"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xposed_all_apps"
+        android:title="@string/xposed_settings_all_apps_title"
+        android:summary="@string/xposed_settings_all_apps_summary"
+        android:defaultValue="true" />
+
+    <Preference
+        android:key="pref_xposed_target_packages"
+        android:title="@string/xposed_settings_packages_title"
+        android:summary="@string/xposed_settings_packages_summary" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xposed_native_hook_enabled"
+        android:title="@string/xposed_settings_native_hook_title"
+        android:summary="@string/xposed_settings_native_hook_summary"
+        android:defaultValue="false" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_xposed_procfs_hook_mode"
+        android:title="@string/xposed_settings_procfs_hook_mode_title"
+        android:summary="@string/xposed_settings_procfs_hook_mode_summary"
+        android:entries="@array/xposed_procfs_hook_mode_entries"
+        android:entryValues="@array/xposed_procfs_hook_mode_values"
+        android:defaultValue="disabled"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xposed_hide_from_dumpsys"
+        android:title="@string/xposed_settings_hide_from_dumpsys_title"
+        android:summary="@string/xposed_settings_hide_from_dumpsys_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xposed_hide_vpn_apps"
+        android:title="@string/xposed_settings_hide_vpn_apps_title"
+        android:summary="@string/xposed_settings_hide_vpn_apps_summary"
+        android:defaultValue="true" />
+
+    <Preference
+        android:key="pref_xposed_hidden_vpn_packages"
+        android:title="@string/xposed_settings_hidden_packages_title"
+        android:summary="@string/xposed_settings_hidden_packages_summary" />
+
+    <Preference
+        android:selectable="false"
+        android:summary="@string/xposed_settings_effective_summary" />
+
+</PreferenceScreen>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="WINGSV Android Focused Java"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.github.io/schema/ruleset_2_0_0.xsd">
+  <description>
+    Focused PMD profile for Android app code. Keep checks close to Android Studio:
+    naming consistency, callback intent, and accidental stdout usage.
+  </description>
+
+  <rule ref="category/java/bestpractices.xml/ImplicitFunctionalInterface" />
+  <rule ref="category/java/bestpractices.xml/SystemPrintln" />
+  <rule ref="category/java/codestyle.xml/FieldNamingConventions" />
+  <rule ref="category/java/codestyle.xml/MethodNamingConventions" />
+  <rule ref="category/java/errorprone.xml/AssignmentInOperand" />
+  <rule ref="category/java/errorprone.xml/UseLocaleWithCaseConversions" />
+</ruleset>

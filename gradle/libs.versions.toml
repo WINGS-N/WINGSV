@@ -1,0 +1,87 @@
+[versions]
+agp = "9.0.1"
+jdkCoroutines = "1.10.2"
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+kotlin = "2.2.20"
+protobuf = "4.34.0"
+librootkotlinx = "1.2.1"
+xhook = "1.2.0"
+oneuiDesign = "0.9.7+oneui8"
+wireguardTunnel = "1.0.20260102"
+sesl-core = "1.17.0+1.0.7-sesl8+rev1"
+sesl-coreKtx = "1.17.0+1.0.0-sesl8+rev0"
+sesl-appcompat = "1.7.1+1.0.21-sesl8+rev8"
+sesl-indexscroll = "1.0.0+1.0.0-sesl8+rev0"
+sesl-pickerColor = "1.0.2+1.0.3-sesl8+rev0"
+sesl-pickerBasic = "1.0.7+1.0.7-sesl8+rev2"
+sesl-pickerApp = "1.0.6+1.0.6-sesl8+rev0"
+sesl-preference = "1.2.1+1.0.0-sesl8+rev1"
+sesl-material = "1.12.0+1.0.32-sesl8+rev3"
+sesl-drawerlayout = "1.2.0+1.0.0-sesl8+rev0"
+sesl-customview = "1.2.0-rc01+1.0.0-sesl8+rev0"
+sesl-slidingpanelayout = "1.2.0+1.0.4-sesl8+rev0"
+sesl-recyclerview = "1.4.0+1.0.12-sesl8+rev3"
+sesl-fragment = "1.8.9+1.0.5-sesl8+rev1"
+sesl-coordinator = "1.3.0+1.0.0-sesl8+rev0"
+sesl-swiperefreshlayout = "1.2.0-alpha01+1.0.0-sesl8+rev0"
+sesl-viewpager2 = "1.1.0+1.0.0-sesl8+rev0"
+mpandroidchart = "3.1.0"
+
+[libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-annotation = { module = "androidx.annotation:annotation", version = "1.9.1" }
+androidx-collection = { module = "androidx.collection:collection", version = "1.5.0" }
+jsr305 = { module = "com.google.code.findbugs:jsr305", version = "3.0.2" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "jdkCoroutines" }
+librootkotlinx = { module = "be.mygod.librootkotlinx:librootkotlinx", version.ref = "librootkotlinx" }
+oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneuiDesign" }
+wireguard-tunnel = { module = "com.wireguard.android:tunnel", version.ref = "wireguardTunnel" }
+protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
+xhook = { module = "dev.rikka.ndk.thirdparty:xhook", version.ref = "xhook" }
+sesl-appcompat = { module = "sesl.androidx.appcompat:appcompat", version.ref = "sesl-appcompat" }
+sesl-core = { module = "sesl.androidx.core:core", version.ref = "sesl-core" }
+sesl-coreKtx = { module = "sesl.androidx.core:core-ktx", version.ref = "sesl-coreKtx" }
+sesl-indexscroll = { module = "sesl.androidx.indexscroll:indexscroll", version.ref = "sesl-indexscroll" }
+sesl-pickerColor = { module = "sesl.androidx.picker:picker-color", version.ref = "sesl-pickerColor" }
+sesl-pickerBasic = { module = "sesl.androidx.picker:picker-basic", version.ref = "sesl-pickerBasic" }
+sesl-pickerApp = { module = "sesl.androidx.picker:picker-app", version.ref = "sesl-pickerApp" }
+sesl-preference = { module = "sesl.androidx.preference:preference", version.ref = "sesl-preference" }
+sesl-material = { module = "sesl.com.google.android.material:material", version.ref = "sesl-material" }
+sesl-drawerlayout = { module = "sesl.androidx.drawerlayout:drawerlayout", version.ref = "sesl-drawerlayout" }
+sesl-customview = { module = "sesl.androidx.customview:customview", version.ref = "sesl-customview" }
+sesl-slidingpanelayout = { module = "sesl.androidx.slidingpanelayout:slidingpanelayout", version.ref = "sesl-slidingpanelayout" }
+sesl-recyclerview = { module = "sesl.androidx.recyclerview:recyclerview", version.ref = "sesl-recyclerview" }
+sesl-coordinatorlayout = { module = "sesl.androidx.coordinatorlayout:coordinatorlayout", version.ref = "sesl-coordinator" }
+sesl-swiperefreshlayout = { module = "sesl.androidx.swiperefreshlayout:swiperefreshlayout", version.ref = "sesl-swiperefreshlayout" }
+sesl-fragment = { module = "sesl.androidx.fragment:fragment", version.ref = "sesl-fragment" }
+sesl-viewpager2 = { module = "sesl.androidx.viewpager2:viewpager2", version.ref = "sesl-viewpager2" }
+mpandroidchart = { module = "com.github.PhilJay:MPAndroidChart", version.ref = "mpandroidchart" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+
+[bundles]
+sesl-androidx = [
+    "sesl-appcompat",
+    "sesl-coordinatorlayout",
+    "sesl-recyclerview",
+    "sesl-customview",
+    "sesl-drawerlayout",
+    "sesl-slidingpanelayout",
+    "sesl-indexscroll",
+    "sesl-pickerBasic",
+    "sesl-pickerColor",
+    "sesl-preference",
+    "sesl-swiperefreshlayout",
+    "sesl-core",
+    "sesl-coreKtx",
+    "sesl-fragment",
+    "sesl-pickerApp",
+    "sesl-viewpager2"
+]

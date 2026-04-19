@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+        !contains(github.event.head_commit.message, '[SKIP CI]')) ||
+      (github.event_name == 'pull_request' &&
+        !contains(github.event.pull_request.title, '[SKIP CI]') &&
+        !contains(github.event.pull_request.body || '', '[SKIP CI]'))
+    env:
+      ORG_GRADLE_PROJECT_seslUser: ${{ secrets.SESL_USER }}
+      ORG_GRADLE_PROJECT_seslToken: ${{ secrets.SESL_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Set up Go 1.25.5
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.5"
+          check-latest: true
+          cache-dependency-path: |
+            external/vk-turn-proxy/go.sum
+            external/libXray/go.sum
+            external/Xray-core/go.sum
+            external/amneziawg-android/tunnel/tools/libwg-go/go.sum
+
+      - name: Cache vk-turn-proxy Go build state
+        uses: actions/cache@v5
+        with:
+          path: |
+            .gradle/vkturn/go-mod-cache
+            .gradle/vkturn/go-cache
+          key: ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-vkturn-go-
+
+      - name: Cache libXray Go build state
+        uses: actions/cache@v5
+        with:
+          path: |
+            .gradle/libxray/go-mod-cache
+            .gradle/libxray/go-cache
+            .gradle/libxray/go-path
+            .gradle/libxray/go-bin
+          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-libxray-go-
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358" \
+            "cmake;3.22.1"
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Check Java formatting
+        run: pnpm format:java:check
+
+      - name: Run Java lint
+        run: pnpm lint:java
+
+      - name: Resolve build version
+        id: resolve-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(sed -nE 's/^val defaultAppVersionName = "([^"]+)"$/\1/p' app/build.gradle.kts | head -n1)"
+          fi
+          if [[ -z "${version}" ]]; then
+            echo "Failed to resolve build version" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug -Pver=${{ steps.resolve-version.outputs.version }}
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: app-debug-${{ steps.resolve-version.outputs.version }}
+          path: app/build/outputs/apk/debug/app-debug.apk

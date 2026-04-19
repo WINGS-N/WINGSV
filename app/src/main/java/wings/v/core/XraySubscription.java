@@ -1,0 +1,159 @@
+package wings.v.core;
+
+import android.text.TextUtils;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+@SuppressWarnings(
+    {
+        "PMD.CommentRequired",
+        "PMD.MethodArgumentCouldBeFinal",
+        "PMD.ShortVariable",
+        "PMD.LongVariable",
+        "PMD.LocalVariableCouldBeFinal",
+        "PMD.OnlyOneReturn",
+        "PMD.UselessParentheses",
+    }
+)
+public final class XraySubscription {
+
+    public final String id;
+    public final String title;
+    public final String url;
+    public final String formatHint;
+    public final int refreshIntervalMinutes;
+    public final boolean autoUpdate;
+    public final long lastUpdatedAt;
+    public final long advertisedUploadBytes;
+    public final long advertisedDownloadBytes;
+    public final long advertisedTotalBytes;
+    public final long advertisedExpireAt;
+
+    public XraySubscription(
+        String id,
+        String title,
+        String url,
+        String formatHint,
+        int refreshIntervalMinutes,
+        boolean autoUpdate,
+        long lastUpdatedAt,
+        long advertisedUploadBytes,
+        long advertisedDownloadBytes,
+        long advertisedTotalBytes,
+        long advertisedExpireAt
+    ) {
+        this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
+        this.title = emptyIfNull(title);
+        this.url = emptyIfNull(url);
+        this.formatHint = emptyIfNull(formatHint);
+        this.refreshIntervalMinutes = Math.max(refreshIntervalMinutes, 0);
+        this.autoUpdate = autoUpdate;
+        this.lastUpdatedAt = Math.max(lastUpdatedAt, 0L);
+        this.advertisedUploadBytes = Math.max(advertisedUploadBytes, 0L);
+        this.advertisedDownloadBytes = Math.max(advertisedDownloadBytes, 0L);
+        this.advertisedTotalBytes = Math.max(advertisedTotalBytes, 0L);
+        this.advertisedExpireAt = Math.max(advertisedExpireAt, 0L);
+    }
+
+    public JSONObject toJson() throws JSONException {
+        JSONObject object = new JSONObject();
+        object.put("id", id);
+        object.put("title", title);
+        object.put("url", url);
+        object.put("format_hint", formatHint);
+        object.put("refresh_interval_minutes", refreshIntervalMinutes);
+        if (refreshIntervalMinutes > 0 && refreshIntervalMinutes % 60 == 0) {
+            object.put("refresh_interval_hours", refreshIntervalMinutes / 60);
+        }
+        object.put("auto_update", autoUpdate);
+        object.put("last_updated_at", lastUpdatedAt);
+        object.put("advertised_upload_bytes", advertisedUploadBytes);
+        object.put("advertised_download_bytes", advertisedDownloadBytes);
+        object.put("advertised_total_bytes", advertisedTotalBytes);
+        object.put("advertised_expire_at", advertisedExpireAt);
+        return object;
+    }
+
+    public static XraySubscription fromJson(JSONObject object) {
+        if (object == null) {
+            return null;
+        }
+        return new XraySubscription(
+            object.optString("id"),
+            object.optString("title"),
+            object.optString("url"),
+            object.optString("format_hint"),
+            resolveRefreshIntervalMinutes(object),
+            object.optBoolean("auto_update"),
+            object.optLong("last_updated_at"),
+            object.optLong("advertised_upload_bytes"),
+            object.optLong("advertised_download_bytes"),
+            object.optLong("advertised_total_bytes"),
+            object.optLong("advertised_expire_at")
+        );
+    }
+
+    public String stableDedupKey() {
+        return url.trim().toLowerCase(Locale.ROOT);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof XraySubscription)) {
+            return false;
+        }
+        XraySubscription that = (XraySubscription) other;
+        return (
+            refreshIntervalMinutes == that.refreshIntervalMinutes &&
+            autoUpdate == that.autoUpdate &&
+            lastUpdatedAt == that.lastUpdatedAt &&
+            advertisedUploadBytes == that.advertisedUploadBytes &&
+            advertisedDownloadBytes == that.advertisedDownloadBytes &&
+            advertisedTotalBytes == that.advertisedTotalBytes &&
+            advertisedExpireAt == that.advertisedExpireAt &&
+            Objects.equals(id, that.id) &&
+            Objects.equals(title, that.title) &&
+            Objects.equals(url, that.url) &&
+            Objects.equals(formatHint, that.formatHint)
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            id,
+            title,
+            url,
+            formatHint,
+            refreshIntervalMinutes,
+            autoUpdate,
+            lastUpdatedAt,
+            advertisedUploadBytes,
+            advertisedDownloadBytes,
+            advertisedTotalBytes,
+            advertisedExpireAt
+        );
+    }
+
+    private static String emptyIfNull(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static int resolveRefreshIntervalMinutes(JSONObject object) {
+        int minutes = object.optInt("refresh_interval_minutes");
+        if (minutes > 0) {
+            return minutes;
+        }
+        int hours = object.optInt("refresh_interval_hours");
+        if (hours > 0) {
+            return hours * 60;
+        }
+        return 0;
+    }
+}

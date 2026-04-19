@@ -1,0 +1,4 @@
+<resources>
+    <style name="Theme.WINGSV" parent="OneUITheme" />
+    <style name="Theme.WINGSV.NoDisplay" parent="@android:style/Theme.NoDisplay" />
+</resources>

@@ -1,0 +1,21 @@
+[submodule "external/VPNHotspot"]
+	path = external/VPNHotspot
+	url = https://github.com/WINGS-N/VPNHotspot.git
+[submodule "external/vk-turn-proxy"]
+	path = external/vk-turn-proxy
+	url = https://github.com/WINGS-N/vk-turn-proxy.git
+[submodule "external/libXray"]
+	path = external/libXray
+	url = https://github.com/WINGS-N/libXray.git
+[submodule "external/Xray-core"]
+	path = external/Xray-core
+	url = https://github.com/WINGS-N/Xray-core.git
+[submodule "external/amneziawg-android"]
+	path = external/amneziawg-android
+	url = https://github.com/WINGS-N/amneziawg-android.git
+[submodule "external/byedpi"]
+	path = external/byedpi
+	url = https://github.com/WINGS-N/byedpi.git
+[submodule "external/librustoreparser"]
+	path = external/librustoreparser
+	url = https://github.com/WINGS-N/librustoreparser.git

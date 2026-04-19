@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:title="@string/byedpi_title">
+
+    <FrameLayout
+        android:id="@+id/bydpi_settings_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

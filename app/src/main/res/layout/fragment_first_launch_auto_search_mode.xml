@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingStart="24dp"
+    android:paddingTop="28dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_auto_search_mode_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:fontFamily="@font/samsungsharpsans"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="5dp"
+            android:shadowColor="#3A000000"
+            android:shadowDx="0"
+            android:shadowDy="8"
+            android:shadowRadius="18"
+            android:text="@string/first_launch_auto_search_mode_title"
+            android:textColor="#FFF9FBFF"
+            android:textSize="38sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_auto_search_mode_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:fontFamily="@font/samsungone"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="4dp"
+            android:shadowColor="#36000000"
+            android:shadowDx="0"
+            android:shadowDy="6"
+            android:shadowRadius="14"
+            android:text="@string/first_launch_auto_search_mode_description"
+            android:textColor="#EAF9FBFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="0.7" />
+
+        <ImageView
+            android:id="@+id/image_auto_search_mode"
+            android:layout_width="150dp"
+            android:layout_height="150dp"
+            android:alpha="0.94"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_first_launch_autosearch_signal" />
+
+        <TextView
+            android:id="@+id/text_auto_search_mode_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:background="@drawable/bg_first_launch_permission_row"
+            android:fontFamily="@font/samsungone"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="4dp"
+            android:paddingStart="18dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="18dp"
+            android:paddingBottom="14dp"
+            android:textColor="#F4F9FBFF"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/container_auto_search_mode_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/button_auto_search_standard"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@drawable/bg_first_launch_primary_button"
+                android:fontFamily="@font/samsungsharpsans"
+                android:text="@string/auto_search_mode_standard_title"
+                android:textColor="#FF010102"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/button_auto_search_whitelist"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_first_launch_primary_button"
+                android:fontFamily="@font/samsungsharpsans"
+                android:text="@string/auto_search_mode_whitelist_title"
+                android:textColor="#FF010102"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

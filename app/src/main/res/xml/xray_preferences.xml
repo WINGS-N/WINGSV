@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="@string/xray_settings_network_category" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_allow_lan"
+        android:title="@string/xray_settings_allow_lan_title"
+        android:summary="@string/xray_settings_allow_lan_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_allow_insecure"
+        android:title="@string/xray_settings_allow_insecure_title"
+        android:summary="@string/xray_settings_allow_insecure_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_ipv6_enabled"
+        android:title="@string/xray_settings_ipv6_title"
+        android:summary="@string/xray_settings_ipv6_summary"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_sniffing_enabled"
+        android:title="@string/xray_settings_sniffing_title"
+        android:summary="@string/xray_settings_sniffing_summary"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_proxy_quic_enabled"
+        android:title="@string/xray_settings_proxy_quic_title"
+        android:summary="@string/xray_settings_proxy_quic_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_restart_on_network_change"
+        android:title="@string/xray_settings_restart_on_network_change_title"
+        android:summary="@string/xray_settings_restart_on_network_change_summary"
+        android:defaultValue="false" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_xray_runtime_mode"
+        android:title="@string/runtime_mode_title"
+        android:summary="@string/runtime_mode_summary"
+        android:defaultValue="vpn"
+        android:entries="@array/runtime_mode_entries"
+        android:entryValues="@array/runtime_mode_values" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_xray_transport_mode"
+        android:title="@string/xray_settings_transport_mode_title"
+        android:summary="@string/xray_settings_transport_mode_summary"
+        android:defaultValue="direct"
+        android:entries="@array/xray_transport_mode_entries"
+        android:entryValues="@array/xray_transport_mode_values" />
+
+    <Preference
+        android:key="pref_xray_routing_open"
+        android:title="@string/xray_settings_routing_title"
+        android:summary="@string/xray_settings_routing_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/xray_settings_dns_category" />
+
+    <EditTextPreference
+        android:key="pref_xray_remote_dns"
+        android:title="@string/xray_settings_remote_dns_title"
+        android:defaultValue="https://common.dot.dns.yandex.net/dns-query"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_direct_dns"
+        android:title="@string/xray_settings_direct_dns_title"
+        android:defaultValue="https://common.dot.dns.yandex.net/dns-query"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/xray_settings_proxy_category" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_local_proxy_enabled"
+        android:title="@string/xray_settings_local_proxy_enabled_title"
+        android:summary="@string/xray_settings_local_proxy_enabled_summary"
+        android:defaultValue="false" />
+
+    <EditTextPreference
+        android:key="pref_xray_local_proxy_port"
+        android:title="@string/xray_settings_local_proxy_port_title"
+        android:defaultValue="10808" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_local_proxy_auth_enabled"
+        android:title="@string/xray_settings_local_proxy_auth_title"
+        android:summary="@string/xray_settings_local_proxy_auth_summary"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_local_proxy_username"
+        android:title="@string/socks_auth_username_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_local_proxy_password"
+        android:title="@string/socks_auth_password_title"
+        app:useSimpleSummaryProvider="true" />
+
+</PreferenceScreen>

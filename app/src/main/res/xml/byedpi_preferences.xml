@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="@string/byedpi_integration_category" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_auto_start_with_xray"
+        android:title="@string/byedpi_auto_start_title"
+        android:defaultValue="false"
+        android:summary="@string/byedpi_auto_start_summary" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_use_command_settings"
+        android:title="@string/byedpi_use_command_settings_title"
+        android:defaultValue="false"
+        android:summary="@string/byedpi_use_command_settings_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:key="pref_category_bydpi_proxy"
+        android:title="@string/byedpi_proxy_category" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxy_ip"
+        android:title="@string/byedpi_proxy_ip_title"
+        android:defaultValue="127.0.0.1"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxy_port"
+        android:title="@string/byedpi_proxy_port_title"
+        android:defaultValue="1080"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_proxy_auth_enabled"
+        android:title="@string/byedpi_proxy_auth_title"
+        android:summary="@string/byedpi_proxy_auth_summary"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxy_username"
+        android:title="@string/socks_auth_username_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxy_password"
+        android:title="@string/socks_auth_password_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:key="pref_category_bydpi_ui"
+        android:title="@string/byedpi_ui_editor_title" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_max_connections"
+        android:title="@string/byedpi_max_connections_title"
+        android:defaultValue="512"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_buffer_size"
+        android:title="@string/byedpi_buffer_size_title"
+        android:defaultValue="16384"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_no_domain"
+        android:title="@string/byedpi_no_domain_title"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_tcp_fast_open"
+        android:title="@string/byedpi_tcp_fast_open_title"
+        android:defaultValue="false" />
+
+    <DropDownPreference
+        android:key="pref_bydpi_hosts_mode"
+        android:title="@string/byedpi_hosts_mode_title"
+        android:entries="@array/byedpi_hosts_mode_entries"
+        android:entryValues="@array/byedpi_hosts_mode_values"
+        android:defaultValue="disable" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_hosts_blacklist"
+        android:title="@string/byedpi_hosts_blacklist_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_hosts_whitelist"
+        android:title="@string/byedpi_hosts_whitelist_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_default_ttl"
+        android:title="@string/byedpi_default_ttl_title"
+        android:defaultValue="0"
+        app:useSimpleSummaryProvider="true" />
+
+    <DropDownPreference
+        android:key="pref_bydpi_desync_method"
+        android:title="@string/byedpi_desync_method_title"
+        android:entries="@array/byedpi_desync_method_entries"
+        android:entryValues="@array/byedpi_desync_method_values"
+        android:defaultValue="oob" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_split_position"
+        android:title="@string/byedpi_split_position_title"
+        android:defaultValue="1"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_split_at_host"
+        android:title="@string/byedpi_split_at_host_title"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_drop_sack"
+        android:title="@string/byedpi_drop_sack_title"
+        android:defaultValue="false" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_fake_ttl"
+        android:title="@string/byedpi_fake_ttl_title"
+        android:defaultValue="8"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_fake_offset"
+        android:title="@string/byedpi_fake_offset_title"
+        android:defaultValue="0"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_fake_sni"
+        android:title="@string/byedpi_fake_sni_title"
+        android:defaultValue="www.iana.org"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_oob_data"
+        android:title="@string/byedpi_oob_data_title"
+        android:defaultValue="a"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_desync_http"
+        android:title="@string/byedpi_desync_http_title"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_desync_https"
+        android:title="@string/byedpi_desync_https_title"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_desync_udp"
+        android:title="@string/byedpi_desync_udp_title"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_host_mixed_case"
+        android:title="@string/byedpi_host_mixed_case_title"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_domain_mixed_case"
+        android:title="@string/byedpi_domain_mixed_case_title"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_host_remove_spaces"
+        android:title="@string/byedpi_host_remove_spaces_title"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_tlsrec_enabled"
+        android:title="@string/byedpi_tlsrec_enabled_title"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_tlsrec_position"
+        android:title="@string/byedpi_tlsrec_position_title"
+        android:defaultValue="1"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_tlsrec_at_sni"
+        android:title="@string/byedpi_tlsrec_at_sni_title"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_udp_fake_count"
+        android:title="@string/byedpi_udp_fake_count_title"
+        android:defaultValue="1"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:key="pref_category_bydpi_cmd"
+        android:title="@string/byedpi_command_editor_title" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_cmd_args"
+        android:title="@string/byedpi_command_args_title"
+        android:defaultValue="-o1 -d1 -a1 -At,r,s -s1 -d1 -s5+s -s10+s -s15+s -s20+s -r1+s -S -a1 -As -s1 -d1 -s5+s -s10+s -s15+s -s20+s -S -a1" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/byedpi_proxytest_category" />
+
+    <Preference
+        android:key="pref_open_bydpi_proxytest_targets"
+        android:title="@string/byedpi_proxytest_targets_title"
+        android:summary="@string/byedpi_proxytest_targets_summary" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxytest_delay"
+        android:title="@string/byedpi_proxytest_delay_title"
+        android:defaultValue="1"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxytest_requests"
+        android:title="@string/byedpi_proxytest_requests_title"
+        android:defaultValue="1"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxytest_limit"
+        android:title="@string/byedpi_proxytest_limit_title"
+        android:defaultValue="20"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxytest_timeout"
+        android:title="@string/byedpi_proxytest_timeout_title"
+        android:defaultValue="5"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxytest_sni"
+        android:title="@string/byedpi_proxytest_sni_title"
+        android:defaultValue="max.ru"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_bydpi_proxytest_use_custom_strategies"
+        android:title="@string/byedpi_proxytest_use_custom_strategies_title"
+        android:defaultValue="false" />
+
+    <EditTextPreference
+        android:key="pref_bydpi_proxytest_custom_strategies"
+        android:title="@string/byedpi_proxytest_custom_strategies_title" />
+
+    <Preference
+        android:key="pref_open_bydpi_proxytest_runner"
+        android:title="@string/byedpi_proxytest_open_runner_title"
+        android:summary="@string/byedpi_proxytest_open_runner_summary" />
+
+</PreferenceScreen>

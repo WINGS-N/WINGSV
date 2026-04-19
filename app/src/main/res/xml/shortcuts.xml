@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_power"
+        android:shortcutId="start_tunnel"
+        android:shortcutLongLabel="@string/shortcut_start_tunnel_long"
+        android:shortcutShortLabel="@string/shortcut_start_tunnel_short">
+        <intent
+            android:action="wings.v.intent.action.START_TUNNEL"
+            android:targetClass="wings.v.ExternalActionActivity"
+            android:targetPackage="wings.v" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_close_circle"
+        android:shortcutId="stop_tunnel"
+        android:shortcutLongLabel="@string/shortcut_stop_tunnel_long"
+        android:shortcutShortLabel="@string/shortcut_stop_tunnel_short">
+        <intent
+            android:action="wings.v.intent.action.STOP_TUNNEL"
+            android:targetClass="wings.v.ExternalActionActivity"
+            android:targetPackage="wings.v" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_profiles"
+        android:shortcutId="switch_backend_xray"
+        android:shortcutLongLabel="@string/shortcut_set_backend_xray_long"
+        android:shortcutShortLabel="@string/shortcut_set_backend_xray_short">
+        <intent
+            android:action="wings.v.intent.action.SET_BACKEND_XRAY"
+            android:targetClass="wings.v.ExternalActionActivity"
+            android:targetPackage="wings.v" />
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher_round"
+        android:shortcutId="switch_backend_vk"
+        android:shortcutLongLabel="@string/shortcut_set_backend_vk_long"
+        android:shortcutShortLabel="@string/shortcut_set_backend_vk_short">
+        <intent
+            android:action="wings.v.intent.action.SET_BACKEND_VK"
+            android:targetClass="wings.v.ExternalActionActivity"
+            android:targetPackage="wings.v" />
+    </shortcut>
+
+</shortcuts>

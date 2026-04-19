@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:fillViewport="true"
+    android:paddingBottom="24dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="10dp"
+        android:paddingTop="10dp">
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            android:padding="20dp"
+            app:roundedCorners="all">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/sharing_title"
+                android:textAppearance="?android:attr/textAppearanceLarge"
+                android:textColor="?android:textColorPrimary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/sharing_subtitle"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary" />
+
+            <TextView
+                android:id="@+id/text_root_mode_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/sharing_root_mode_required"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/sharing_changes_hint"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+        <dev.oneuiproject.oneui.widget.Separator
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/sharing_section_targets" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_wifi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:icon="@drawable/ic_sharing_wifi"
+                app:iconTint="?android:textColorPrimary"
+                app:separateSwitch="true"
+                app:showTopDivider="false" />
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_usb"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:icon="@drawable/ic_sharing_usb"
+                app:iconTint="?android:textColorPrimary"
+                app:separateSwitch="true" />
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_bluetooth"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:icon="@drawable/ic_sharing_bluetooth"
+                app:iconTint="?android:textColorPrimary" />
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_ethernet"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:icon="@drawable/ic_sharing_ethernet"
+                app:iconTint="?android:textColorPrimary"
+                app:showBottomDivider="false" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+        <ProgressBar
+            android:id="@+id/progress_busy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="18dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/text_busy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:text="@string/sharing_busy"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary"
+            android:visibility="gone" />
+
+        <dev.oneuiproject.oneui.widget.Separator
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/sharing_section_routing" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <dev.oneuiproject.oneui.widget.CardItemView
+                android:id="@+id/row_clean_routes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                app:showTopDivider="false" />
+
+            <dev.oneuiproject.oneui.widget.CardItemView
+                android:id="@+id/row_current_upstreams"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:showBottomDivider="false" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+        <dev.oneuiproject.oneui.widget.Separator
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/sharing_section_upstream" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <dev.oneuiproject.oneui.widget.CardItemView
+                android:id="@+id/row_upstream_interface"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                app:showTopDivider="false" />
+
+            <dev.oneuiproject.oneui.widget.CardItemView
+                android:id="@+id/row_fallback_upstream_interface"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:drawableEnd="@drawable/ic_selected_apps_disclosure" />
+
+            <dev.oneuiproject.oneui.widget.CardItemView
+                android:id="@+id/row_masquerade_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                app:showBottomDivider="false" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+        <dev.oneuiproject.oneui.widget.Separator
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/sharing_section_downstream" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_disable_ipv6"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:showTopDivider="false" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+        <dev.oneuiproject.oneui.widget.Separator
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/sharing_section_misc" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_auto_start_services"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:showBottomDivider="false" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

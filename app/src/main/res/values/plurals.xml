@@ -1,0 +1,15 @@
+<resources>
+    <plurals name="byedpi_proxytest_targets_count">
+        <item quantity="one">%d сайт</item>
+        <item quantity="few">%d сайта</item>
+        <item quantity="many">%d сайтов</item>
+        <item quantity="other">%d сайтов</item>
+    </plurals>
+
+    <plurals name="byedpi_strategy_count">
+        <item quantity="one">%d стратегия</item>
+        <item quantity="few">%d стратегии</item>
+        <item quantity="many">%d стратегий</item>
+        <item quantity="other">%d стратегий</item>
+    </plurals>
+</resources>

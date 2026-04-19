@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_vertical"
+    android:background="@drawable/bg_update_badge"
+    android:gravity="center"
+    android:includeFontPadding="false"
+    android:maxLines="1"
+    android:minHeight="18dp"
+    android:minWidth="32dp"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:text="@string/about_updates_badge_text"
+    android:textAllCaps="true"
+    android:textColor="@android:color/white"
+    android:textSize="10sp"
+    android:textStyle="bold" />

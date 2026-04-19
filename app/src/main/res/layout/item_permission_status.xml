@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_first_launch_permission_row"
+    android:gravity="center_vertical"
+    android:minHeight="72dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="18dp"
+    android:paddingVertical="10dp">
+
+    <ImageView
+        android:id="@+id/permission_status_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_close_circle" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/permission_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/samsungone"
+            android:textAppearance="?android:attr/textAppearanceListItem"
+            android:textColor="#FF14314A"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/permission_summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="@font/samsungone"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="#C2143048" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/permission_action"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_first_launch_inline_button"
+        android:fontFamily="@font/samsungsharpsans"
+        android:minWidth="84dp"
+        android:text="@string/grant"
+        android:textColor="#FF102A41" />
+
+</LinearLayout>

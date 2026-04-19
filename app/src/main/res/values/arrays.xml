@@ -1,0 +1,158 @@
+<resources>
+    <string-array name="turn_session_mode_entries">
+        <item>@string/turn_session_mode_auto</item>
+        <item>@string/turn_session_mode_mainline</item>
+        <item>@string/turn_session_mode_mu</item>
+    </string-array>
+
+    <string-array name="turn_session_mode_values">
+        <item>auto</item>
+        <item>mainline</item>
+        <item>mu</item>
+    </string-array>
+
+    <string-array name="runtime_mode_entries">
+        <item>@string/runtime_mode_vpn</item>
+        <item>@string/runtime_mode_proxy</item>
+    </string-array>
+
+    <string-array name="runtime_mode_values">
+        <item>vpn</item>
+        <item>proxy</item>
+    </string-array>
+
+    <string-array name="xray_transport_mode_entries">
+        <item>@string/xray_transport_mode_direct</item>
+        <item>@string/xray_transport_mode_vk_turn_tcp</item>
+    </string-array>
+
+    <string-array name="xray_transport_mode_values">
+        <item>direct</item>
+        <item>vk_turn_tcp</item>
+    </string-array>
+
+    <string-array name="backend_entries">
+        <item>@string/backend_vk_turn_wireguard_title</item>
+        <item>@string/backend_wireguard_title</item>
+        <item>@string/backend_amneziawg_title</item>
+        <item>@string/backend_amneziawg_plain_title</item>
+        <item>@string/backend_xray_title</item>
+    </string-array>
+
+    <string-array name="backend_values">
+        <item>vk_turn_wireguard</item>
+        <item>wireguard</item>
+        <item>amneziawg</item>
+        <item>amneziawg_plain</item>
+        <item>xray</item>
+    </string-array>
+
+    <string-array name="theme_mode_entries">
+        <item>@string/theme_mode_system</item>
+        <item>@string/theme_mode_dark</item>
+        <item>@string/theme_mode_light</item>
+    </string-array>
+
+    <string-array name="theme_mode_values">
+        <item>system</item>
+        <item>dark</item>
+        <item>light</item>
+    </string-array>
+
+    <string-array name="active_probing_fallback_backend_entries">
+        <item>@string/backend_vk_turn_wireguard_title</item>
+        <item>@string/backend_amneziawg_title</item>
+    </string-array>
+
+    <string-array name="active_probing_fallback_backend_values">
+        <item>vk_turn_wireguard</item>
+        <item>amneziawg</item>
+    </string-array>
+
+    <string-array name="active_probing_default_urls">
+        <item>https://1.1.1.1</item>
+        <item>https://github.com</item>
+    </string-array>
+
+    <string-array name="xposed_procfs_hook_mode_entries">
+        <item>@string/xposed_procfs_hook_mode_disabled</item>
+        <item>@string/xposed_procfs_hook_mode_file_not_found</item>
+        <item>@string/xposed_procfs_hook_mode_no_access</item>
+    </string-array>
+
+    <string-array name="xposed_procfs_hook_mode_values">
+        <item>disabled</item>
+        <item>file_not_found</item>
+        <item>no_access</item>
+    </string-array>
+
+    <string-array name="byedpi_hosts_mode_entries">
+        <item>@string/byedpi_hosts_mode_disable</item>
+        <item>@string/byedpi_hosts_mode_blacklist</item>
+        <item>@string/byedpi_hosts_mode_whitelist</item>
+    </string-array>
+
+    <string-array name="byedpi_hosts_mode_values">
+        <item>disable</item>
+        <item>blacklist</item>
+        <item>whitelist</item>
+    </string-array>
+
+    <string-array name="byedpi_desync_method_entries">
+        <item>@string/byedpi_desync_method_none</item>
+        <item>@string/byedpi_desync_method_split</item>
+        <item>@string/byedpi_desync_method_disorder</item>
+        <item>@string/byedpi_desync_method_fake</item>
+        <item>@string/byedpi_desync_method_oob</item>
+        <item>@string/byedpi_desync_method_disoob</item>
+    </string-array>
+
+    <string-array name="byedpi_desync_method_values">
+        <item>none</item>
+        <item>split</item>
+        <item>disorder</item>
+        <item>fake</item>
+        <item>oob</item>
+        <item>disoob</item>
+    </string-array>
+
+    <string-array name="sharing_masquerade_entries">
+        <item>@string/sharing_masquerade_none</item>
+        <item>@string/sharing_masquerade_simple</item>
+        <item>@string/sharing_masquerade_netd</item>
+    </string-array>
+
+    <string-array name="sharing_masquerade_values">
+        <item>none</item>
+        <item>simple</item>
+        <item>netd</item>
+    </string-array>
+
+    <string-array name="sharing_wifi_lock_entries">
+        <item>@string/sharing_wifi_lock_system</item>
+        <item>@string/sharing_wifi_lock_full</item>
+        <item>@string/sharing_wifi_lock_high_perf</item>
+        <item>@string/sharing_wifi_lock_low_latency</item>
+    </string-array>
+
+    <string-array name="sharing_wifi_lock_values">
+        <item>system</item>
+        <item>full</item>
+        <item>high_perf</item>
+        <item>low_latency</item>
+    </string-array>
+
+    <string-array name="sharing_ip_monitor_entries">
+        <item>@string/sharing_ip_monitor_netlink</item>
+        <item>@string/sharing_ip_monitor_netlink_root</item>
+        <item>@string/sharing_ip_monitor_poll</item>
+        <item>@string/sharing_ip_monitor_poll_root</item>
+    </string-array>
+
+    <string-array name="sharing_ip_monitor_values">
+        <item>netlink</item>
+        <item>netlink_root</item>
+        <item>poll</item>
+        <item>poll_root</item>
+    </string-array>
+</resources>

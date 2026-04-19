@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/xray_subscriptions_title">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <androidx.core.widget.NestedScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:fadeScrollbars="false"
+            android:fillViewport="true"
+            android:scrollbarStyle="outsideOverlay"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="104dp">
+
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    android:padding="20dp"
+                    app:roundedCorners="all">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/xray_subscriptions_header_title"
+                        android:textAppearance="?android:attr/textAppearanceMedium"
+                        android:textColor="?android:textColorPrimary"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/text_subscription_header_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/xray_subscriptions_header_summary"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:textColor="?android:textColorSecondary" />
+                </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+                <dev.oneuiproject.oneui.widget.Separator
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/xray_subscriptions_actions_section" />
+
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    app:roundedCorners="all">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/row_add_subscription"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                        app:showTopDivider="false" />
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/row_subscription_refresh_interval"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:drawableEnd="@drawable/ic_selected_apps_disclosure" />
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <dev.oneuiproject.oneui.widget.CardItemView
+                            android:id="@+id/row_subscription_hwid"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical|end"
+                            android:layout_marginEnd="68dp"
+                            android:text="|"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="?android:textColorTertiary" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switch_subscription_hwid"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical|end"
+                            android:layout_marginEnd="18dp" />
+                    </FrameLayout>
+
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <dev.oneuiproject.oneui.widget.CardItemView
+                            android:id="@+id/row_refresh_subscriptions_now"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                            app:showBottomDivider="false" />
+
+                        <ProgressBar
+                            android:id="@+id/progress_refresh_subscriptions_now"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center_vertical|end"
+                            android:layout_marginEnd="18dp"
+                            android:visibility="gone" />
+                    </FrameLayout>
+                </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+                <dev.oneuiproject.oneui.widget.Separator
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/xray_subscriptions_list_section" />
+
+                <TextView
+                    android:id="@+id/text_subscriptions_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/xray_subscriptions_empty"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    android:textColor="?android:textColorSecondary"
+                    android:visibility="gone" />
+
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                    android:id="@+id/layout_subscriptions_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    app:roundedCorners="all">
+
+                    <LinearLayout
+                        android:id="@+id/container_subscriptions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:id="@+id/layout_subscription_selection_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="10dp"
+            android:layout_marginBottom="12dp"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            android:visibility="gone"
+            app:roundedCorners="all">
+
+            <TextView
+                android:id="@+id/text_subscription_selection_count"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="18dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="18dp"
+                android:paddingBottom="8dp"
+                android:text=""
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary"
+                android:textStyle="bold" />
+
+            <dev.oneuiproject.oneui.widget.BottomTabLayout
+                android:id="@+id/bottom_tab_subscription_selection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:layout_location="footer" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+    </FrameLayout>
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

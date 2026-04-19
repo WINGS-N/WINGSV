@@ -1,0 +1,178 @@
+syntax = "proto3";
+
+package wingsv;
+
+option java_package = "wings.v.proto";
+option java_outer_classname = "WingsvProto";
+option optimize_for = LITE_RUNTIME;
+
+message Config {
+  uint32 ver = 1;
+  ConfigType type = 2;
+  Turn turn = 3;
+  WireGuard wg = 4;
+  BackendType backend = 5;
+  Xray xray = 6;
+  AmneziaWG awg = 7;
+  AppRouting app_routing = 8;
+}
+
+enum ConfigType {
+  CONFIG_TYPE_UNSPECIFIED = 0;
+  CONFIG_TYPE_VK = 1;
+  CONFIG_TYPE_XRAY = 2;
+  CONFIG_TYPE_AMNEZIAWG = 3;
+  CONFIG_TYPE_ALL = 4;
+  CONFIG_TYPE_APP_ROUTING = 5;
+  CONFIG_TYPE_XRAY_ROUTING = 6;
+}
+
+enum BackendType {
+  BACKEND_TYPE_UNSPECIFIED = 0;
+  BACKEND_TYPE_VK_TURN_WIREGUARD = 1;
+  BACKEND_TYPE_XRAY = 2;
+  BACKEND_TYPE_AMNEZIAWG = 3;
+  BACKEND_TYPE_WIREGUARD = 4;
+  BACKEND_TYPE_AMNEZIAWG_PLAIN = 5;
+}
+
+message AmneziaWG {
+  string awg_quick_config = 1;
+}
+
+message Endpoint {
+  string host = 1;
+  uint32 port = 2;
+}
+
+message Cidr {
+  bytes addr = 1;
+  uint32 prefix = 2;
+}
+
+message Turn {
+  Endpoint endpoint = 1;
+  string link = 2;
+  optional uint32 threads = 3;
+  optional bool use_udp = 4;
+  optional bool no_obfuscation = 5;
+  Endpoint local_endpoint = 6;
+  string host = 7;
+  optional uint32 port = 8;
+  TurnSessionMode session_mode = 9;
+}
+
+enum TurnSessionMode {
+  TURN_SESSION_MODE_UNSPECIFIED = 0;
+  TURN_SESSION_MODE_AUTO = 1;
+  TURN_SESSION_MODE_MAINLINE = 2;
+  TURN_SESSION_MODE_MUX = 3;
+}
+
+message WireGuard {
+  Interface iface = 1;
+  Peer peer = 2;
+  Endpoint endpoint = 3;
+}
+
+message Interface {
+  bytes private_key = 1;
+  repeated string addrs = 2;
+  repeated string dns = 3;
+  optional uint32 mtu = 4;
+}
+
+message Peer {
+  bytes public_key = 1;
+  bytes preshared_key = 2;
+  repeated Cidr allowed_ips = 3;
+}
+
+message Xray {
+  string active_profile_id = 1;
+  repeated VlessProfile profiles = 2;
+  repeated Subscription subscriptions = 3;
+  XraySettings settings = 4;
+  string subscription_json = 5;
+  optional bool merge_only = 6;
+  XrayRouting routing = 7;
+}
+
+message AppRouting {
+  optional bool bypass = 1;
+  repeated string packages = 2;
+}
+
+message XrayRouting {
+  repeated XrayRoutingRule rules = 1;
+  string geoip_url = 2;
+  string geosite_url = 3;
+}
+
+message XrayRoutingRule {
+  string id = 1;
+  XrayRoutingMatchType match_type = 2;
+  string code = 3;
+  XrayRoutingAction action = 4;
+  optional bool enabled = 5;
+}
+
+enum XrayRoutingMatchType {
+  XRAY_ROUTING_MATCH_UNSPECIFIED = 0;
+  XRAY_ROUTING_MATCH_GEOIP = 1;
+  XRAY_ROUTING_MATCH_GEOSITE = 2;
+  XRAY_ROUTING_MATCH_DOMAIN = 3;
+  XRAY_ROUTING_MATCH_IP = 4;
+  XRAY_ROUTING_MATCH_PORT = 5;
+}
+
+enum XrayRoutingAction {
+  XRAY_ROUTING_ACTION_UNSPECIFIED = 0;
+  XRAY_ROUTING_ACTION_PROXY = 1;
+  XRAY_ROUTING_ACTION_DIRECT = 2;
+  XRAY_ROUTING_ACTION_BLOCK = 3;
+}
+
+message Subscription {
+  string id = 1;
+  string title = 2;
+  string url = 3;
+  string format_hint = 4;
+  optional uint32 refresh_interval_hours = 5;
+  optional bool auto_update = 6;
+  optional int64 last_updated_at = 7;
+  optional uint32 refresh_interval_minutes = 8;
+}
+
+message VlessProfile {
+  string id = 1;
+  string title = 2;
+  string raw_link = 3;
+  string subscription_id = 4;
+  string subscription_title = 5;
+  string address = 6;
+  optional uint32 port = 7;
+}
+
+message XraySettings {
+  optional bool allow_lan = 1;
+  optional bool allow_insecure = 2;
+  optional uint32 local_proxy_port = 3;
+  string remote_dns = 4;
+  string direct_dns = 5;
+  optional bool ipv6 = 6;
+  optional bool sniffing_enabled = 7;
+  optional bool proxy_quic_enabled = 8;
+  optional bool local_proxy_enabled = 9;
+  optional bool local_proxy_auth_enabled = 10;
+  string local_proxy_username = 11;
+  string local_proxy_password = 12;
+  optional bool restart_on_network_change = 13;
+  XrayTransportMode transport_mode = 14;
+}
+
+enum XrayTransportMode {
+  XRAY_TRANSPORT_MODE_UNSPECIFIED = 0;
+  XRAY_TRANSPORT_MODE_DIRECT = 1;
+  XRAY_TRANSPORT_MODE_VK_TURN_TCP = 2;
+}

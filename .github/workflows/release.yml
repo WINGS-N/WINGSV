@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+        (github.event.head_commit == null || !contains(github.event.head_commit.message, '[SKIP CI]')))
+    env:
+      ORG_GRADLE_PROJECT_seslUser: ${{ secrets.SESL_USER }}
+      ORG_GRADLE_PROJECT_seslToken: ${{ secrets.SESL_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.SUBMODULES_TOKEN || github.token }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Set up Go 1.25.5
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.5"
+          check-latest: true
+          cache-dependency-path: |
+            external/vk-turn-proxy/go.sum
+            external/libXray/go.sum
+            external/Xray-core/go.sum
+            external/amneziawg-android/tunnel/tools/libwg-go/go.sum
+
+      - name: Cache vk-turn-proxy Go build state
+        uses: actions/cache@v5
+        with:
+          path: |
+            .gradle/vkturn/go-mod-cache
+            .gradle/vkturn/go-cache
+          key: ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-vkturn-go-
+
+      - name: Cache libXray Go build state
+        uses: actions/cache@v5
+        with:
+          path: |
+            .gradle/libxray/go-mod-cache
+            .gradle/libxray/go-cache
+            .gradle/libxray/go-path
+            .gradle/libxray/go-bin
+          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-libxray-go-
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358" \
+            "cmake;3.22.1"
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Resolve build version
+        id: resolve-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(sed -nE 's/^val defaultAppVersionName = "([^"]+)"$/\1/p' app/build.gradle.kts | head -n1)"
+          fi
+          if [[ -z "${version}" ]]; then
+            echo "Failed to resolve build version" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare signing config
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          mkdir -p keystore
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > keystore/wingsv-release.jks
+          cat > keystore.properties <<EOF
+          storeFile=keystore/wingsv-release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Assemble release APK
+        run: ./gradlew :app:assembleRelease -Pver=${{ steps.resolve-version.outputs.version }}
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/app-release.apk

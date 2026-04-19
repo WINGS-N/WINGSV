@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:key="pref_category_backend"
+        android:title="@string/settings_backend_category" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_backend_type"
+        android:title="@string/settings_backend_title"
+        android:defaultValue="vk_turn_wireguard"
+        android:entries="@array/backend_entries"
+        android:entryValues="@array/backend_values" />
+
+    <Preference
+        android:key="pref_open_subscriptions"
+        android:title="@string/drawer_subscriptions_title"
+        android:summary="@string/drawer_subscriptions_summary" />
+
+    <Preference
+        android:key="pref_open_xray_settings"
+        android:title="@string/drawer_xray_settings_title"
+        android:summary="@string/drawer_xray_settings_summary" />
+
+    <Preference
+        android:key="pref_open_vk_turn_settings"
+        android:title="@string/vk_turn_settings_title"
+        android:summary="@string/vk_turn_settings_summary" />
+
+    <Preference
+        android:key="pref_open_bydpi_settings"
+        android:title="@string/byedpi_title"
+        android:summary="@string/byedpi_open_summary" />
+
+    <Preference
+        android:key="pref_open_active_probing_settings"
+        android:title="@string/active_probing_title"
+        android:summary="@string/active_probing_open_summary" />
+
+    <Preference
+        android:key="pref_open_auto_search_settings"
+        android:title="@string/auto_search_title"
+        android:summary="@string/auto_search_open_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_backend" />
+
+    <PreferenceCategory
+        android:key="pref_category_root"
+        android:title="@string/root_category_title" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_root_mode"
+        android:title="@string/root_mode_title"
+        android:summary="@string/root_mode_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_kernel_wireguard"
+        android:title="@string/kernel_wireguard_title"
+        android:summary="@string/kernel_wireguard_summary"
+        android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_open_root_interface_settings"
+        android:title="@string/root_interface_settings_title"
+        android:summary="@string/root_interface_settings_summary" />
+
+    <Preference
+        android:key="pref_open_xposed_settings"
+        android:title="@string/xposed_settings_title"
+        android:summary="@string/xposed_settings_open_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_root" />
+
+    <PreferenceCategory
+        android:title="Система" />
+
+    <Preference
+        android:key="pref_theme_mode"
+        android:title="@string/settings_theme_title"
+        android:summary="@string/theme_mode_system" />
+
+    <Preference
+        android:key="pref_open_permissions"
+        android:title="Проверить разрешения"
+        android:summary="Открыть стартовый экран разрешений вручную" />
+
+    <Preference
+        android:key="pref_open_export_settings"
+        android:title="@string/settings_export_title"
+        android:summary="@string/settings_export_summary" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_auto_start_on_boot"
+        android:title="@string/auto_start_title"
+        android:summary="@string/auto_start_summary"
+        android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_open_proxy_logs"
+        android:title="Логи vk-turn-proxy"
+        android:summary="Открыть live stdout/stderr бинарника" />
+
+    <Preference
+        android:key="pref_open_xray_logs"
+        android:title="@string/xray_logs_title"
+        android:summary="@string/xray_logs_open_summary" />
+
+    <Preference
+        android:key="pref_open_runtime_logs"
+        android:title="@string/runtime_logs_title"
+        android:summary="@string/runtime_logs_open_summary" />
+
+    <dev.oneuiproject.oneui.preference.UpdatableWidgetPreference
+        android:key="pref_open_about"
+        android:title="@string/about_app_title"
+        android:summary="@string/about_app_summary"
+        app:widgetLayout="@layout/widget_preference_update_badge" />
+
+</PreferenceScreen>

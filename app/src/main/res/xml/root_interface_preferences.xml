@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory
+        android:title="@string/root_interface_category_title" />
+
+    <EditTextPreference
+        android:key="pref_root_wg_interface_name"
+        android:title="@string/root_interface_wireguard_title"
+        android:defaultValue="wingsv-{{hex}}" />
+
+</PreferenceScreen>

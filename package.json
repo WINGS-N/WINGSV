@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "format:java": "prettier --write \"app/src/main/java/**/*.java\"",
+    "format:java:check": "prettier --check \"app/src/main/java/**/*.java\"",
+    "lint:android": "./gradlew :app:lintDebug",
+    "lint:java": "./gradlew :app:checkstyleJava :app:pmdJava",
+    "lint": "pnpm format:java:check && pnpm lint:java && pnpm lint:android"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "prettier-plugin-java": "^2.8.1"
+  }
+}
