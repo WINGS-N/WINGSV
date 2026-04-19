@@ -8,6 +8,7 @@ import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.DisplayMetrics;
+import wings.v.core.DisplayDensityUtils;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -413,8 +414,7 @@ public class XrayProfileEditorActivity extends AppCompatActivity {
     }
 
     private int getScreenWidth() {
-        DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
-        return displayMetrics != null ? displayMetrics.widthPixels : 0;
+        return DisplayDensityUtils.getScreenWidth(this);
     }
 
     private void configureLineNumbersView() {

@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import wings.v.core.AutoSearchManager;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.core.XrayStore;
@@ -87,14 +88,15 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         manager = AutoSearchManager.getInstance(requireContext());
+        android.app.Activity activity = getActivity();
         mode =
-            getActivity() instanceof Host
-                ? ((Host) getActivity()).getFirstLaunchAutoSearchMode()
+            activity instanceof Host
+                ? ((Host) activity).getFirstLaunchAutoSearchMode()
                 : AutoSearchManager.Mode.STANDARD;
         if (mode == null) {
             mode = AutoSearchManager.Mode.STANDARD;
         }
-        generation = getActivity() instanceof Host ? ((Host) getActivity()).getFirstLaunchAutoSearchGeneration() : 0L;
+        generation = activity instanceof Host ? ((Host) activity).getFirstLaunchAutoSearchGeneration() : 0L;
     }
 
     @Override
@@ -381,10 +383,11 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
     }
 
     private void refreshModeFromHost() {
-        if (!(getActivity() instanceof Host)) {
+        android.app.Activity activity = getActivity();
+        if (!(activity instanceof Host)) {
             return;
         }
-        Host host = (Host) getActivity();
+        Host host = (Host) activity;
         long currentGeneration = host.getFirstLaunchAutoSearchGeneration();
         if (currentGeneration == generation) {
             return;
@@ -587,10 +590,11 @@ public class FirstLaunchAutoSearchRunFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 
     private boolean isRunPageActive() {
-        return getActivity() instanceof Host && ((Host) getActivity()).isFirstLaunchAutoSearchRunPageActive();
+        android.app.Activity activity = getActivity();
+        return activity instanceof Host && ((Host) activity).isFirstLaunchAutoSearchRunPageActive();
     }
 }

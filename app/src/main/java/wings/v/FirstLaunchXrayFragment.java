@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XraySettings;
@@ -339,6 +340,6 @@ public class FirstLaunchXrayFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 }

@@ -12,6 +12,7 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import wings.v.R;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.XposedSecurityScore;
 
 public class XposedSecurityLevelBarView extends View {
@@ -47,7 +48,7 @@ public class XposedSecurityLevelBarView extends View {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int desiredHeight = (int) (getResources().getDisplayMetrics().density * 16f);
+        int desiredHeight = DisplayDensityUtils.dpToPx(getContext(), 16);
         int resolvedHeight = resolveSize(desiredHeight, heightMeasureSpec);
         setMeasuredDimension(resolveSize(getSuggestedMinimumWidth(), widthMeasureSpec), resolvedHeight);
     }

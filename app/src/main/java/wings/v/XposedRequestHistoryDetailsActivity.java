@@ -25,6 +25,7 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.XposedAttackStatsStore;
 import wings.v.core.XposedAttackVector;
@@ -258,6 +259,6 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
     }
 
     private int dpToPxInt(int value) {
-        return Math.round(getResources().getDisplayMetrics().density * value);
+        return DisplayDensityUtils.dpToPx(this, value);
     }
 }

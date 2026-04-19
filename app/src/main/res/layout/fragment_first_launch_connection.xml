@@ -26,9 +26,15 @@
         android:textColor="#FF16324C"
         android:textStyle="bold" />
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginTop="50dp"
+        android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:gravity="center_horizontal"
         android:orientation="vertical"
         android:paddingTop="18dp">
@@ -71,8 +77,7 @@
 
         <View
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="0.72" />
+            android:layout_height="60dp" />
 
         <wings.v.widget.ConnectionChoiceAnimationView
             android:id="@+id/view_first_launch_connection_animation"
@@ -81,8 +86,7 @@
 
         <View
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_height="40dp" />
 
         <LinearLayout
             android:id="@+id/container_first_launch_connection_actions"
@@ -123,4 +127,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
+
+    </ScrollView>
+
 </FrameLayout>

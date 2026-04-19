@@ -12,6 +12,7 @@ import android.view.animation.LinearInterpolator;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import wings.v.R;
+import wings.v.core.DisplayDensityUtils;
 
 @SuppressWarnings(
     {
@@ -181,7 +182,7 @@ public class PowerButtonGlowView extends View {
     }
 
     private float dp(float value) {
-        return value * getResources().getDisplayMetrics().density;
+        return DisplayDensityUtils.dpToPx(getContext(), Math.round(value));
     }
 
     private static int resolveGlowColor(Context context) {

@@ -16,6 +16,7 @@ import com.github.mikephil.charting.renderer.BarChartRenderer;
 import com.github.mikephil.charting.utils.Transformer;
 import com.github.mikephil.charting.utils.ViewPortHandler;
 import wings.v.R;
+import wings.v.core.DisplayDensityUtils;
 
 public final class XposedRoundedBarChartRenderer extends BarChartRenderer {
 
@@ -38,8 +39,8 @@ public final class XposedRoundedBarChartRenderer extends BarChartRenderer {
         gradientEndColor = context.getColor(R.color.wingsv_success);
         outlinePaint.setColor(context.getColor(R.color.wingsv_surface_alt));
         outlinePaint.setStyle(Paint.Style.STROKE);
-        outlinePaint.setStrokeWidth(context.getResources().getDisplayMetrics().density);
-        radius = context.getResources().getDisplayMetrics().density * 11f;
+        outlinePaint.setStrokeWidth(DisplayDensityUtils.dpToPx(context, 1));
+        radius = DisplayDensityUtils.dpToPx(context, 11);
     }
 
     public void setBarRadius(float radius) {

@@ -563,6 +563,9 @@ android {
         versionCode = configuredAppVersionCode
         versionName = configuredAppVersionName
         vectorDrawables.useSupportLibrary = true
+        
+        // Add screen support configuration to handle different densities
+        resConfigs("ldpi", "mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

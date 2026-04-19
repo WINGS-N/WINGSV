@@ -1,6 +1,7 @@
 package wings.v;
 
 import android.app.Application;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.text.TextUtils;
 import java.io.FileInputStream;
@@ -8,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateBackgroundScheduler;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.ThemeModeController;
 import wings.v.core.XraySubscriptionBackgroundScheduler;
 import wings.v.service.ProxyTunnelService;
@@ -19,6 +21,12 @@ public class WingsApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        
+        // Validate display density early to prevent crashes
+        if (!DisplayDensityUtils.validateDisplayDensity(this)) {
+            android.util.Log.w("WingsApplication", "Display density validation failed during app initialization");
+        }
+        
         RuntimeStateStore.initialize(this);
         if (!isMainProcess()) {
             return;
@@ -29,6 +37,17 @@ public class WingsApplication extends Application {
         AppUpdateBackgroundScheduler.schedule(this);
         ActiveProbingBackgroundScheduler.refresh(this);
         XraySubscriptionBackgroundScheduler.refresh(this);
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Handle application-level configuration changes
+        try {
+            DisplayDensityUtils.validateDisplayDensity(this);
+        } catch (Exception e) {
+            android.util.Log.w("WingsApplication", "Error handling configuration change", e);
+        }
     }
 
     private boolean isMainProcess() {

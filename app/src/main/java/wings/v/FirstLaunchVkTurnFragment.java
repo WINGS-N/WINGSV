@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
 import wings.v.core.WingsImportParser;
@@ -656,7 +657,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     }
 
     private int dp(int value) {
-        return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics());
+        return DisplayDensityUtils.dpToPx(requireContext(), value);
     }
 
     private static final class InputField {

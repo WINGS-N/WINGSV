@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import wings.v.R;
+import wings.v.core.DisplayDensityUtils;
 import wings.v.core.XposedAttackStatsStore;
 
 public final class XposedWeeklyChartConfigurator {
@@ -37,7 +38,18 @@ public final class XposedWeeklyChartConfigurator {
 
     public static void bind(@NonNull BarChart chart, @NonNull List<XposedAttackStatsStore.DailyPoint> points) {
         Context context = chart.getContext();
-        float density = context.getResources().getDisplayMetrics().density;
+        
+        // Safe density calculation
+        float density = 1.0f;
+        try {
+            float rawDensity = context.getResources().getDisplayMetrics().density;
+            if (DisplayDensityUtils.isValidDensity(rawDensity)) {
+                density = rawDensity;
+            }
+        } catch (Exception e) {
+            android.util.Log.w("XposedWeeklyChartConfigurator", "Error getting density, using default", e);
+        }
+        
         boolean isRtl =
             TextUtilsCompat.getLayoutDirectionFromLocale(Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL ||
             ViewCompat.getLayoutDirection(chart) == ViewCompat.LAYOUT_DIRECTION_RTL;
@@ -69,7 +81,7 @@ public final class XposedWeeklyChartConfigurator {
         xAxis.setGranularityEnabled(true);
         xAxis.setTextSize(11f);
         xAxis.setTextColor(context.getColor(R.color.wingsv_text_secondary));
-        xAxis.setYOffset(density * 2f);
+        xAxis.setYOffset(DisplayDensityUtils.dpToPx(context, 2));
         xAxis.setAvoidFirstLastClipping(false);
         xAxis.setCenterAxisLabels(false);
         xAxis.setLabelRotationAngle(0f);
@@ -130,7 +142,7 @@ public final class XposedWeeklyChartConfigurator {
             chart.getAnimator(),
             chart.getViewPortHandler()
         );
-        renderer.setBarRadius(context.getResources().getDisplayMetrics().density * 11f);
+        renderer.setBarRadius(DisplayDensityUtils.dpToPx(context, 11));
         XposedWeeklyXAxisRenderer xAxisRenderer = new XposedWeeklyXAxisRenderer(
             chart.getViewPortHandler(),
             xAxis,
@@ -143,9 +155,9 @@ public final class XposedWeeklyChartConfigurator {
         chart.setXAxisRenderer(xAxisRenderer);
         chart.notifyDataSetChanged();
         chart.post(() -> {
-            float leftOffset = isRtl ? density * 30f : density * 12f;
-            float rightOffset = isRtl ? density * 10f : density * 36f;
-            chart.setViewPortOffsets(leftOffset, density * 8f, rightOffset, density * 34f);
+            float leftOffset = isRtl ? DisplayDensityUtils.dpToPx(context, 30) : DisplayDensityUtils.dpToPx(context, 12);
+            float rightOffset = isRtl ? DisplayDensityUtils.dpToPx(context, 10) : DisplayDensityUtils.dpToPx(context, 36);
+            chart.setViewPortOffsets(leftOffset, DisplayDensityUtils.dpToPx(context, 8), rightOffset, DisplayDensityUtils.dpToPx(context, 34));
             chart.notifyDataSetChanged();
             chart.animateY(500, SAMSUNG_CHART_EASING);
             chart.invalidate();
@@ -158,8 +170,8 @@ public final class XposedWeeklyChartConfigurator {
         axis.setDrawZeroLine(false);
         axis.setTextColor(context.getColor(R.color.wingsv_text_secondary));
         axis.setTextSize(11f);
-        axis.setXOffset(context.getResources().getDisplayMetrics().density * 2f);
-        axis.setYOffset(context.getResources().getDisplayMetrics().density * 3f);
+        axis.setXOffset(DisplayDensityUtils.dpToPx(context, 2));
+        axis.setYOffset(DisplayDensityUtils.dpToPx(context, 3));
         axis.setLabelCount(3, true);
         axis.setValueFormatter(
             new ValueFormatter() {
