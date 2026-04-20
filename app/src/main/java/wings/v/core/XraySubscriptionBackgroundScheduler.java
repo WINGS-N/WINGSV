@@ -6,7 +6,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.SystemClock;
 import androidx.annotation.NonNull;
+import androidx.work.Constraints;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
+import java.util.concurrent.TimeUnit;
 import wings.v.receiver.XraySubscriptionRefreshReceiver;
+import wings.v.worker.XraySubscriptionRefreshWorker;
 
 @SuppressWarnings(
     {
@@ -21,6 +28,7 @@ import wings.v.receiver.XraySubscriptionRefreshReceiver;
 public final class XraySubscriptionBackgroundScheduler {
 
     public static final String ACTION_REFRESH_SUBSCRIPTIONS = "wings.v.action.REFRESH_XRAY_SUBSCRIPTIONS";
+    private static final String UNIQUE_WORK_NAME = "xray_subscription_refresh";
     private static final int REQUEST_CODE_REFRESH_SUBSCRIPTIONS = 1004;
     private static final long MIN_SCHEDULE_DELAY_MS = 15_000L;
     private static final long INITIAL_REFRESH_DELAY_MS = 60_000L;
@@ -38,6 +46,7 @@ public final class XraySubscriptionBackgroundScheduler {
         if (nextRefreshAt <= 0L) {
             alarmManager.cancel(pendingIntent);
             pendingIntent.cancel();
+            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
             return;
         }
         long delayMs = Math.max(MIN_SCHEDULE_DELAY_MS, nextRefreshAt - System.currentTimeMillis());
@@ -46,6 +55,11 @@ public final class XraySubscriptionBackgroundScheduler {
             SystemClock.elapsedRealtime() + delayMs,
             pendingIntent
         );
+        OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(XraySubscriptionRefreshWorker.class)
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+            .setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build();
+        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, workRequest);
     }
 
     public static void cancel(@NonNull Context context) {
@@ -56,6 +70,7 @@ public final class XraySubscriptionBackgroundScheduler {
         PendingIntent pendingIntent = buildPendingIntent(context);
         alarmManager.cancel(pendingIntent);
         pendingIntent.cancel();
+        WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
     }
 
     private static long resolveNextRefreshAt(@NonNull Context context) {
