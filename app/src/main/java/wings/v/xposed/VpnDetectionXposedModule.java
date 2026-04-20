@@ -16,6 +16,7 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.Process;
 import android.util.Log;
+import androidx.annotation.Nullable;
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XSharedPreferences;
@@ -183,7 +184,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         }
 
         Log.i(LOG_TAG, "Applying in-process hooks to " + packageName + ", allApps=" + config.allApps);
-        hookInProcessApis(loadPackageParam.classLoader, config);
+        hookInProcessApis(loadPackageParam.classLoader, config, packageName);
     }
 
     private static boolean isSystemServerProcess(XC_LoadPackage.LoadPackageParam loadPackageParam) {
@@ -438,7 +439,11 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         }
     }
 
-    private static void hookInProcessApis(final ClassLoader classLoader, final ModuleConfig config) {
+    private static void hookInProcessApis(
+        final ClassLoader classLoader,
+        final ModuleConfig config,
+        final String currentPackageName
+    ) {
         hookNetworkCapabilities();
         hookLinkProperties();
         hookJavaNetworkInterfaces();
@@ -450,7 +455,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             hookKnownNativeInterfaceDetectors(classLoader);
         }
         if (config.hideVpnApps) {
-            hookPackageManager(classLoader, config.hiddenVpnPackages);
+            hookPackageManager(classLoader, config.hiddenVpnPackages, currentPackageName);
         }
     }
 
@@ -747,6 +752,29 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 }
             }
         );
+
+        XposedHelpers.findAndHookMethod(
+            NetworkInterface.class,
+            "getByIndex",
+            int.class,
+            new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    Object result = param.getResult();
+                    if (!(result instanceof NetworkInterface)) {
+                        return;
+                    }
+                    NetworkInterface networkInterface = (NetworkInterface) result;
+                    if (isTunnelInterface(networkInterface.getName())) {
+                        param.setResult(null);
+                        XposedAttackReporter.reportAppEvent(
+                            XposedAttackVector.NETWORK_INTERFACE_BY_NAME,
+                            "index=" + param.args[0]
+                        );
+                    }
+                }
+            }
+        );
     }
 
     private static void hookKnownNativeInterfaceDetectors(ClassLoader classLoader) {
@@ -786,7 +814,11 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         );
     }
 
-    private static void hookPackageManager(ClassLoader classLoader, Set<String> hiddenPackages) {
+    private static void hookPackageManager(
+        ClassLoader classLoader,
+        Set<String> hiddenPackages,
+        @Nullable String currentPackageName
+    ) {
         if (hiddenPackages == null || hiddenPackages.isEmpty()) {
             return;
         }
@@ -807,7 +839,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     if (isWebViewBootstrapCall()) {
                         return;
                     }
-                    Object filtered = filterPackageInfoList(param.getResult(), hiddenPackages);
+                    Object filtered = filterPackageInfoList(param.getResult(), hiddenPackages, currentPackageName);
                     if (filtered != param.getResult()) {
                         param.setResult(filtered);
                         XposedAttackReporter.reportAppEvent(
@@ -827,7 +859,7 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                     if (isWebViewBootstrapCall()) {
                         return;
                     }
-                    Object filtered = filterApplicationInfoList(param.getResult(), hiddenPackages);
+                    Object filtered = filterApplicationInfoList(param.getResult(), hiddenPackages, currentPackageName);
                     if (filtered != param.getResult()) {
                         param.setResult(filtered);
                         XposedAttackReporter.reportAppEvent(
@@ -848,6 +880,9 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
                 String packageName = extractPackageName(
                     param.args != null && param.args.length > 0 ? param.args[0] : null
                 );
+                if (packageName != null && packageName.equals(currentPackageName)) {
+                    return;
+                }
                 if (packageName != null && hiddenPackages.contains(packageName)) {
                     XposedAttackReporter.reportAppEvent(
                         "getPackageInfo".equals(param.method.getName())
@@ -897,29 +932,55 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
         );
     }
 
-    private static Object filterPackageInfoList(Object value, Set<String> hiddenPackages) {
+    private static Object filterPackageInfoList(
+        Object value,
+        Set<String> hiddenPackages,
+        @Nullable String currentPackageName
+    ) {
         if (!(value instanceof List<?>)) {
             return value;
         }
         List<?> source = (List<?>) value;
         List<PackageInfo> filtered = new ArrayList<>(source.size());
         for (Object item : source) {
-            if (item instanceof PackageInfo && !hiddenPackages.contains(((PackageInfo) item).packageName)) {
-                filtered.add((PackageInfo) item);
+            if (!(item instanceof PackageInfo)) {
+                continue;
+            }
+            PackageInfo packageInfo = (PackageInfo) item;
+            String packageName = packageInfo.packageName;
+            if (packageName != null && packageName.equals(currentPackageName)) {
+                filtered.add(packageInfo);
+                continue;
+            }
+            if (!hiddenPackages.contains(packageName)) {
+                filtered.add(packageInfo);
             }
         }
         return filtered.size() == source.size() ? value : filtered;
     }
 
-    private static Object filterApplicationInfoList(Object value, Set<String> hiddenPackages) {
+    private static Object filterApplicationInfoList(
+        Object value,
+        Set<String> hiddenPackages,
+        @Nullable String currentPackageName
+    ) {
         if (!(value instanceof List<?>)) {
             return value;
         }
         List<?> source = (List<?>) value;
         List<ApplicationInfo> filtered = new ArrayList<>(source.size());
         for (Object item : source) {
-            if (item instanceof ApplicationInfo && !hiddenPackages.contains(((ApplicationInfo) item).packageName)) {
-                filtered.add((ApplicationInfo) item);
+            if (!(item instanceof ApplicationInfo)) {
+                continue;
+            }
+            ApplicationInfo applicationInfo = (ApplicationInfo) item;
+            String packageName = applicationInfo.packageName;
+            if (packageName != null && packageName.equals(currentPackageName)) {
+                filtered.add(applicationInfo);
+                continue;
+            }
+            if (!hiddenPackages.contains(packageName)) {
+                filtered.add(applicationInfo);
             }
         }
         return filtered.size() == source.size() ? value : filtered;

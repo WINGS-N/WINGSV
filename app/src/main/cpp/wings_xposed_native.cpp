@@ -3,11 +3,13 @@
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <jni.h>
+#include <linux/sockios.h>
 #include <net/if.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <string.h>
 #include <string>
+#include <sys/ioctl.h>
 #include <sys/system_properties.h>
 #include <unistd.h>
 #include <unordered_map>
@@ -22,6 +24,8 @@ static unsigned int (*orig_if_nametoindex)(const char *) = nullptr;
 static char *(*orig_if_indextoname)(unsigned int, char *) = nullptr;
 static FILE *(*orig_fopen)(const char *, const char *) = nullptr;
 static int (*orig_open)(const char *, int, ...) = nullptr;
+static int (*orig_openat)(int, const char *, int, ...) = nullptr;
+static int (*orig_ioctl)(int, unsigned long, ...) = nullptr;
 static JavaVM *g_vm = nullptr;
 static jclass g_reporter_class = nullptr;
 static jmethodID g_report_method = nullptr;
@@ -29,8 +33,9 @@ static jmethodID g_report_method = nullptr;
 static pthread_mutex_t g_hidden_lists_lock = PTHREAD_MUTEX_INITIALIZER;
 static std::unordered_map<ifaddrs *, ifaddrs *> g_hidden_lists;
 static bool g_installed = false;
-static constexpr const char *kHookedLibrariesPattern = ".*/libc.*\\.so$";
+static constexpr const char *kHookedLibrariesPattern = ".*\\.so$";
 static constexpr const char *kProcfsHookModeProp = "persist.wingsv.xposed.procfs_hook_mode";
+static constexpr const char *kSysClassNetPrefix = "/sys/class/net/";
 static constexpr const char *kCriticalInfrastructureProcesses[] = {
         "system",
         "android",
@@ -90,11 +95,62 @@ enum ProcfsHookMode {
     PROCFS_HOOK_MODE_DISABLED = 2,
 };
 
+static bool is_tunnel_interface(const char *name);
+static ProcfsHookMode get_procfs_hook_mode();
+
 static bool is_proc_net_path(const char *path) {
     if (path == nullptr) {
         return false;
     }
-    return strncmp(path, "/proc/net/", 11) == 0;
+    return strncmp(path, "/proc/net/", 10) == 0 || strncmp(path, "/proc/self/net/", 15) == 0;
+}
+
+static bool is_tunnel_sysfs_path(const char *path) {
+    if (path == nullptr || strncmp(path, kSysClassNetPrefix, strlen(kSysClassNetPrefix)) != 0) {
+        return false;
+    }
+
+    const char *interface_name = path + strlen(kSysClassNetPrefix);
+    if (*interface_name == '\0') {
+        return false;
+    }
+
+    const char *separator = strchr(interface_name, '/');
+    std::string candidate =
+            separator == nullptr
+                    ? std::string(interface_name)
+                    : std::string(interface_name, static_cast<size_t>(separator - interface_name));
+    return is_tunnel_interface(candidate.c_str());
+}
+
+static bool should_block_native_path(const char *path, bool *is_procfs) {
+    if (is_procfs != nullptr) {
+        *is_procfs = false;
+    }
+
+    if (is_proc_net_path(path)) {
+        if (is_procfs != nullptr) {
+            *is_procfs = true;
+        }
+        return get_procfs_hook_mode() != PROCFS_HOOK_MODE_DISABLED;
+    }
+
+    return is_tunnel_sysfs_path(path);
+}
+
+static int blocked_path_errno(bool is_procfs) {
+    if (!is_procfs) {
+        return ENOENT;
+    }
+    switch (get_procfs_hook_mode()) {
+        case PROCFS_HOOK_MODE_NO_ACCESS:
+            return EACCES;
+        case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
+            return ENOENT;
+        case PROCFS_HOOK_MODE_DISABLED:
+        default:
+            return 0;
+    }
 }
 
 static ProcfsHookMode get_procfs_hook_mode() {
@@ -327,43 +383,37 @@ static char *proxy_if_indextoname(unsigned int ifindex, char *ifname) {
 }
 
 static FILE *proxy_fopen(const char *path, const char *mode) {
-    if (is_proc_net_path(path)) {
-        switch (get_procfs_hook_mode()) {
-            case PROCFS_HOOK_MODE_DISABLED:
-                break;
-            case PROCFS_HOOK_MODE_NO_ACCESS:
-                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Denied fopen of %s with EACCES", path);
-                report_native_event("native_procfs_fopen", path);
-                errno = EACCES;
-                return nullptr;
-            case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
-            default:
-                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Blocked fopen of %s with ENOENT", path);
-                report_native_event("native_procfs_fopen", path);
-                errno = ENOENT;
-                return nullptr;
-        }
+    bool is_procfs = false;
+    if (should_block_native_path(path, &is_procfs)) {
+        int error = blocked_path_errno(is_procfs);
+        __android_log_print(
+                ANDROID_LOG_DEBUG,
+                LOG_TAG,
+                "Blocked fopen of %s with errno=%d",
+                path,
+                error
+        );
+        report_native_event(is_procfs ? "native_procfs_fopen" : "native_sysfs_fopen", path);
+        errno = error;
+        return nullptr;
     }
     return orig_fopen(path, mode);
 }
 
 static int proxy_open(const char *path, int flags, ...) {
-    if (is_proc_net_path(path)) {
-        switch (get_procfs_hook_mode()) {
-            case PROCFS_HOOK_MODE_DISABLED:
-                break;
-            case PROCFS_HOOK_MODE_NO_ACCESS:
-                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Denied open of %s with EACCES", path);
-                report_native_event("native_procfs_open", path);
-                errno = EACCES;
-                return -1;
-            case PROCFS_HOOK_MODE_FILE_NOT_FOUND:
-            default:
-                __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Blocked open of %s with ENOENT", path);
-                report_native_event("native_procfs_open", path);
-                errno = ENOENT;
-                return -1;
-        }
+    bool is_procfs = false;
+    if (should_block_native_path(path, &is_procfs)) {
+        int error = blocked_path_errno(is_procfs);
+        __android_log_print(
+                ANDROID_LOG_DEBUG,
+                LOG_TAG,
+                "Blocked open of %s with errno=%d",
+                path,
+                error
+        );
+        report_native_event(is_procfs ? "native_procfs_open" : "native_sysfs_open", path);
+        errno = error;
+        return -1;
     }
 
     mode_t mode = 0;
@@ -374,6 +424,77 @@ static int proxy_open(const char *path, int flags, ...) {
         va_end(args);
     }
     return orig_open(path, flags, mode);
+}
+
+static int proxy_openat(int dirfd, const char *path, int flags, ...) {
+    bool is_procfs = false;
+    if (should_block_native_path(path, &is_procfs)) {
+        int error = blocked_path_errno(is_procfs);
+        __android_log_print(
+                ANDROID_LOG_DEBUG,
+                LOG_TAG,
+                "Blocked openat of %s with errno=%d",
+                path,
+                error
+        );
+        report_native_event(is_procfs ? "native_procfs_openat" : "native_sysfs_openat", path);
+        errno = error;
+        return -1;
+    }
+
+    mode_t mode = 0;
+    if ((flags & O_CREAT) != 0) {
+        va_list args;
+        va_start(args, flags);
+        mode = static_cast<mode_t>(va_arg(args, int));
+        va_end(args);
+    }
+    return orig_openat(dirfd, path, flags, mode);
+}
+
+static int proxy_ioctl(int fd, unsigned long request, ...) {
+    void *argp = nullptr;
+    va_list args;
+    va_start(args, request);
+    argp = va_arg(args, void *);
+    va_end(args);
+
+    if (argp != nullptr) {
+        ifreq *req = reinterpret_cast<ifreq *>(argp);
+        switch (request) {
+            case SIOCGIFMTU:
+            case SIOCGIFINDEX:
+            case SIOCGIFFLAGS:
+            case SIOCGIFADDR:
+            case SIOCGIFNETMASK:
+            case SIOCGIFBRDADDR:
+            case SIOCGIFDSTADDR:
+            case SIOCGIFHWADDR:
+            case SIOCGIFPFLAGS:
+            case SIOCGIFENCAP:
+            case SIOCGIFTXQLEN:
+            case SIOCGIFMETRIC:
+                if (is_tunnel_interface(req->ifr_name)) {
+                    report_native_event("native_ioctl", req->ifr_name);
+                    errno = ENODEV;
+                    return -1;
+                }
+                break;
+            case SIOCGIFNAME: {
+                int result = orig_ioctl != nullptr ? orig_ioctl(fd, request, argp) : -1;
+                if (result == 0 && is_tunnel_interface(req->ifr_name)) {
+                    report_native_event("native_ioctl", req->ifr_name);
+                    errno = ENODEV;
+                    return -1;
+                }
+                return result;
+            }
+            default:
+                break;
+        }
+    }
+
+    return orig_ioctl != nullptr ? orig_ioctl(fd, request, argp) : -1;
 }
 
 static int refresh_hooks() {
@@ -469,6 +590,18 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *env, jclass) {
             "open",
             reinterpret_cast<void *>(proxy_open),
             reinterpret_cast<void **>(&orig_open)
+    );
+    result |= xhook_register(
+            kHookedLibrariesPattern,
+            "openat",
+            reinterpret_cast<void *>(proxy_openat),
+            reinterpret_cast<void **>(&orig_openat)
+    );
+    result |= xhook_register(
+            kHookedLibrariesPattern,
+            "ioctl",
+            reinterpret_cast<void *>(proxy_ioctl),
+            reinterpret_cast<void **>(&orig_ioctl)
     );
 
     int refresh_result = refresh_hooks();

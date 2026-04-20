@@ -1041,3 +1041,13 @@
     <string name="auto_search_failed_bydpi">Не удалось запустить ByeDPI для автопоиска</string>
     <string name="auto_search_failed_local_proxy">Не удалось дождаться прокси Xray</string>
 </resources>
+    <string name="xposed_attack_vector_short_native_procfs_openat">procfs openat</string>
+    <string name="xposed_attack_vector_short_native_sysfs_fopen">sysfs fopen</string>
+    <string name="xposed_attack_vector_short_native_sysfs_open">sysfs open</string>
+    <string name="xposed_attack_vector_short_native_sysfs_openat">sysfs openat</string>
+    <string name="xposed_attack_vector_short_native_ioctl">ioctl iface</string>
+    <string name="xposed_attack_vector_detail_native_procfs_openat">Чтение /proc/net через openat() (native openat(/proc/net/* или /proc/self/net/*))</string>
+    <string name="xposed_attack_vector_detail_native_sysfs_fopen">Чтение sysfs интерфейса через fopen() (native fopen(/sys/class/net/&lt;tunnel&gt;/*))</string>
+    <string name="xposed_attack_vector_detail_native_sysfs_open">Чтение sysfs интерфейса через open() (native open(/sys/class/net/&lt;tunnel&gt;/*))</string>
+    <string name="xposed_attack_vector_detail_native_sysfs_openat">Чтение sysfs интерфейса через openat() (native openat(/sys/class/net/&lt;tunnel&gt;/*))</string>
+    <string name="xposed_attack_vector_detail_native_ioctl">Запрос параметров интерфейса через ioctl() (native SIOCGIF* для tunnel iface)</string>
