@@ -30,6 +30,11 @@ public final class XposedAttackVector {
     public static final String NATIVE_IF_INDEXTONAME = "native_if_indextoname";
     public static final String NATIVE_PROCFS_FOPEN = "native_procfs_fopen";
     public static final String NATIVE_PROCFS_OPEN = "native_procfs_open";
+    public static final String NATIVE_PROCFS_OPENAT = "native_procfs_openat";
+    public static final String NATIVE_SYSFS_FOPEN = "native_sysfs_fopen";
+    public static final String NATIVE_SYSFS_OPEN = "native_sysfs_open";
+    public static final String NATIVE_SYSFS_OPENAT = "native_sysfs_openat";
+    public static final String NATIVE_IOCTL = "native_ioctl";
 
     private XposedAttackVector() {}
 
@@ -84,6 +89,16 @@ public final class XposedAttackVector {
                 return R.string.xposed_attack_vector_short_native_procfs_fopen;
             case NATIVE_PROCFS_OPEN:
                 return R.string.xposed_attack_vector_short_native_procfs_open;
+            case NATIVE_PROCFS_OPENAT:
+                return R.string.xposed_attack_vector_short_native_procfs_openat;
+            case NATIVE_SYSFS_FOPEN:
+                return R.string.xposed_attack_vector_short_native_sysfs_fopen;
+            case NATIVE_SYSFS_OPEN:
+                return R.string.xposed_attack_vector_short_native_sysfs_open;
+            case NATIVE_SYSFS_OPENAT:
+                return R.string.xposed_attack_vector_short_native_sysfs_openat;
+            case NATIVE_IOCTL:
+                return R.string.xposed_attack_vector_short_native_ioctl;
             default:
                 return R.string.xposed_attack_vector_short_unknown;
         }
@@ -140,6 +155,16 @@ public final class XposedAttackVector {
                 return R.string.xposed_attack_vector_detail_native_procfs_fopen;
             case NATIVE_PROCFS_OPEN:
                 return R.string.xposed_attack_vector_detail_native_procfs_open;
+            case NATIVE_PROCFS_OPENAT:
+                return R.string.xposed_attack_vector_detail_native_procfs_openat;
+            case NATIVE_SYSFS_FOPEN:
+                return R.string.xposed_attack_vector_detail_native_sysfs_fopen;
+            case NATIVE_SYSFS_OPEN:
+                return R.string.xposed_attack_vector_detail_native_sysfs_open;
+            case NATIVE_SYSFS_OPENAT:
+                return R.string.xposed_attack_vector_detail_native_sysfs_openat;
+            case NATIVE_IOCTL:
+                return R.string.xposed_attack_vector_detail_native_ioctl;
             default:
                 return R.string.xposed_attack_vector_detail_unknown;
         }
