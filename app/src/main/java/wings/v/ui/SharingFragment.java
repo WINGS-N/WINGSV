@@ -35,6 +35,7 @@ import wings.v.SharingTargetSettingsActivity;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
 import wings.v.core.XrayStore;
@@ -322,6 +323,11 @@ public class SharingFragment extends Fragment {
             refreshUi();
             return;
         }
+        if (!PermissionUtils.canWriteSystemSettings(requireContext())) {
+            requestWriteSettingsPermission();
+            refreshUi();
+            return;
+        }
         Haptics.softSliderStep(sourceView);
         operationInFlight = true;
         refreshUi();
@@ -412,18 +418,22 @@ public class SharingFragment extends Fragment {
             return;
         }
         boolean rootModeReady = isRootModeReady();
+        boolean canWriteSystemSettings = PermissionUtils.canWriteSystemSettings(requireContext());
+        boolean tetherControlsReady = rootModeReady && canWriteSystemSettings;
         binding.progressBusy.setVisibility(operationInFlight ? View.VISIBLE : View.GONE);
         binding.textBusy.setVisibility(operationInFlight ? View.VISIBLE : View.GONE);
-        binding.textRootModeHint.setVisibility(rootModeReady ? View.GONE : View.VISIBLE);
+        binding.textRootModeHint.setVisibility(tetherControlsReady ? View.GONE : View.VISIBLE);
         if (!rootModeReady) {
             binding.textRootModeHint.setText(R.string.sharing_root_mode_required);
+        } else if (!canWriteSystemSettings) {
+            binding.textRootModeHint.setText(R.string.sharing_write_settings_required);
         }
 
-        updateTetherToggle(binding.itemWifi, TetherType.WIFI, rootModeReady);
-        updateTetherToggle(binding.itemUsb, TetherType.USB, rootModeReady);
-        updateTetherToggle(binding.itemBluetooth, TetherType.BLUETOOTH, rootModeReady);
+        updateTetherToggle(binding.itemWifi, TetherType.WIFI, tetherControlsReady);
+        updateTetherToggle(binding.itemUsb, TetherType.USB, tetherControlsReady);
+        updateTetherToggle(binding.itemBluetooth, TetherType.BLUETOOTH, tetherControlsReady);
         if (TetherType.isEthernetSupported()) {
-            updateTetherToggle(binding.itemEthernet, TetherType.ETHERNET, rootModeReady);
+            updateTetherToggle(binding.itemEthernet, TetherType.ETHERNET, tetherControlsReady);
         }
 
         updateBooleanSetting(binding.itemDisableIpv6, AppPrefs.isSharingDisableIpv6Enabled(requireContext()));
@@ -614,6 +624,12 @@ public class SharingFragment extends Fragment {
             AppPrefs.isRootModeEnabled(requireContext()) &&
             RootUtils.isRootModeSupported(requireContext(), XrayStore.getBackendType(requireContext()), false)
         );
+    }
+
+    private void requestWriteSettingsPermission() {
+        Context context = requireContext();
+        Toast.makeText(context, R.string.sharing_write_settings_request, Toast.LENGTH_SHORT).show();
+        startActivity(PermissionUtils.createManageWriteSettingsIntent(context));
     }
 
     private void refreshStickyState() {
