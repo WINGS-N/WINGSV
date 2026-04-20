@@ -672,6 +672,8 @@ dependencies {
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
     implementation(libs.mpandroidchart)
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.zstd.jni)
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))
