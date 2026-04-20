@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -589,12 +590,12 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void handleImportIntent(Intent intent) {
-        if (intent == null || intent.getDataString() == null) {
+        if (intent == null) {
             return;
         }
 
-        String rawData = intent.getDataString();
-        if (TextUtils.isEmpty(rawData) || (!rawData.startsWith("wingsv://") && !rawData.startsWith("vless://"))) {
+        String rawData = extractImportLink(intent);
+        if (TextUtils.isEmpty(rawData)) {
             return;
         }
 
@@ -613,6 +614,43 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
             intent.setData(null);
         }
+    }
+
+    @Nullable
+    private String extractImportLink(@NonNull Intent intent) {
+        Uri data = intent.getData();
+        if (data == null) {
+            return null;
+        }
+
+        String rawData = data.toString();
+        if (isSupportedImportLink(rawData)) {
+            return rawData;
+        }
+
+        String scheme = data.getScheme();
+        String host = data.getHost();
+        if (
+            scheme == null ||
+            host == null ||
+            (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) ||
+            !"v.wingsnet.org".equalsIgnoreCase(host)
+        ) {
+            return null;
+        }
+
+        String nestedLink = data.getQueryParameter("link");
+        if (isSupportedImportLink(nestedLink)) {
+            return nestedLink;
+        }
+        return null;
+    }
+
+    private boolean isSupportedImportLink(@Nullable String rawData) {
+        if (TextUtils.isEmpty(rawData)) {
+            return false;
+        }
+        return rawData.startsWith("wingsv://") || rawData.startsWith("vless://");
     }
 
     private void requestReconnectAfterImport(@Nullable String importedText) {

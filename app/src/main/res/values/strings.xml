@@ -378,6 +378,11 @@
     <string name="xposed_attack_vector_short_native_if_indextoname">if_indextoname</string>
     <string name="xposed_attack_vector_short_native_procfs_fopen">procfs fopen</string>
     <string name="xposed_attack_vector_short_native_procfs_open">procfs open</string>
+    <string name="xposed_attack_vector_short_native_procfs_openat">procfs openat</string>
+    <string name="xposed_attack_vector_short_native_sysfs_fopen">sysfs fopen</string>
+    <string name="xposed_attack_vector_short_native_sysfs_open">sysfs open</string>
+    <string name="xposed_attack_vector_short_native_sysfs_openat">sysfs openat</string>
+    <string name="xposed_attack_vector_short_native_ioctl">ioctl iface</string>
     <string name="xposed_attack_vector_detail_unknown">Неизвестный вектор</string>
     <string name="xposed_attack_vector_detail_network_caps_has_transport_vpn">Проверка VPN transport (NetworkCapabilities.hasTransport(VPN))</string>
     <string name="xposed_attack_vector_detail_network_caps_transport_info">Чтение transport info (NetworkCapabilities.getTransportInfo())</string>
@@ -403,6 +408,11 @@
     <string name="xposed_attack_vector_detail_native_if_indextoname">Поиск имени интерфейса (native if_indextoname())</string>
     <string name="xposed_attack_vector_detail_native_procfs_fopen">Чтение /proc/net через fopen() (native fopen(/proc/net/*))</string>
     <string name="xposed_attack_vector_detail_native_procfs_open">Чтение /proc/net через open() (native open(/proc/net/*))</string>
+    <string name="xposed_attack_vector_detail_native_procfs_openat">Чтение /proc/net через openat() (native openat(/proc/net/* или /proc/self/net/*))</string>
+    <string name="xposed_attack_vector_detail_native_sysfs_fopen">Чтение sysfs интерфейса через fopen() (native fopen(/sys/class/net/&lt;tunnel&gt;/*))</string>
+    <string name="xposed_attack_vector_detail_native_sysfs_open">Чтение sysfs интерфейса через open() (native open(/sys/class/net/&lt;tunnel&gt;/*))</string>
+    <string name="xposed_attack_vector_detail_native_sysfs_openat">Чтение sysfs интерфейса через openat() (native openat(/sys/class/net/&lt;tunnel&gt;/*))</string>
+    <string name="xposed_attack_vector_detail_native_ioctl">Запрос параметров интерфейса через ioctl() (native SIOCGIF* для tunnel iface)</string>
     <string name="turn_session_mode_title">TURN session mode</string>
     <string name="turn_session_mode_auto">Auto</string>
     <string name="turn_session_mode_mainline">Mainline</string>
@@ -758,6 +768,8 @@
     <string name="sharing_title">Раздача VPN</string>
     <string name="sharing_subtitle">Раздача VPN позволяет передать VPN-соединение другим устройствам без установки стороннего ПО на них</string>
     <string name="sharing_root_mode_required">Включите root функции в настройках, чтобы направлять системную раздачу через VPN</string>
+    <string name="sharing_write_settings_required">Разрешите изменение системных настроек, чтобы управлять системной раздачей на этом устройстве</string>
+    <string name="sharing_write_settings_request">Откройте системный экран и разрешите изменение системных настроек для WINGS V</string>
     <string name="sharing_changes_hint">Изменения маршрутизации применяются после переподключения или через пункт «Переприменить правила маршрутизации»</string>
     <string name="sharing_busy">Применяем изменение…</string>
     <string name="sharing_target_settings_section">Параметры</string>
@@ -1041,13 +1053,3 @@
     <string name="auto_search_failed_bydpi">Не удалось запустить ByeDPI для автопоиска</string>
     <string name="auto_search_failed_local_proxy">Не удалось дождаться прокси Xray</string>
 </resources>
-    <string name="xposed_attack_vector_short_native_procfs_openat">procfs openat</string>
-    <string name="xposed_attack_vector_short_native_sysfs_fopen">sysfs fopen</string>
-    <string name="xposed_attack_vector_short_native_sysfs_open">sysfs open</string>
-    <string name="xposed_attack_vector_short_native_sysfs_openat">sysfs openat</string>
-    <string name="xposed_attack_vector_short_native_ioctl">ioctl iface</string>
-    <string name="xposed_attack_vector_detail_native_procfs_openat">Чтение /proc/net через openat() (native openat(/proc/net/* или /proc/self/net/*))</string>
-    <string name="xposed_attack_vector_detail_native_sysfs_fopen">Чтение sysfs интерфейса через fopen() (native fopen(/sys/class/net/&lt;tunnel&gt;/*))</string>
-    <string name="xposed_attack_vector_detail_native_sysfs_open">Чтение sysfs интерфейса через open() (native open(/sys/class/net/&lt;tunnel&gt;/*))</string>
-    <string name="xposed_attack_vector_detail_native_sysfs_openat">Чтение sysfs интерфейса через openat() (native openat(/sys/class/net/&lt;tunnel&gt;/*))</string>
-    <string name="xposed_attack_vector_detail_native_ioctl">Запрос параметров интерфейса через ioctl() (native SIOCGIF* для tunnel iface)</string>

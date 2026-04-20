@@ -5,7 +5,10 @@ import android.content.Context;
 import android.net.TetheringManager;
 import android.os.Build;
 import java.lang.reflect.Method;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import wings.v.core.TetherType;
 
 @SuppressLint("NewApi")
@@ -24,6 +27,8 @@ import wings.v.core.TetherType;
     }
 )
 final class RootTetheringCommands {
+
+    private static final long TETHER_CALLBACK_TIMEOUT_SECONDS = 15L;
 
     private RootTetheringCommands() {}
 
@@ -54,11 +59,25 @@ final class RootTetheringCommands {
         }
 
         Executor directExecutor = Runnable::run;
+        CountDownLatch completionLatch = new CountDownLatch(1);
+        AtomicReference<String> failureMessage = new AtomicReference<>(null);
         tetheringManager.startTethering(
             buildRequest(tetherType),
             directExecutor,
-            new TetheringManager.StartTetheringCallback() {}
+            new TetheringManager.StartTetheringCallback() {
+                @Override
+                public void onTetheringStarted() {
+                    completionLatch.countDown();
+                }
+
+                @Override
+                public void onTetheringFailed(int error) {
+                    failureMessage.set("StartTethering failed: " + error);
+                    completionLatch.countDown();
+                }
+            }
         );
+        awaitTetherCallback(completionLatch, failureMessage, "start");
     }
 
     private static void stop(Context context, TetherType tetherType) throws Exception {
@@ -75,6 +94,7 @@ final class RootTetheringCommands {
             directExecutor,
             new TetheringManager.StopTetheringCallback() {}
         );
+        Thread.sleep(1_000L);
     }
 
     private static TetheringManager.TetheringRequest buildRequest(TetherType tetherType) throws Exception {
@@ -96,8 +116,22 @@ final class RootTetheringCommands {
                 .Builder.class.getDeclaredMethod(methodName, boolean.class);
             method.setAccessible(true);
             method.invoke(builder, value);
-        } catch (Exception ignored) {
-            // Method is OEM/API dependent. Ignore when unavailable.
+        } catch (Exception ignored) {}
+    }
+
+    private static void awaitTetherCallback(
+        CountDownLatch completionLatch,
+        AtomicReference<String> failureMessage,
+        String action
+    ) throws Exception {
+        if (!completionLatch.await(TETHER_CALLBACK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw new IllegalStateException(
+                "System did not confirm tether " + action + " within " + TETHER_CALLBACK_TIMEOUT_SECONDS + "s"
+            );
+        }
+        String failure = failureMessage.get();
+        if (failure != null && !failure.isEmpty()) {
+            throw new IllegalStateException(failure);
         }
     }
 }

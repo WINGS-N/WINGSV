@@ -3,10 +3,13 @@ package wings.v.core;
 import android.Manifest;
 import android.app.ActivityManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.net.VpnService;
 import android.os.Build;
 import android.os.PowerManager;
+import android.provider.Settings;
 import androidx.core.content.ContextCompat;
 import java.util.Locale;
 
@@ -89,6 +92,22 @@ public final class PermissionUtils {
 
     public static boolean isRootPermissionGranted(Context context) {
         return AppPrefs.isRootAccessGranted(context);
+    }
+
+    public static boolean canWriteSystemSettings(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        return Settings.System.canWrite(context);
+    }
+
+    public static Intent createManageWriteSettingsIntent(Context context) {
+        Intent intent = new Intent(
+            Settings.ACTION_MANAGE_WRITE_SETTINGS,
+            Uri.parse("package:" + context.getPackageName())
+        );
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return intent;
     }
 
     public static boolean areBasePermissionsGranted(Context context) {
