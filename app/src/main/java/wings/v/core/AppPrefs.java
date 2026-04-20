@@ -84,6 +84,8 @@ public final class AppPrefs {
     public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES = "pref_xray_subscriptions_refresh_minutes";
+    public static final String KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED =
+        "pref_xray_subscriptions_auto_refresh_enabled";
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT = "pref_xray_subscriptions_last_refresh_at";
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR = "pref_xray_subscriptions_last_error";
     public static final String KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON = "pref_xray_imported_subscription_json";
