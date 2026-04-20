@@ -119,6 +119,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".SubscriptionUpdateSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".XraySettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

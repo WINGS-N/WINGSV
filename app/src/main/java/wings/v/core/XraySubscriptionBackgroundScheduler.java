@@ -42,6 +42,12 @@ public final class XraySubscriptionBackgroundScheduler {
             return;
         }
         PendingIntent pendingIntent = buildPendingIntent(context);
+        if (!XrayStore.isSubscriptionsAutoRefreshEnabled(context)) {
+            alarmManager.cancel(pendingIntent);
+            pendingIntent.cancel();
+            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK_NAME);
+            return;
+        }
         long nextRefreshAt = resolveNextRefreshAt(context);
         if (nextRefreshAt <= 0L) {
             alarmManager.cancel(pendingIntent);

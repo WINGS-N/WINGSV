@@ -76,11 +76,31 @@
                         app:drawableEnd="@drawable/ic_selected_apps_disclosure"
                         app:showTopDivider="false" />
 
-                    <dev.oneuiproject.oneui.widget.CardItemView
-                        android:id="@+id/row_subscription_refresh_interval"
+                    <FrameLayout
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        app:drawableEnd="@drawable/ic_selected_apps_disclosure" />
+                        android:layout_height="wrap_content">
+
+                        <dev.oneuiproject.oneui.widget.CardItemView
+                            android:id="@+id/row_subscription_auto_refresh"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical|end"
+                            android:layout_marginEnd="68dp"
+                            android:text="|"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="?android:textColorTertiary" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/switch_subscription_auto_refresh"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical|end"
+                            android:layout_marginEnd="18dp" />
+                    </FrameLayout>
 
                     <FrameLayout
                         android:layout_width="match_parent"
