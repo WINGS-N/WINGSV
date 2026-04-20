@@ -8,6 +8,9 @@ import com.wireguard.android.util.RootShell;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @SuppressWarnings(
     {
@@ -30,18 +33,70 @@ public final class RootUtils {
     private static final String TAG = "WINGSV/RootUtils";
     private static final String ROOT_UID_MARKER = "__WINGSV_ROOT_UID__=";
     private static final String ROOT_CHECK_EXIT_MARKER = "__WINGSV_ROOT_CHECK_EXIT__=";
+    private static final String ROOT_PROBE_COMMAND =
+        "uid=$(/system/bin/id -u 2>/dev/null || id -u 2>/dev/null); printf '%s' \"$uid\"";
+    private static final String ROOT_UID_ZERO_CHECK_COMMAND =
+        "uid=$(/system/bin/id -u 2>/dev/null || id -u 2>/dev/null); [ \"$uid\" = \"0\" ]";
     private static final int MAX_DIRECT_SU_LOG_CHARS = 240;
+    private static final int ROOT_PROBE_ATTEMPTS = 3;
+    private static final long ROOT_PROBE_RETRY_DELAY_MS = 450L;
 
     private RootUtils() {}
 
     public static boolean verifyRootAccess(Context context) {
+        for (int attempt = 1; attempt <= ROOT_PROBE_ATTEMPTS; attempt++) {
+            if (verifyRootAccessOnce(context, attempt)) {
+                return true;
+            }
+            if (attempt < ROOT_PROBE_ATTEMPTS) {
+                sleepBeforeRootRetry(attempt);
+            }
+        }
+        return false;
+    }
+
+    private static boolean verifyRootAccessOnce(Context context, int attempt) {
+        if (verifyRootAccessInteractive(context)) {
+            Log.i(TAG, "Root access confirmed via interactive probe on attempt " + attempt);
+            return true;
+        }
+        if (verifyRootAccessDirect()) {
+            Log.i(TAG, "Root access confirmed via direct su probe on attempt " + attempt);
+            return true;
+        }
+        if (verifyRootAccessViaHelper(context)) {
+            Log.i(TAG, "Root access confirmed via helper probe on attempt " + attempt);
+            return true;
+        }
+        if (verifyRootAccessFallbackMatrix()) {
+            Log.i(TAG, "Root access confirmed via fallback probe on attempt " + attempt);
+            return true;
+        }
+        return false;
+    }
+
+    private static void sleepBeforeRootRetry(int attempt) {
+        try {
+            Thread.sleep(ROOT_PROBE_RETRY_DELAY_MS);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            Log.w(TAG, "Interrupted while waiting before root probe retry " + attempt, error);
+        }
+    }
+
+    private static boolean verifyRootAccessInteractive(Context context) {
         RootShell rootShell = new RootShell(context.getApplicationContext());
         try {
             rootShell.start();
-            return true;
+            int exitCode = rootShell.run(null, ROOT_UID_ZERO_CHECK_COMMAND);
+            if (exitCode == 0) {
+                return true;
+            }
+            Log.w(TAG, "Interactive RootShell probe returned non-root exit code: " + exitCode);
+            return false;
         } catch (Exception error) {
-            Log.w(TAG, "Interactive RootShell probe failed, falling back to direct su check", error);
-            return verifyRootAccessDirect();
+            Log.w(TAG, "Interactive RootShell probe failed", error);
+            return false;
         } finally {
             rootShell.stop();
         }
@@ -173,7 +228,7 @@ public final class RootUtils {
             return rootShell.run(null, command) == 0;
         } catch (Exception ignored) {
             try {
-                return runDirectRootCommand(command).exitCode == 0;
+                return runDirectRootCommand(new String[] { "su", "-c", command }).exitCode == 0;
             } catch (Exception ignoredAgain) {
                 return false;
             }
@@ -184,7 +239,9 @@ public final class RootUtils {
 
     private static boolean verifyRootAccessDirect() {
         try {
-            DirectRootCommandResult result = runDirectRootCommand(buildDirectRootAccessProbeCommand());
+            DirectRootCommandResult result = runDirectRootCommand(
+                new String[] { "su", "-c", buildDirectRootAccessProbeCommand() }
+            );
             String uid = extractMarkerValue(result.output, ROOT_UID_MARKER);
             String commandExit = extractMarkerValue(result.output, ROOT_CHECK_EXIT_MARKER);
             boolean granted = result.exitCode == 0 && "0".equals(uid) && "0".equals(commandExit);
@@ -208,6 +265,53 @@ public final class RootUtils {
         }
     }
 
+    private static boolean verifyRootAccessViaHelper(Context context) {
+        try {
+            String output = runRootHelper(context, "shell", "id", "-u");
+            String uid = trim(output);
+            boolean granted = "0".equals(uid);
+            if (!granted) {
+                Log.w(TAG, "Root helper probe returned non-root uid: " + safeLogValue(uid));
+            }
+            return granted;
+        } catch (Exception error) {
+            Log.w(TAG, "Root helper probe failed", error);
+            return false;
+        }
+    }
+
+    private static boolean verifyRootAccessFallbackMatrix() {
+        List<String[]> commandMatrix = new ArrayList<>();
+        commandMatrix.add(new String[] { "su", "-c", ROOT_PROBE_COMMAND });
+        commandMatrix.add(new String[] { "su", "0", "sh", "-c", ROOT_PROBE_COMMAND });
+        commandMatrix.add(new String[] { "su", "root", "sh", "-c", ROOT_PROBE_COMMAND });
+        commandMatrix.add(new String[] { "/system/xbin/su", "-c", ROOT_PROBE_COMMAND });
+        commandMatrix.add(new String[] { "/system/bin/su", "-c", ROOT_PROBE_COMMAND });
+
+        for (String[] command : commandMatrix) {
+            try {
+                DirectRootCommandResult result = runDirectRootCommand(command);
+                String uid = trim(result.output);
+                if (result.exitCode == 0 && "0".equals(uid)) {
+                    Log.i(TAG, "Fallback root probe succeeded via " + Arrays.toString(command));
+                    return true;
+                }
+                Log.w(
+                    TAG,
+                    "Fallback root probe returned non-root result via " +
+                        Arrays.toString(command) +
+                        ": exit=" +
+                        result.exitCode +
+                        ", output=" +
+                        summarizeDirectSuOutput(result.output)
+                );
+            } catch (Exception error) {
+                Log.w(TAG, "Fallback root probe failed via " + Arrays.toString(command), error);
+            }
+        }
+        return false;
+    }
+
     private static String buildDirectRootAccessProbeCommand() {
         return (
             "printf '\\n" +
@@ -219,14 +323,18 @@ public final class RootUtils {
         );
     }
 
-    private static DirectRootCommandResult runDirectRootCommand(String command) throws Exception {
-        Process process = new ProcessBuilder("su", "-c", command).redirectErrorStream(true).start();
+    private static DirectRootCommandResult runDirectRootCommand(String[] command) throws Exception {
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         String output;
         try (InputStream inputStream = process.getInputStream()) {
             output = readFully(inputStream);
         }
         int exitCode = process.waitFor();
         return new DirectRootCommandResult(exitCode, output == null ? "" : output);
+    }
+
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private static String extractMarkerValue(String output, String marker) {
