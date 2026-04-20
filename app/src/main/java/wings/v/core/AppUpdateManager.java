@@ -10,14 +10,17 @@ import android.os.Looper;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import com.github.luben.zstd.ZstdInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -51,9 +54,11 @@ public final class AppUpdateManager {
 
     private static final int TIRAMISU_API = 33;
     private static final String CACHE_PREFS_NAME = "app_update_cache";
-    private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases/latest";
+    private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases?per_page=4";
     private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
     private static final String PREFERRED_APK_ASSET_NAME = "app-release.apk";
+    private static final String PATCH_ASSET_PREFIX = "wings-v_v";
+    private static final String PATCH_ASSET_SUFFIX = ".patch";
     private static final String KEY_LAST_CHECK_AT = "last_check_at";
     private static final String KEY_LAST_RELEASE_ETAG = "last_release_etag";
     private static final String KEY_LAST_RELEASE_JSON = "last_release_json";
@@ -62,6 +67,7 @@ public final class AppUpdateManager {
     private static final long AUTO_CHECK_MIN_INTERVAL_MS = 60L * 60L * 1000L;
     private static final long MIN_CONTENT_LENGTH_BYTES = 1L;
     private static final long PROGRESS_UPDATE_INTERVAL_MS = 250L;
+    private static final int MAX_PATCH_CHAIN_DEPTH = 3;
     private static final Pattern VERSION_NUMBER_PATTERN = Pattern.compile("\\d+");
 
     private static volatile AppUpdateManager instance;
@@ -74,6 +80,7 @@ public final class AppUpdateManager {
     private final AtomicReference<HttpURLConnection> activeConnection = new AtomicReference<>();
 
     private volatile UpdateState state;
+    private volatile UpdatePlan updatePlan = UpdatePlan.empty();
     private volatile boolean checkInFlight;
     private volatile boolean downloadInFlight;
     private volatile boolean cancelRequested;
@@ -169,94 +176,46 @@ public final class AppUpdateManager {
             return;
         }
 
+        UpdatePlan currentPlan = updatePlan.isUsable() ? updatePlan : UpdatePlan.full(releaseInfo);
+        long initialTotalBytes = Math.max(
+            MIN_CONTENT_LENGTH_BYTES,
+            currentPlan.hasPatchChain() ? currentPlan.totalPatchBytes() : releaseInfo.apkAssetSize
+        );
         downloadInFlight = true;
         cancelRequested = false;
-        updateState(
-            UpdateState.downloading(releaseInfo, 0L, releaseInfo.apkAssetSize, 0L, releaseInfo.apkAssetSize, 0)
-        );
+        updateState(UpdateState.downloading(releaseInfo, 0L, initialTotalBytes, 0L, initialTotalBytes, 0));
         executor.execute(() -> {
-            File tempFile = buildTempApkFile(releaseInfo);
-            File targetFile = buildTargetApkFile(releaseInfo);
-            HttpURLConnection connection = null;
             try {
-                deleteQuietly(tempFile);
-                targetFile.getParentFile().mkdirs();
-
-                connection = openConnection(releaseInfo.apkAssetUrl);
-                activeConnection.set(connection);
-                connection.connect();
-                int responseCode = connection.getResponseCode();
-                if (responseCode < 200 || responseCode >= 400) {
-                    throw new IllegalStateException("GitHub release asset HTTP " + responseCode);
-                }
-
-                long totalBytes = connection.getContentLengthLong();
-                if (totalBytes < MIN_CONTENT_LENGTH_BYTES) {
-                    totalBytes = releaseInfo.apkAssetSize;
-                }
-
-                long startedAt = System.currentTimeMillis();
-                long lastPublishedAt = 0L;
-                long downloadedBytes = 0L;
-
-                try (
-                    InputStream inputStream = connection.getInputStream();
-                    FileOutputStream outputStream = new FileOutputStream(tempFile)
-                ) {
-                    byte[] buffer = new byte[16 * 1024];
-                    int read;
-                    read = inputStream.read(buffer);
-                    while (read != -1) {
-                        if (cancelRequested) {
-                            throw new DownloadCancelledException();
-                        }
-                        outputStream.write(buffer, 0, read);
-                        downloadedBytes += read;
-
-                        long now = System.currentTimeMillis();
-                        if (now - lastPublishedAt >= PROGRESS_UPDATE_INTERVAL_MS) {
-                            long elapsedMs = Math.max(1L, now - startedAt);
-                            long speedBytesPerSecond = (downloadedBytes * 1000L) / elapsedMs;
-                            long remainingBytes = totalBytes > 0L ? Math.max(0L, totalBytes - downloadedBytes) : -1L;
-                            int progressPercent =
-                                totalBytes > 0L ? (int) Math.min(100L, (downloadedBytes * 100L) / totalBytes) : 0;
-                            updateState(
-                                UpdateState.downloading(
-                                    releaseInfo,
-                                    downloadedBytes,
-                                    totalBytes,
-                                    speedBytesPerSecond,
-                                    remainingBytes,
-                                    progressPercent
-                                )
-                            );
-                            lastPublishedAt = now;
-                        }
-                        read = inputStream.read(buffer);
-                    }
-                    outputStream.flush();
-                }
-
-                if (cancelRequested) {
-                    throw new DownloadCancelledException();
-                }
-                if (targetFile.exists() && !targetFile.delete()) {
-                    throw new IllegalStateException("Не удалось заменить старый APK");
-                }
-                if (!tempFile.renameTo(targetFile)) {
-                    throw new IllegalStateException("Не удалось сохранить APK");
-                }
+                File targetFile = currentPlan.hasPatchChain()
+                    ? downloadPatchedRelease(currentPlan)
+                    : downloadFullRelease(currentPlan.latestRelease);
                 updateState(UpdateState.downloaded(releaseInfo, targetFile));
             } catch (DownloadCancelledException ignored) {
-                deleteQuietly(tempFile);
                 updateState(UpdateState.updateAvailable(releaseInfo, "Загрузка отменена"));
             } catch (Exception error) {
-                deleteQuietly(tempFile);
-                updateState(UpdateState.error(describeThrowable(error), releaseInfo));
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
+                if (currentPlan.hasPatchChain()) {
+                    try {
+                        updateState(
+                            UpdateState.downloading(
+                                releaseInfo,
+                                0L,
+                                Math.max(MIN_CONTENT_LENGTH_BYTES, releaseInfo.apkAssetSize),
+                                0L,
+                                Math.max(MIN_CONTENT_LENGTH_BYTES, releaseInfo.apkAssetSize),
+                                0
+                            )
+                        );
+                        File targetFile = downloadFullRelease(releaseInfo);
+                        updateState(UpdateState.downloaded(releaseInfo, targetFile));
+                    } catch (DownloadCancelledException ignored) {
+                        updateState(UpdateState.updateAvailable(releaseInfo, "Загрузка отменена"));
+                    } catch (Exception fallbackError) {
+                        updateState(UpdateState.error(describeThrowable(fallbackError), releaseInfo));
+                    }
+                } else {
+                    updateState(UpdateState.error(describeThrowable(error), releaseInfo));
                 }
+            } finally {
                 activeConnection.set(null);
                 cancelRequested = false;
                 downloadInFlight = false;
@@ -300,32 +259,37 @@ public final class AppUpdateManager {
                 return cachedState;
             }
         }
-        ReleaseInfo releaseInfo = fetchLatestRelease(trackActiveConnection);
-        if (releaseInfo == null) {
-            ReleaseInfo cachedRelease = readCachedReleaseInfo();
-            if (cachedRelease != null) {
-                return buildStateFromReleaseInfo(cachedRelease);
+        List<ReleaseInfo> releases = fetchRecentReleases(trackActiveConnection);
+        if (releases.isEmpty()) {
+            List<ReleaseInfo> cachedReleases = readCachedReleaseInfoList();
+            if (!cachedReleases.isEmpty()) {
+                return buildStateFromReleaseCatalog(cachedReleases);
             }
             return UpdateState.error("GitHub не вернул опубликованный релиз", null);
         }
-        return buildStateFromReleaseInfo(releaseInfo);
+        return buildStateFromReleaseCatalog(releases);
     }
 
     @NonNull
-    private UpdateState buildStateFromReleaseInfo(@NonNull ReleaseInfo releaseInfo) {
+    private UpdateState buildStateFromReleaseCatalog(@NonNull List<ReleaseInfo> releases) {
+        ReleaseInfo releaseInfo = releases.get(0);
+        updatePlan = UpdatePlan.empty();
         if (!releaseInfo.hasInstallableAsset()) {
             return UpdateState.error("В релизе не найден APK-артефакт", releaseInfo);
         }
+        String currentVersionName = resolveCurrentVersionName();
+        long currentVersionCode = resolveCurrentVersionCode();
         boolean releaseIsNewer = isRemoteVersionNewer(
             releaseInfo.versionName,
             releaseInfo.versionCode,
-            resolveCurrentVersionName(),
-            resolveCurrentVersionCode()
+            currentVersionName,
+            currentVersionCode
         );
         if (!releaseIsNewer) {
             return UpdateState.upToDate(releaseInfo);
         }
         File cachedApk = resolveReadyDownloadedApk(releaseInfo);
+        updatePlan = buildUpdatePlan(releases, currentVersionName, currentVersionCode);
         if (cachedApk != null) {
             return UpdateState.downloaded(releaseInfo, cachedApk);
         }
@@ -333,7 +297,7 @@ public final class AppUpdateManager {
     }
 
     @Nullable
-    private ReleaseInfo fetchLatestRelease(boolean trackActiveConnection) throws Exception {
+    private List<ReleaseInfo> fetchRecentReleases(boolean trackActiveConnection) throws Exception {
         HttpURLConnection connection = openConnection(RELEASES_URL);
         String cachedEtag = cachePreferences.getString(KEY_LAST_RELEASE_ETAG, "");
         if (!TextUtils.isEmpty(cachedEtag)) {
@@ -348,14 +312,14 @@ public final class AppUpdateManager {
             String body = readResponseBody(connection);
             if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
                 persistLastCheckedAt();
-                return readCachedReleaseInfo();
+                return readCachedReleaseInfoList();
             }
             if (responseCode < 200 || responseCode >= 400) {
                 if (isRateLimitResponse(connection, body)) {
                     persistLastCheckedAt();
-                    ReleaseInfo cachedRelease = readCachedReleaseInfo();
-                    if (cachedRelease != null) {
-                        return cachedRelease;
+                    List<ReleaseInfo> cachedReleases = readCachedReleaseInfoList();
+                    if (!cachedReleases.isEmpty()) {
+                        return cachedReleases;
                     }
                     throw new IllegalStateException("GitHub API rate limit exceeded");
                 }
@@ -366,7 +330,7 @@ public final class AppUpdateManager {
                 throw new IllegalStateException(message);
             }
 
-            ReleaseInfo releaseInfo = parseReleaseInfo(new JSONObject(body));
+            List<ReleaseInfo> releaseInfo = parseReleaseInfoList(new JSONArray(body));
             persistReleaseCache(body, connection.getHeaderField("ETag"));
             return releaseInfo;
         } finally {
@@ -382,11 +346,11 @@ public final class AppUpdateManager {
         if (isAutoCheckStale()) {
             return null;
         }
-        ReleaseInfo cachedRelease = readCachedReleaseInfo();
-        if (cachedRelease == null) {
+        List<ReleaseInfo> cachedReleases = readCachedReleaseInfoList();
+        if (cachedReleases.isEmpty()) {
             return null;
         }
-        return buildStateFromReleaseInfo(cachedRelease);
+        return buildStateFromReleaseCatalog(cachedReleases);
     }
 
     private boolean isAutoCheckStale() {
@@ -408,25 +372,32 @@ public final class AppUpdateManager {
     }
 
     @Nullable
-    private ReleaseInfo readCachedReleaseInfo() {
+    private List<ReleaseInfo> readCachedReleaseInfoList() {
         String cachedJson = cachePreferences.getString(KEY_LAST_RELEASE_JSON, "");
         if (TextUtils.isEmpty(cachedJson)) {
-            return null;
+            return new ArrayList<>();
         }
         try {
-            return parseReleaseInfo(new JSONObject(cachedJson));
-        } catch (Exception ignored) {
-            return null;
-        }
+            String normalized = cachedJson.trim();
+            if (normalized.startsWith("[")) {
+                return parseReleaseInfoList(new JSONArray(normalized));
+            }
+            if (normalized.startsWith("{")) {
+                ArrayList<ReleaseInfo> result = new ArrayList<>();
+                result.add(parseReleaseInfo(new JSONObject(normalized)));
+                return result;
+            }
+        } catch (Exception ignored) {}
+        return new ArrayList<>();
     }
 
     @NonNull
     private UpdateState loadPersistedState() {
-        ReleaseInfo cachedRelease = readCachedReleaseInfo();
-        if (cachedRelease == null) {
+        List<ReleaseInfo> cachedReleases = readCachedReleaseInfoList();
+        if (cachedReleases.isEmpty()) {
             return UpdateState.idle();
         }
-        return buildStateFromReleaseInfo(cachedRelease);
+        return buildStateFromReleaseCatalog(cachedReleases);
     }
 
     private static boolean isRateLimitResponse(HttpURLConnection connection, String body) {
@@ -440,10 +411,20 @@ public final class AppUpdateManager {
 
     @NonNull
     private static ReleaseInfo parseReleaseInfo(@NonNull JSONObject root) {
+        String tagName = root.optString("tag_name", "");
+        String versionName = ReleaseInfo.normalizeVersionName(tagName);
         JSONArray assets = root.optJSONArray("assets");
         String selectedAssetName = "";
         String selectedAssetUrl = "";
         long selectedAssetSize = 0L;
+        String selectedPatchName = "";
+        String selectedPatchUrl = "";
+        long selectedPatchSize = 0L;
+        String apkSha256Url = "";
+        String apkSha512Url = "";
+        String patchSha256Url = "";
+        String patchSha512Url = "";
+        String expectedPatchName = buildPatchAssetName(versionName);
         if (assets != null) {
             for (int index = 0; index < assets.length(); index++) {
                 JSONObject asset = assets.optJSONObject(index);
@@ -455,28 +436,88 @@ public final class AppUpdateManager {
                 if (TextUtils.isEmpty(assetName) || TextUtils.isEmpty(assetUrl)) {
                     continue;
                 }
-                if (!assetName.toLowerCase(Locale.US).endsWith(".apk")) {
+                if (assetName.toLowerCase(Locale.US).endsWith(".apk")) {
+                    if (TextUtils.isEmpty(selectedAssetName) || PREFERRED_APK_ASSET_NAME.equals(assetName)) {
+                        selectedAssetName = assetName;
+                        selectedAssetUrl = assetUrl;
+                        selectedAssetSize = asset.optLong("size", 0L);
+                    }
+                    if (PREFERRED_APK_ASSET_NAME.equals(assetName)) {
+                        continue;
+                    }
+                }
+                if (TextUtils.equals(assetName, expectedPatchName)) {
+                    selectedPatchName = assetName;
+                    selectedPatchUrl = assetUrl;
+                    selectedPatchSize = asset.optLong("size", 0L);
+                }
+            }
+            for (int index = 0; index < assets.length(); index++) {
+                JSONObject asset = assets.optJSONObject(index);
+                if (asset == null) {
                     continue;
                 }
-                selectedAssetName = assetName;
-                selectedAssetUrl = assetUrl;
-                selectedAssetSize = asset.optLong("size", 0L);
-                if (PREFERRED_APK_ASSET_NAME.equals(assetName)) {
-                    break;
+                String assetName = asset.optString("name", "");
+                String assetUrl = asset.optString("browser_download_url", "");
+                if (TextUtils.isEmpty(assetName) || TextUtils.isEmpty(assetUrl)) {
+                    continue;
+                }
+                if (!TextUtils.isEmpty(selectedAssetName)) {
+                    if (TextUtils.equals(assetName, selectedAssetName + ".sha512")) {
+                        apkSha512Url = assetUrl;
+                    } else if (TextUtils.equals(assetName, selectedAssetName + ".sha256")) {
+                        apkSha256Url = assetUrl;
+                    }
+                }
+                if (!TextUtils.isEmpty(selectedPatchName)) {
+                    if (TextUtils.equals(assetName, selectedPatchName + ".sha512")) {
+                        patchSha512Url = assetUrl;
+                    } else if (TextUtils.equals(assetName, selectedPatchName + ".sha256")) {
+                        patchSha256Url = assetUrl;
+                    }
                 }
             }
         }
+        ChecksumInfo apkChecksum = preferredChecksum(apkSha512Url, apkSha256Url);
+        ChecksumInfo patchChecksum = preferredChecksum(patchSha512Url, patchSha256Url);
 
         return new ReleaseInfo(
-            root.optString("tag_name", ""),
+            tagName,
             root.optString("name", ""),
             root.optString("html_url", ""),
             root.optString("body", ""),
             root.optString("published_at", ""),
             selectedAssetName,
             selectedAssetUrl,
-            selectedAssetSize
+            selectedAssetSize,
+            selectedPatchName,
+            selectedPatchUrl,
+            selectedPatchSize,
+            apkChecksum.algorithm,
+            apkChecksum.url,
+            patchChecksum.algorithm,
+            patchChecksum.url
         );
+    }
+
+    @NonNull
+    private static List<ReleaseInfo> parseReleaseInfoList(@NonNull JSONArray root) {
+        ArrayList<ReleaseInfo> result = new ArrayList<>();
+        for (int index = 0; index < root.length(); index++) {
+            JSONObject item = root.optJSONObject(index);
+            if (item == null) {
+                continue;
+            }
+            if (item.optBoolean("draft", false) || item.optBoolean("prerelease", false)) {
+                continue;
+            }
+            ReleaseInfo releaseInfo = parseReleaseInfo(item);
+            if (TextUtils.isEmpty(releaseInfo.tagName)) {
+                continue;
+            }
+            result.add(releaseInfo);
+        }
+        return result;
     }
 
     private static String readResponseBody(HttpURLConnection connection) throws Exception {
@@ -519,6 +560,338 @@ public final class AppUpdateManager {
         } catch (org.json.JSONException ignored) {
             return "";
         }
+    }
+
+    @NonNull
+    private static ChecksumInfo preferredChecksum(@Nullable String sha512Url, @Nullable String sha256Url) {
+        if (!TextUtils.isEmpty(sha512Url)) {
+            return new ChecksumInfo("SHA-512", sha512Url.trim());
+        }
+        if (!TextUtils.isEmpty(sha256Url)) {
+            return new ChecksumInfo("SHA-256", sha256Url.trim());
+        }
+        return ChecksumInfo.NONE;
+    }
+
+    @NonNull
+    private UpdatePlan buildUpdatePlan(
+        @NonNull List<ReleaseInfo> releases,
+        @NonNull String currentVersionName,
+        long currentVersionCode
+    ) {
+        if (releases.isEmpty()) {
+            return UpdatePlan.empty();
+        }
+        ReleaseInfo latestRelease = releases.get(0);
+        int currentIndex = -1;
+        for (int index = 0; index < releases.size(); index++) {
+            if (isSameVersion(releases.get(index), currentVersionName, currentVersionCode)) {
+                currentIndex = index;
+                break;
+            }
+        }
+        if (currentIndex <= 0) {
+            return UpdatePlan.full(latestRelease);
+        }
+        if (currentIndex > MAX_PATCH_CHAIN_DEPTH) {
+            return UpdatePlan.full(latestRelease);
+        }
+        ArrayList<PatchStep> patchSteps = new ArrayList<>();
+        for (int index = currentIndex - 1; index >= 0; index--) {
+            ReleaseInfo targetRelease = releases.get(index);
+            if (
+                !targetRelease.hasPatchAsset() || !targetRelease.hasPatchChecksum() || !targetRelease.hasApkChecksum()
+            ) {
+                return UpdatePlan.full(latestRelease);
+            }
+            patchSteps.add(new PatchStep(targetRelease));
+        }
+        return patchSteps.isEmpty() ? UpdatePlan.full(latestRelease) : UpdatePlan.patchChain(latestRelease, patchSteps);
+    }
+
+    private static boolean isSameVersion(
+        @NonNull ReleaseInfo releaseInfo,
+        @NonNull String currentVersionName,
+        long currentVersionCode
+    ) {
+        if (releaseInfo.versionCode > 0L && currentVersionCode > 0L) {
+            return releaseInfo.versionCode == currentVersionCode;
+        }
+        return compareVersions(releaseInfo.versionName, currentVersionName) == 0;
+    }
+
+    @NonNull
+    private File downloadFullRelease(@NonNull ReleaseInfo releaseInfo) throws Exception {
+        File tempFile = buildTempApkFile(releaseInfo);
+        File targetFile = buildTargetApkFile(releaseInfo);
+        deleteQuietly(tempFile);
+        if (targetFile.getParentFile() != null) {
+            targetFile.getParentFile().mkdirs();
+        }
+        long totalBytes = Math.max(MIN_CONTENT_LENGTH_BYTES, releaseInfo.apkAssetSize);
+        long startedAt = System.currentTimeMillis();
+        downloadAssetToFile(
+            releaseInfo,
+            releaseInfo.apkAssetUrl,
+            releaseInfo.apkAssetSize,
+            tempFile,
+            totalBytes,
+            0L,
+            startedAt
+        );
+        verifyDownloadedFile(tempFile, new ChecksumInfo(releaseInfo.apkChecksumAlgorithm, releaseInfo.apkChecksumUrl));
+        if (cancelRequested) {
+            throw new DownloadCancelledException();
+        }
+        replaceWithTarget(tempFile, targetFile);
+        return targetFile;
+    }
+
+    @NonNull
+    private File downloadPatchedRelease(@NonNull UpdatePlan updatePlan) throws Exception {
+        ReleaseInfo latestRelease = updatePlan.latestRelease;
+        File targetFile = buildTargetApkFile(latestRelease);
+        File installedApk = resolveInstalledApkFile();
+        File currentBase = installedApk;
+        ArrayList<File> temporaryFiles = new ArrayList<>();
+        long totalBytes = Math.max(MIN_CONTENT_LENGTH_BYTES, updatePlan.totalPatchBytes());
+        long startedAt = System.currentTimeMillis();
+        long downloadedBytes = 0L;
+        try {
+            if (targetFile.getParentFile() != null) {
+                targetFile.getParentFile().mkdirs();
+            }
+            for (PatchStep patchStep : updatePlan.patchSteps) {
+                ReleaseInfo targetRelease = patchStep.targetRelease;
+                File patchFile = buildTempPatchFile(targetRelease);
+                File outputFile = buildTempPatchedApkFile(targetRelease);
+                deleteQuietly(patchFile);
+                deleteQuietly(outputFile);
+                temporaryFiles.add(patchFile);
+                temporaryFiles.add(outputFile);
+                downloadedBytes = downloadAssetToFile(
+                    latestRelease,
+                    targetRelease.patchAssetUrl,
+                    targetRelease.patchAssetSize,
+                    patchFile,
+                    totalBytes,
+                    downloadedBytes,
+                    startedAt
+                );
+                verifyDownloadedFile(
+                    patchFile,
+                    new ChecksumInfo(targetRelease.patchChecksumAlgorithm, targetRelease.patchChecksumUrl)
+                );
+                applyPatchFile(currentBase, patchFile, outputFile);
+                verifyDownloadedFile(
+                    outputFile,
+                    new ChecksumInfo(targetRelease.apkChecksumAlgorithm, targetRelease.apkChecksumUrl)
+                );
+                if (cancelRequested) {
+                    throw new DownloadCancelledException();
+                }
+                if (targetRelease.apkAssetSize > 0L && outputFile.length() != targetRelease.apkAssetSize) {
+                    throw new IllegalStateException("Патч собрал APK с неверным размером");
+                }
+                currentBase = outputFile;
+            }
+            replaceWithTarget(currentBase, targetFile);
+            return targetFile;
+        } finally {
+            for (File file : temporaryFiles) {
+                if (file != null && !TextUtils.equals(file.getAbsolutePath(), targetFile.getAbsolutePath())) {
+                    deleteQuietly(file);
+                }
+            }
+        }
+    }
+
+    private void verifyDownloadedFile(@NonNull File file, @NonNull ChecksumInfo checksumInfo) throws Exception {
+        if (checksumInfo.isEmpty()) {
+            return;
+        }
+        String expectedChecksum = fetchChecksumValue(checksumInfo);
+        if (TextUtils.isEmpty(expectedChecksum)) {
+            throw new IllegalStateException("Не удалось получить checksum");
+        }
+        String actualChecksum = computeChecksum(file, checksumInfo.algorithm);
+        if (!expectedChecksum.equalsIgnoreCase(actualChecksum)) {
+            throw new IllegalStateException("Checksum не совпал");
+        }
+    }
+
+    @NonNull
+    private String fetchChecksumValue(@NonNull ChecksumInfo checksumInfo) throws Exception {
+        HttpURLConnection connection = openConnection(checksumInfo.url);
+        activeConnection.set(connection);
+        try {
+            connection.connect();
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 400) {
+                throw new IllegalStateException("GitHub checksum asset HTTP " + responseCode);
+            }
+            String body = readResponseBody(connection).trim();
+            if (TextUtils.isEmpty(body)) {
+                return "";
+            }
+            int firstSpace = body.indexOf(' ');
+            return firstSpace > 0 ? body.substring(0, firstSpace).trim() : body;
+        } finally {
+            connection.disconnect();
+            activeConnection.compareAndSet(connection, null);
+        }
+    }
+
+    @NonNull
+    private static String computeChecksum(@NonNull File file, @NonNull String algorithm) throws Exception {
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance(algorithm);
+        try (InputStream inputStream = new FileInputStream(file)) {
+            byte[] buffer = new byte[16 * 1024];
+            int read = inputStream.read(buffer);
+            while (read != -1) {
+                digest.update(buffer, 0, read);
+                read = inputStream.read(buffer);
+            }
+        }
+        StringBuilder builder = new StringBuilder();
+        for (byte value : digest.digest()) {
+            builder.append(String.format(Locale.US, "%02x", value & 0xff));
+        }
+        return builder.toString();
+    }
+
+    private long downloadAssetToFile(
+        @NonNull ReleaseInfo progressReleaseInfo,
+        @NonNull String assetUrl,
+        long expectedBytes,
+        @NonNull File outputFile,
+        long totalBytes,
+        long downloadedOffset,
+        long startedAt
+    ) throws Exception {
+        HttpURLConnection connection = openConnection(assetUrl);
+        activeConnection.set(connection);
+        try {
+            connection.connect();
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 400) {
+                throw new IllegalStateException("GitHub release asset HTTP " + responseCode);
+            }
+            long connectionLength = connection.getContentLengthLong();
+            long assetBytes = connectionLength >= MIN_CONTENT_LENGTH_BYTES ? connectionLength : expectedBytes;
+            try (
+                InputStream inputStream = connection.getInputStream();
+                FileOutputStream outputStream = new FileOutputStream(outputFile)
+            ) {
+                byte[] buffer = new byte[16 * 1024];
+                long fileDownloadedBytes = 0L;
+                long lastPublishedAt = 0L;
+                int read = inputStream.read(buffer);
+                while (read != -1) {
+                    if (cancelRequested) {
+                        throw new DownloadCancelledException();
+                    }
+                    outputStream.write(buffer, 0, read);
+                    fileDownloadedBytes += read;
+                    long totalDownloadedBytes = downloadedOffset + fileDownloadedBytes;
+                    long now = System.currentTimeMillis();
+                    if (now - lastPublishedAt >= PROGRESS_UPDATE_INTERVAL_MS) {
+                        publishDownloadProgress(progressReleaseInfo, totalDownloadedBytes, totalBytes, startedAt);
+                        lastPublishedAt = now;
+                    }
+                    read = inputStream.read(buffer);
+                }
+                outputStream.flush();
+                long finalDownloadedBytes = downloadedOffset + fileDownloadedBytes;
+                publishDownloadProgress(progressReleaseInfo, finalDownloadedBytes, totalBytes, startedAt);
+                if (assetBytes > 0L && fileDownloadedBytes != assetBytes) {
+                    return finalDownloadedBytes;
+                }
+                return finalDownloadedBytes;
+            }
+        } finally {
+            connection.disconnect();
+            activeConnection.compareAndSet(connection, null);
+        }
+    }
+
+    private void publishDownloadProgress(
+        @NonNull ReleaseInfo releaseInfo,
+        long downloadedBytes,
+        long totalBytes,
+        long startedAt
+    ) {
+        long safeTotalBytes = Math.max(MIN_CONTENT_LENGTH_BYTES, totalBytes);
+        long elapsedMs = Math.max(1L, System.currentTimeMillis() - startedAt);
+        long speedBytesPerSecond = (downloadedBytes * 1000L) / elapsedMs;
+        long remainingBytes = Math.max(0L, safeTotalBytes - downloadedBytes);
+        int progressPercent = (int) Math.min(100L, (downloadedBytes * 100L) / safeTotalBytes);
+        updateState(
+            UpdateState.downloading(
+                releaseInfo,
+                downloadedBytes,
+                safeTotalBytes,
+                speedBytesPerSecond,
+                remainingBytes,
+                progressPercent
+            )
+        );
+    }
+
+    @NonNull
+    private File resolveInstalledApkFile() {
+        File installedApk = new File(appContext.getPackageCodePath());
+        if (!installedApk.isFile() || installedApk.length() <= 0L) {
+            throw new IllegalStateException("Не удалось найти установленный APK");
+        }
+        return installedApk;
+    }
+
+    private void applyPatchFile(@NonNull File baseFile, @NonNull File patchFile, @NonNull File outputFile)
+        throws Exception {
+        byte[] dictionary = Files.readAllBytes(baseFile.toPath());
+        try (
+            InputStream patchInput = new FileInputStream(patchFile);
+            ZstdInputStream zstdInput = new ZstdInputStream(patchInput).setDict(dictionary);
+            FileOutputStream outputStream = new FileOutputStream(outputFile)
+        ) {
+            byte[] buffer = new byte[16 * 1024];
+            int read = zstdInput.read(buffer);
+            while (read != -1) {
+                if (cancelRequested) {
+                    throw new DownloadCancelledException();
+                }
+                outputStream.write(buffer, 0, read);
+                read = zstdInput.read(buffer);
+            }
+            outputStream.flush();
+        }
+    }
+
+    private static void replaceWithTarget(@NonNull File sourceFile, @NonNull File targetFile) {
+        if (targetFile.exists() && !targetFile.delete()) {
+            throw new IllegalStateException("Не удалось заменить старый APK");
+        }
+        if (!sourceFile.renameTo(targetFile)) {
+            throw new IllegalStateException("Не удалось сохранить APK");
+        }
+    }
+
+    @NonNull
+    private File buildTempPatchFile(@NonNull ReleaseInfo releaseInfo) {
+        File directory = new File(appContext.getCacheDir(), "updates");
+        return new File(directory, "WINGSV-" + sanitizeFileComponent(releaseInfo.tagName) + ".patch.part");
+    }
+
+    @NonNull
+    private File buildTempPatchedApkFile(@NonNull ReleaseInfo releaseInfo) {
+        File directory = new File(appContext.getCacheDir(), "updates");
+        return new File(directory, "WINGSV-" + sanitizeFileComponent(releaseInfo.tagName) + ".patched.apk.part");
+    }
+
+    @NonNull
+    private static String buildPatchAssetName(@NonNull String versionName) {
+        return PATCH_ASSET_PREFIX + versionName + PATCH_ASSET_SUFFIX;
     }
 
     private void updateState(@NonNull UpdateState newState) {
@@ -700,6 +1073,26 @@ public final class AppUpdateManager {
         public final long apkAssetSize;
 
         @NonNull
+        public final String patchAssetName;
+
+        @NonNull
+        public final String patchAssetUrl;
+
+        public final long patchAssetSize;
+
+        @NonNull
+        public final String apkChecksumAlgorithm;
+
+        @NonNull
+        public final String apkChecksumUrl;
+
+        @NonNull
+        public final String patchChecksumAlgorithm;
+
+        @NonNull
+        public final String patchChecksumUrl;
+
+        @NonNull
         public final String versionName;
 
         public final long versionCode;
@@ -712,7 +1105,14 @@ public final class AppUpdateManager {
             @Nullable String publishedAt,
             @Nullable String apkAssetName,
             @Nullable String apkAssetUrl,
-            long apkAssetSize
+            long apkAssetSize,
+            @Nullable String patchAssetName,
+            @Nullable String patchAssetUrl,
+            long patchAssetSize,
+            @Nullable String apkChecksumAlgorithm,
+            @Nullable String apkChecksumUrl,
+            @Nullable String patchChecksumAlgorithm,
+            @Nullable String patchChecksumUrl
         ) {
             this.tagName = safe(tagName);
             this.releaseName = safe(releaseName);
@@ -722,12 +1122,31 @@ public final class AppUpdateManager {
             this.apkAssetName = safe(apkAssetName);
             this.apkAssetUrl = safe(apkAssetUrl);
             this.apkAssetSize = Math.max(0L, apkAssetSize);
+            this.patchAssetName = safe(patchAssetName);
+            this.patchAssetUrl = safe(patchAssetUrl);
+            this.patchAssetSize = Math.max(0L, patchAssetSize);
+            this.apkChecksumAlgorithm = safe(apkChecksumAlgorithm);
+            this.apkChecksumUrl = safe(apkChecksumUrl);
+            this.patchChecksumAlgorithm = safe(patchChecksumAlgorithm);
+            this.patchChecksumUrl = safe(patchChecksumUrl);
             this.versionName = normalizeVersionName(this.tagName);
             this.versionCode = deriveVersionCode(this.versionName);
         }
 
         public boolean hasInstallableAsset() {
             return !TextUtils.isEmpty(apkAssetUrl) && !TextUtils.isEmpty(apkAssetName);
+        }
+
+        public boolean hasPatchAsset() {
+            return !TextUtils.isEmpty(patchAssetUrl) && !TextUtils.isEmpty(patchAssetName);
+        }
+
+        public boolean hasApkChecksum() {
+            return !TextUtils.isEmpty(apkChecksumAlgorithm) && !TextUtils.isEmpty(apkChecksumUrl);
+        }
+
+        public boolean hasPatchChecksum() {
+            return !TextUtils.isEmpty(patchChecksumAlgorithm) && !TextUtils.isEmpty(patchChecksumUrl);
         }
 
         private static String normalizeVersionName(String tagName) {
@@ -756,6 +1175,85 @@ public final class AppUpdateManager {
                 return 0L;
             }
             return major * 10_000L + minor * 100L + patch;
+        }
+    }
+
+    private static final class ChecksumInfo {
+
+        @NonNull
+        private static final ChecksumInfo NONE = new ChecksumInfo("", "");
+
+        @NonNull
+        private final String algorithm;
+
+        @NonNull
+        private final String url;
+
+        private ChecksumInfo(@Nullable String algorithm, @Nullable String url) {
+            this.algorithm = algorithm == null ? "" : algorithm.trim();
+            this.url = url == null ? "" : url.trim();
+        }
+
+        private boolean isEmpty() {
+            return TextUtils.isEmpty(algorithm) || TextUtils.isEmpty(url);
+        }
+    }
+
+    private static final class PatchStep {
+
+        @NonNull
+        private final ReleaseInfo targetRelease;
+
+        private PatchStep(@NonNull ReleaseInfo targetRelease) {
+            this.targetRelease = targetRelease;
+        }
+    }
+
+    private static final class UpdatePlan {
+
+        @NonNull
+        private final ReleaseInfo latestRelease;
+
+        @NonNull
+        private final List<PatchStep> patchSteps;
+
+        private UpdatePlan(@NonNull ReleaseInfo latestRelease, @NonNull List<PatchStep> patchSteps) {
+            this.latestRelease = latestRelease;
+            this.patchSteps = patchSteps;
+        }
+
+        @NonNull
+        private static UpdatePlan empty() {
+            return new UpdatePlan(
+                new ReleaseInfo("", "", "", "", "", "", "", 0L, "", "", 0L, "", "", "", ""),
+                new ArrayList<>()
+            );
+        }
+
+        @NonNull
+        private static UpdatePlan full(@NonNull ReleaseInfo latestRelease) {
+            return new UpdatePlan(latestRelease, new ArrayList<>());
+        }
+
+        @NonNull
+        private static UpdatePlan patchChain(@NonNull ReleaseInfo latestRelease, @NonNull List<PatchStep> patchSteps) {
+            return new UpdatePlan(latestRelease, patchSteps);
+        }
+
+        private boolean hasPatchChain() {
+            return !patchSteps.isEmpty();
+        }
+
+        private boolean isUsable() {
+            return latestRelease.hasInstallableAsset();
+        }
+
+        private long totalPatchBytes() {
+            long totalBytes = 0L;
+            for (PatchStep patchStep : patchSteps) {
+                totalBytes += Math.max(MIN_CONTENT_LENGTH_BYTES, patchStep.targetRelease.patchAssetSize);
+            }
+            return totalBytes;
         }
     }
 
