@@ -7,12 +7,10 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
-import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
@@ -20,7 +18,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.AppCompatCheckBox;
-import androidx.picker.widget.SeslTimePicker;
 import androidx.preference.PreferenceManager;
 import java.text.DateFormat;
 import java.util.ArrayList;
@@ -39,6 +36,7 @@ import wings.v.core.XraySubscription;
 import wings.v.core.XraySubscriptionUpdater;
 import wings.v.databinding.ActivitySubscriptionsBinding;
 import wings.v.databinding.ItemSubscriptionEntryBinding;
+import wings.v.ui.SubscriptionUpdateSettingsFragment;
 
 @SuppressWarnings(
     {
@@ -53,7 +51,6 @@ import wings.v.databinding.ItemSubscriptionEntryBinding;
 )
 public class SubscriptionsActivity extends AppCompatActivity {
 
-    private static final int MAX_PICKER_REFRESH_INTERVAL_MINUTES = 24 * 60;
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final LinkedHashSet<String> selectedSubscriptionIds = new LinkedHashSet<>();
     private final LinkedHashMap<String, SubscriptionRowViews> rowViews = new LinkedHashMap<>();
@@ -92,7 +89,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         binding.rowAddSubscription.setTitle(getString(R.string.xray_subscriptions_add_title));
         binding.rowAddSubscription.setSummary(getString(R.string.xray_subscriptions_add_summary));
         binding.rowAddSubscription.setIcon(AppCompatResources.getDrawable(this, R.drawable.ic_add));
-        binding.rowSubscriptionRefreshInterval.setTitle(getString(R.string.xray_subscriptions_refresh_interval_title));
+        binding.rowSubscriptionAutoRefresh.setTitle(getString(R.string.xray_subscriptions_auto_refresh_title));
         binding.rowSubscriptionHwid.setTitle(getString(R.string.subscription_hwid_title));
         binding.rowRefreshSubscriptionsNow.setTitle(getString(R.string.xray_subscriptions_refresh_now_title));
         binding.rowRefreshSubscriptionsNow.setSummary(getString(R.string.xray_subscriptions_refresh_now_summary));
@@ -101,9 +98,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
             Haptics.softSelection(view);
             showSubscriptionDialog(null);
         });
-        binding.rowSubscriptionRefreshInterval.setOnClickListener(view -> {
+        binding.rowSubscriptionAutoRefresh.setOnClickListener(view -> {
             Haptics.softSelection(view);
-            showRefreshIntervalDialog();
+            startActivity(SubscriptionUpdateSettingsActivity.createIntent(this));
         });
         binding.rowSubscriptionHwid.setOnClickListener(view -> {
             Haptics.softSelection(view);
@@ -155,13 +152,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
 
     private void refreshUi() {
         refreshSubscriptionHwidRow();
-        int refreshIntervalMinutes = XrayStore.getRefreshIntervalMinutes(this);
-        binding.rowSubscriptionRefreshInterval.setSummary(
-            getString(
-                R.string.xray_subscriptions_refresh_interval_summary,
-                formatRefreshIntervalMinutes(refreshIntervalMinutes)
-            )
-        );
+        refreshSubscriptionsAutoRefreshRow();
 
         String lastError = XrayStore.getLastSubscriptionsError(this);
         long lastRefreshAt = XrayStore.getLastSubscriptionsRefreshAt(this);
@@ -239,9 +230,31 @@ public class SubscriptionsActivity extends AppCompatActivity {
         return (
             TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, key) ||
             TextUtils.equals(AppPrefs.KEY_XRAY_PROFILES_JSON, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED, key) ||
             TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT, key) ||
             TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, key)
         );
+    }
+
+    private void refreshSubscriptionsAutoRefreshRow() {
+        boolean enabled = XrayStore.isSubscriptionsAutoRefreshEnabled(this);
+        binding.rowSubscriptionAutoRefresh.setSummary(
+            enabled
+                ? getString(
+                      R.string.xray_subscriptions_auto_refresh_summary_interval,
+                      SubscriptionUpdateSettingsFragment.formatRefreshIntervalMinutes(
+                          XrayStore.getRefreshIntervalMinutes(this)
+                      )
+                  )
+                : getString(R.string.xray_subscriptions_auto_refresh_summary_off)
+        );
+        binding.switchSubscriptionAutoRefresh.setOnCheckedChangeListener(null);
+        binding.switchSubscriptionAutoRefresh.setChecked(enabled);
+        binding.switchSubscriptionAutoRefresh.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Haptics.softSliderStep(buttonView);
+            XrayStore.setSubscriptionsAutoRefreshEnabled(this, isChecked);
+            refreshSubscriptionsAutoRefreshRow();
+        });
     }
 
     private void refreshSubscriptionHwidRow() {
@@ -332,77 +345,6 @@ public class SubscriptionsActivity extends AppCompatActivity {
             });
         }
         builder.show();
-    }
-
-    private void showRefreshIntervalDialog() {
-        int currentMinutes = normalizeRefreshIntervalMinutes(XrayStore.getRefreshIntervalMinutes(this));
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_subscription_refresh_interval, null, false);
-        FrameLayout pickerContainer = dialogView.findViewById(R.id.container_refresh_interval_picker);
-        SeslTimePicker timePicker = buildRefreshIntervalTimePicker(currentMinutes);
-        pickerContainer.addView(timePicker);
-        new AlertDialog.Builder(this)
-            .setTitle(R.string.xray_subscriptions_refresh_interval_title)
-            .setView(dialogView)
-            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-            .setPositiveButton(R.string.sharing_edit_dialog_save, (dialog, which) -> {
-                timePicker.clearFocus();
-                Haptics.softConfirm(binding.rowSubscriptionRefreshInterval);
-                XrayStore.setRefreshIntervalMinutes(
-                    this,
-                    pickerTimeToRefreshIntervalMinutes(timePicker.getHour(), timePicker.getMinute())
-                );
-                refreshUi();
-            })
-            .show();
-    }
-
-    private String formatRefreshIntervalMinutes(int minutes) {
-        int normalizedMinutes = normalizeRefreshIntervalMinutes(minutes);
-        if (normalizedMinutes >= MAX_PICKER_REFRESH_INTERVAL_MINUTES) {
-            return "24:00";
-        }
-        int hoursPart = normalizedMinutes / 60;
-        int minutesPart = normalizedMinutes % 60;
-        return String.format(Locale.getDefault(), "%02d:%02d", hoursPart, minutesPart);
-    }
-
-    private int normalizeRefreshIntervalMinutes(int minutes) {
-        if (minutes <= 0) {
-            return MAX_PICKER_REFRESH_INTERVAL_MINUTES;
-        }
-        return Math.min(minutes, MAX_PICKER_REFRESH_INTERVAL_MINUTES);
-    }
-
-    private SeslTimePicker buildRefreshIntervalTimePicker(int currentMinutes) {
-        SeslTimePicker timePicker = new SeslTimePicker(
-            new ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_DayNight)
-        );
-        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        timePicker.setLayoutParams(layoutParams);
-        timePicker.setIs24HourView(Boolean.TRUE);
-        int initialMinutes = currentMinutes >= MAX_PICKER_REFRESH_INTERVAL_MINUTES ? 0 : currentMinutes;
-        timePicker.setHour(initialMinutes / 60);
-        timePicker.setMinute(initialMinutes % 60);
-        final int[] lastValue = { initialMinutes };
-        timePicker.setOnTimeChangedListener((view, hourOfDay, minute) -> {
-            int currentValue = hourOfDay * 60 + minute;
-            if (lastValue[0] != currentValue) {
-                Haptics.softSliderStep(view);
-                lastValue[0] = currentValue;
-            }
-        });
-        return timePicker;
-    }
-
-    private int pickerTimeToRefreshIntervalMinutes(int hourOfDay, int minute) {
-        int totalMinutes = Math.max(0, hourOfDay) * 60 + Math.max(0, minute);
-        if (totalMinutes <= 0) {
-            return MAX_PICKER_REFRESH_INTERVAL_MINUTES;
-        }
-        return normalizeRefreshIntervalMinutes(totalMinutes);
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

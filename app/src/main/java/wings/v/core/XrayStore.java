@@ -455,8 +455,44 @@ public final class XrayStore {
         return migratedMinutes;
     }
 
+    public static boolean isSubscriptionsAutoRefreshEnabled(Context context) {
+        return prefs(context).getBoolean(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED, true);
+    }
+
+    public static void setSubscriptionsAutoRefreshEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED, enabled).apply();
+        Context appContext = context.getApplicationContext();
+        if (enabled) {
+            XraySubscriptionBackgroundScheduler.refresh(appContext);
+            return;
+        }
+        XraySubscriptionBackgroundScheduler.cancel(appContext);
+    }
+
     public static void setRefreshIntervalMinutes(Context context, int minutes) {
         int normalizedMinutes = normalizeRefreshIntervalMinutes(minutes);
+        List<XraySubscription> currentSubscriptions = getSubscriptions(context);
+        ArrayList<XraySubscription> updatedSubscriptions = new ArrayList<>(currentSubscriptions.size());
+        for (XraySubscription subscription : currentSubscriptions) {
+            if (subscription == null) {
+                continue;
+            }
+            updatedSubscriptions.add(
+                new XraySubscription(
+                    subscription.id,
+                    subscription.title,
+                    subscription.url,
+                    subscription.formatHint,
+                    normalizedMinutes,
+                    subscription.autoUpdate,
+                    subscription.lastUpdatedAt,
+                    subscription.advertisedUploadBytes,
+                    subscription.advertisedDownloadBytes,
+                    subscription.advertisedTotalBytes,
+                    subscription.advertisedExpireAt
+                )
+            );
+        }
         SharedPreferences.Editor editor = prefs(context)
             .edit()
             .putString(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES, String.valueOf(normalizedMinutes));
@@ -466,6 +502,10 @@ public final class XrayStore {
             editor.remove(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS);
         }
         editor.apply();
+        if (!updatedSubscriptions.isEmpty()) {
+            setSubscriptions(context, updatedSubscriptions);
+            return;
+        }
         XraySubscriptionBackgroundScheduler.refresh(context.getApplicationContext());
     }
 

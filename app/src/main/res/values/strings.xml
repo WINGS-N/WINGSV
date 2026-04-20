@@ -612,6 +612,14 @@
     <string name="xray_subscriptions_refresh_interval_title">Интервал обновления</string>
     <string name="xray_subscriptions_refresh_interval_hint">Диапазон от 00:01 до 23:59, значение 00:00 означает 24:00</string>
     <string name="xray_subscriptions_refresh_interval_summary">Автообновление каждые %1$s</string>
+    <string name="xray_subscriptions_auto_refresh_title">Автообновление подписок</string>
+    <string name="xray_subscriptions_auto_refresh_summary_on">Фоновые обновления включены</string>
+    <string name="xray_subscriptions_auto_refresh_summary_interval">Каждые %1$s</string>
+    <string name="xray_subscriptions_auto_refresh_summary_off">Фоновые обновления отключены</string>
+    <string name="xray_subscriptions_refresh_interval_summary_disabled">Автообновление отключено</string>
+    <string name="xray_subscriptions_auto_refresh_category">Автообновление</string>
+    <string name="xray_subscriptions_auto_refresh_enabled_title">Включить автообновление</string>
+    <string name="xray_subscriptions_auto_refresh_enabled_summary">Планировать фоновое обновление подписок по расписанию</string>
     <string name="xray_subscriptions_refresh_now_title">Обновить</string>
     <string name="xray_subscriptions_refresh_now_summary">Обновить профили из всех сохранённых подписок</string>
     <string name="xray_subscriptions_untitled">Подписка без названия</string>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="@string/xray_subscriptions_auto_refresh_category" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_subscriptions_auto_refresh_enabled"
+        android:title="@string/xray_subscriptions_auto_refresh_enabled_title"
+        android:summary="@string/xray_subscriptions_auto_refresh_enabled_summary"
+        android:defaultValue="true" />
+
+    <Preference
+        android:key="pref_xray_subscriptions_refresh_minutes"
+        android:title="@string/xray_subscriptions_refresh_interval_title"
+        app:useSimpleSummaryProvider="false" />
+
+</PreferenceScreen>
