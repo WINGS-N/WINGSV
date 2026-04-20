@@ -3,6 +3,7 @@ package wings.v;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -268,6 +269,12 @@ public class FirstLaunchVkTurnFragment extends Fragment {
                 }
             }
         );
+        editText.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) {
+                scrollFieldIntoView(view);
+            }
+        });
+        editText.setOnClickListener(this::scrollFieldIntoView);
         return field;
     }
 
@@ -508,7 +515,26 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         field.editText.setError(getString(errorRes));
         if (requestFocus) {
             field.editText.requestFocus();
+            scrollFieldIntoView(field.editText);
         }
+    }
+
+    private void scrollFieldIntoView(@NonNull View view) {
+        if (binding == null) {
+            return;
+        }
+        binding.scrollVkTurnFields.post(() -> {
+            if (binding == null) {
+                return;
+            }
+            Rect rect = new Rect();
+            view.getDrawingRect(rect);
+            binding.scrollVkTurnFields.offsetDescendantRectToMyCoords(view, rect);
+            int extraBottomSpace = dp(24);
+            rect.bottom += extraBottomSpace;
+            rect.top = Math.max(0, rect.top - dp(12));
+            binding.scrollVkTurnFields.requestChildRectangleOnScreen(view, rect, true);
+        });
     }
 
     private void clearErrors() {
