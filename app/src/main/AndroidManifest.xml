@@ -74,7 +74,8 @@
         <activity
             android:name=".FirstLaunchActivity"
             android:exported="false"
-            android:theme="@style/Theme.WINGSV" />
+            android:theme="@style/Theme.WINGSV"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ProxyLogsActivity"
