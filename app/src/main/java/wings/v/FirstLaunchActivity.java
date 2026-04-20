@@ -282,7 +282,8 @@ public class FirstLaunchActivity
     private void applyInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            binding.firstLaunchPager.setPadding(0, systemBars.top, 0, systemBars.bottom);
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            binding.firstLaunchPager.setPadding(0, systemBars.top, 0, Math.max(systemBars.bottom, ime.bottom));
             return insets;
         });
     }
