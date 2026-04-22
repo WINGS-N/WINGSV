@@ -26,6 +26,7 @@ public final class XposedAttackVector {
     public static final String SYSTEM_LINK_PROPERTIES = "system_link_properties";
     public static final String SYSTEM_DUMPSYS = "system_dumpsys";
     public static final String NATIVE_GETIFADDRS = "native_getifaddrs";
+    public static final String NATIVE_IF_NAMEINDEX = "native_if_nameindex";
     public static final String NATIVE_IF_NAMETOINDEX = "native_if_nametoindex";
     public static final String NATIVE_IF_INDEXTONAME = "native_if_indextoname";
     public static final String NATIVE_PROCFS_FOPEN = "native_procfs_fopen";
@@ -35,6 +36,18 @@ public final class XposedAttackVector {
     public static final String NATIVE_SYSFS_OPEN = "native_sysfs_open";
     public static final String NATIVE_SYSFS_OPENAT = "native_sysfs_openat";
     public static final String NATIVE_IOCTL = "native_ioctl";
+    public static final String NATIVE_NETLINK_ROUTE = "native_netlink_route";
+    public static final String NATIVE_NETLINK_RECVMSG = "native_netlink_recvmsg";
+    public static final String NATIVE_NETLINK_RECV = "native_netlink_recv";
+    public static final String NATIVE_NETLINK_RECVFROM = "native_netlink_recvfrom";
+    public static final String NATIVE_NETLINK_RECVMMSG = "native_netlink_recvmmsg";
+    public static final String NATIVE_NETLINK_READ = "native_netlink_read";
+    public static final String NATIVE_NETLINK_SOCK_DIAG = "native_netlink_sock_diag";
+    public static final String NATIVE_PROCFS_FILTER = "native_procfs_filter";
+    public static final String NATIVE_SYSFS_READDIR = "native_sysfs_readdir";
+    public static final String NATIVE_SYSFS_ACCESS = "native_sysfs_access";
+    public static final String NATIVE_SYSFS_STAT = "native_sysfs_stat";
+    public static final String ICMP_SPOOFING_PROBE = "icmp_spoofing_probe";
 
     private XposedAttackVector() {}
 
@@ -81,6 +94,8 @@ public final class XposedAttackVector {
                 return R.string.xposed_attack_vector_short_system_dumpsys;
             case NATIVE_GETIFADDRS:
                 return R.string.xposed_attack_vector_short_native_getifaddrs;
+            case NATIVE_IF_NAMEINDEX:
+                return R.string.xposed_attack_vector_short_native_if_nameindex;
             case NATIVE_IF_NAMETOINDEX:
                 return R.string.xposed_attack_vector_short_native_if_nametoindex;
             case NATIVE_IF_INDEXTONAME:
@@ -99,6 +114,30 @@ public final class XposedAttackVector {
                 return R.string.xposed_attack_vector_short_native_sysfs_openat;
             case NATIVE_IOCTL:
                 return R.string.xposed_attack_vector_short_native_ioctl;
+            case NATIVE_NETLINK_ROUTE:
+                return R.string.xposed_attack_vector_short_native_netlink_route;
+            case NATIVE_NETLINK_RECVMSG:
+                return R.string.xposed_attack_vector_short_native_netlink_recvmsg;
+            case NATIVE_NETLINK_RECV:
+                return R.string.xposed_attack_vector_short_native_netlink_recv;
+            case NATIVE_NETLINK_RECVFROM:
+                return R.string.xposed_attack_vector_short_native_netlink_recvfrom;
+            case NATIVE_NETLINK_RECVMMSG:
+                return R.string.xposed_attack_vector_short_native_netlink_recvmmsg;
+            case NATIVE_NETLINK_READ:
+                return R.string.xposed_attack_vector_short_native_netlink_read;
+            case NATIVE_NETLINK_SOCK_DIAG:
+                return R.string.xposed_attack_vector_short_native_netlink_sock_diag;
+            case NATIVE_PROCFS_FILTER:
+                return R.string.xposed_attack_vector_short_native_procfs_filter;
+            case NATIVE_SYSFS_READDIR:
+                return R.string.xposed_attack_vector_short_native_sysfs_readdir;
+            case NATIVE_SYSFS_ACCESS:
+                return R.string.xposed_attack_vector_short_native_sysfs_access;
+            case NATIVE_SYSFS_STAT:
+                return R.string.xposed_attack_vector_short_native_sysfs_stat;
+            case ICMP_SPOOFING_PROBE:
+                return R.string.xposed_attack_vector_short_icmp_spoofing_probe;
             default:
                 return R.string.xposed_attack_vector_short_unknown;
         }
@@ -147,6 +186,8 @@ public final class XposedAttackVector {
                 return R.string.xposed_attack_vector_detail_system_dumpsys;
             case NATIVE_GETIFADDRS:
                 return R.string.xposed_attack_vector_detail_native_getifaddrs;
+            case NATIVE_IF_NAMEINDEX:
+                return R.string.xposed_attack_vector_detail_native_if_nameindex;
             case NATIVE_IF_NAMETOINDEX:
                 return R.string.xposed_attack_vector_detail_native_if_nametoindex;
             case NATIVE_IF_INDEXTONAME:
@@ -165,6 +206,30 @@ public final class XposedAttackVector {
                 return R.string.xposed_attack_vector_detail_native_sysfs_openat;
             case NATIVE_IOCTL:
                 return R.string.xposed_attack_vector_detail_native_ioctl;
+            case NATIVE_NETLINK_ROUTE:
+                return R.string.xposed_attack_vector_detail_native_netlink_route;
+            case NATIVE_NETLINK_RECVMSG:
+                return R.string.xposed_attack_vector_detail_native_netlink_recvmsg;
+            case NATIVE_NETLINK_RECV:
+                return R.string.xposed_attack_vector_detail_native_netlink_recv;
+            case NATIVE_NETLINK_RECVFROM:
+                return R.string.xposed_attack_vector_detail_native_netlink_recvfrom;
+            case NATIVE_NETLINK_RECVMMSG:
+                return R.string.xposed_attack_vector_detail_native_netlink_recvmmsg;
+            case NATIVE_NETLINK_READ:
+                return R.string.xposed_attack_vector_detail_native_netlink_read;
+            case NATIVE_NETLINK_SOCK_DIAG:
+                return R.string.xposed_attack_vector_detail_native_netlink_sock_diag;
+            case NATIVE_PROCFS_FILTER:
+                return R.string.xposed_attack_vector_detail_native_procfs_filter;
+            case NATIVE_SYSFS_READDIR:
+                return R.string.xposed_attack_vector_detail_native_sysfs_readdir;
+            case NATIVE_SYSFS_ACCESS:
+                return R.string.xposed_attack_vector_detail_native_sysfs_access;
+            case NATIVE_SYSFS_STAT:
+                return R.string.xposed_attack_vector_detail_native_sysfs_stat;
+            case ICMP_SPOOFING_PROBE:
+                return R.string.xposed_attack_vector_detail_icmp_spoofing_probe;
             default:
                 return R.string.xposed_attack_vector_detail_unknown;
         }

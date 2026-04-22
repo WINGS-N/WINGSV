@@ -32,12 +32,27 @@
         android:summary="@string/xposed_settings_native_hook_summary"
         android:defaultValue="false" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_xposed_inline_hooks_enabled"
+        android:title="@string/xposed_settings_inline_hooks_title"
+        android:summary="@string/xposed_settings_inline_hooks_summary"
+        android:defaultValue="false" />
+
     <androidx.preference.DropDownPreference
         android:key="pref_xposed_procfs_hook_mode"
         android:title="@string/xposed_settings_procfs_hook_mode_title"
         android:summary="@string/xposed_settings_procfs_hook_mode_summary"
         android:entries="@array/xposed_procfs_hook_mode_entries"
         android:entryValues="@array/xposed_procfs_hook_mode_values"
+        android:defaultValue="disabled"
+        app:useSimpleSummaryProvider="true" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_xposed_icmp_spoofing_mode"
+        android:title="@string/xposed_settings_icmp_spoofing_mode_title"
+        android:summary="@string/xposed_settings_icmp_spoofing_mode_summary"
+        android:entries="@array/xposed_icmp_spoofing_mode_entries"
+        android:entryValues="@array/xposed_icmp_spoofing_mode_values"
         android:defaultValue="disabled"
         app:useSimpleSummaryProvider="true" />
 

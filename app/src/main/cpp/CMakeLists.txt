@@ -13,6 +13,12 @@ target_link_libraries(wingsxposednative
         xhook::xhook
 )
 
+if(ANDROID_ABI MATCHES "^(arm64-v8a|armeabi-v7a)$")
+    find_package(shadowhook REQUIRED CONFIG)
+    target_link_libraries(wingsxposednative shadowhook::shadowhook)
+    target_compile_definitions(wingsxposednative PRIVATE WINGS_HAS_SHADOWHOOK=1)
+endif()
+
 set(BYEDPI_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../external/byedpi")
 set(BYEDPI_BRIDGE_ROOT "${CMAKE_CURRENT_LIST_DIR}/../byedpi")
 

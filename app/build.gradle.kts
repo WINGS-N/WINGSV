@@ -566,7 +566,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
     }
 
     signingConfigs {
@@ -671,9 +671,11 @@ dependencies {
     implementation(libs.protobuf.javalite)
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
+    implementation(libs.shadowhook)
     implementation(libs.mpandroidchart)
     implementation(libs.androidx.work.runtime)
     implementation(libs.zstd.jni)
+    implementation(libs.dexkit)
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))

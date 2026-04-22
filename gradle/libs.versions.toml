@@ -8,6 +8,7 @@ kotlin = "2.2.20"
 protobuf = "4.34.0"
 librootkotlinx = "1.2.1"
 xhook = "1.2.0"
+shadowhook = "2.0.0"
 oneuiDesign = "0.9.8+oneui8"
 wireguardTunnel = "1.0.20260102"
 sesl-core = "1.17.0+1.0.7-sesl8+rev1"
@@ -30,6 +31,7 @@ sesl-viewpager2 = "1.1.0+1.0.0-sesl8+rev0"
 mpandroidchart = "3.1.0"
 workRuntime = "2.10.5"
 zstdJni = "1.5.7-4"
+dexkit = "2.1.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -44,6 +46,7 @@ oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneu
 wireguard-tunnel = { module = "com.wireguard.android:tunnel", version.ref = "wireguardTunnel" }
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
 xhook = { module = "dev.rikka.ndk.thirdparty:xhook", version.ref = "xhook" }
+shadowhook = { module = "com.bytedance.android:shadowhook", version.ref = "shadowhook" }
 sesl-appcompat = { module = "sesl.androidx.appcompat:appcompat", version.ref = "sesl-appcompat" }
 sesl-core = { module = "sesl.androidx.core:core", version.ref = "sesl-core" }
 sesl-coreKtx = { module = "sesl.androidx.core:core-ktx", version.ref = "sesl-coreKtx" }
@@ -64,6 +67,7 @@ sesl-viewpager2 = { module = "sesl.androidx.viewpager2:viewpager2", version.ref 
 mpandroidchart = { module = "com.github.PhilJay:MPAndroidChart", version.ref = "mpandroidchart" }
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "workRuntime" }
 zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
+dexkit = { module = "org.luckypray:dexkit", version.ref = "dexkit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
