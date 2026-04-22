@@ -44,6 +44,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import wings.v.MainActivity;
 import wings.v.R;
+import wings.v.SubscriptionsActivity;
 import wings.v.XrayProfileEditorActivity;
 import wings.v.byedpi.ByeDpiLocalRunner;
 import wings.v.core.AppPrefs;
@@ -175,9 +176,15 @@ public class ProfilesFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        binding.rowOpenSubscriptions.setTitle(getString(R.string.xray_profiles_open_subscriptions_title));
+        binding.rowOpenSubscriptions.setSummary(getString(R.string.xray_profiles_open_subscriptions_summary));
         binding.rowRefreshSubscriptions.setTitle(getString(R.string.xray_profiles_refresh_subscriptions_title));
         binding.rowTcppingActiveProfile.setTitle(getString(R.string.xray_profiles_connection_test_title));
 
+        binding.rowOpenSubscriptions.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            startActivity(SubscriptionsActivity.createIntent(requireContext()));
+        });
         binding.rowRefreshSubscriptions.setOnClickListener(v -> {
             Haptics.softSelection(v);
             refreshSubscriptions();
@@ -309,6 +316,7 @@ public class ProfilesFragment extends Fragment {
         return (
             TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_JSON, key) ||
             TextUtils.equals(AppPrefs.KEY_XRAY_PROFILES_JSON, key) ||
+            TextUtils.equals(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_ID, key) ||
             TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_REFRESH_AT, key) ||
             TextUtils.equals(AppPrefs.KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR, key)
         );
@@ -606,13 +614,9 @@ public class ProfilesFragment extends Fragment {
         refreshVisibleProfileTrafficStats(true);
         BackendType backendType = XrayStore.getBackendType(requireContext());
         if (backendType != null && backendType.usesXrayCore() && ProxyTunnelService.isActive()) {
-            try {
-                ContextCompat.startForegroundService(
-                    requireContext(),
-                    ProxyTunnelService.createReconnectIntent(requireContext())
-                );
-            } catch (Exception ignored) {}
+            ProxyTunnelService.requestReconnect(requireContext(), "Xray profile changed", null, profile.id);
         }
+        refreshUi();
         Toast.makeText(requireContext(), R.string.xray_profiles_selected, Toast.LENGTH_SHORT).show();
     }
 

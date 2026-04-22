@@ -58,16 +58,22 @@
                 android:orientation="vertical"
                 app:roundedCorners="all">
 
+                <dev.oneuiproject.oneui.widget.CardItemView
+                    android:id="@+id/row_open_subscriptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                    app:showTopDivider="false" />
+
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <dev.oneuiproject.oneui.widget.CardItemView
-                        android:id="@+id/row_refresh_subscriptions"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        app:drawableEnd="@drawable/ic_selected_apps_disclosure"
-                        app:showTopDivider="false" />
+                        <dev.oneuiproject.oneui.widget.CardItemView
+                            android:id="@+id/row_refresh_subscriptions"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            app:drawableEnd="@drawable/ic_selected_apps_disclosure" />
 
                     <ProgressBar
                         android:id="@+id/progress_refresh_subscriptions"

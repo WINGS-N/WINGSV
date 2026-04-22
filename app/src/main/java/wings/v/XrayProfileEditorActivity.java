@@ -308,7 +308,12 @@ public class XrayProfileEditorActivity extends AppCompatActivity {
             if (TextUtils.equals(XrayStore.getActiveProfileId(this), updatedProfile.id)) {
                 BackendType backendType = XrayStore.getBackendType(this);
                 if (backendType != null && backendType.usesXrayCore() && ProxyTunnelService.isActive()) {
-                    ProxyTunnelService.requestReconnect(getApplicationContext(), "Xray profile edited");
+                    ProxyTunnelService.requestReconnect(
+                        getApplicationContext(),
+                        "Xray profile edited",
+                        null,
+                        updatedProfile.id
+                    );
                 }
             }
             Toast.makeText(this, R.string.xray_profile_editor_saved, Toast.LENGTH_SHORT).show();
