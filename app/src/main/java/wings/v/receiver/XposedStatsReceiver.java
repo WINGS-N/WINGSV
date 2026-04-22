@@ -3,6 +3,9 @@ package wings.v.receiver;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import wings.v.core.XposedAttackStatsStore;
@@ -17,6 +20,12 @@ public class XposedStatsReceiver extends BroadcastReceiver {
     public static final String EXTRA_CALLER_METHOD = "caller_method";
     public static final String EXTRA_DETAIL = "detail";
     public static final String EXTRA_TIMESTAMP = "timestamp";
+
+    private static final long STATS_UPDATE_DEBOUNCE_MS = 500L;
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+    private static final Object UPDATE_LOCK = new Object();
+    private static long lastDispatchedUptimeMs;
+    private static boolean updatePending;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -33,11 +42,29 @@ public class XposedStatsReceiver extends BroadcastReceiver {
             context,
             new XposedAttackStatsStore.AttackEvent(timestamp, packageName, vector, source, callerMethod, detail)
         );
-        notifyStatsUpdated(context);
+        scheduleUpdateBroadcast(context);
     }
 
-    private void notifyStatsUpdated(@NonNull Context context) {
-        Intent updateIntent = new Intent(ACTION_STATS_UPDATED).setPackage(context.getPackageName());
-        context.sendBroadcast(updateIntent);
+    private void scheduleUpdateBroadcast(@NonNull Context context) {
+        final Context appContext = context.getApplicationContext();
+        long now = SystemClock.uptimeMillis();
+        long delay;
+        synchronized (UPDATE_LOCK) {
+            if (updatePending) return;
+            long elapsed = now - lastDispatchedUptimeMs;
+            delay = elapsed >= STATS_UPDATE_DEBOUNCE_MS ? 0L : STATS_UPDATE_DEBOUNCE_MS - elapsed;
+            updatePending = true;
+        }
+        MAIN_HANDLER.postDelayed(
+            () -> {
+                synchronized (UPDATE_LOCK) {
+                    updatePending = false;
+                    lastDispatchedUptimeMs = SystemClock.uptimeMillis();
+                }
+                Intent updateIntent = new Intent(ACTION_STATS_UPDATED).setPackage(appContext.getPackageName());
+                appContext.sendBroadcast(updateIntent);
+            },
+            delay
+        );
     }
 }

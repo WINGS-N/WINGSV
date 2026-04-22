@@ -111,6 +111,14 @@
             android:textAppearance="?android:attr/textAppearanceMedium"
             android:textColor="?android:textColorSecondary"
             android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/progress_xposed_history_details"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminate="true"
+            android:visibility="gone" />
     </FrameLayout>
 
 </dev.oneuiproject.oneui.layout.ToolbarLayout>
