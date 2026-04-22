@@ -32,7 +32,7 @@ public final class SubscriptionHwidStore {
             return settings;
         }
         SharedPreferences preferences = prefs(context);
-        settings.enabled = preferences.getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, false);
+        settings.enabled = preferences.getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, true);
         settings.manualValues = preferences.getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
         settings.hwid = trim(preferences.getString(AppPrefs.KEY_SUBSCRIPTION_HWID_VALUE, ""));
         settings.deviceOs = trim(preferences.getString(AppPrefs.KEY_SUBSCRIPTION_HWID_DEVICE_OS, ""));

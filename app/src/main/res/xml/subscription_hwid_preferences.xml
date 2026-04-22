@@ -9,7 +9,7 @@
         android:key="pref_subscription_hwid_enabled"
         android:title="@string/subscription_hwid_enabled_title"
         android:summary="@string/subscription_hwid_enabled_summary"
-        android:defaultValue="false" />
+        android:defaultValue="true" />
 
     <SwitchPreferenceCompat
         android:key="pref_subscription_hwid_manual_enabled"
