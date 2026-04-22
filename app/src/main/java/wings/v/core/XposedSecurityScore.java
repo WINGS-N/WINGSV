@@ -16,6 +16,7 @@ public final class XposedSecurityScore {
     private static final int WEIGHT_HIDE_VPN_RECOMMENDED = 8;
     private static final int WEIGHT_NATIVE_HOOKS = 10;
     private static final int WEIGHT_PROCFS_MODE = 7;
+    private static final int WEIGHT_ICMP_SPOOFING = 6;
     private static final int WEIGHT_DUMPSYS = 8;
     private static final int WEIGHT_XRAY_PROXY_AUTH = 8;
     private static final int WEIGHT_BYEDPI_PROXY_AUTH = 8;
@@ -94,14 +95,26 @@ public final class XposedSecurityScore {
             XposedModulePrefs.KEY_PROCFS_HOOK_MODE,
             XposedModulePrefs.DEFAULT_PROCFS_HOOK_MODE
         );
-        if (
-            nativeHooksEnabled &&
-            (XposedModulePrefs.PROCFS_HOOK_MODE_NO_ACCESS.equals(procfsMode) ||
-                XposedModulePrefs.PROCFS_HOOK_MODE_FILE_NOT_FOUND.equals(procfsMode))
-        ) {
+        if (nativeHooksEnabled && XposedModulePrefs.isProcfsHookModeProtective(procfsMode)) {
             currentScore += WEIGHT_PROCFS_MODE;
         } else {
             highlights.add(context.getString(R.string.xposed_security_hint_procfs_disabled));
+        }
+
+        totalWeight += WEIGHT_ICMP_SPOOFING;
+        String icmpSpoofingMode = XposedModulePrefs.normalizeIcmpSpoofingMode(
+            XposedModulePrefs.prefs(context).getString(
+                XposedModulePrefs.KEY_ICMP_SPOOFING_MODE,
+                XposedModulePrefs.DEFAULT_ICMP_SPOOFING_MODE
+            )
+        );
+        if (
+            XposedModulePrefs.ICMP_SPOOFING_MODE_PING_NOT_FOUND.equals(icmpSpoofingMode) ||
+            XposedModulePrefs.ICMP_SPOOFING_MODE_EMPTY_RESPONSE.equals(icmpSpoofingMode)
+        ) {
+            currentScore += WEIGHT_ICMP_SPOOFING;
+        } else {
+            highlights.add(context.getString(R.string.xposed_security_hint_icmp_spoofing_disabled));
         }
 
         boolean hideFromDumpsys = XposedModulePrefs.prefs(context).getBoolean(

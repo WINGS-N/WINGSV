@@ -76,14 +76,28 @@
 
     <string-array name="xposed_procfs_hook_mode_entries">
         <item>@string/xposed_procfs_hook_mode_disabled</item>
+        <item>@string/xposed_procfs_hook_mode_filter</item>
         <item>@string/xposed_procfs_hook_mode_file_not_found</item>
         <item>@string/xposed_procfs_hook_mode_no_access</item>
     </string-array>
 
     <string-array name="xposed_procfs_hook_mode_values">
         <item>disabled</item>
+        <item>filter</item>
         <item>file_not_found</item>
         <item>no_access</item>
+    </string-array>
+
+    <string-array name="xposed_icmp_spoofing_mode_entries">
+        <item>@string/xposed_icmp_spoofing_mode_disabled</item>
+        <item>@string/xposed_icmp_spoofing_mode_ping_not_found</item>
+        <item>@string/xposed_icmp_spoofing_mode_empty_response</item>
+    </string-array>
+
+    <string-array name="xposed_icmp_spoofing_mode_values">
+        <item>disabled</item>
+        <item>ping_not_found</item>
+        <item>empty_response</item>
     </string-array>
 
     <string-array name="byedpi_hosts_mode_entries">
