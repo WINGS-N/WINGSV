@@ -51,6 +51,9 @@ final class NativeVpnDetectionHook {
 
     private static void loadNativeLibraries() {
         try {
+            try {
+                System.loadLibrary("shadowhook");
+            } catch (UnsatisfiedLinkError ignored) {}
             System.loadLibrary("wingsxposednative");
             return;
         } catch (UnsatisfiedLinkError ignored) {}
@@ -59,7 +62,12 @@ final class NativeVpnDetectionHook {
         if (nativeDir == null) {
             throw new UnsatisfiedLinkError("WINGS V module native library dir not found");
         }
-
+        File shadowhookSo = new File(nativeDir, "libshadowhook.so");
+        if (shadowhookSo.exists()) {
+            try {
+                System.load(shadowhookSo.getAbsolutePath());
+            } catch (UnsatisfiedLinkError ignored) {}
+        }
         System.load(new File(nativeDir, "libwingsxposednative.so").getAbsolutePath());
     }
 

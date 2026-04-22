@@ -33,6 +33,8 @@ public final class XposedModulePrefs {
     public static final String PREFS_NAME = "xposed_module_preferences";
     public static final String PROP_NATIVE_HOOK_ENABLED = "persist.wingsv.xposed.native_hook";
     public static final String PROP_PROCFS_HOOK_MODE = "persist.wingsv.xposed.procfs_hook_mode";
+    public static final String PROP_ICMP_SPOOFING_MODE = "persist.wingsv.xposed.icmp_spoofing";
+    public static final String PROP_INLINE_HOOKS_ENABLED = "persist.wingsv.xposed.inline_hooks";
     public static final String KEY_OPEN_SETTINGS = "pref_open_xposed_settings";
     public static final String KEY_ENABLED = "pref_xposed_enabled";
     public static final String KEY_ALL_APPS = "pref_xposed_all_apps";
@@ -40,7 +42,9 @@ public final class XposedModulePrefs {
     public static final String KEY_TARGET_PACKAGES_RECOMMENDED_DISMISSED =
         "pref_xposed_target_packages_recommended_dismissed";
     public static final String KEY_NATIVE_HOOK_ENABLED = "pref_xposed_native_hook_enabled";
+    public static final String KEY_INLINE_HOOKS_ENABLED = "pref_xposed_inline_hooks_enabled";
     public static final String KEY_PROCFS_HOOK_MODE = "pref_xposed_procfs_hook_mode";
+    public static final String KEY_ICMP_SPOOFING_MODE = "pref_xposed_icmp_spoofing_mode";
     public static final String KEY_HIDE_VPN_APPS = "pref_xposed_hide_vpn_apps";
     public static final String KEY_HIDDEN_VPN_PACKAGES = "pref_xposed_hidden_vpn_packages";
     public static final String KEY_HIDDEN_VPN_PACKAGES_RECOMMENDED_DISMISSED =
@@ -50,10 +54,17 @@ public final class XposedModulePrefs {
     public static final boolean DEFAULT_ENABLED = true;
     public static final boolean DEFAULT_ALL_APPS = true;
     public static final boolean DEFAULT_NATIVE_HOOK_ENABLED = false;
+    public static final boolean DEFAULT_INLINE_HOOKS_ENABLED = false;
     public static final String PROCFS_HOOK_MODE_DISABLED = "disabled";
+    public static final String PROCFS_HOOK_MODE_FILTER = "filter";
     public static final String PROCFS_HOOK_MODE_NO_ACCESS = "no_access";
     public static final String PROCFS_HOOK_MODE_FILE_NOT_FOUND = "file_not_found";
     public static final String DEFAULT_PROCFS_HOOK_MODE = PROCFS_HOOK_MODE_DISABLED;
+    public static final String RECOMMENDED_PROCFS_HOOK_MODE = PROCFS_HOOK_MODE_FILTER;
+    public static final String ICMP_SPOOFING_MODE_DISABLED = "disabled";
+    public static final String ICMP_SPOOFING_MODE_PING_NOT_FOUND = "ping_not_found";
+    public static final String ICMP_SPOOFING_MODE_EMPTY_RESPONSE = "empty_response";
+    public static final String DEFAULT_ICMP_SPOOFING_MODE = ICMP_SPOOFING_MODE_DISABLED;
     public static final boolean DEFAULT_HIDE_VPN_APPS = true;
     public static final boolean DEFAULT_HIDE_FROM_DUMPSYS = false;
     public static final String DEFAULT_HIDDEN_VPN_PACKAGES =
@@ -388,6 +399,11 @@ public final class XposedModulePrefs {
         String procfsHookMode = normalizeProcfsHookMode(
             preferences.getString(KEY_PROCFS_HOOK_MODE, DEFAULT_PROCFS_HOOK_MODE)
         );
+        String icmpSpoofingMode = normalizeIcmpSpoofingMode(
+            preferences.getString(KEY_ICMP_SPOOFING_MODE, DEFAULT_ICMP_SPOOFING_MODE)
+        );
+        boolean inlineHooksEnabled = preferences.getBoolean(KEY_INLINE_HOOKS_ENABLED, DEFAULT_INLINE_HOOKS_ENABLED);
+        String inlineHooksValue = inlineHooksEnabled ? "1" : "0";
         try {
             Process process = new ProcessBuilder(
                 "su",
@@ -399,7 +415,15 @@ public final class XposedModulePrefs {
                     " && setprop " +
                     shellQuote(PROP_PROCFS_HOOK_MODE) +
                     " " +
-                    shellQuote(procfsHookMode)
+                    shellQuote(procfsHookMode) +
+                    " && setprop " +
+                    shellQuote(PROP_ICMP_SPOOFING_MODE) +
+                    " " +
+                    shellQuote(icmpSpoofingMode) +
+                    " && setprop " +
+                    shellQuote(PROP_INLINE_HOOKS_ENABLED) +
+                    " " +
+                    shellQuote(inlineHooksValue)
             )
                 .redirectErrorStream(true)
                 .start();
@@ -411,6 +435,9 @@ public final class XposedModulePrefs {
         if (PROCFS_HOOK_MODE_DISABLED.equals(rawValue)) {
             return PROCFS_HOOK_MODE_DISABLED;
         }
+        if (PROCFS_HOOK_MODE_FILTER.equals(rawValue)) {
+            return PROCFS_HOOK_MODE_FILTER;
+        }
         if (PROCFS_HOOK_MODE_NO_ACCESS.equals(rawValue)) {
             return PROCFS_HOOK_MODE_NO_ACCESS;
         }
@@ -418,6 +445,21 @@ public final class XposedModulePrefs {
             return PROCFS_HOOK_MODE_FILE_NOT_FOUND;
         }
         return PROCFS_HOOK_MODE_DISABLED;
+    }
+
+    public static boolean isProcfsHookModeProtective(String rawValue) {
+        String normalized = normalizeProcfsHookMode(rawValue);
+        return !PROCFS_HOOK_MODE_DISABLED.equals(normalized);
+    }
+
+    public static String normalizeIcmpSpoofingMode(String rawValue) {
+        if (ICMP_SPOOFING_MODE_PING_NOT_FOUND.equals(rawValue)) {
+            return ICMP_SPOOFING_MODE_PING_NOT_FOUND;
+        }
+        if (ICMP_SPOOFING_MODE_EMPTY_RESPONSE.equals(rawValue)) {
+            return ICMP_SPOOFING_MODE_EMPTY_RESPONSE;
+        }
+        return ICMP_SPOOFING_MODE_DISABLED;
     }
 
     private static String shellQuote(String value) {
