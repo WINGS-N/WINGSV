@@ -3552,9 +3552,12 @@ public class ProxyTunnelService extends Service {
     }
 
     private boolean isApplicationInForeground() {
+        if (wings.v.WingsApplication.isUiForeground()) {
+            return true;
+        }
         ActivityManager.RunningAppProcessInfo processInfo = new ActivityManager.RunningAppProcessInfo();
         ActivityManager.getMyMemoryState(processInfo);
-        return processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
+        return processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
     }
 
     private void showCaptchaNotification(
