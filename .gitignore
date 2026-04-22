@@ -27,3 +27,4 @@ keystore.properties
 
 # Local
 /tmp
+.claude/
