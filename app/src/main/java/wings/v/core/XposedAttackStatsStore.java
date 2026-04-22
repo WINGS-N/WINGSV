@@ -2,6 +2,8 @@ package wings.v.core;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -13,10 +15,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -27,44 +31,70 @@ public final class XposedAttackStatsStore {
 
     private static final String KEY_DAILY_COUNTS = "daily_counts";
     private static final String KEY_HISTORY = "history";
-    private static final int MAX_HISTORY_ITEMS = 1200;
     private static final int HISTORY_TTL_DAYS = 7;
-    private static final int MAX_DAILY_POINTS = HISTORY_TTL_DAYS;
+    private static final int MAX_EVENTS = 5000;
+    private static final long PRUNE_INTERVAL_MS = 60_000L;
+    private static final long WRITE_DEBOUNCE_MS = 500L;
+    private static final long DEDUP_WINDOW_MS = 2_000L;
     private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final Object LOCK = new Object();
+
+    private static boolean loaded;
+    private static final List<AttackEvent> HISTORY = new ArrayList<>();
+    private static final Map<String, Integer> DAILY_COUNTS = new HashMap<>();
+    private static final Map<String, Integer> RECENT_EVENT_INDEX = new HashMap<>();
+    private static long lastPruneTimestampMs;
+
+    private static final AtomicBoolean WRITE_PENDING = new AtomicBoolean(false);
+
+    @Nullable
+    private static Handler writeHandler;
 
     private XposedAttackStatsStore() {}
 
     public static void recordEvent(@NonNull Context context, @NonNull AttackEvent event) {
+        SharedPreferences preferences = prefs(context);
         synchronized (LOCK) {
-            SharedPreferences preferences = prefs(context);
-            JSONObject dailyCounts = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
-            JSONArray history = parseArray(preferences.getString(KEY_HISTORY, "[]"));
-            boolean changed = pruneExpiredLocked(dailyCounts, history);
-            String dayKey = toDayKey(event.timestampMs);
-            int currentCount = dailyCounts.optInt(dayKey, 0);
-            putQuietly(dailyCounts, dayKey, currentCount + 1);
-            trimDailyCounts(dailyCounts);
-            history.put(event.toJson());
-            trimHistory(history);
-            changed = true;
-            if (changed) {
-                preferences
-                    .edit()
-                    .putString(KEY_DAILY_COUNTS, dailyCounts.toString())
-                    .putString(KEY_HISTORY, history.toString())
-                    .commit();
+            ensureLoadedLocked(preferences);
+            maybePruneLocked(event.timestampMs, false);
+            String dedupKey = event.packageName + " " + event.vector;
+            Integer cachedIndex = RECENT_EVENT_INDEX.get(dedupKey);
+            if (cachedIndex != null && cachedIndex >= 0 && cachedIndex < HISTORY.size()) {
+                AttackEvent last = HISTORY.get(cachedIndex);
+                if (
+                    event.timestampMs - last.timestampMs <= DEDUP_WINDOW_MS &&
+                    last.packageName.equals(event.packageName) &&
+                    last.vector.equals(event.vector)
+                ) {
+                    AttackEvent merged = new AttackEvent(
+                        event.timestampMs,
+                        event.packageName,
+                        event.vector,
+                        event.source,
+                        event.callerMethod,
+                        event.detail
+                    );
+                    HISTORY.set(cachedIndex, merged);
+                    scheduleWriteLocked(context);
+                    return;
+                }
             }
+            HISTORY.add(event);
+            RECENT_EVENT_INDEX.put(dedupKey, HISTORY.size() - 1);
+            bumpDailyCountLocked(event.timestampMs);
+            if (HISTORY.size() > MAX_EVENTS) {
+                trimHistoryLocked();
+            }
+            scheduleWriteLocked(context);
         }
     }
 
     @NonNull
     public static WeeklySummary getWeeklySummary(@NonNull Context context) {
+        SharedPreferences preferences = prefs(context);
         synchronized (LOCK) {
-            SharedPreferences preferences = prefs(context);
-            JSONObject dailyCounts = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
-            JSONArray history = parseArray(preferences.getString(KEY_HISTORY, "[]"));
-            persistIfChanged(preferences, dailyCounts, history, pruneExpiredLocked(dailyCounts, history));
+            ensureLoadedLocked(preferences);
+            maybePruneLocked(System.currentTimeMillis(), false);
             List<DailyPoint> points = new ArrayList<>(7);
             LocalDate today = LocalDate.now();
             int total = 0;
@@ -72,12 +102,13 @@ public final class XposedAttackStatsStore {
             for (int index = 6; index >= 0; index--) {
                 LocalDate day = today.minusDays(index);
                 String key = day.format(DAY_FORMAT);
-                int count = dailyCounts.optInt(key, 0);
+                Integer count = DAILY_COUNTS.get(key);
+                int value = count == null ? 0 : count;
                 if (index == 0) {
-                    todayCount = count;
+                    todayCount = value;
                 }
-                total += count;
-                points.add(new DailyPoint(day, count));
+                total += value;
+                points.add(new DailyPoint(day, value));
             }
             return new WeeklySummary(points, total, todayCount);
         }
@@ -85,17 +116,14 @@ public final class XposedAttackStatsStore {
 
     @NonNull
     public static List<AttackEvent> getRecentEvents(@NonNull Context context, int limit) {
+        SharedPreferences preferences = prefs(context);
         synchronized (LOCK) {
-            SharedPreferences preferences = prefs(context);
-            JSONObject dailyCounts = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
-            JSONArray history = parseArray(preferences.getString(KEY_HISTORY, "[]"));
-            persistIfChanged(preferences, dailyCounts, history, pruneExpiredLocked(dailyCounts, history));
-            List<AttackEvent> result = new ArrayList<>(Math.min(limit, history.length()));
-            for (int index = history.length() - 1; index >= 0 && result.size() < limit; index--) {
-                AttackEvent event = AttackEvent.fromJson(history.optJSONObject(index));
-                if (event != null) {
-                    result.add(event);
-                }
+            ensureLoadedLocked(preferences);
+            maybePruneLocked(System.currentTimeMillis(), false);
+            int count = Math.min(limit, HISTORY.size());
+            List<AttackEvent> result = new ArrayList<>(count);
+            for (int index = HISTORY.size() - 1; index >= 0 && result.size() < limit; index--) {
+                result.add(HISTORY.get(index));
             }
             return result;
         }
@@ -108,22 +136,16 @@ public final class XposedAttackStatsStore {
 
     @NonNull
     public static List<AppAttackSummary> getAppSummaries(@NonNull Context context, @Nullable String vectorFilter) {
+        SharedPreferences preferences = prefs(context);
         synchronized (LOCK) {
-            SharedPreferences preferences = prefs(context);
-            JSONObject dailyCounts = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
-            JSONArray history = parseArray(preferences.getString(KEY_HISTORY, "[]"));
-            persistIfChanged(preferences, dailyCounts, history, pruneExpiredLocked(dailyCounts, history));
-            Map<String, MutableAppSummary> grouped = new LinkedHashMap<>();
+            ensureLoadedLocked(preferences);
+            maybePruneLocked(System.currentTimeMillis(), false);
             String normalizedFilter = normalizeVector(vectorFilter);
-            for (int index = history.length() - 1; index >= 0; index--) {
-                AttackEvent event = AttackEvent.fromJson(history.optJSONObject(index));
-                if (
-                    event == null ||
-                    TextUtils.isEmpty(event.packageName) ||
-                    (!TextUtils.isEmpty(normalizedFilter) && !TextUtils.equals(normalizedFilter, event.vector))
-                ) {
-                    continue;
-                }
+            Map<String, MutableAppSummary> grouped = new LinkedHashMap<>();
+            for (int index = HISTORY.size() - 1; index >= 0; index--) {
+                AttackEvent event = HISTORY.get(index);
+                if (TextUtils.isEmpty(event.packageName)) continue;
+                if (!TextUtils.isEmpty(normalizedFilter) && !TextUtils.equals(normalizedFilter, event.vector)) continue;
                 MutableAppSummary summary = grouped.get(event.packageName);
                 if (summary == null) {
                     summary = new MutableAppSummary(event.packageName);
@@ -158,23 +180,16 @@ public final class XposedAttackStatsStore {
 
     @NonNull
     public static List<String> getKnownVectors(@NonNull Context context, @Nullable String packageName) {
+        SharedPreferences preferences = prefs(context);
         synchronized (LOCK) {
-            SharedPreferences preferences = prefs(context);
-            JSONObject dailyCounts = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
-            JSONArray history = parseArray(preferences.getString(KEY_HISTORY, "[]"));
-            persistIfChanged(preferences, dailyCounts, history, pruneExpiredLocked(dailyCounts, history));
+            ensureLoadedLocked(preferences);
+            maybePruneLocked(System.currentTimeMillis(), false);
             LinkedHashMap<String, Boolean> ordered = new LinkedHashMap<>();
-            String normalizedPackageName = packageName == null ? "" : packageName.trim();
-            for (int index = history.length() - 1; index >= 0; index--) {
-                AttackEvent event = AttackEvent.fromJson(history.optJSONObject(index));
-                if (
-                    event == null ||
-                    TextUtils.isEmpty(event.vector) ||
-                    (!TextUtils.isEmpty(normalizedPackageName) &&
-                        !TextUtils.equals(normalizedPackageName, event.packageName))
-                ) {
-                    continue;
-                }
+            String normalized = packageName == null ? "" : packageName.trim();
+            for (int index = HISTORY.size() - 1; index >= 0; index--) {
+                AttackEvent event = HISTORY.get(index);
+                if (TextUtils.isEmpty(event.vector)) continue;
+                if (!TextUtils.isEmpty(normalized) && !TextUtils.equals(normalized, event.packageName)) continue;
                 ordered.put(event.vector, Boolean.TRUE);
             }
             return new ArrayList<>(ordered.keySet());
@@ -192,28 +207,144 @@ public final class XposedAttackStatsStore {
         @Nullable String packageName,
         @Nullable String vectorFilter
     ) {
-        if (TextUtils.isEmpty(packageName)) {
-            return Collections.emptyList();
-        }
+        if (TextUtils.isEmpty(packageName)) return Collections.emptyList();
+        SharedPreferences preferences = prefs(context);
         synchronized (LOCK) {
-            SharedPreferences preferences = prefs(context);
-            JSONObject dailyCounts = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
-            JSONArray history = parseArray(preferences.getString(KEY_HISTORY, "[]"));
-            persistIfChanged(preferences, dailyCounts, history, pruneExpiredLocked(dailyCounts, history));
+            ensureLoadedLocked(preferences);
+            maybePruneLocked(System.currentTimeMillis(), false);
             List<AttackEvent> result = new ArrayList<>();
             String normalizedFilter = normalizeVector(vectorFilter);
-            for (int index = history.length() - 1; index >= 0; index--) {
-                AttackEvent event = AttackEvent.fromJson(history.optJSONObject(index));
-                if (
-                    event != null &&
-                    TextUtils.equals(packageName, event.packageName) &&
-                    (TextUtils.isEmpty(normalizedFilter) || TextUtils.equals(normalizedFilter, event.vector))
-                ) {
-                    result.add(event);
-                }
+            for (int index = HISTORY.size() - 1; index >= 0; index--) {
+                AttackEvent event = HISTORY.get(index);
+                if (!TextUtils.equals(packageName, event.packageName)) continue;
+                if (!TextUtils.isEmpty(normalizedFilter) && !TextUtils.equals(normalizedFilter, event.vector)) continue;
+                result.add(event);
             }
             return result;
         }
+    }
+
+    private static void ensureLoadedLocked(@NonNull SharedPreferences preferences) {
+        if (loaded) return;
+        loaded = true;
+        JSONObject storedDaily = parseObject(preferences.getString(KEY_DAILY_COUNTS, "{}"));
+        JSONArray storedHistory = parseArray(preferences.getString(KEY_HISTORY, "[]"));
+        JSONArray names = storedDaily.names();
+        if (names != null) {
+            for (int index = 0; index < names.length(); index++) {
+                String key = names.optString(index);
+                if (!TextUtils.isEmpty(key)) {
+                    DAILY_COUNTS.put(key, storedDaily.optInt(key, 0));
+                }
+            }
+        }
+        for (int index = 0; index < storedHistory.length(); index++) {
+            AttackEvent event = AttackEvent.fromJson(storedHistory.optJSONObject(index));
+            if (event != null) {
+                HISTORY.add(event);
+                RECENT_EVENT_INDEX.put(event.packageName + " " + event.vector, HISTORY.size() - 1);
+            }
+        }
+        maybePruneLocked(System.currentTimeMillis(), true);
+    }
+
+    private static void bumpDailyCountLocked(long timestampMs) {
+        String key = toDayKey(timestampMs);
+        Integer current = DAILY_COUNTS.get(key);
+        DAILY_COUNTS.put(key, (current == null ? 0 : current) + 1);
+    }
+
+    private static boolean maybePruneLocked(long nowMs, boolean force) {
+        if (!force && nowMs - lastPruneTimestampMs < PRUNE_INTERVAL_MS) {
+            return false;
+        }
+        lastPruneTimestampMs = nowMs;
+        long cutoffMs = Instant.ofEpochMilli(nowMs).minus(HISTORY_TTL_DAYS, ChronoUnit.DAYS).toEpochMilli();
+        boolean changed = false;
+        int write = 0;
+        for (int read = 0; read < HISTORY.size(); read++) {
+            AttackEvent event = HISTORY.get(read);
+            if (event.timestampMs < cutoffMs) {
+                changed = true;
+                continue;
+            }
+            if (write != read) {
+                HISTORY.set(write, event);
+            }
+            write++;
+        }
+        if (changed) {
+            while (HISTORY.size() > write) {
+                HISTORY.remove(HISTORY.size() - 1);
+            }
+            rebuildRecentIndexLocked();
+        }
+        LocalDate cutoffDay = LocalDate.now().minusDays(HISTORY_TTL_DAYS - 1L);
+        List<String> toRemove = new ArrayList<>();
+        for (String key : DAILY_COUNTS.keySet()) {
+            try {
+                if (LocalDate.parse(key, DAY_FORMAT).isBefore(cutoffDay)) {
+                    toRemove.add(key);
+                }
+            } catch (Throwable ignored) {
+                toRemove.add(key);
+            }
+        }
+        if (!toRemove.isEmpty()) {
+            for (String key : toRemove) DAILY_COUNTS.remove(key);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private static void trimHistoryLocked() {
+        int excess = HISTORY.size() - MAX_EVENTS;
+        if (excess <= 0) return;
+        HISTORY.subList(0, excess).clear();
+        rebuildRecentIndexLocked();
+    }
+
+    private static void rebuildRecentIndexLocked() {
+        RECENT_EVENT_INDEX.clear();
+        for (int index = 0; index < HISTORY.size(); index++) {
+            AttackEvent event = HISTORY.get(index);
+            RECENT_EVENT_INDEX.put(event.packageName + " " + event.vector, index);
+        }
+    }
+
+    private static void scheduleWriteLocked(@NonNull Context context) {
+        if (writeHandler == null) {
+            HandlerThread thread = new HandlerThread("WingsVXposedStatsWriter");
+            thread.setDaemon(true);
+            thread.start();
+            writeHandler = new Handler(thread.getLooper());
+        }
+        if (WRITE_PENDING.compareAndSet(false, true)) {
+            final Context appContext = context.getApplicationContext();
+            writeHandler.postDelayed(() -> flushToDisk(appContext), WRITE_DEBOUNCE_MS);
+        }
+    }
+
+    private static void flushToDisk(@NonNull Context context) {
+        WRITE_PENDING.set(false);
+        SharedPreferences preferences = prefs(context);
+        JSONObject dailySnapshot;
+        JSONArray HISTORYSnapshot;
+        synchronized (LOCK) {
+            dailySnapshot = new JSONObject();
+            for (Map.Entry<String, Integer> entry : DAILY_COUNTS.entrySet()) {
+                putQuietly(dailySnapshot, entry.getKey(), entry.getValue());
+            }
+            HISTORYSnapshot = new JSONArray();
+            for (AttackEvent event : HISTORY) {
+                HISTORYSnapshot.put(event.toJson());
+            }
+        }
+        preferences
+            .edit()
+            .putString(KEY_DAILY_COUNTS, dailySnapshot.toString())
+            .putString(KEY_HISTORY, HISTORYSnapshot.toString())
+            .apply();
     }
 
     private static SharedPreferences prefs(@NonNull Context context) {
@@ -233,98 +364,6 @@ public final class XposedAttackStatsStore {
             return TextUtils.isEmpty(raw) ? new JSONArray() : new JSONArray(raw);
         } catch (Throwable ignored) {
             return new JSONArray();
-        }
-    }
-
-    private static void trimHistory(@NonNull JSONArray history) {
-        while (history.length() > MAX_HISTORY_ITEMS) {
-            removeIndex(history, 0);
-        }
-    }
-
-    private static void trimDailyCounts(@NonNull JSONObject dailyCounts) {
-        List<String> keys = new ArrayList<>();
-        JSONArray names = dailyCounts.names();
-        if (names == null) {
-            return;
-        }
-        for (int index = 0; index < names.length(); index++) {
-            keys.add(names.optString(index));
-        }
-        keys.sort(Comparator.naturalOrder());
-        while (keys.size() > MAX_DAILY_POINTS) {
-            String key = keys.remove(0);
-            dailyCounts.remove(key);
-        }
-    }
-
-    private static boolean pruneExpiredLocked(@NonNull JSONObject dailyCounts, @NonNull JSONArray history) {
-        boolean changed = false;
-        long cutoffTimestampMs = Instant.now().minus(HISTORY_TTL_DAYS, ChronoUnit.DAYS).toEpochMilli();
-        for (int index = history.length() - 1; index >= 0; index--) {
-            JSONObject object = history.optJSONObject(index);
-            if (object == null || object.optLong("timestamp", 0L) < cutoffTimestampMs) {
-                removeIndex(history, index);
-                changed = true;
-            }
-        }
-        LocalDate cutoffDay = LocalDate.now().minusDays(HISTORY_TTL_DAYS - 1L);
-        List<String> keysToRemove = new ArrayList<>();
-        JSONArray names = dailyCounts.names();
-        if (names != null) {
-            for (int index = 0; index < names.length(); index++) {
-                String key = names.optString(index);
-                if (TextUtils.isEmpty(key)) {
-                    continue;
-                }
-                try {
-                    LocalDate day = LocalDate.parse(key, DAY_FORMAT);
-                    if (day.isBefore(cutoffDay)) {
-                        keysToRemove.add(key);
-                    }
-                } catch (Throwable ignored) {
-                    keysToRemove.add(key);
-                }
-            }
-        }
-        for (String key : keysToRemove) {
-            dailyCounts.remove(key);
-            changed = true;
-        }
-        trimDailyCounts(dailyCounts);
-        trimHistory(history);
-        return changed;
-    }
-
-    private static void persistIfChanged(
-        @NonNull SharedPreferences preferences,
-        @NonNull JSONObject dailyCounts,
-        @NonNull JSONArray history,
-        boolean changed
-    ) {
-        if (!changed) {
-            return;
-        }
-        preferences
-            .edit()
-            .putString(KEY_DAILY_COUNTS, dailyCounts.toString())
-            .putString(KEY_HISTORY, history.toString())
-            .commit();
-    }
-
-    private static void removeIndex(@NonNull JSONArray source, int removeIndex) {
-        JSONArray rebuilt = new JSONArray();
-        for (int index = 0; index < source.length(); index++) {
-            if (index == removeIndex) {
-                continue;
-            }
-            rebuilt.put(source.opt(index));
-        }
-        while (source.length() > 0) {
-            source.remove(0);
-        }
-        for (int index = 0; index < rebuilt.length(); index++) {
-            source.put(rebuilt.opt(index));
         }
     }
 
@@ -393,9 +432,7 @@ public final class XposedAttackStatsStore {
 
         @Nullable
         static AttackEvent fromJson(@Nullable JSONObject object) {
-            if (object == null) {
-                return null;
-            }
+            if (object == null) return null;
             return new AttackEvent(
                 object.optLong("timestamp", 0L),
                 object.optString("packageName", ""),
@@ -414,9 +451,7 @@ public final class XposedAttackStatsStore {
         @NonNull
         private static String normalizeSource(@Nullable String value, @NonNull String vector) {
             String normalized = normalize(value);
-            if (!TextUtils.isEmpty(normalized)) {
-                return normalized;
-            }
+            if (!TextUtils.isEmpty(normalized)) return normalized;
             return vector.startsWith("native_") ? "native" : "java";
         }
     }
