@@ -191,6 +191,7 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
     private static final String EXTRA_TARGET_BACKEND = "wings.v.extra.TARGET_BACKEND";
+    private static final String EXTRA_TARGET_XRAY_PROFILE_ID = "wings.v.extra.TARGET_XRAY_PROFILE_ID";
     private static final String NOTIFICATION_CHANNEL_ID = "wingsv_tunnel";
     private static final String CAPTCHA_NOTIFICATION_CHANNEL_ID = "wingsv_captcha";
     private static final int SERVICE_NOTIFICATION_ID = 1;
@@ -613,10 +614,19 @@ public class ProxyTunnelService extends Service {
     }
 
     public static void requestReconnect(Context context, @Nullable String reason) {
-        requestReconnect(context, reason, null);
+        requestReconnect(context, reason, null, null);
     }
 
     public static void requestReconnect(Context context, @Nullable String reason, @Nullable BackendType targetBackend) {
+        requestReconnect(context, reason, targetBackend, null);
+    }
+
+    public static void requestReconnect(
+        Context context,
+        @Nullable String reason,
+        @Nullable BackendType targetBackend,
+        @Nullable String targetXrayProfileId
+    ) {
         Context appContext = context != null ? context.getApplicationContext() : null;
         if (appContext == null || !isActive()) {
             return;
@@ -624,7 +634,7 @@ public class ProxyTunnelService extends Service {
         if (!TextUtils.isEmpty(reason)) {
             appendRuntimeLogLine(reason);
         }
-        Intent intent = createReconnectIntent(appContext, targetBackend);
+        Intent intent = createReconnectIntent(appContext, targetBackend, targetXrayProfileId);
         try {
             appContext.startService(intent);
         } catch (IllegalStateException | SecurityException startError) {
@@ -653,13 +663,24 @@ public class ProxyTunnelService extends Service {
     }
 
     public static Intent createReconnectIntent(Context context) {
-        return createReconnectIntent(context, null);
+        return createReconnectIntent(context, null, null);
     }
 
     public static Intent createReconnectIntent(Context context, @Nullable BackendType targetBackend) {
+        return createReconnectIntent(context, targetBackend, null);
+    }
+
+    public static Intent createReconnectIntent(
+        Context context,
+        @Nullable BackendType targetBackend,
+        @Nullable String targetXrayProfileId
+    ) {
         Intent intent = new Intent(context, ProxyTunnelService.class).setAction(ACTION_RECONNECT);
         if (targetBackend != null) {
             intent.putExtra(EXTRA_TARGET_BACKEND, targetBackend.prefValue);
+        }
+        if (!TextUtils.isEmpty(targetXrayProfileId)) {
+            intent.putExtra(EXTRA_TARGET_XRAY_PROFILE_ID, targetXrayProfileId);
         }
         return intent;
     }
@@ -1092,8 +1113,12 @@ public class ProxyTunnelService extends Service {
         }
         if (ACTION_RECONNECT.equals(action)) {
             BackendType requestedBackend = parseRequestedBackend(intent);
+            String requestedXrayProfileId = parseRequestedXrayProfileId(intent);
             if (requestedBackend != null) {
                 XrayStore.setBackendType(getApplicationContext(), requestedBackend);
+            }
+            if (!TextUtils.isEmpty(requestedXrayProfileId)) {
+                XrayStore.setActiveProfileId(getApplicationContext(), requestedXrayProfileId);
             }
             if (!isActive()) {
                 activeBackendType = requestedBackend != null ? requestedBackend : getConfiguredBackendType();
@@ -1159,6 +1184,15 @@ public class ProxyTunnelService extends Service {
             return null;
         }
         return BackendType.fromPrefValue(rawBackend);
+    }
+
+    @Nullable
+    private String parseRequestedXrayProfileId(@Nullable Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        String rawProfileId = intent.getStringExtra(EXTRA_TARGET_XRAY_PROFILE_ID);
+        return TextUtils.isEmpty(rawProfileId) ? null : rawProfileId.trim();
     }
 
     @Nullable
