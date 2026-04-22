@@ -1,10 +1,15 @@
 package wings.v;
 
+import android.app.Activity;
 import android.app.Application;
 import android.os.Build;
+import android.os.Bundle;
 import android.text.TextUtils;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateBackgroundScheduler;
@@ -16,6 +21,12 @@ import wings.v.service.RuntimeStateStore;
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AtLeastOneConstructor" })
 public class WingsApplication extends Application {
 
+    private static final AtomicInteger STARTED_ACTIVITY_COUNT = new AtomicInteger(0);
+
+    public static boolean isUiForeground() {
+        return STARTED_ACTIVITY_COUNT.get() > 0;
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -23,6 +34,37 @@ public class WingsApplication extends Application {
         if (!isMainProcess()) {
             return;
         }
+        registerActivityLifecycleCallbacks(
+            new ActivityLifecycleCallbacks() {
+                @Override
+                public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle state) {}
+
+                @Override
+                public void onActivityStarted(@NonNull Activity activity) {
+                    STARTED_ACTIVITY_COUNT.incrementAndGet();
+                }
+
+                @Override
+                public void onActivityResumed(@NonNull Activity activity) {}
+
+                @Override
+                public void onActivityPaused(@NonNull Activity activity) {}
+
+                @Override
+                public void onActivityStopped(@NonNull Activity activity) {
+                    int value = STARTED_ACTIVITY_COUNT.decrementAndGet();
+                    if (value < 0) {
+                        STARTED_ACTIVITY_COUNT.set(0);
+                    }
+                }
+
+                @Override
+                public void onActivitySaveInstanceState(@NonNull Activity activity, @NonNull Bundle state) {}
+
+                @Override
+                public void onActivityDestroyed(@NonNull Activity activity) {}
+            }
+        );
         AppPrefs.ensureDefaults(this);
         ProxyTunnelService.reconcilePersistedRuntimeStateOnAppStart(this);
         ThemeModeController.apply(this);
