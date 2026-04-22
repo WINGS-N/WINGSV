@@ -8,6 +8,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -19,6 +21,9 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import wings.v.core.Haptics;
 import wings.v.core.XposedAttackStatsStore;
 import wings.v.databinding.ActivityXposedRequestHistoryBinding;
@@ -27,14 +32,24 @@ import wings.v.ui.XposedRequestHistoryAdapter;
 
 public class XposedRequestHistoryActivity extends AppCompatActivity {
 
+    private static final long REFRESH_DEBOUNCE_MS = 250L;
+
     private ActivityXposedRequestHistoryBinding binding;
     private XposedRequestHistoryAdapter adapter;
+
+    private final ExecutorService loaderExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final AtomicBoolean loadInFlight = new AtomicBoolean(false);
+    private final AtomicBoolean loadRequeued = new AtomicBoolean(false);
+    private boolean hasRenderedOnce;
+
+    private final Runnable refreshRunnable = this::startLoad;
 
     private final BroadcastReceiver statsUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent != null && XposedStatsReceiver.ACTION_STATS_UPDATED.equals(intent.getAction())) {
-                refreshItems();
+                scheduleRefresh();
             }
         }
     };
@@ -57,27 +72,76 @@ public class XposedRequestHistoryActivity extends AppCompatActivity {
             startActivity(XposedRequestHistoryDetailsActivity.createIntent(this, item.packageName));
         });
         binding.recyclerXposedHistory.setAdapter(adapter);
-        refreshItems();
+        startLoad();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         registerStatsReceiver();
-        refreshItems();
+        scheduleRefresh();
     }
 
     @Override
     protected void onPause() {
         unregisterReceiverSafe();
+        mainHandler.removeCallbacks(refreshRunnable);
         super.onPause();
     }
 
+    @Override
+    protected void onDestroy() {
+        loaderExecutor.shutdownNow();
+        super.onDestroy();
+    }
+
+    private void scheduleRefresh() {
+        mainHandler.removeCallbacks(refreshRunnable);
+        mainHandler.postDelayed(refreshRunnable, REFRESH_DEBOUNCE_MS);
+    }
+
+    private void startLoad() {
+        if (binding == null || adapter == null) {
+            return;
+        }
+        if (!loadInFlight.compareAndSet(false, true)) {
+            loadRequeued.set(true);
+            return;
+        }
+        if (!hasRenderedOnce) {
+            binding.progressXposedHistory.setVisibility(View.VISIBLE);
+            binding.recyclerXposedHistory.setVisibility(View.GONE);
+            binding.textXposedHistoryEmpty.setVisibility(View.GONE);
+        }
+        final Context appContext = getApplicationContext();
+        loaderExecutor.execute(() -> {
+            final List<XposedRequestHistoryAdapter.Item> items = buildItems(appContext);
+            mainHandler.post(() -> applyItems(items));
+        });
+    }
+
+    private void applyItems(@NonNull List<XposedRequestHistoryAdapter.Item> items) {
+        loadInFlight.set(false);
+        if (binding == null || adapter == null) {
+            return;
+        }
+        hasRenderedOnce = true;
+        binding.progressXposedHistory.setVisibility(View.GONE);
+        adapter.replaceItems(items);
+        boolean isEmpty = items.isEmpty();
+        binding.textXposedHistoryEmpty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        binding.recyclerXposedHistory.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+        if (loadRequeued.compareAndSet(true, false)) {
+            scheduleRefresh();
+        }
+    }
+
     @NonNull
-    private List<XposedRequestHistoryAdapter.Item> buildItems() {
-        List<XposedAttackStatsStore.AppAttackSummary> summaries = XposedAttackStatsStore.getAppSummaries(this);
+    private List<XposedRequestHistoryAdapter.Item> buildItems(@NonNull Context context) {
+        List<XposedAttackStatsStore.AppAttackSummary> summaries = XposedAttackStatsStore.getAppSummaries(context);
         List<XposedRequestHistoryAdapter.Item> items = new ArrayList<>(summaries.size());
-        PackageManager packageManager = getPackageManager();
+        PackageManager packageManager = context.getPackageManager();
+        DateFormat dateFormat = DateFormat.getDateTimeInstance();
         for (XposedAttackStatsStore.AppAttackSummary summary : summaries) {
             CharSequence label = summary.packageName;
             Drawable icon = packageManager.getDefaultActivityIcon();
@@ -92,22 +156,11 @@ public class XposedRequestHistoryActivity extends AppCompatActivity {
                     String.valueOf(label),
                     icon,
                     getString(R.string.xposed_history_app_summary, summary.count),
-                    DateFormat.getDateTimeInstance().format(new Date(summary.lastTimestampMs))
+                    dateFormat.format(new Date(summary.lastTimestampMs))
                 )
             );
         }
         return items;
-    }
-
-    private void refreshItems() {
-        if (binding == null || adapter == null) {
-            return;
-        }
-        List<XposedRequestHistoryAdapter.Item> items = buildItems();
-        adapter.replaceItems(items);
-        boolean isEmpty = items.isEmpty();
-        binding.textXposedHistoryEmpty.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
-        binding.recyclerXposedHistory.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
     }
 
     private void registerStatsReceiver() {

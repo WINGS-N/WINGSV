@@ -8,6 +8,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -25,6 +27,9 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import wings.v.core.Haptics;
 import wings.v.core.XposedAttackStatsStore;
 import wings.v.core.XposedAttackVector;
@@ -37,6 +42,7 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
     private static final String EXTRA_PACKAGE_NAME = "package_name";
     private static final String FILTER_ALL = "";
     private static final int PAGE_SIZE = 30;
+    private static final long REFRESH_DEBOUNCE_MS = 250L;
 
     private ActivityXposedRequestHistoryDetailsBinding binding;
     private XposedRequestEventAdapter adapter;
@@ -47,11 +53,22 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
 
     private int currentPage = 0;
 
+    private final ExecutorService loaderExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final AtomicBoolean loadInFlight = new AtomicBoolean(false);
+    private final AtomicBoolean loadRequeued = new AtomicBoolean(false);
+    private boolean hasRenderedOnce;
+
+    @NonNull
+    private List<String> lastKnownVectors = new ArrayList<>();
+
+    private final Runnable refreshRunnable = this::startLoad;
+
     private final BroadcastReceiver statsUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent != null && XposedStatsReceiver.ACTION_STATS_UPDATED.equals(intent.getAction())) {
-                refreshItems();
+                scheduleRefresh();
             }
         }
     };
@@ -77,20 +94,27 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
         adapter = new XposedRequestEventAdapter(new ArrayList<>());
         binding.recyclerXposedHistoryDetails.setAdapter(adapter);
         applyPackageHeader();
-        refreshItems();
+        startLoad();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         registerStatsReceiver();
-        refreshItems();
+        scheduleRefresh();
     }
 
     @Override
     protected void onPause() {
         unregisterReceiverSafe();
+        mainHandler.removeCallbacks(refreshRunnable);
         super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        loaderExecutor.shutdownNow();
+        super.onDestroy();
     }
 
     private void applyPackageHeader() {
@@ -107,28 +131,52 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
         } catch (Exception ignored) {}
     }
 
-    private void refreshItems() {
+    private void scheduleRefresh() {
+        mainHandler.removeCallbacks(refreshRunnable);
+        mainHandler.postDelayed(refreshRunnable, REFRESH_DEBOUNCE_MS);
+    }
+
+    private void startLoad() {
         if (binding == null || adapter == null) {
             return;
         }
-        renderFilterChips();
-        List<XposedAttackStatsStore.AttackEvent> events = XposedAttackStatsStore.getEventsForPackage(
-            this,
-            packageName,
-            activeVectorFilter
-        );
-        List<XposedRequestEventAdapter.Item> items = new ArrayList<>(events.size());
-        DateFormat dateFormat = DateFormat.getDateTimeInstance();
-        for (XposedAttackStatsStore.AttackEvent event : events) {
-            String detail = formatEventDetail(event);
-            items.add(
-                new XposedRequestEventAdapter.Item(
-                    getString(XposedAttackVector.getDetailLabelRes(event.vector)),
-                    dateFormat.format(new Date(event.timestampMs)),
-                    detail
-                )
-            );
+        if (!loadInFlight.compareAndSet(false, true)) {
+            loadRequeued.set(true);
+            return;
         }
+        if (!hasRenderedOnce) {
+            binding.progressXposedHistoryDetails.setVisibility(View.VISIBLE);
+            binding.recyclerXposedHistoryDetails.setVisibility(View.GONE);
+            binding.textXposedHistoryDetailsEmpty.setVisibility(View.GONE);
+            binding.rowXposedHistoryDetailsPagination.setVisibility(View.GONE);
+        }
+        final Context appContext = getApplicationContext();
+        final String pkg = packageName;
+        final String filter = activeVectorFilter;
+        loaderExecutor.execute(() -> {
+            List<String> knownVectors = XposedAttackStatsStore.getKnownVectors(appContext, pkg);
+            List<XposedAttackStatsStore.AttackEvent> events = XposedAttackStatsStore.getEventsForPackage(
+                appContext,
+                pkg,
+                filter
+            );
+            List<XposedRequestEventAdapter.Item> items = buildItems(events);
+            mainHandler.post(() -> applyLoaded(knownVectors, items));
+        });
+    }
+
+    private void applyLoaded(@NonNull List<String> knownVectors, @NonNull List<XposedRequestEventAdapter.Item> items) {
+        loadInFlight.set(false);
+        if (binding == null || adapter == null) {
+            return;
+        }
+        hasRenderedOnce = true;
+        binding.progressXposedHistoryDetails.setVisibility(View.GONE);
+        if (!lastKnownVectors.equals(knownVectors)) {
+            lastKnownVectors = knownVectors;
+            renderFilterChips();
+        }
+
         int pageCount = Math.max(1, (int) Math.ceil(items.size() / (double) PAGE_SIZE));
         currentPage = Math.max(0, Math.min(currentPage, pageCount - 1));
         int fromIndex = currentPage * PAGE_SIZE;
@@ -145,12 +193,33 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
         );
         bindPaginationButton(binding.buttonXposedHistoryDetailsPrev, currentPage > 0, () -> {
             currentPage--;
-            refreshItems();
+            startLoad();
         });
         bindPaginationButton(binding.buttonXposedHistoryDetailsNext, currentPage + 1 < pageCount, () -> {
             currentPage++;
-            refreshItems();
+            startLoad();
         });
+
+        if (loadRequeued.compareAndSet(true, false)) {
+            scheduleRefresh();
+        }
+    }
+
+    @NonNull
+    private List<XposedRequestEventAdapter.Item> buildItems(@NonNull List<XposedAttackStatsStore.AttackEvent> events) {
+        List<XposedRequestEventAdapter.Item> items = new ArrayList<>(events.size());
+        DateFormat dateFormat = DateFormat.getDateTimeInstance();
+        for (XposedAttackStatsStore.AttackEvent event : events) {
+            String detail = formatEventDetail(event);
+            items.add(
+                new XposedRequestEventAdapter.Item(
+                    getString(XposedAttackVector.getDetailLabelRes(event.vector)),
+                    dateFormat.format(new Date(event.timestampMs)),
+                    detail
+                )
+            );
+        }
+        return items;
     }
 
     private void renderFilterChips() {
@@ -159,7 +228,7 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
         }
         binding.groupXposedHistoryDetailsFilters.removeAllViews();
         addFilterChip(FILTER_ALL, getString(R.string.xposed_history_filter_all));
-        for (String vector : XposedAttackStatsStore.getKnownVectors(this, packageName)) {
+        for (String vector : lastKnownVectors) {
             addFilterChip(vector, getString(XposedAttackVector.getShortLabelRes(vector)));
         }
     }
@@ -186,7 +255,8 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
             activeVectorFilter = filterId;
             currentPage = 0;
             Haptics.softSelection(v);
-            refreshItems();
+            updateChipSelectionState();
+            startLoad();
         });
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -195,7 +265,20 @@ public class XposedRequestHistoryDetailsActivity extends AppCompatActivity {
         if (binding.groupXposedHistoryDetailsFilters.getChildCount() > 0) {
             params.setMarginStart(dpToPxInt(8));
         }
+        pill.setTag(filterId);
         binding.groupXposedHistoryDetailsFilters.addView(pill, params);
+    }
+
+    private void updateChipSelectionState() {
+        if (binding == null) return;
+        int count = binding.groupXposedHistoryDetailsFilters.getChildCount();
+        for (int index = 0; index < count; index++) {
+            View child = binding.groupXposedHistoryDetailsFilters.getChildAt(index);
+            Object tag = child.getTag();
+            if (tag instanceof String) {
+                child.setSelected(TextUtils.equals(activeVectorFilter, (String) tag));
+            }
+        }
     }
 
     private void bindPaginationButton(@NonNull TextView view, boolean enabled, @NonNull Runnable action) {

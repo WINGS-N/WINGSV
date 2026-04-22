@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -15,6 +17,9 @@ import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceGroupAdapter;
 import androidx.preference.SwitchPreferenceCompat;
 import androidx.recyclerview.widget.RecyclerView;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import wings.v.R;
 import wings.v.XposedAppsActivity;
 import wings.v.XposedRequestHistoryActivity;
@@ -28,13 +33,19 @@ import wings.v.receiver.XposedStatsReceiver;
 public class XposedSettingsFragment extends PreferenceFragmentCompat {
 
     private static final long PROCFS_ROW_ANIMATION_DURATION_MS = 180L;
+    private static final long OVERVIEW_REFRESH_DEBOUNCE_MS = 400L;
     private static final String KEY_SECURITY_OVERVIEW = "pref_xposed_security_overview";
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+    private final ExecutorService overviewExecutor = Executors.newSingleThreadExecutor();
+    private final Handler overviewHandler = new Handler(Looper.getMainLooper());
+    private final AtomicBoolean overviewLoadInFlight = new AtomicBoolean(false);
+    private final AtomicBoolean overviewRequeued = new AtomicBoolean(false);
+    private final Runnable overviewRefreshRunnable = this::startOverviewLoad;
     private final BroadcastReceiver statsUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent != null && XposedStatsReceiver.ACTION_STATS_UPDATED.equals(intent.getAction())) {
-                refreshSecurityOverview();
+                scheduleOverviewRefresh();
             }
         }
     };
@@ -56,7 +67,7 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         registerPreferencesListener();
         updatePackageSummaries();
         registerStatsReceiver();
-        refreshSecurityOverview();
+        scheduleOverviewRefresh();
         XposedModulePrefs.export(requireContext());
     }
 
@@ -72,14 +83,16 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(XposedModulePrefs.KEY_ENABLED);
         bindSwitchHaptics(XposedModulePrefs.KEY_ALL_APPS);
         bindSwitchHaptics(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED);
+        bindSwitchHaptics(XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED);
         bindSwitchHaptics(XposedModulePrefs.KEY_HIDE_VPN_APPS);
         bindDropDownPreference(XposedModulePrefs.KEY_PROCFS_HOOK_MODE);
+        bindDropDownPreference(XposedModulePrefs.KEY_ICMP_SPOOFING_MODE);
         bindSecurityOverview();
         bindPackagePicker(XposedModulePrefs.KEY_TARGET_PACKAGES, XposedAppsActivity.MODE_TARGET_APPS);
         bindPackagePicker(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES, XposedAppsActivity.MODE_HIDDEN_VPN_APPS);
         updatePackageSummaries();
         updatePreferenceEnabledState();
-        refreshSecurityOverview();
+        scheduleOverviewRefresh();
     }
 
     private void bindSwitchHaptics(String key) {
@@ -150,8 +163,10 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         setPreferenceEnabled(XposedModulePrefs.KEY_ALL_APPS, moduleEnabled);
         setPreferenceEnabled(XposedModulePrefs.KEY_TARGET_PACKAGES, moduleEnabled);
         setPreferenceEnabled(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED, moduleEnabled);
+        setPreferenceEnabled(XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED, moduleEnabled && nativeHookEnabled);
         applyProcfsHookModeVisibility(procfsHookModeVisible);
         setPreferenceEnabled(XposedModulePrefs.KEY_PROCFS_HOOK_MODE, procfsHookModeVisible);
+        setPreferenceEnabled(XposedModulePrefs.KEY_ICMP_SPOOFING_MODE, moduleEnabled);
         setPreferenceEnabled(XposedModulePrefs.KEY_HIDE_VPN_APPS, moduleEnabled);
         setPreferenceEnabled(XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES, moduleEnabled);
     }
@@ -249,7 +264,7 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         preferencesChangeListener = (sharedPreferences, key) -> {
             updatePackageSummaries();
             updatePreferenceEnabledState();
-            refreshSecurityOverview();
+            scheduleOverviewRefresh();
             XposedModulePrefs.export(requireContext());
         };
         preferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
@@ -265,15 +280,35 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         preferencesChangeListener = null;
     }
 
-    private void refreshSecurityOverview() {
-        XposedSecurityOverviewPreference preference = findPreference(KEY_SECURITY_OVERVIEW);
-        if (preference == null || !isAdded()) {
+    private void scheduleOverviewRefresh() {
+        overviewHandler.removeCallbacks(overviewRefreshRunnable);
+        overviewHandler.postDelayed(overviewRefreshRunnable, OVERVIEW_REFRESH_DEBOUNCE_MS);
+    }
+
+    private void startOverviewLoad() {
+        if (!isAdded()) return;
+        if (!overviewLoadInFlight.compareAndSet(false, true)) {
+            overviewRequeued.set(true);
             return;
         }
-        preference.bindState(
-            XposedSecurityScore.compute(requireContext()),
-            XposedAttackStatsStore.getWeeklySummary(requireContext())
-        );
+        final Context appContext = requireContext().getApplicationContext();
+        overviewExecutor.execute(() -> {
+            final XposedSecurityScore.Snapshot snapshot = XposedSecurityScore.compute(appContext);
+            final XposedAttackStatsStore.WeeklySummary summary = XposedAttackStatsStore.getWeeklySummary(appContext);
+            overviewHandler.post(() -> applyOverview(snapshot, summary));
+        });
+    }
+
+    private void applyOverview(XposedSecurityScore.Snapshot snapshot, XposedAttackStatsStore.WeeklySummary summary) {
+        overviewLoadInFlight.set(false);
+        if (!isAdded()) return;
+        XposedSecurityOverviewPreference preference = findPreference(KEY_SECURITY_OVERVIEW);
+        if (preference != null) {
+            preference.bindState(snapshot, summary);
+        }
+        if (overviewRequeued.compareAndSet(true, false)) {
+            scheduleOverviewRefresh();
+        }
     }
 
     private void registerStatsReceiver() {
@@ -290,5 +325,12 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         try {
             requireContext().unregisterReceiver(statsUpdateReceiver);
         } catch (IllegalArgumentException ignored) {}
+    }
+
+    @Override
+    public void onDestroy() {
+        overviewHandler.removeCallbacks(overviewRefreshRunnable);
+        overviewExecutor.shutdownNow();
+        super.onDestroy();
     }
 }
