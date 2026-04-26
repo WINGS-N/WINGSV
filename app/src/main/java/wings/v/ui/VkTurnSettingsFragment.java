@@ -41,6 +41,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
         AppPrefs.KEY_MANUAL_CAPTCHA,
+        AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
         AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
         AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_LOCAL_ENDPOINT,
@@ -55,6 +56,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
         AppPrefs.KEY_MANUAL_CAPTCHA,
+        AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
         AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
         AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_TURN_HOST,
@@ -185,6 +187,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE);
         bindListPreference(AppPrefs.KEY_VK_TURN_RUNTIME_MODE);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
+        bindListPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
         bindRawConfigPreference();
         bindImportFromClipboardPreference();
 
@@ -462,6 +465,12 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
             syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
             syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
+            syncListPreference(
+                AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
+                settings.captchaAutoSolver == null
+                    ? AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT
+                    : settings.captchaAutoSolver
+            );
             syncSwitchPreference(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, settings.vkTurnRestartOnNetworkChange);
             syncListPreference(
                 AppPrefs.KEY_VK_TURN_RUNTIME_MODE,

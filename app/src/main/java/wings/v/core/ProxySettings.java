@@ -27,6 +27,7 @@ public class ProxySettings {
     public boolean useUdp;
     public boolean noObfuscation;
     public boolean manualCaptcha;
+    public String captchaAutoSolver = "v2";
     public boolean vkTurnRestartOnNetworkChange = true;
     public ProxyRuntimeMode vkTurnRuntimeMode = ProxyRuntimeMode.VPN;
     public String turnSessionMode;

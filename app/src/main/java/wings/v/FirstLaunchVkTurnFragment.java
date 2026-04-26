@@ -442,6 +442,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         settings.useUdp = useUdpCheckBox == null || useUdpCheckBox.isChecked();
         settings.noObfuscation = noObfuscationCheckBox != null && noObfuscationCheckBox.isChecked();
         settings.manualCaptcha = manualCaptchaCheckBox != null && manualCaptchaCheckBox.isChecked();
+        settings.captchaAutoSolver = AppPrefs.getSettings(requireContext()).captchaAutoSolver;
         settings.turnSessionMode = "auto";
         settings.localEndpoint = "127.0.0.1:9000";
         settings.turnHost = "";

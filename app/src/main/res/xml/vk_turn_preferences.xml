@@ -47,6 +47,14 @@
         android:summary="@string/manual_captcha_summary"
         android:defaultValue="false" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_captcha_auto_solver"
+        android:title="@string/captcha_auto_solver_title"
+        android:summary="@string/captcha_auto_solver_summary"
+        android:defaultValue="v2"
+        android:entries="@array/captcha_auto_solver_entries"
+        android:entryValues="@array/captcha_auto_solver_values" />
+
     <SwitchPreferenceCompat
         android:key="pref_vk_turn_restart_on_network_change"
         android:title="@string/vk_turn_settings_restart_on_network_change_title"
