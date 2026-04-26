@@ -19,3 +19,6 @@
 [submodule "external/librustoreparser"]
 	path = external/librustoreparser
 	url = https://github.com/WINGS-N/librustoreparser.git
+[submodule "external/zstd-jni"]
+	path = external/zstd-jni
+	url = https://github.com/luben/zstd-jni.git
