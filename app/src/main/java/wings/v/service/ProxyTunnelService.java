@@ -3559,9 +3559,21 @@ public class ProxyTunnelService extends Service {
         if (wings.v.WingsApplication.isUiForeground()) {
             return true;
         }
-        ActivityManager.RunningAppProcessInfo processInfo = new ActivityManager.RunningAppProcessInfo();
-        ActivityManager.getMyMemoryState(processInfo);
-        return processInfo.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager == null) {
+            return false;
+        }
+        java.util.List<ActivityManager.RunningAppProcessInfo> processes = activityManager.getRunningAppProcesses();
+        if (processes == null) {
+            return false;
+        }
+        String mainProcessName = getPackageName();
+        for (ActivityManager.RunningAppProcessInfo info : processes) {
+            if (mainProcessName.equals(info.processName)) {
+                return info.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
+            }
+        }
+        return false;
     }
 
     private void showCaptchaNotification(
