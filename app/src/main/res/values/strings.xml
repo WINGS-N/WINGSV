@@ -786,6 +786,10 @@
     <string name="xray_routing_downloading">Скачивание…</string>
     <string name="manual_captcha_title">Ручная captcha</string>
     <string name="manual_captcha_summary">Не пытаться проходить VK captcha автоматически и сразу ожидать ручное подтверждение</string>
+    <string name="captcha_auto_solver_title">Авторешение captcha</string>
+    <string name="captcha_auto_solver_summary">Алгоритм автоматического прохождения VK captcha</string>
+    <string name="captcha_auto_solver_v2_label">Улучшенный (по умолчанию)</string>
+    <string name="captcha_auto_solver_v1_label">Классический</string>
     <string name="vk_turn_settings_restart_on_network_change_title">Перезапускать VK TURN при смене сетевого интерфейса</string>
     <string name="vk_turn_settings_restart_on_network_change_summary">Переподнимать VK TURN при переключении между Wi-Fi, мобильной сетью и другими физическими сетями</string>
     <string name="captcha_browser_title">Решение капчи VK</string>
