@@ -336,6 +336,7 @@ public class AboutAppActivity extends AppCompatActivity {
         String summary;
         boolean checking = state.status == AppUpdateManager.Status.CHECKING;
         boolean downloading = state.status == AppUpdateManager.Status.DOWNLOADING;
+        boolean patching = state.status == AppUpdateManager.Status.PATCHING;
 
         switch (state.status) {
             case CHECKING:
@@ -359,6 +360,10 @@ public class AboutAppActivity extends AppCompatActivity {
                 title = getString(R.string.about_updates_downloading_title, safeVersion(state.releaseInfo, ""));
                 summary = getString(R.string.about_updates_downloading_summary);
                 break;
+            case PATCHING:
+                title = getString(R.string.about_updates_patching_title, safeVersion(state.releaseInfo, ""));
+                summary = getString(R.string.about_updates_patching_summary);
+                break;
             case DOWNLOADED:
                 title = getString(R.string.about_updates_downloaded_title, safeVersion(state.releaseInfo, ""));
                 summary = getString(R.string.about_updates_downloaded_summary);
@@ -379,9 +384,9 @@ public class AboutAppActivity extends AppCompatActivity {
 
         binding.cardAppUpdateAction.setTitle(title);
         binding.cardAppUpdateAction.setSummary(summary);
-        binding.cardAppUpdateAction.setEnabled(!checking && !downloading);
-        binding.progressUpdateCheck.setVisibility(checking || downloading ? View.VISIBLE : View.GONE);
-        boolean showProgress = downloading || state.status == AppUpdateManager.Status.DOWNLOADED;
+        binding.cardAppUpdateAction.setEnabled(!checking && !downloading && !patching);
+        binding.progressUpdateCheck.setVisibility(checking || downloading || patching ? View.VISIBLE : View.GONE);
+        boolean showProgress = downloading || patching || state.status == AppUpdateManager.Status.DOWNLOADED;
         binding.layoutUpdateDownloadProgress.setVisibility(showProgress ? View.VISIBLE : View.GONE);
 
         if (showProgress) {
@@ -400,8 +405,8 @@ public class AboutAppActivity extends AppCompatActivity {
                       )
             );
             if (state.status == AppUpdateManager.Status.DOWNLOADED) {
-                binding.textUpdateProgressSpeed.setText(R.string.about_updates_download_ready);
-                binding.textUpdateProgressRemaining.setText(R.string.about_updates_download_ready);
+                binding.textUpdateProgressSpeed.setVisibility(View.GONE);
+                binding.textUpdateProgressRemaining.setVisibility(View.GONE);
                 binding.progressUpdateDownload.setIndeterminate(false);
                 binding.progressUpdateDownload.setProgress(100);
                 configureProgressActionButton(
@@ -409,7 +414,20 @@ public class AboutAppActivity extends AppCompatActivity {
                     R.drawable.ic_arrow_down,
                     R.string.about_updates_install_downloaded
                 );
+            } else if (patching) {
+                binding.textUpdateProgressSpeed.setVisibility(View.VISIBLE);
+                binding.textUpdateProgressRemaining.setVisibility(View.GONE);
+                binding.textUpdateProgressSpeed.setText(R.string.about_updates_patching_summary);
+                binding.progressUpdateDownload.setIndeterminate(false);
+                binding.progressUpdateDownload.setProgress(Math.max(0, Math.min(100, state.progressPercent)));
+                configureProgressActionButton(
+                    binding.buttonCancelUpdateDownload,
+                    R.drawable.ic_close_circle,
+                    R.string.about_updates_cancel_download
+                );
             } else {
+                binding.textUpdateProgressSpeed.setVisibility(View.VISIBLE);
+                binding.textUpdateProgressRemaining.setVisibility(View.VISIBLE);
                 binding.textUpdateProgressSpeed.setText(
                     getString(
                         R.string.about_updates_download_speed,
