@@ -94,7 +94,7 @@
             android:id="@+id/search_bar_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_surface_card"
+            android:background="@drawable/bg_search_field"
             android:minHeight="56dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
