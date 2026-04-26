@@ -38,6 +38,7 @@ public final class AppPrefs {
     public static final String KEY_USE_UDP = "pref_use_udp";
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
     public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
+    public static final String KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE = "pref_vk_turn_restart_on_network_change";
     public static final String KEY_VK_TURN_RUNTIME_MODE = "pref_vk_turn_runtime_mode";
     public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
@@ -737,6 +738,7 @@ public final class AppPrefs {
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
         settings.manualCaptcha = prefs.getBoolean(KEY_MANUAL_CAPTCHA, false);
+        settings.vkTurnRestartOnNetworkChange = prefs.getBoolean(KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, true);
         settings.vkTurnRuntimeMode = ProxyRuntimeMode.fromPrefValue(
             prefs.getString(KEY_VK_TURN_RUNTIME_MODE, ProxyRuntimeMode.VPN.prefValue)
         );
@@ -913,6 +915,7 @@ public final class AppPrefs {
             .putBoolean(KEY_USE_UDP, settings.useUdp)
             .putBoolean(KEY_NO_OBFUSCATION, settings.noObfuscation)
             .putBoolean(KEY_MANUAL_CAPTCHA, settings.manualCaptcha)
+            .putBoolean(KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, settings.vkTurnRestartOnNetworkChange)
             .putString(
                 KEY_VK_TURN_RUNTIME_MODE,
                 settings.vkTurnRuntimeMode == null

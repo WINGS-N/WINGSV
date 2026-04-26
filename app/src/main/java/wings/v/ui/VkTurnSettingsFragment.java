@@ -41,6 +41,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
         AppPrefs.KEY_MANUAL_CAPTCHA,
+        AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
         AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_LOCAL_ENDPOINT,
         AppPrefs.KEY_TURN_HOST,
@@ -54,6 +55,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
         AppPrefs.KEY_MANUAL_CAPTCHA,
+        AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
         AppPrefs.KEY_TURN_SESSION_MODE,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
@@ -154,6 +156,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_awg_interface");
         RUNTIME_AFFECTING_KEYS.remove("pref_category_awg_peer");
         RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_awg_peer");
+        RUNTIME_AFFECTING_KEYS.remove(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE);
     }
 
     private static void addPreferenceKeys(Set<String> target, String[] keys) {
@@ -222,6 +225,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(AppPrefs.KEY_USE_UDP);
         bindSwitchHaptics(AppPrefs.KEY_NO_OBFUSCATION);
         bindSwitchHaptics(AppPrefs.KEY_MANUAL_CAPTCHA);
+        bindSwitchHaptics(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE);
 
         bindSecretPreference(AppPrefs.KEY_WG_PRIVATE_KEY);
         bindSecretPreference(AppPrefs.KEY_WG_PUBLIC_KEY);
@@ -458,6 +462,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
             syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
             syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
+            syncSwitchPreference(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, settings.vkTurnRestartOnNetworkChange);
             syncListPreference(
                 AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
                 settings.vkTurnRuntimeMode == null ? "vpn" : settings.vkTurnRuntimeMode.prefValue
