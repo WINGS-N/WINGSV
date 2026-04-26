@@ -3,7 +3,6 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-import androidx.preference.PreferenceManager;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -584,11 +583,14 @@ public final class XrayStore {
     }
 
     private static SharedPreferences prefs(Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context);
     }
 
+    @SuppressWarnings("deprecation")
     private static SharedPreferences runtimePrefs(Context context) {
-        return context.getApplicationContext().getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE);
+        return context
+            .getApplicationContext()
+            .getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS);
     }
 
     private static int parseInt(String rawValue, int fallback) {

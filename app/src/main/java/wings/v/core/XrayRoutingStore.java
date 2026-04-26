@@ -3,7 +3,6 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-import androidx.preference.PreferenceManager;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -81,7 +80,7 @@ public final class XrayRoutingStore {
     }
 
     public static String getSourceUrl(Context context, XrayRoutingRule.MatchType matchType) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(context);
         String defaultValue = matchType == XrayRoutingRule.MatchType.GEOSITE ? DEFAULT_GEOSITE_URL : DEFAULT_GEOIP_URL;
         String key =
             matchType == XrayRoutingRule.MatchType.GEOSITE
@@ -96,7 +95,7 @@ public final class XrayRoutingStore {
                 ? AppPrefs.KEY_XRAY_ROUTING_GEOSITE_URL
                 : AppPrefs.KEY_XRAY_ROUTING_GEOIP_URL;
         String defaultValue = matchType == XrayRoutingRule.MatchType.GEOSITE ? DEFAULT_GEOSITE_URL : DEFAULT_GEOIP_URL;
-        PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext())
+        AppPrefs.defaultSharedPreferences(context)
             .edit()
             .putString(key, TextUtils.isEmpty(trim(value)) ? defaultValue : trim(value))
             .commit();
@@ -104,7 +103,7 @@ public final class XrayRoutingStore {
 
     public static void ensureGeoFilesBootstrap(Context context) {
         Context appContext = context.getApplicationContext();
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(appContext);
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(appContext);
         if (preferences.getBoolean(AppPrefs.KEY_XRAY_ROUTING_BOOTSTRAP_ATTEMPTED, false)) {
             return;
         }
@@ -121,10 +120,7 @@ public final class XrayRoutingStore {
     public static List<XrayRoutingRule> getRules(Context context) {
         ArrayList<XrayRoutingRule> rules = new ArrayList<>();
         JSONArray array = parseArray(
-            PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext()).getString(
-                AppPrefs.KEY_XRAY_ROUTING_RULES_JSON,
-                "[]"
-            )
+            AppPrefs.defaultSharedPreferences(context).getString(AppPrefs.KEY_XRAY_ROUTING_RULES_JSON, "[]")
         );
         if (array == null) {
             return rules;
@@ -150,7 +146,7 @@ public final class XrayRoutingStore {
                 } catch (Exception ignored) {}
             }
         }
-        PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext())
+        AppPrefs.defaultSharedPreferences(context)
             .edit()
             .putString(AppPrefs.KEY_XRAY_ROUTING_RULES_JSON, array.toString())
             .commit();

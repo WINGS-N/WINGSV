@@ -7,7 +7,6 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.preference.PreferenceManager;
 import wings.v.R;
 
 @SuppressWarnings(
@@ -122,7 +121,7 @@ public final class SubscriptionHwidStore {
 
     @NonNull
     private static SharedPreferences prefs(@NonNull Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context);
     }
 
     @NonNull
