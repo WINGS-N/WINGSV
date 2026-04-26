@@ -598,6 +598,11 @@ android {
 
     packaging {
         resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        resources.excludes += "darwin/**"
+        resources.excludes += "win/**"
+        resources.excludes += "freebsd/**"
+        resources.excludes += "linux/**"
+        resources.excludes += "aix/**"
         jniLibs.useLegacyPackaging = true
     }
 
