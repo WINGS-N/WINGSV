@@ -2193,8 +2193,8 @@ public class ProxyTunnelService extends Service {
         BackendType resolvedBackendToStop = backendToStop != null ? backendToStop : activeBackendType;
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly(resolvedBackendToStop);
         if (usesXrayBackend(resolvedBackendToStop)) {
-            runReconnectCleanupStep("Xray VPN service stop wait", () ->
-                stopXrayVpnServiceAndWait("Xray VPN service stop")
+            runReconnectCleanupStep("Xray VPN service force stop wait", () ->
+                forceStopXrayVpnServiceAndWait("Xray VPN service stop for reconnect")
             );
             if (skipNativeStopForProcessRestart) {
                 appendRuntimeLogLine("Skipping Xray core stop before tunnel runtime process restart");
