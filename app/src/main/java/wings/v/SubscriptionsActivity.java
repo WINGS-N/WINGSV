@@ -202,6 +202,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
                         )
                     );
             }
+            if (!subscription.autoUpdate) {
+                summary.append('\n').append(getString(R.string.xray_subscriptions_auto_update_disabled_label));
+            }
             rowBinding.textSubscriptionSummary.setText(summary.toString());
             rowBinding.viewSubscriptionDivider.setVisibility(
                 index == subscriptions.size() - 1 ? View.GONE : View.VISIBLE
@@ -294,6 +297,16 @@ public class SubscriptionsActivity extends AppCompatActivity {
             new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         );
 
+        AppCompatCheckBox autoUpdateCheckbox = new AppCompatCheckBox(this);
+        autoUpdateCheckbox.setText(R.string.xray_subscriptions_auto_update_per_subscription);
+        autoUpdateCheckbox.setChecked(existing == null || existing.autoUpdate);
+        LinearLayout.LayoutParams autoUpdateLayout = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        autoUpdateLayout.topMargin = padding / 2;
+        container.addView(autoUpdateCheckbox, autoUpdateLayout);
+
         int dialogTitle =
             existing == null ? R.string.xray_subscriptions_add_title : R.string.xray_subscriptions_edit_title;
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
@@ -313,7 +326,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
                     url,
                     "auto",
                     existing != null ? existing.refreshIntervalMinutes : XrayStore.getRefreshIntervalMinutes(this),
-                    existing == null || existing.autoUpdate,
+                    autoUpdateCheckbox.isChecked(),
                     existing != null ? existing.lastUpdatedAt : 0L,
                     existing != null ? existing.advertisedUploadBytes : 0L,
                     existing != null ? existing.advertisedDownloadBytes : 0L,
