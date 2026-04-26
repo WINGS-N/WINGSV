@@ -356,6 +356,8 @@ public class SubscriptionsActivity extends AppCompatActivity {
         updateRefreshStateUi();
         workExecutor.execute(() -> {
             String message;
+            boolean activeProfileChanged = false;
+            String activeProfileId = "";
             try {
                 XraySubscriptionUpdater.RefreshResult result = XraySubscriptionUpdater.refreshAll(
                     this,
@@ -376,10 +378,25 @@ public class SubscriptionsActivity extends AppCompatActivity {
                 message = TextUtils.isEmpty(result.error)
                     ? getString(R.string.xray_subscriptions_refresh_success, result.profiles.size())
                     : getString(R.string.xray_subscriptions_refresh_partial, result.error);
+                activeProfileChanged = result.activeProfileChanged;
+                activeProfileId = result.activeProfileId;
             } catch (Exception error) {
                 message = getString(R.string.xray_subscriptions_refresh_failed, error.getMessage());
             }
             String toastMessage = message;
+            if (activeProfileChanged) {
+                wings.v.core.BackendType backendType = wings.v.core.XrayStore.getBackendType(getApplicationContext());
+                if (
+                    backendType != null && backendType.usesXrayCore() && wings.v.service.ProxyTunnelService.isActive()
+                ) {
+                    wings.v.service.ProxyTunnelService.requestReconnect(
+                        getApplicationContext(),
+                        "Xray subscription refresh updated active profile",
+                        null,
+                        activeProfileId
+                    );
+                }
+            }
             runOnUiThread(() -> {
                 if (binding == null) {
                     return;
