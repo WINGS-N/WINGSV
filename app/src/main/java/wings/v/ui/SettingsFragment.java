@@ -156,6 +156,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
         bindListPreference(AppPrefs.KEY_BACKEND_TYPE);
+        bindListPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
         bindSummaryPreference(AppPrefs.KEY_VK_LINK);
@@ -653,6 +654,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
             syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
             syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
+            syncListPreference(
+                AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
+                settings.captchaAutoSolver == null ? AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT : settings.captchaAutoSolver
+            );
             syncListPreference(AppPrefs.KEY_TURN_SESSION_MODE, settings.turnSessionMode);
             syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
             syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);

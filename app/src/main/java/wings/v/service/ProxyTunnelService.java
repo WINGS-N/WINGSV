@@ -2586,6 +2586,12 @@ public class ProxyTunnelService extends Service {
         if (settings.manualCaptcha) {
             command.add("-manual-captcha");
         }
+        String captchaSolver = settings.captchaAutoSolver;
+        if (TextUtils.isEmpty(captchaSolver)) {
+            captchaSolver = AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT;
+        }
+        command.add("-captcha-solver");
+        command.add(captchaSolver);
         if (xrayTurnProxyEnabled) {
             command.add("-session-mode");
             command.add("mainline");
