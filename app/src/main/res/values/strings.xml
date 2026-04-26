@@ -215,6 +215,9 @@
     <string name="update_notification_downloaded_text">APK уже загружен. Откройте раздел «О приложении», чтобы установить обновление.</string>
     <string name="about_developers_section">Разработчики</string>
     <string name="about_sources_section">Исходный код и лицензии</string>
+    <string name="about_telegram_section">Telegram</string>
+    <string name="about_telegram_chat_title">Telegram чат WINGS V</string>
+    <string name="about_telegram_chat_summary">Обсуждение, предложения и помощь с настройкой</string>
     <string name="about_special_thanks_section">Special thanks to</string>
     <string name="about_source_code_title">Исходный код</string>
     <string name="about_source_code_summary">github.com/WINGS-N/WINGSV</string>
