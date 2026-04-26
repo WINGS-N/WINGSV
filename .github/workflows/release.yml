@@ -164,9 +164,63 @@ jobs:
             sha512sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha512"
           fi
 
+      - name: Compute commit log since previous tag
+        id: commit-log
+        shell: bash
+        run: |
+          set -euo pipefail
+          prev_tag="$(git describe --tags --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)"
+          if [[ -z "${prev_tag}" ]]; then
+            log="$(git log --pretty=format:'%h %s' --no-merges)"
+          else
+            log="$(git log "${prev_tag}..HEAD" --pretty=format:'%h %s' --no-merges)"
+          fi
+          {
+            echo "prev_tag=${prev_tag}"
+            echo "log<<__LOG_EOF__"
+            echo "${log}"
+            echo "__LOG_EOF__"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Generate release notes via Claude
+        id: claude-notes
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Сгенерируй release notes для версии ${{ steps.resolve-version.outputs.version }} на русском языке в формате Markdown.
+
+            Коммиты с прошлого релиза (${{ steps.commit-log.outputs.prev_tag }}) до текущего:
+            ```
+            ${{ steps.commit-log.outputs.log }}
+            ```
+
+            Правила:
+            - Используй ровно 4 категории: «Добавлено», «Исправлено», «Изменено», «Удалено».
+            - Если категория пустая — не выводи её заголовок.
+            - Каждый пункт — короткое пользовательское описание (не разработческое), 1 строка.
+            - Игнорируй коммиты с тегом `[ignore]:`.
+            - Связанные коммиты (например, порт фичи + bump подмодуля) объединяй в один пункт.
+            - Не добавляй вводный текст, дату, версию, footer — только заголовки категорий и буллеты.
+            - Запиши итог в файл `release-notes.md` в корне репозитория.
+
+      - name: Fallback release notes
+        if: steps.claude-notes.outcome != 'success' || hashFiles('release-notes.md') == ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "### Изменения"
+            echo ""
+            echo "${{ steps.commit-log.outputs.log }}" | grep -v '^[0-9a-f]\+ \[ignore\]:' | sed 's/^[0-9a-f]\+ /- /'
+          } > release-notes.md
+
       - name: Publish GitHub release APK
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
+          body_path: release-notes.md
           files: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/app-release.apk.sha256
@@ -176,6 +230,7 @@ jobs:
         if: steps.build-patch.outputs.patch_generated == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           files: |
             ${{ steps.build-patch.outputs.patch_file }}
             ${{ steps.build-patch.outputs.patch_file }}.sha256
