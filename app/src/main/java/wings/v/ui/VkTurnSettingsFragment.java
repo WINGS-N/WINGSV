@@ -5,6 +5,8 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.widget.Toast;
@@ -167,8 +169,17 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         }
     }
 
+    private static final long RUNTIME_RECONNECT_DEBOUNCE_MS = 250L;
+
     private boolean suppressPreferenceSync;
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
+    private final Handler reconnectHandler = new Handler(Looper.getMainLooper());
+
+    @Nullable
+    private Runnable pendingReconnectRunnable;
+
+    @Nullable
+    private String pendingReconnectReason;
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -267,8 +278,19 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onPause() {
+        flushPendingReconnect();
         unregisterPreferencesListener();
         super.onPause();
+    }
+
+    private void flushPendingReconnect() {
+        if (pendingReconnectRunnable == null) {
+            return;
+        }
+        reconnectHandler.removeCallbacks(pendingReconnectRunnable);
+        Runnable runnable = pendingReconnectRunnable;
+        pendingReconnectRunnable = null;
+        runnable.run();
     }
 
     private void bindSwitchHaptics(String key) {
@@ -467,9 +489,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);
             syncListPreference(
                 AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
-                settings.captchaAutoSolver == null
-                    ? AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT
-                    : settings.captchaAutoSolver
+                settings.captchaAutoSolver == null ? AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT : settings.captchaAutoSolver
             );
             syncSwitchPreference(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, settings.vkTurnRestartOnNetworkChange);
             syncListPreference(
@@ -671,6 +691,24 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         if (!ProxyTunnelService.isActive()) {
             return;
         }
-        ProxyTunnelService.requestReconnect(requireContext().getApplicationContext(), reason);
+        pendingReconnectReason = reason;
+        if (pendingReconnectRunnable != null) {
+            reconnectHandler.removeCallbacks(pendingReconnectRunnable);
+        }
+        pendingReconnectRunnable = () -> {
+            pendingReconnectRunnable = null;
+            String resolvedReason =
+                pendingReconnectReason == null ? "VK TURN settings changed" : pendingReconnectReason;
+            pendingReconnectReason = null;
+            if (!ProxyTunnelService.isActive()) {
+                return;
+            }
+            Context context = getContext();
+            if (context == null) {
+                return;
+            }
+            ProxyTunnelService.requestReconnect(context.getApplicationContext(), resolvedReason);
+        };
+        reconnectHandler.postDelayed(pendingReconnectRunnable, RUNTIME_RECONNECT_DEBOUNCE_MS);
     }
 }
