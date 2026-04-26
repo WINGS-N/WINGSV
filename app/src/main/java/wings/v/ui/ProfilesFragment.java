@@ -830,11 +830,15 @@ public class ProfilesFragment extends Fragment {
         Context appContext = requireContext().getApplicationContext();
         workExecutor.execute(() -> {
             String resolvedToastMessage;
+            boolean activeProfileChanged = false;
+            String activeProfileId = "";
             try {
                 XraySubscriptionUpdater.RefreshResult result = XraySubscriptionUpdater.refreshAll(appContext);
                 resolvedToastMessage = TextUtils.isEmpty(result.error)
                     ? appContext.getString(R.string.xray_profiles_refresh_subscriptions_done, result.profiles.size())
                     : appContext.getString(R.string.xray_subscriptions_refresh_partial, result.error);
+                activeProfileChanged = result.activeProfileChanged;
+                activeProfileId = result.activeProfileId;
             } catch (Exception error) {
                 resolvedToastMessage = appContext.getString(
                     R.string.xray_subscriptions_refresh_failed,
@@ -842,6 +846,19 @@ public class ProfilesFragment extends Fragment {
                 );
             }
             final String toastMessage = resolvedToastMessage;
+            final boolean shouldReconnect = activeProfileChanged;
+            final String reconnectProfileId = activeProfileId;
+            if (shouldReconnect) {
+                BackendType backendType = XrayStore.getBackendType(appContext);
+                if (backendType != null && backendType.usesXrayCore() && ProxyTunnelService.isActive()) {
+                    ProxyTunnelService.requestReconnect(
+                        appContext,
+                        "Xray subscription refresh updated active profile",
+                        null,
+                        reconnectProfileId
+                    );
+                }
+            }
             postToUi(() -> {
                 refreshingSubscriptions = false;
                 refreshUi();
