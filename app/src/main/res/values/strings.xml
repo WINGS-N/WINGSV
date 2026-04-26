@@ -188,6 +188,8 @@
     <string name="about_updates_available_summary">Новый релиз найден. Нажмите, чтобы скачать APK</string>
     <string name="about_updates_downloading_title">Загрузка %1$s</string>
     <string name="about_updates_downloading_summary">После завершения загрузки, установите APK</string>
+    <string name="about_updates_patching_title">Применение патча %1$s</string>
+    <string name="about_updates_patching_summary">Распаковка обновления</string>
     <string name="about_updates_downloaded_title">Установить обновление %1$s</string>
     <string name="about_updates_downloaded_summary">APK уже загружен. Нажмите, чтобы начать установку</string>
     <string name="about_updates_badge_text">NEW</string>

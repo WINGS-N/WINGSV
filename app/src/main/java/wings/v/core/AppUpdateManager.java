@@ -682,7 +682,7 @@ public final class AppUpdateManager {
                     patchFile,
                     new ChecksumInfo(targetRelease.patchChecksumAlgorithm, targetRelease.patchChecksumUrl)
                 );
-                applyPatchFile(currentBase, patchFile, outputFile);
+                applyPatchFile(latestRelease, currentBase, patchFile, outputFile, targetRelease.apkAssetSize);
                 verifyDownloadedFile(
                     outputFile,
                     new ChecksumInfo(targetRelease.apkChecksumAlgorithm, targetRelease.apkChecksumUrl)
@@ -847,12 +847,21 @@ public final class AppUpdateManager {
         return installedApk;
     }
 
-    private void applyPatchFile(@NonNull File baseFile, @NonNull File patchFile, @NonNull File outputFile)
-        throws Exception {
+    private void applyPatchFile(
+        @NonNull ReleaseInfo releaseInfo,
+        @NonNull File baseFile,
+        @NonNull File patchFile,
+        @NonNull File outputFile,
+        long expectedOutputBytes
+    ) throws Exception {
         byte[] dictionary = Files.readAllBytes(baseFile.toPath());
+        long total = Math.max(MIN_CONTENT_LENGTH_BYTES, expectedOutputBytes);
+        updateState(UpdateState.patching(releaseInfo, total, 0));
+        long writtenBytes = 0L;
+        long lastReportedAtMs = 0L;
         try (
             InputStream patchInput = new FileInputStream(patchFile);
-            ZstdInputStream zstdInput = new ZstdInputStream(patchInput).setDict(dictionary);
+            ZstdInputStream zstdInput = openZstdPatchStream(patchInput, dictionary);
             FileOutputStream outputStream = new FileOutputStream(outputFile)
         ) {
             byte[] buffer = new byte[16 * 1024];
@@ -862,9 +871,27 @@ public final class AppUpdateManager {
                     throw new DownloadCancelledException();
                 }
                 outputStream.write(buffer, 0, read);
+                writtenBytes += read;
+                long now = System.currentTimeMillis();
+                if (now - lastReportedAtMs >= 200L) {
+                    int percent = (int) Math.min(99L, (writtenBytes * 100L) / total);
+                    updateState(UpdateState.patching(releaseInfo, total, percent));
+                    lastReportedAtMs = now;
+                }
                 read = zstdInput.read(buffer);
             }
             outputStream.flush();
+        }
+        updateState(UpdateState.patching(releaseInfo, total, 100));
+    }
+
+    @NonNull
+    private static ZstdInputStream openZstdPatchStream(@NonNull InputStream input, @NonNull byte[] dictionary)
+        throws Exception {
+        try {
+            return new ZstdInputStream(input).setDict(dictionary);
+        } catch (LinkageError nativeUnavailable) {
+            throw new IllegalStateException("Zstd native library unavailable on this device", nativeUnavailable);
         }
     }
 
@@ -1043,6 +1070,7 @@ public final class AppUpdateManager {
         UP_TO_DATE,
         UPDATE_AVAILABLE,
         DOWNLOADING,
+        PATCHING,
         DOWNLOADED,
         ERROR,
     }
@@ -1335,6 +1363,20 @@ public final class AppUpdateManager {
                 totalBytes,
                 speedBytesPerSecond,
                 remainingBytes,
+                progressPercent,
+                null
+            );
+        }
+
+        static UpdateState patching(@NonNull ReleaseInfo releaseInfo, long totalBytes, int progressPercent) {
+            return new UpdateState(
+                Status.PATCHING,
+                releaseInfo,
+                null,
+                totalBytes,
+                totalBytes,
+                0L,
+                0L,
                 progressPercent,
                 null
             );
