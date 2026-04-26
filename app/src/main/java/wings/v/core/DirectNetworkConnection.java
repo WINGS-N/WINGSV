@@ -45,6 +45,10 @@ public final class DirectNetworkConnection {
         if (useTunnelWhenActive && ProxyTunnelService.isActive()) {
             return (HttpURLConnection) url.openConnection();
         }
+        String host = url.getHost();
+        if (host != null && (host.equals("127.0.0.1") || host.equals("localhost") || host.equals("::1"))) {
+            return (HttpURLConnection) url.openConnection();
+        }
         Network network = findUsablePhysicalNetwork(context);
         if (network == null) {
             throw new IOException("No usable physical network");

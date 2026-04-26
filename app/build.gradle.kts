@@ -587,6 +587,7 @@ android {
     buildFeatures {
         viewBinding = true
         prefab = true
+        buildConfig = true
     }
 
     sourceSets.getByName("main") {
