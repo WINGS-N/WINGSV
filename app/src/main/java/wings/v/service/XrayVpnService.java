@@ -408,7 +408,11 @@ public class XrayVpnService extends VpnService implements DialerController {
             .append('|')
             .append(trim(xraySettings != null ? xraySettings.remoteDns : null))
             .append('|')
-            .append(trim(xraySettings != null ? xraySettings.directDns : null));
+            .append(trim(xraySettings != null ? xraySettings.directDns : null))
+            .append('|')
+            .append(
+                trim(settings != null && settings.activeXrayProfile != null ? settings.activeXrayProfile.id : null)
+            );
         return builder.toString();
     }
 
