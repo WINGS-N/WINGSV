@@ -3436,10 +3436,7 @@ public class ProxyTunnelService extends Service {
                     ? "VK captcha requested for additional TURN session"
                     : "VK captcha requested for primary TURN session"
         );
-        if (pending) {
-            showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, false, true);
-            return;
-        }
+        boolean isPool = prompt.source == CaptchaPromptSource.POOL;
         if (!isApplicationInForeground()) {
             appendRuntimeLogLine("App is backgrounded, showing VK captcha notification instead of opening browser");
             showCaptchaNotification(
@@ -3447,12 +3444,13 @@ public class ProxyTunnelService extends Service {
                 prompt.source,
                 prompt.userAgent,
                 transientExternalFlow,
-                prompt.source != CaptchaPromptSource.PRIMARY
+                isPool || pending
             );
             return;
         }
         if (transientExternalFlow && prompt.source == CaptchaPromptSource.PRIMARY) {
             showCaptchaNotification(prompt.url, prompt.source, prompt.userAgent, true, false);
+            return;
         }
         openCaptchaBrowser(prompt.url, prompt.source, prompt.userAgent);
     }
