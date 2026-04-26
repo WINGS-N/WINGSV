@@ -6328,17 +6328,25 @@ public class ProxyTunnelService extends Service {
     }
 
     private boolean shouldReconnectOnUnderlyingNetworkChange() {
-        if (!usesXrayBackend(activeBackendType)) {
-            return true;
+        if (usesXrayBackend(activeBackendType)) {
+            try {
+                return XrayStore.getXraySettings(getApplicationContext()).restartOnNetworkChange;
+            } catch (RuntimeException error) {
+                appendRuntimeLogLine(
+                    "Failed to read Xray network-change restart preference: " +
+                        firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
+                );
+                return false;
+            }
         }
         try {
-            return XrayStore.getXraySettings(getApplicationContext()).restartOnNetworkChange;
+            return AppPrefs.getSettings(getApplicationContext()).vkTurnRestartOnNetworkChange;
         } catch (RuntimeException error) {
             appendRuntimeLogLine(
-                "Failed to read Xray network-change restart preference: " +
+                "Failed to read VK TURN network-change restart preference: " +
                     firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
             );
-            return false;
+            return true;
         }
     }
 
