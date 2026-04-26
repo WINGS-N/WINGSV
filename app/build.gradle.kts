@@ -567,6 +567,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+
+        val telegramUrl = (project.findProperty("wingsv.telegramUrl") as String?)?.trim().orEmpty()
+        buildConfigField("String", "TELEGRAM_URL", "\"${telegramUrl}\"")
     }
 
     signingConfigs {

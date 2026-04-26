@@ -279,6 +279,16 @@ public class AboutAppActivity extends AppCompatActivity {
             Haptics.softSelection(view);
             startActivity(OpenSourceLicensesActivity.createIntent(this));
         });
+
+        if (TextUtils.isEmpty(BuildConfig.TELEGRAM_URL)) {
+            binding.separatorTelegram.setVisibility(View.GONE);
+            binding.groupTelegram.setVisibility(View.GONE);
+        } else {
+            binding.cardTelegramChat.setOnClickListener(view -> {
+                Haptics.softSelection(view);
+                BrowserLauncher.open(this, BuildConfig.TELEGRAM_URL);
+            });
+        }
     }
 
     private void bindUpdateSection() {
