@@ -3,7 +3,6 @@ package wings.v.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-import androidx.preference.PreferenceManager;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -294,7 +293,7 @@ public final class AmneziaStore {
     }
 
     private static SharedPreferences prefs(Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context);
     }
 
     private static String normalize(String value) {

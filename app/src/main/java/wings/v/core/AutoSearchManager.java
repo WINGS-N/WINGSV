@@ -14,7 +14,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
-import androidx.preference.PreferenceManager;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -245,7 +244,7 @@ public final class AutoSearchManager {
     }
 
     private static SharedPreferences settings(@NonNull Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context);
     }
 
     private static int clamp(int value, int min, int max) {
@@ -1644,7 +1643,7 @@ public final class AutoSearchManager {
         if (!TextUtils.isEmpty(activeProfileId)) {
             XrayStore.setActiveProfileId(appContext, activeProfileId);
         }
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(appContext);
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(appContext);
         preferences.edit().putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, byeDpiEnabled).apply();
 
         if (result.serviceWasActive) {
@@ -1657,7 +1656,7 @@ public final class AutoSearchManager {
         if (!TextUtils.isEmpty(session.originalActiveProfileId)) {
             XrayStore.setActiveProfileId(appContext, session.originalActiveProfileId);
         }
-        PreferenceManager.getDefaultSharedPreferences(appContext)
+        AppPrefs.defaultSharedPreferences(appContext)
             .edit()
             .putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, session.originalByeDpiAutoStart)
             .apply();

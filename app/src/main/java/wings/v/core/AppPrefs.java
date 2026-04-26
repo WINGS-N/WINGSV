@@ -1128,11 +1128,23 @@ public final class AppPrefs {
     }
 
     private static SharedPreferences prefs(Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return defaultSharedPreferences(context);
     }
 
+    @SuppressWarnings("deprecation")
+    public static SharedPreferences defaultSharedPreferences(Context context) {
+        Context appContext = context.getApplicationContext();
+        return appContext.getSharedPreferences(
+            appContext.getPackageName() + "_preferences",
+            Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS
+        );
+    }
+
+    @SuppressWarnings("deprecation")
     private static SharedPreferences runtimePrefs(Context context) {
-        return context.getApplicationContext().getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE);
+        return context
+            .getApplicationContext()
+            .getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS);
     }
 
     private static int parseInt(String rawValue, int fallback) {

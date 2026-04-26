@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.preference.PreferenceManager;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -229,6 +228,6 @@ public final class ByeDpiStore {
 
     @NonNull
     private static SharedPreferences prefs(@NonNull Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context);
     }
 }

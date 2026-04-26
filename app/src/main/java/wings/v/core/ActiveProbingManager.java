@@ -571,7 +571,7 @@ public final class ActiveProbingManager {
     }
 
     private static android.content.SharedPreferences prefs(Context context) {
-        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context);
     }
 
     private static final class ProbeTask implements Callable<Boolean> {
