@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
+import android.content.res.TypedArray;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -41,6 +43,7 @@ import wings.v.core.Haptics;
 import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.databinding.FragmentAppsBinding;
 import wings.v.service.ProxyTunnelService;
+import wings.v.widget.ShimmerStrokeDrawable;
 
 @SuppressWarnings(
     {
@@ -81,6 +84,10 @@ public class AppsFragment extends Fragment {
     private FragmentAppsBinding binding;
     private AppRoutingAdapter adapter;
     private AppSearchAdapter searchAdapter;
+
+    @Nullable
+    private ShimmerStrokeDrawable searchShimmer;
+
     private String searchQuery = "";
     private boolean searchOverlayVisible;
     private boolean searchBarHidden;
@@ -114,6 +121,8 @@ public class AppsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), searchBackCallback);
+
+        attachSearchShimmer();
 
         adapter = new AppRoutingAdapter(
             new AppRoutingAdapter.Callback() {
@@ -244,6 +253,9 @@ public class AppsFragment extends Fragment {
 
     @Override
     public void onPause() {
+        if (searchShimmer != null) {
+            searchShimmer.setRunning(false);
+        }
         requestDeferredReconnectIfNeeded();
         super.onPause();
     }
@@ -251,12 +263,16 @@ public class AppsFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (searchShimmer != null) {
+            searchShimmer.setRunning(true);
+        }
         loadApplications();
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        searchShimmer = null;
         binding.recyclerApps.setAdapter(null);
         binding.recyclerSearchResults.setAdapter(null);
         binding = null;
@@ -310,6 +326,37 @@ public class AppsFragment extends Fragment {
             adapter.setBypassEnabled(enabled);
         }
         Haptics.softSliderStep(sourceView);
+    }
+
+    private void attachSearchShimmer() {
+        if (binding == null) {
+            return;
+        }
+        Context context = requireContext();
+        TypedArray themeAttrs = context.obtainStyledAttributes(
+            new int[] {
+                android.R.attr.textColorSecondary,
+                android.R.attr.colorBackgroundFloating,
+                androidx.appcompat.R.attr.colorPrimary,
+            }
+        );
+        int textSecondary = themeAttrs.getColor(0, Color.GRAY);
+        int backgroundFloating = themeAttrs.getColor(1, Color.WHITE);
+        int primary = themeAttrs.getColor(2, textSecondary);
+        themeAttrs.recycle();
+        int accentA = ShimmerStrokeDrawable.blend(textSecondary, primary, 0.45f);
+        int accentB = ShimmerStrokeDrawable.blend(textSecondary, Color.WHITE, 0.55f);
+        float density = context.getResources().getDisplayMetrics().density;
+        searchShimmer = new ShimmerStrokeDrawable(
+            textSecondary,
+            accentA,
+            accentB,
+            backgroundFloating,
+            1.5f * density,
+            28f * density,
+            4200L
+        );
+        binding.searchBarContainer.setBackground(searchShimmer);
     }
 
     private void requestDeferredReconnectIfNeeded() {
