@@ -55,6 +55,7 @@ public final class AppUpdateManager {
     private static final int TIRAMISU_API = 33;
     private static final String CACHE_PREFS_NAME = "app_update_cache";
     private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases?per_page=4";
+    private static final String RELEASES_URL_OVERRIDE_PROP = "debug.wingsv.releases_url";
     private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
     private static final String PREFERRED_APK_ASSET_NAME = "app-release.apk";
     private static final String PATCH_ASSET_PREFIX = "wings-v_v";
@@ -239,6 +240,26 @@ public final class AppUpdateManager {
         return APK_MIME_TYPE;
     }
 
+    @NonNull
+    private static String resolveReleasesUrl() {
+        if (!wings.v.BuildConfig.DEBUG) {
+            return RELEASES_URL;
+        }
+        try {
+            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
+            Object value = systemPropertiesClass
+                .getMethod("get", String.class)
+                .invoke(null, RELEASES_URL_OVERRIDE_PROP);
+            if (value instanceof String) {
+                String trimmed = ((String) value).trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return RELEASES_URL;
+    }
+
     private HttpURLConnection openConnection(String urlString) throws Exception {
         HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, new URL(urlString), true);
         connection.setInstanceFollowRedirects(true);
@@ -298,7 +319,7 @@ public final class AppUpdateManager {
 
     @Nullable
     private List<ReleaseInfo> fetchRecentReleases(boolean trackActiveConnection) throws Exception {
-        HttpURLConnection connection = openConnection(RELEASES_URL);
+        HttpURLConnection connection = openConnection(resolveReleasesUrl());
         String cachedEtag = cachePreferences.getString(KEY_LAST_RELEASE_ETAG, "");
         if (!TextUtils.isEmpty(cachedEtag)) {
             connection.setRequestProperty("If-None-Match", cachedEtag);
