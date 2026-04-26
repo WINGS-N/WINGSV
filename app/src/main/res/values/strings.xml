@@ -665,6 +665,8 @@
     <string name="xray_subscriptions_title_hint">Название</string>
     <string name="xray_subscriptions_url_hint">URL подписки</string>
     <string name="xray_subscriptions_url_required">Укажите URL подписки</string>
+    <string name="xray_subscriptions_auto_update_per_subscription">Автообновлять эту подписку</string>
+    <string name="xray_subscriptions_auto_update_disabled_label">Автообновление выключено</string>
     <string name="xray_subscriptions_refresh_success">Обновление завершено, профилей: %1$d</string>
     <string name="xray_subscriptions_refresh_partial">Обновление завершено с ошибкой: %1$s</string>
     <string name="xray_subscriptions_refresh_failed">Не удалось обновить подписки: %1$s</string>
