@@ -73,6 +73,9 @@ public final class XraySubscriptionUpdater {
         boolean allowUniversalSeed,
         boolean dueOnly
     ) throws Exception {
+        XrayProfile previousActiveProfile = XrayStore.getActiveProfile(context);
+        String previousActiveProfileId = previousActiveProfile != null ? previousActiveProfile.id : "";
+        String previousActiveRawLink = previousActiveProfile != null ? previousActiveProfile.rawLink : "";
         List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context, allowUniversalSeed);
         LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
         LinkedHashMap<String, List<XrayProfile>> existingProfilesBySubscription = new LinkedHashMap<>();
@@ -168,9 +171,22 @@ public final class XraySubscriptionUpdater {
         XrayProfile activeProfile = XrayStore.getActiveProfile(context);
         if (activeProfile == null && !profiles.isEmpty()) {
             XrayStore.setActiveProfileId(context, profiles.values().iterator().next().id);
+            activeProfile = XrayStore.getActiveProfile(context);
         }
 
-        return new RefreshResult(new ArrayList<>(profiles.values()), updatedSubscriptions, firstError);
+        String activeProfileId = activeProfile != null ? activeProfile.id : "";
+        String activeRawLink = activeProfile != null ? activeProfile.rawLink : "";
+        boolean activeProfileChanged =
+            !TextUtils.equals(previousActiveProfileId, activeProfileId) ||
+            !TextUtils.equals(previousActiveRawLink, activeRawLink);
+
+        return new RefreshResult(
+            new ArrayList<>(profiles.values()),
+            updatedSubscriptions,
+            firstError,
+            activeProfileId,
+            activeProfileChanged
+        );
     }
 
     private static boolean shouldRefreshSubscription(
@@ -339,11 +355,21 @@ public final class XraySubscriptionUpdater {
         public final List<XrayProfile> profiles;
         public final List<XraySubscription> subscriptions;
         public final String error;
+        public final String activeProfileId;
+        public final boolean activeProfileChanged;
 
-        RefreshResult(List<XrayProfile> profiles, List<XraySubscription> subscriptions, String error) {
+        RefreshResult(
+            List<XrayProfile> profiles,
+            List<XraySubscription> subscriptions,
+            String error,
+            String activeProfileId,
+            boolean activeProfileChanged
+        ) {
             this.profiles = profiles;
             this.subscriptions = subscriptions;
             this.error = error;
+            this.activeProfileId = activeProfileId == null ? "" : activeProfileId;
+            this.activeProfileChanged = activeProfileChanged;
         }
     }
 
