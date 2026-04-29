@@ -39,7 +39,7 @@ public abstract class XrayRealDelayTestService extends Service {
     public static final String RESULT_PROFILE_ID = "profile_id";
     public static final String RESULT_PING_KEY = "ping_key";
     public static final String RESULT_LATENCY_MS = "latency_ms";
-    private static final int WORKER_COUNT = 4;
+    private static final int WORKER_COUNT = 6;
     private static final int REAL_DELAY_TIMEOUT_SECONDS = 8;
     private static final String ACTION_TEST = "wings.v.intent.action.XRAY_REAL_DELAY_TEST";
     private static final String REAL_DELAY_TEST_URL = "https://cp.cloudflare.com/generate_204";
@@ -95,6 +95,10 @@ public abstract class XrayRealDelayTestService extends Service {
                 return XrayRealDelayTestWorker2Service.class;
             case 3:
                 return XrayRealDelayTestWorker3Service.class;
+            case 4:
+                return XrayRealDelayTestWorker4Service.class;
+            case 5:
+                return XrayRealDelayTestWorker5Service.class;
             case 0:
             default:
                 return XrayRealDelayTestWorker0Service.class;

@@ -209,6 +209,9 @@ public final class ActiveProbingManager {
         if (resolved == BackendType.WIREGUARD) {
             return context.getString(R.string.backend_wireguard_title);
         }
+        if (resolved == BackendType.WB_STREAM) {
+            return context.getString(R.string.backend_wb_stream_title);
+        }
         return context.getString(R.string.backend_vk_turn_wireguard_title);
     }
 
