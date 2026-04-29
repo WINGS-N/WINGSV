@@ -32,6 +32,7 @@ mpandroidchart = "3.1.0"
 workRuntime = "2.10.5"
 zstdJni = "1.5.7-4"
 dexkit = "2.1.0"
+livekit = "2.16.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -68,6 +69,7 @@ mpandroidchart = { module = "com.github.PhilJay:MPAndroidChart", version.ref = "
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "workRuntime" }
 zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
 dexkit = { module = "org.luckypray:dexkit", version.ref = "dexkit" }
+livekit-android = { module = "io.livekit:livekit-android", version.ref = "livekit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
