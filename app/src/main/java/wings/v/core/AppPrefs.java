@@ -4,10 +4,14 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 import androidx.preference.PreferenceManager;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.json.JSONArray;
+import org.json.JSONException;
 import wings.v.R;
 
 @SuppressWarnings(
@@ -34,7 +38,11 @@ public final class AppPrefs {
 
     public static final String KEY_ENDPOINT = "pref_endpoint";
     public static final String KEY_VK_LINK = "pref_vk_link";
+    public static final String KEY_VK_LINKS_JSON = "pref_vk_links_json";
+    public static final String KEY_VK_LINK_SECONDARY = "pref_vk_link_secondary";
+    public static final String KEY_OPEN_VK_LINKS = "pref_open_vk_links";
     public static final String KEY_THREADS = "pref_threads";
+    public static final String KEY_CREDS_GROUP_SIZE = "pref_creds_group_size";
     public static final String KEY_USE_UDP = "pref_use_udp";
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
     public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
@@ -55,6 +63,12 @@ public final class AppPrefs {
     public static final String KEY_WG_ALLOWED_IPS = "pref_wg_allowed_ips";
     public static final String KEY_WG_ENDPOINT = "pref_wg_endpoint";
     public static final String KEY_AWG_QUICK_CONFIG = "pref_awg_quick_config";
+    public static final String KEY_WB_STREAM_ROOM_ID = "pref_wb_stream_room_id";
+    public static final String KEY_WB_STREAM_DISPLAY_NAME = "pref_wb_stream_display_name";
+    public static final String KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN = "pref_wb_stream_exchange_via_vk_turn";
+    public static final String KEY_WB_STREAM_E2E_ENABLED = "pref_wb_stream_e2e_enabled";
+    public static final String KEY_WB_STREAM_E2E_SECRET = "pref_wb_stream_e2e_secret";
+    public static final String KEY_OPEN_WB_STREAM_SETTINGS = "pref_open_wb_stream_settings";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
     public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
     public static final String KEY_OPEN_ROOT_INTERFACE_SETTINGS = "pref_open_root_interface_settings";
@@ -736,7 +750,13 @@ public final class AppPrefs {
         settings.backendType = XrayStore.getBackendType(context);
         settings.endpoint = resolveEndpointForBackend(context, settings.backendType);
         settings.vkLink = trim(prefs.getString(KEY_VK_LINK, ""));
-        settings.threads = parseInt(prefs.getString(KEY_THREADS, "8"), 8);
+        settings.vkLinks = readVkLinks(prefs, settings.vkLink);
+        settings.vkLinkSecondary = trim(prefs.getString(KEY_VK_LINK_SECONDARY, ""));
+        if (!settings.vkLinks.isEmpty()) {
+            settings.vkLink = settings.vkLinks.get(0);
+        }
+        settings.threads = parseInt(prefs.getString(KEY_THREADS, "24"), 24);
+        settings.credsGroupSize = parseInt(prefs.getString(KEY_CREDS_GROUP_SIZE, "12"), 12);
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
         settings.manualCaptcha = prefs.getBoolean(KEY_MANUAL_CAPTCHA, false);
@@ -794,6 +814,15 @@ public final class AppPrefs {
         if (importedConfig.hasWireGuardSettings) {
             applyImportedWireGuardSettings(editor, importedConfig, backendType);
         }
+        if (importedConfig.hasWbStreamSettings) {
+            editor.putString(KEY_WB_STREAM_ROOM_ID, trim(importedConfig.wbStreamRoomId));
+            editor.putString(KEY_WB_STREAM_DISPLAY_NAME, trim(importedConfig.wbStreamDisplayName));
+            editor.putBoolean(KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN, importedConfig.wbStreamExchangeViaVkTurn);
+            editor.putBoolean(KEY_WB_STREAM_E2E_ENABLED, importedConfig.wbStreamE2eEnabled);
+            if (!TextUtils.isEmpty(importedConfig.wbStreamE2eSecret)) {
+                editor.putString(KEY_WB_STREAM_E2E_SECRET, trim(importedConfig.wbStreamE2eSecret));
+            }
+        }
         editor.apply();
 
         if (importedConfig.hasAmneziaSettings) {
@@ -837,10 +866,33 @@ public final class AppPrefs {
         } else {
             editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
         }
-        editor.putString(KEY_VK_LINK, trim(importedConfig.link));
+        String importedLink = trim(importedConfig.link);
+        editor.putString(KEY_VK_LINK, importedLink);
+        ArrayList<String> importedLinks = new ArrayList<>();
+        if (importedConfig.links != null) {
+            for (String entry : importedConfig.links) {
+                String trimmed = trim(entry);
+                if (!TextUtils.isEmpty(trimmed)) {
+                    importedLinks.add(trimmed);
+                }
+            }
+        }
+        if (importedLinks.isEmpty() && !TextUtils.isEmpty(importedLink)) {
+            importedLinks.add(importedLink);
+        }
+        editor.putString(KEY_VK_LINKS_JSON, encodeVkLinks(importedLinks));
+        editor.putString(KEY_VK_LINK_SECONDARY, trim(importedConfig.linkSecondary));
+        editor.putString(
+            KEY_CREDS_GROUP_SIZE,
+            String.valueOf(
+                importedConfig.credsGroupSize != null && importedConfig.credsGroupSize > 0
+                    ? importedConfig.credsGroupSize
+                    : 12
+            )
+        );
         editor.putString(
             KEY_THREADS,
-            String.valueOf(importedConfig.threads != null && importedConfig.threads > 0 ? importedConfig.threads : 8)
+            String.valueOf(importedConfig.threads != null && importedConfig.threads > 0 ? importedConfig.threads : 24)
         );
         editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
         editor.putBoolean(KEY_NO_OBFUSCATION, importedConfig.noObfuscation != null && importedConfig.noObfuscation);
@@ -916,7 +968,10 @@ public final class AppPrefs {
             .edit()
             .putString(KEY_ENDPOINT, trim(settings.endpoint))
             .putString(KEY_VK_LINK, trim(settings.vkLink))
-            .putString(KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 8))
+            .putString(KEY_VK_LINKS_JSON, encodeVkLinks(settings.vkLinks))
+            .putString(KEY_VK_LINK_SECONDARY, trim(settings.vkLinkSecondary))
+            .putString(KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 24))
+            .putString(KEY_CREDS_GROUP_SIZE, String.valueOf(settings.credsGroupSize > 0 ? settings.credsGroupSize : 12))
             .putBoolean(KEY_USE_UDP, settings.useUdp)
             .putBoolean(KEY_NO_OBFUSCATION, settings.noObfuscation)
             .putBoolean(KEY_MANUAL_CAPTCHA, settings.manualCaptcha)
@@ -1129,6 +1184,99 @@ public final class AppPrefs {
 
     private static SharedPreferences prefs(Context context) {
         return defaultSharedPreferences(context);
+    }
+
+    public static List<String> getVkLinks(Context context) {
+        SharedPreferences sharedPreferences = prefs(context);
+        return readVkLinks(sharedPreferences, trim(sharedPreferences.getString(KEY_VK_LINK, "")));
+    }
+
+    public static void setVkLinks(Context context, List<String> links) {
+        prefs(context).edit().putString(KEY_VK_LINKS_JSON, encodeVkLinks(links)).apply();
+    }
+
+    public static String getVkLinkSecondary(Context context) {
+        return trim(prefs(context).getString(KEY_VK_LINK_SECONDARY, ""));
+    }
+
+    public static void setVkLinkSecondary(Context context, String value) {
+        prefs(context).edit().putString(KEY_VK_LINK_SECONDARY, trim(value)).apply();
+    }
+
+    public static String getWbStreamRoomId(Context context) {
+        return trim(prefs(context).getString(KEY_WB_STREAM_ROOM_ID, ""));
+    }
+
+    public static void setWbStreamRoomId(Context context, String value) {
+        prefs(context).edit().putString(KEY_WB_STREAM_ROOM_ID, trim(value)).apply();
+    }
+
+    public static String getWbStreamDisplayName(Context context) {
+        return trim(prefs(context).getString(KEY_WB_STREAM_DISPLAY_NAME, ""));
+    }
+
+    public static void setWbStreamDisplayName(Context context, String value) {
+        prefs(context).edit().putString(KEY_WB_STREAM_DISPLAY_NAME, trim(value)).apply();
+    }
+
+    public static boolean isWbStreamExchangeViaVkTurn(Context context) {
+        return prefs(context).getBoolean(KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN, false);
+    }
+
+    public static void setWbStreamExchangeViaVkTurn(Context context, boolean value) {
+        prefs(context).edit().putBoolean(KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN, value).apply();
+    }
+
+    public static boolean isWbStreamE2eEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_WB_STREAM_E2E_ENABLED, false);
+    }
+
+    public static void setWbStreamE2eEnabled(Context context, boolean value) {
+        prefs(context).edit().putBoolean(KEY_WB_STREAM_E2E_ENABLED, value).apply();
+    }
+
+    public static String getWbStreamE2eSecret(Context context) {
+        return trim(prefs(context).getString(KEY_WB_STREAM_E2E_SECRET, ""));
+    }
+
+    public static void setWbStreamE2eSecret(Context context, String value) {
+        prefs(context).edit().putString(KEY_WB_STREAM_E2E_SECRET, trim(value)).apply();
+    }
+
+    private static List<String> readVkLinks(SharedPreferences sharedPreferences, String legacyFallback) {
+        ArrayList<String> result = new ArrayList<>();
+        String json = sharedPreferences.getString(KEY_VK_LINKS_JSON, "");
+        if (!TextUtils.isEmpty(json)) {
+            try {
+                JSONArray array = new JSONArray(json);
+                LinkedHashSet<String> seen = new LinkedHashSet<>();
+                for (int i = 0; i < array.length(); i++) {
+                    String value = trim(array.optString(i, ""));
+                    if (!TextUtils.isEmpty(value) && seen.add(value)) {
+                        result.add(value);
+                    }
+                }
+            } catch (JSONException ignored) {}
+        }
+        if (result.isEmpty() && !TextUtils.isEmpty(legacyFallback)) {
+            result.add(legacyFallback);
+        }
+        return result;
+    }
+
+    private static String encodeVkLinks(List<String> links) {
+        if (links == null || links.isEmpty()) {
+            return "";
+        }
+        JSONArray array = new JSONArray();
+        LinkedHashSet<String> seen = new LinkedHashSet<>();
+        for (String link : links) {
+            String value = trim(link);
+            if (!TextUtils.isEmpty(value) && seen.add(value)) {
+                array.put(value);
+            }
+        }
+        return array.toString();
     }
 
     @SuppressWarnings("deprecation")

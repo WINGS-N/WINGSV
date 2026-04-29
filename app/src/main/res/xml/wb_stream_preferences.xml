@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:key="pref_category_wb_stream"
+        android:title="@string/wb_stream_section" />
+
+    <EditTextPreference
+        android:key="pref_wb_stream_room_id"
+        android:title="@string/wb_stream_room_id_title"
+        android:summary="@string/wb_stream_room_id_summary"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_wb_stream_display_name"
+        android:title="@string/wb_stream_display_name_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_wb_stream_exchange_via_vk_turn"
+        android:title="@string/wb_stream_exchange_via_vk_turn_title"
+        android:summary="@string/wb_stream_exchange_via_vk_turn_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_wb_stream_e2e_enabled"
+        android:title="@string/wb_stream_e2e_enabled_title"
+        android:summary="@string/wb_stream_e2e_enabled_summary"
+        android:defaultValue="false" />
+
+    <EditTextPreference
+        android:key="pref_wb_stream_e2e_secret"
+        android:title="@string/wb_stream_e2e_secret_title"
+        android:summary="@string/wb_stream_e2e_secret_summary"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_local_endpoint"
+        android:title="Локальный endpoint"
+        android:defaultValue="127.0.0.1:9000" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_wb_stream" />
+
+    <PreferenceCategory
+        android:key="pref_category_wb_stream_vk_turn"
+        android:title="@string/wb_stream_vk_turn_section" />
+
+    <EditTextPreference
+        android:key="pref_endpoint"
+        android:title="Endpoint"
+        android:dialogTitle="Endpoint"
+        app:useSimpleSummaryProvider="true" />
+
+    <Preference
+        android:key="pref_open_vk_links"
+        android:title="@string/vk_links_title" />
+
+    <EditTextPreference
+        android:key="pref_threads"
+        android:title="Потоки"
+        android:defaultValue="24" />
+
+    <EditTextPreference
+        android:key="pref_creds_group_size"
+        android:title="@string/creds_group_size_title"
+        android:summary="@string/creds_group_size_summary"
+        android:defaultValue="12" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_use_udp"
+        android:title="Использовать UDP"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_no_obfuscation"
+        android:title="Без обфускации"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_manual_captcha"
+        android:title="@string/manual_captcha_title"
+        android:summary="@string/manual_captcha_summary"
+        android:defaultValue="false" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_captcha_auto_solver"
+        android:title="@string/captcha_auto_solver_title"
+        android:summary="@string/captcha_auto_solver_summary"
+        android:defaultValue="v2"
+        android:entries="@array/captcha_auto_solver_entries"
+        android:entryValues="@array/captcha_auto_solver_values" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_turn_session_mode"
+        android:title="@string/turn_session_mode_title"
+        android:defaultValue="mainline"
+        android:entries="@array/turn_session_mode_entries"
+        android:entryValues="@array/turn_session_mode_values" />
+
+    <EditTextPreference
+        android:key="pref_turn_host"
+        android:title="TURN host override"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_turn_port"
+        android:title="TURN port override"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_wb_stream_vk_turn" />
+
+    <PreferenceCategory
+        android:key="pref_category_wg_interface"
+        android:title="WireGuard Interface" />
+
+    <EditTextPreference
+        android:key="pref_wg_private_key"
+        android:title="Private key" />
+
+    <EditTextPreference
+        android:key="pref_wg_addresses"
+        android:title="Addresses"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_wg_dns"
+        android:title="DNS"
+        android:defaultValue="1.1.1.1, 1.0.0.1"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_wg_mtu"
+        android:title="MTU"
+        android:defaultValue="1280" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_wg_interface" />
+
+    <PreferenceCategory
+        android:key="pref_category_wg_peer"
+        android:title="WireGuard Peer" />
+
+    <EditTextPreference
+        android:key="pref_wg_public_key"
+        android:title="Public key" />
+
+    <EditTextPreference
+        android:key="pref_wg_preshared_key"
+        android:title="Preshared key (PSK)" />
+
+    <EditTextPreference
+        android:key="pref_wg_allowed_ips"
+        android:title="Allowed IPs"
+        android:defaultValue="0.0.0.0/0, ::/0"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_wg_endpoint"
+        android:title="Endpoint"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_wg_peer" />
+
+</PreferenceScreen>

@@ -37,6 +37,7 @@
         <item>@string/backend_amneziawg_title</item>
         <item>@string/backend_amneziawg_plain_title</item>
         <item>@string/backend_xray_title</item>
+        <item>@string/backend_wb_stream_title</item>
     </string-array>
 
     <string-array name="backend_values">
@@ -45,6 +46,7 @@
         <item>amneziawg</item>
         <item>amneziawg_plain</item>
         <item>xray</item>
+        <item>wb_stream</item>
     </string-array>
 
     <string-array name="captcha_auto_solver_entries">

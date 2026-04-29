@@ -114,6 +114,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".VkLinksActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".SubscriptionHwidSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
@@ -140,6 +145,11 @@
 
         <activity
             android:name=".VkTurnSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".WbStreamSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
 
@@ -357,6 +367,46 @@
             android:name=".service.XrayRealDelayTestWorker3Service"
             android:exported="false"
             android:process=":xray_test_3" />
+
+        <service
+            android:name=".service.XrayRealDelayTestWorker4Service"
+            android:exported="false"
+            android:process=":xray_test_4" />
+
+        <service
+            android:name=".service.XrayRealDelayTestWorker5Service"
+            android:exported="false"
+            android:process=":xray_test_5" />
+
+        <service
+            android:name=".service.XrayAutoSearchProbeWorker0Service"
+            android:exported="false"
+            android:process=":autosearch_probe_0" />
+
+        <service
+            android:name=".service.XrayAutoSearchProbeWorker1Service"
+            android:exported="false"
+            android:process=":autosearch_probe_1" />
+
+        <service
+            android:name=".service.XrayAutoSearchProbeWorker2Service"
+            android:exported="false"
+            android:process=":autosearch_probe_2" />
+
+        <service
+            android:name=".service.XrayAutoSearchProbeWorker3Service"
+            android:exported="false"
+            android:process=":autosearch_probe_3" />
+
+        <service
+            android:name=".service.XrayAutoSearchProbeWorker4Service"
+            android:exported="false"
+            android:process=":autosearch_probe_4" />
+
+        <service
+            android:name=".service.XrayAutoSearchProbeWorker5Service"
+            android:exported="false"
+            android:process=":autosearch_probe_5" />
 
         <service
             android:name=".qs.TunnelQuickSettingsTileService"

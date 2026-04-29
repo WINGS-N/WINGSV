@@ -285,6 +285,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference wbStreamSettingsPreference = findPreference(AppPrefs.KEY_OPEN_WB_STREAM_SETTINGS);
+        if (wbStreamSettingsPreference != null) {
+            wbStreamSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(wings.v.WbStreamSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         Preference byeDpiSettingsPreference = findPreference(ByeDpiStore.KEY_OPEN_SETTINGS);
         if (byeDpiSettingsPreference != null) {
             byeDpiSettingsPreference.setOnPreferenceClickListener(preference -> {
@@ -502,6 +511,12 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     ? getString(R.string.byedpi_open_summary)
                     : getString(R.string.byedpi_xray_only_summary)
             );
+        }
+        Preference wbStreamSettingsPreference = findPreference(AppPrefs.KEY_OPEN_WB_STREAM_SETTINGS);
+        if (wbStreamSettingsPreference != null) {
+            boolean wbStreamBackend = backendType == BackendType.WB_STREAM;
+            wbStreamSettingsPreference.setVisible(wbStreamBackend);
+            wbStreamSettingsPreference.setEnabled(wbStreamBackend);
         }
     }
 
