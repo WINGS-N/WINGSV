@@ -8,7 +8,8 @@ public enum BackendType {
     WIREGUARD("wireguard"),
     AMNEZIAWG("amneziawg"),
     AMNEZIAWG_PLAIN("amneziawg_plain"),
-    XRAY("xray");
+    XRAY("xray"),
+    WB_STREAM("wb_stream");
 
     public final String prefValue;
 
@@ -30,6 +31,9 @@ public enum BackendType {
         if (TextUtils.equals(XRAY.prefValue, normalized)) {
             return XRAY;
         }
+        if (TextUtils.equals(WB_STREAM.prefValue, normalized)) {
+            return WB_STREAM;
+        }
         return VK_TURN_WIREGUARD;
     }
 
@@ -45,6 +49,9 @@ public enum BackendType {
         }
         if (backendType == WingsvProto.BackendType.BACKEND_TYPE_XRAY) {
             return XRAY;
+        }
+        if (backendType == WingsvProto.BackendType.BACKEND_TYPE_WB_STREAM) {
+            return WB_STREAM;
         }
         return VK_TURN_WIREGUARD;
     }
@@ -62,11 +69,14 @@ public enum BackendType {
         if (this == XRAY) {
             return WingsvProto.BackendType.BACKEND_TYPE_XRAY;
         }
+        if (this == WB_STREAM) {
+            return WingsvProto.BackendType.BACKEND_TYPE_WB_STREAM;
+        }
         return WingsvProto.BackendType.BACKEND_TYPE_VK_TURN_WIREGUARD;
     }
 
     public boolean isVkTurnLike() {
-        return this != XRAY;
+        return this != XRAY && this != WB_STREAM;
     }
 
     public boolean usesXrayCore() {
@@ -74,11 +84,11 @@ public enum BackendType {
     }
 
     public boolean usesTurnProxy() {
-        return this == VK_TURN_WIREGUARD || this == AMNEZIAWG;
+        return this == VK_TURN_WIREGUARD || this == AMNEZIAWG || this == WB_STREAM;
     }
 
     public boolean usesWireGuardSettings() {
-        return this == VK_TURN_WIREGUARD || this == WIREGUARD;
+        return this == VK_TURN_WIREGUARD || this == WIREGUARD || this == WB_STREAM;
     }
 
     public boolean usesAmneziaSettings() {

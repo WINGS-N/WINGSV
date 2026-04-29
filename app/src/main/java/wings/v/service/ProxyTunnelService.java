@@ -240,6 +240,8 @@ public class ProxyTunnelService extends Service {
     private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 1_000L;
     private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 1_200L;
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
+    private static final int WB_STREAM_EXCHANGE_MAX_ATTEMPTS = 3;
+    private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
     private static final int MAX_PROXY_LOG_LINES = 600;
     private static final long ROOT_TETHER_SYNC_INTERVAL_MS = 3_000L;
     private static final int TRANSIENT_ERROR_NOTICE_THRESHOLD = 6;
@@ -2553,10 +2555,36 @@ public class ProxyTunnelService extends Service {
         throw new IllegalStateException(firstNonEmpty(launchError, "Не удалось запустить proxy"));
     }
 
+    private static String joinVkLinks(ProxySettings settings) {
+        if (settings.vkLinks != null && !settings.vkLinks.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (String link : settings.vkLinks) {
+                if (link == null) {
+                    continue;
+                }
+                String trimmed = link.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append(',');
+                }
+                sb.append(trimmed);
+            }
+            if (sb.length() > 0) {
+                return sb.toString();
+            }
+        }
+        return settings.vkLink == null ? "" : settings.vkLink.trim();
+    }
+
     private Process buildProxyProcess(ProxySettings settings) throws Exception {
         File executable = new File(getApplicationInfo().nativeLibraryDir, "libvkturn.so");
         if (!executable.isFile()) {
             throw new IllegalStateException("VK TURN binary not found: " + executable.getAbsolutePath());
+        }
+        if (activeBackendType == BackendType.WB_STREAM) {
+            return buildWbStreamProxyProcess(settings, executable);
         }
         boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
 
@@ -2565,13 +2593,21 @@ public class ProxyTunnelService extends Service {
         command.add("-peer");
         command.add(settings.endpoint);
         command.add("-vk-link");
-        command.add(settings.vkLink);
+        command.add(joinVkLinks(settings));
         command.add("-listen");
         command.add(settings.localEndpoint);
+        if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
+            command.add("-vk-link-secondary");
+            command.add(settings.vkLinkSecondary);
+        }
 
         if (settings.threads > 0) {
             command.add("-n");
             command.add(String.valueOf(settings.threads));
+        }
+        if (settings.credsGroupSize > 0) {
+            command.add("-creds-group-size");
+            command.add(String.valueOf(settings.credsGroupSize));
         }
         if (xrayTurnProxyEnabled) {
             command.add("-transport");
@@ -2634,6 +2670,122 @@ public class ProxyTunnelService extends Service {
             "; exec " +
             joinShellCommand(command);
         return new ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start();
+    }
+
+    private Process buildWbStreamProxyProcess(ProxySettings settings, File executable) throws Exception {
+        Context appContext = getApplicationContext();
+        String roomId = AppPrefs.getWbStreamRoomId(appContext);
+        String displayName = AppPrefs.getWbStreamDisplayName(appContext);
+        if (TextUtils.isEmpty(displayName)) {
+            displayName = "wb-stream-android";
+        }
+        boolean e2eEnabled = AppPrefs.isWbStreamE2eEnabled(appContext);
+        String e2eSecret = e2eEnabled ? AppPrefs.getWbStreamE2eSecret(appContext) : "";
+
+        // Pre-create the LiveKit room from Java when no room_id is set yet, so
+        // the room-exchange handshake and the long-running proxy use the same
+        // identifier. Otherwise the handshake delivers "any" while the proxy
+        // creates a fresh room of its own — client and server end up in
+        // different rooms.
+        if (TextUtils.isEmpty(roomId)) {
+            try {
+                String accessToken = wings.v.wbstream.WbStreamApi.registerGuest(displayName);
+                roomId = wings.v.wbstream.WbStreamApi.createRoom(accessToken);
+                AppPrefs.setWbStreamRoomId(appContext, roomId);
+                appendRuntimeLogLine("WB Stream pre-created room: " + roomId);
+            } catch (Exception error) {
+                throw new IllegalStateException(
+                    "Не удалось создать LiveKit-комнату: " + firstNonEmpty(error.getMessage(), error.toString()),
+                    error
+                );
+            }
+        }
+
+        if (AppPrefs.isWbStreamExchangeViaVkTurn(appContext)) {
+            Exception lastError = null;
+            for (int attempt = 1; attempt <= WB_STREAM_EXCHANGE_MAX_ATTEMPTS; attempt++) {
+                try {
+                    deliverWbStreamRoomExchange(executable, settings, roomId, displayName, e2eEnabled, e2eSecret);
+                    lastError = null;
+                    break;
+                } catch (Exception error) {
+                    lastError = error;
+                    appendRuntimeLogLine(
+                        "WB Stream room exchange attempt " +
+                        attempt +
+                        "/" +
+                        WB_STREAM_EXCHANGE_MAX_ATTEMPTS +
+                        " failed: " +
+                        firstNonEmpty(error.getMessage(), error.toString())
+                    );
+                    if (attempt < WB_STREAM_EXCHANGE_MAX_ATTEMPTS) {
+                        Thread.sleep(WB_STREAM_EXCHANGE_RETRY_DELAY_MS * attempt);
+                    }
+                }
+            }
+            if (lastError != null) {
+                throw new IllegalStateException(
+                    "VK TURN handshake для обмена room id не удался: " +
+                    firstNonEmpty(lastError.getMessage(), lastError.toString()),
+                    lastError
+                );
+            }
+        }
+
+        List<String> command = new ArrayList<>();
+        command.add(executable.getAbsolutePath());
+        command.add("-wb-stream-room-id");
+        command.add(roomId);
+        command.add("-wb-stream-display-name");
+        command.add(displayName);
+        command.add("-listen");
+        command.add(settings.localEndpoint);
+        if (e2eEnabled && !TextUtils.isEmpty(e2eSecret)) {
+            command.add("-wb-stream-e2e-secret");
+            command.add(e2eSecret);
+        }
+        if (!TextUtils.isEmpty(protectSocketName)) {
+            command.add("-protect-sock");
+            command.add(protectSocketName);
+        }
+        appendRuntimeLogLine("Spawning WB Stream proxy (room=" + roomId + ", listen=" + settings.localEndpoint + ")");
+        return new ProcessBuilder(command).redirectErrorStream(true).start();
+    }
+
+    private void deliverWbStreamRoomExchange(
+        File executable,
+        ProxySettings settings,
+        String roomId,
+        String displayName,
+        boolean e2eEnabled,
+        String e2eSecret
+    ) throws Exception {
+        if (TextUtils.isEmpty(settings.endpoint)) {
+            throw new IllegalStateException("VK TURN endpoint is empty — fill it in VK TURN settings");
+        }
+        List<String> command = new ArrayList<>();
+        command.add(executable.getAbsolutePath());
+        command.add("-room-exchange-mode");
+        command.add("-peer");
+        command.add(settings.endpoint);
+        command.add("-room-exchange-room-id");
+        command.add(roomId);
+        command.add("-room-exchange-display-name");
+        command.add(displayName);
+        if (e2eEnabled) {
+            command.add("-room-exchange-e2e-enabled=true");
+            if (!TextUtils.isEmpty(e2eSecret)) {
+                command.add("-room-exchange-e2e-secret");
+                command.add(e2eSecret);
+            }
+        }
+        appendRuntimeLogLine("VK TURN room exchange → " + settings.endpoint + " (room=" + roomId + ")");
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        int exit = process.waitFor();
+        if (exit != 0) {
+            throw new IOException("vk-turn-proxy room-exchange exited with code " + exit);
+        }
+        appendRuntimeLogLine("VK TURN room exchange delivered");
     }
 
     @Nullable

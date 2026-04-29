@@ -23,7 +23,10 @@ public class ProxySettings {
     public BackendType backendType = BackendType.VK_TURN_WIREGUARD;
     public String endpoint;
     public String vkLink;
+    public java.util.List<String> vkLinks = new java.util.ArrayList<>();
+    public String vkLinkSecondary = "";
     public int threads;
+    public int credsGroupSize = 12;
     public boolean useUdp;
     public boolean noObfuscation;
     public boolean manualCaptcha;

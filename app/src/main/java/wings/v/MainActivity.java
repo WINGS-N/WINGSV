@@ -1,5 +1,6 @@
 package wings.v;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -37,6 +38,7 @@ import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateManager;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.ImportConfigSummary;
 import wings.v.core.PermissionUtils;
 import wings.v.core.RootUtils;
 import wings.v.core.UpdateBadgeUtils;
@@ -599,20 +601,39 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        WingsImportParser.ImportedConfig parsed;
         try {
-            AppPrefs.applyImportedConfig(this, WingsImportParser.parseFromText(rawData));
-            requestReconnectAfterImport(rawData);
-            Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
-            intent.setData(null);
-            BackendType backendType = XrayStore.getBackendType(this);
-            boolean nextHasProfilesTab = backendType != null && backendType.usesXrayCore();
-            boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
-            if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
-                rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
-            }
+            parsed = WingsImportParser.parseFromText(rawData);
         } catch (Exception ignored) {
             Toast.makeText(this, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
             intent.setData(null);
+            return;
+        }
+        intent.setData(null);
+        promptToImport(rawData, parsed);
+    }
+
+    private void promptToImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
+        String summary = ImportConfigSummary.forUser(this, parsed);
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.import_confirm_title)
+            .setMessage(summary)
+            .setPositiveButton(R.string.import_confirm_apply, (dialog, which) -> applyImport(rawData, parsed))
+            .setNegativeButton(android.R.string.cancel, (dialog, which) ->
+                Toast.makeText(this, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show()
+            )
+            .show();
+    }
+
+    private void applyImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
+        AppPrefs.applyImportedConfig(this, parsed);
+        requestReconnectAfterImport(rawData);
+        Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+        BackendType backendType = XrayStore.getBackendType(this);
+        boolean nextHasProfilesTab = backendType != null && backendType.usesXrayCore();
+        boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
+        if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
+            rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
         }
     }
 

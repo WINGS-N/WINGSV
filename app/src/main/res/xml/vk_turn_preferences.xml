@@ -20,16 +20,20 @@
         android:dialogTitle="Endpoint"
         app:useSimpleSummaryProvider="true" />
 
-    <EditTextPreference
-        android:key="pref_vk_link"
-        android:title="VK Link"
-        android:dialogTitle="VK Link"
-        app:useSimpleSummaryProvider="true" />
+    <Preference
+        android:key="pref_open_vk_links"
+        android:title="@string/vk_links_title" />
 
     <EditTextPreference
         android:key="pref_threads"
         android:title="Потоки"
-        android:defaultValue="8" />
+        android:defaultValue="24" />
+
+    <EditTextPreference
+        android:key="pref_creds_group_size"
+        android:title="@string/creds_group_size_title"
+        android:summary="@string/creds_group_size_summary"
+        android:defaultValue="12" />
 
     <SwitchPreferenceCompat
         android:key="pref_use_udp"

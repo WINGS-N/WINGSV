@@ -15,6 +15,7 @@ message Config {
   Xray xray = 6;
   AmneziaWG awg = 7;
   AppRouting app_routing = 8;
+  WbStream wb_stream = 9;
 }
 
 enum ConfigType {
@@ -25,6 +26,7 @@ enum ConfigType {
   CONFIG_TYPE_ALL = 4;
   CONFIG_TYPE_APP_ROUTING = 5;
   CONFIG_TYPE_XRAY_ROUTING = 6;
+  CONFIG_TYPE_WB_STREAM = 7;
 }
 
 enum BackendType {
@@ -34,6 +36,15 @@ enum BackendType {
   BACKEND_TYPE_AMNEZIAWG = 3;
   BACKEND_TYPE_WIREGUARD = 4;
   BACKEND_TYPE_AMNEZIAWG_PLAIN = 5;
+  BACKEND_TYPE_WB_STREAM = 6;
+}
+
+message WbStream {
+  string room_id = 1;
+  bool exchange_via_vk_turn = 2;
+  bool e2e_enabled = 3;
+  bytes e2e_secret = 4;
+  string display_name = 5;
 }
 
 message AmneziaWG {
@@ -60,6 +71,9 @@ message Turn {
   string host = 7;
   optional uint32 port = 8;
   TurnSessionMode session_mode = 9;
+  repeated string links = 10;
+  string link_secondary = 11;
+  optional uint32 creds_group_size = 12;
 }
 
 enum TurnSessionMode {

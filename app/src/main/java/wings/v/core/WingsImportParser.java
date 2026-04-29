@@ -57,6 +57,7 @@ public final class WingsImportParser {
         VK_TURN,
         WIREGUARD,
         AMNEZIAWG,
+        WB_STREAM,
         APP_ROUTING_BYPASS,
         XRAY_ROUTING,
     }
@@ -114,6 +115,16 @@ public final class WingsImportParser {
             context,
             scopedSettings(context, ExportScope.AMNEZIAWG),
             ExportScope.AMNEZIAWG
+        );
+        return encodeConfig(config);
+    }
+
+    public static String buildWbStreamSettingsLink(Context context) throws Exception {
+        requireContext(context);
+        WingsvProto.Config config = buildProtoConfig(
+            context,
+            scopedSettings(context, ExportScope.WB_STREAM),
+            ExportScope.WB_STREAM
         );
         return encodeConfig(config);
     }
@@ -425,6 +436,8 @@ public final class WingsImportParser {
                 currentBackend != null && currentBackend.usesXrayCore() ? currentBackend : BackendType.XRAY;
             settings.activeXrayProfile = XrayStore.getActiveProfile(context);
             settings.xraySettings = XrayStore.getXraySettings(context);
+        } else if (scope == ExportScope.WB_STREAM) {
+            settings.backendType = BackendType.WB_STREAM;
         }
         return settings;
     }
@@ -526,6 +539,19 @@ public final class WingsImportParser {
             }
             return builder.build();
         }
+        if (settings != null && (scope == ExportScope.WB_STREAM || backendType == BackendType.WB_STREAM)) {
+            WingsvProto.WbStream wb = buildWbStream(context, settings, scope != ExportScope.ACTIVE);
+            if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
+                builder.setWbStream(wb);
+            }
+            if (wb.getExchangeViaVkTurn()) {
+                WingsvProto.Turn turn = buildTurn(settings, scope != ExportScope.ACTIVE);
+                if (!turn.equals(WingsvProto.Turn.getDefaultInstance())) {
+                    builder.setTurn(turn);
+                }
+            }
+            return builder.build();
+        }
 
         if (settings != null) {
             WingsvProto.Turn turn = buildTurn(settings, scope != ExportScope.ACTIVE);
@@ -553,7 +579,44 @@ public final class WingsImportParser {
         if (scope == ExportScope.AMNEZIAWG || (backendType != null && backendType.usesAmneziaSettings())) {
             return WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG;
         }
+        if (scope == ExportScope.WB_STREAM || backendType == BackendType.WB_STREAM) {
+            return WingsvProto.ConfigType.CONFIG_TYPE_WB_STREAM;
+        }
         return WingsvProto.ConfigType.CONFIG_TYPE_VK;
+    }
+
+    private static WingsvProto.WbStream buildWbStream(
+        Context context,
+        ProxySettings settings,
+        boolean includeDefaults
+    ) {
+        WingsvProto.WbStream.Builder builder = WingsvProto.WbStream.newBuilder();
+        String roomId = context != null ? AppPrefs.getWbStreamRoomId(context) : "";
+        String displayName = context != null ? AppPrefs.getWbStreamDisplayName(context) : "";
+        boolean exchangeViaVkTurn = context != null && AppPrefs.isWbStreamExchangeViaVkTurn(context);
+        boolean e2eEnabled = context != null && AppPrefs.isWbStreamE2eEnabled(context);
+        String e2eSecret = context != null ? AppPrefs.getWbStreamE2eSecret(context) : "";
+        if (includeDefaults || !TextUtils.isEmpty(roomId)) {
+            builder.setRoomId(value(roomId));
+        }
+        if (includeDefaults || !TextUtils.isEmpty(displayName)) {
+            builder.setDisplayName(value(displayName));
+        }
+        if (exchangeViaVkTurn) {
+            builder.setExchangeViaVkTurn(true);
+        }
+        if (e2eEnabled) {
+            builder.setE2EEnabled(true);
+        }
+        if (e2eEnabled && !TextUtils.isEmpty(e2eSecret)) {
+            try {
+                byte[] decoded = android.util.Base64.decode(e2eSecret, android.util.Base64.NO_WRAP);
+                if (decoded.length > 0) {
+                    builder.setE2ESecret(com.google.protobuf.ByteString.copyFrom(decoded));
+                }
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return builder.build();
     }
 
     private static WingsvProto.AmneziaWG buildAmnezia(ProxySettings settings, boolean includeDefaults) {
@@ -756,6 +819,19 @@ public final class WingsImportParser {
         if (includeDefaults || !TextUtils.isEmpty(value(settings.vkLink))) {
             builder.setLink(value(settings.vkLink));
         }
+        if (settings.vkLinks != null) {
+            for (String entry : settings.vkLinks) {
+                if (!TextUtils.isEmpty(entry)) {
+                    builder.addLinks(entry);
+                }
+            }
+        }
+        if (!TextUtils.isEmpty(value(settings.vkLinkSecondary))) {
+            builder.setLinkSecondary(value(settings.vkLinkSecondary));
+        }
+        if (settings.credsGroupSize > 0 && (includeDefaults || settings.credsGroupSize != 12)) {
+            builder.setCredsGroupSize(settings.credsGroupSize);
+        }
         if (settings.threads > 0 && (includeDefaults || settings.threads != DEFAULT_THREADS)) {
             builder.setThreads(settings.threads);
         }
@@ -933,6 +1009,27 @@ public final class WingsImportParser {
 
         if (
             allSettings ||
+            config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_WB_STREAM ||
+            importedConfig.backendType == BackendType.WB_STREAM ||
+            config.hasWbStream()
+        ) {
+            if (!allSettings) {
+                importedConfig.backendType = BackendType.WB_STREAM;
+            }
+            if (config.hasWbStream()) {
+                parseWbStream(config.getWbStream(), importedConfig);
+            }
+            if (importedConfig.wbStreamExchangeViaVkTurn && config.hasTurn()) {
+                parseTurn(config.getTurn(), importedConfig);
+            }
+            handled = true;
+            if (!allSettings) {
+                return importedConfig;
+            }
+        }
+
+        if (
+            allSettings ||
             config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_VK ||
             config.hasTurn() ||
             config.hasWg()
@@ -948,16 +1045,44 @@ public final class WingsImportParser {
 
         if (!handled) {
             throw new IllegalArgumentException(
-                "Поддерживается только type=vk/xray/amneziawg/all/app_routing/xray_routing"
+                "Поддерживается только type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing"
             );
         }
         return importedConfig;
+    }
+
+    private static void parseWbStream(WingsvProto.WbStream wb, ImportedConfig importedConfig) {
+        importedConfig.hasWbStreamSettings = true;
+        importedConfig.wbStreamRoomId = value(wb.getRoomId());
+        importedConfig.wbStreamDisplayName = value(wb.getDisplayName());
+        importedConfig.wbStreamExchangeViaVkTurn = wb.getExchangeViaVkTurn();
+        importedConfig.wbStreamE2eEnabled = wb.getE2EEnabled();
+        if (!wb.getE2ESecret().isEmpty()) {
+            importedConfig.wbStreamE2eSecret = android.util.Base64.encodeToString(
+                wb.getE2ESecret().toByteArray(),
+                android.util.Base64.NO_WRAP
+            );
+        }
     }
 
     private static void parseTurn(WingsvProto.Turn turn, ImportedConfig importedConfig) {
         importedConfig.hasTurnSettings = true;
         importedConfig.endpoint = turn.hasEndpoint() ? formatEndpoint(turn.getEndpoint()) : "";
         importedConfig.link = value(turn.getLink());
+        importedConfig.links = new java.util.ArrayList<>();
+        for (String entry : turn.getLinksList()) {
+            String trimmed = value(entry);
+            if (!TextUtils.isEmpty(trimmed)) {
+                importedConfig.links.add(trimmed);
+            }
+        }
+        if (importedConfig.links.isEmpty() && !TextUtils.isEmpty(importedConfig.link)) {
+            importedConfig.links.add(importedConfig.link);
+        }
+        importedConfig.linkSecondary = value(turn.getLinkSecondary());
+        if (turn.hasCredsGroupSize()) {
+            importedConfig.credsGroupSize = turn.getCredsGroupSize();
+        }
         if (turn.hasThreads()) {
             importedConfig.threads = turn.getThreads();
         }
@@ -1117,6 +1242,23 @@ public final class WingsImportParser {
         importedConfig.hasTurnSettings = true;
         importedConfig.endpoint = turn.optString("endpoint");
         importedConfig.link = turn.optString("link");
+        importedConfig.links = new java.util.ArrayList<>();
+        org.json.JSONArray linksArray = turn.optJSONArray("links");
+        if (linksArray != null) {
+            for (int i = 0; i < linksArray.length(); i++) {
+                String entry = linksArray.optString(i, "");
+                if (!TextUtils.isEmpty(entry)) {
+                    importedConfig.links.add(entry);
+                }
+            }
+        }
+        if (importedConfig.links.isEmpty() && !TextUtils.isEmpty(importedConfig.link)) {
+            importedConfig.links.add(importedConfig.link);
+        }
+        importedConfig.linkSecondary = turn.optString("link_secondary", "");
+        if (turn.has("creds_group_size")) {
+            importedConfig.credsGroupSize = turn.optInt("creds_group_size");
+        }
         if (turn.has("threads")) {
             importedConfig.threads = turn.optInt("threads");
         }
@@ -1559,8 +1701,17 @@ public final class WingsImportParser {
         public boolean hasXraySubscriptionJson;
         public boolean hasXrayRouting;
         public boolean hasAppRouting;
+        public boolean hasWbStreamSettings;
+        public String wbStreamRoomId;
+        public String wbStreamDisplayName;
+        public boolean wbStreamExchangeViaVkTurn;
+        public boolean wbStreamE2eEnabled;
+        public String wbStreamE2eSecret;
         public String endpoint;
         public String link;
+        public java.util.List<String> links = new java.util.ArrayList<>();
+        public String linkSecondary;
+        public Integer credsGroupSize;
         public Integer threads;
         public Boolean useUdp;
         public Boolean noObfuscation;
