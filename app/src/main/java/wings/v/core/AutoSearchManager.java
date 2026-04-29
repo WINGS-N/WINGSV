@@ -751,73 +751,117 @@ public final class AutoSearchManager {
         XraySettings xraySettings,
         ByeDpiSettings byeDpiSettings
     ) throws Exception {
+        int total = pingSuccess.size();
+        if (total == 0) {
+            return new ArrayList<>();
+        }
+        int targetCount = getTargetProfileCount(appContext);
+        int parallelism = Math.min(wings.v.service.XrayAutoSearchProbeService.workerCount(), total);
+        long stableBytes = resolveStableBytes(getDownloadSizeBytes(appContext), getDownloadAttempts(appContext));
         List<CandidateResult> stable = new ArrayList<>();
         List<CandidateResult> successful = new ArrayList<>();
-        int total = pingSuccess.size();
-        int index = 0;
-        for (CandidateResult candidate : pingSuccess) {
-            index++;
-            updateState(
-                State.running(
-                    mode,
-                    appContext.getString(R.string.auto_search_step_download),
-                    appContext.getString(R.string.auto_search_download_summary),
-                    false,
-                    index - 1,
-                    total,
-                    safeProfileTitle(candidate.profile),
-                    appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
-                    0L,
-                    successful.size(),
-                    candidate.latencyMs
-                )
-            );
-            runCandidateDownloadTest(mode, candidate, xraySettings, byeDpiSettings, successful.size());
-            if (candidate.stable) {
-                stable.add(candidate);
-            }
-            if (isDownloadSuccessful(candidate)) {
-                successful.add(candidate);
+
+        ExecutorService dispatchPool = Executors.newFixedThreadPool(parallelism);
+        ExecutorCompletionService<CandidatePair> completion = new ExecutorCompletionService<>(dispatchPool);
+        java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean(false);
+        java.util.concurrent.atomic.AtomicInteger successfulCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+        int submitted = 0;
+        try {
+            for (int i = 0; i < pingSuccess.size(); i++) {
+                CandidateResult candidate = pingSuccess.get(i);
+                int workerIndex = i % parallelism;
+                int candidateOrdinal = i + 1;
+                completion.submit(() -> {
+                    if (stop.get()) {
+                        return new CandidatePair(candidate, AutoSearchProbeResult.failure("cancelled"));
+                    }
+                    AutoSearchProbeRequest request = buildProbeRequest(
+                        candidate,
+                        xraySettings,
+                        byeDpiSettings,
+                        mode == Mode.WHITELIST,
+                        candidateOrdinal,
+                        total,
+                        stableBytes
+                    );
+                    AutoSearchProbeResult result = invokeWorker(
+                        workerIndex,
+                        request,
+                        candidate,
+                        mode,
+                        total,
+                        successfulCounter
+                    );
+                    return new CandidatePair(candidate, result);
+                });
+                submitted++;
                 updateState(
                     State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_download),
                         appContext.getString(R.string.auto_search_download_summary),
                         false,
-                        index,
+                        Math.min(submitted, total),
                         total,
                         safeProfileTitle(candidate.profile),
-                        appContext.getString(
-                            R.string.auto_search_download_ok_metric,
-                            UiFormatter.formatBytes(appContext, candidate.downloadedBytes),
-                            candidate.successfulAttempts
-                        ),
+                        appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
                         0L,
                         successful.size(),
                         candidate.latencyMs
                     )
                 );
-            } else {
+            }
+
+            int completed = 0;
+            while (completed < submitted) {
+                Future<CandidatePair> future = completion.take();
+                CandidatePair pair;
+                try {
+                    pair = future.get();
+                } catch (ExecutionException ignored) {
+                    pair = null;
+                }
+                completed++;
+                if (pair == null || pair.candidate == null) {
+                    continue;
+                }
+                applyProbeResultToCandidate(pair.candidate, pair.result);
+                if (pair.candidate.stable && !stable.contains(pair.candidate)) {
+                    stable.add(pair.candidate);
+                }
+                if (isDownloadSuccessful(pair.candidate) && !successful.contains(pair.candidate)) {
+                    successful.add(pair.candidate);
+                    successfulCounter.set(successful.size());
+                }
                 updateState(
                     State.running(
                         mode,
                         appContext.getString(R.string.auto_search_step_download),
                         appContext.getString(R.string.auto_search_download_summary),
                         false,
-                        index,
+                        completed,
                         total,
-                        safeProfileTitle(candidate.profile),
-                        appContext.getString(R.string.auto_search_download_failed_metric),
+                        safeProfileTitle(pair.candidate.profile),
+                        isDownloadSuccessful(pair.candidate)
+                            ? appContext.getString(
+                                  R.string.auto_search_download_ok_metric,
+                                  UiFormatter.formatBytes(appContext, pair.candidate.downloadedBytes),
+                                  pair.candidate.successfulAttempts
+                              )
+                            : appContext.getString(R.string.auto_search_download_failed_metric),
                         0L,
                         successful.size(),
-                        candidate.latencyMs
+                        pair.candidate.latencyMs
                     )
                 );
+                if (successful.size() >= targetCount) {
+                    stop.set(true);
+                }
             }
-            if (successful.size() >= getTargetProfileCount(appContext)) {
-                break;
-            }
+        } finally {
+            dispatchPool.shutdownNow();
         }
+
         List<CandidateResult> result = new ArrayList<>();
         result.addAll(stable);
         for (CandidateResult candidate : successful) {
@@ -827,6 +871,170 @@ public final class AutoSearchManager {
         }
         result.sort((left, right) -> compareCandidateResults(right, left));
         return result;
+    }
+
+    @NonNull
+    private AutoSearchProbeRequest buildProbeRequest(
+        @NonNull CandidateResult candidate,
+        @Nullable XraySettings xraySettings,
+        @Nullable ByeDpiSettings byeDpiSettings,
+        boolean whitelistMode,
+        int candidateOrdinal,
+        int totalCandidates,
+        long stableBytes
+    ) {
+        AutoSearchProbeRequest request = new AutoSearchProbeRequest();
+        request.profile = candidate.profile;
+        request.xraySettings = xraySettings;
+        request.byeDpiSettings = whitelistMode ? byeDpiSettings : null;
+        request.whitelistMode = whitelistMode;
+        request.pingResponsive = candidate.pingResponsive;
+        request.latencyMs = candidate.latencyMs;
+        request.downloadAttempts = getDownloadAttempts(appContext);
+        request.downloadSizeBytes = getDownloadSizeBytes(appContext);
+        request.downloadTimeoutSeconds = getDownloadTimeoutSeconds(appContext);
+        request.stableBytes = stableBytes;
+        request.candidateOrdinal = candidateOrdinal;
+        request.totalCandidates = totalCandidates;
+        return request;
+    }
+
+    @NonNull
+    private AutoSearchProbeResult invokeWorker(
+        int workerIndex,
+        @NonNull AutoSearchProbeRequest request,
+        @NonNull CandidateResult candidate,
+        @NonNull Mode mode,
+        int totalCandidates,
+        @NonNull java.util.concurrent.atomic.AtomicInteger successfulCounter
+    ) {
+        java.util.concurrent.atomic.AtomicReference<AutoSearchProbeResult> sink =
+            new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        android.os.ResultReceiver receiver = new android.os.ResultReceiver(null) {
+            @Override
+            protected void onReceiveResult(int resultCode, android.os.Bundle resultData) {
+                if (resultCode == wings.v.service.XrayAutoSearchProbeService.RESULT_PROGRESS) {
+                    handleWorkerProgress(mode, candidate, request, totalCandidates, successfulCounter, resultData);
+                } else if (resultCode == wings.v.service.XrayAutoSearchProbeService.RESULT_DELIVERED) {
+                    sink.set(AutoSearchProbeResult.fromBundle(resultData));
+                    latch.countDown();
+                }
+            }
+        };
+        boolean started = wings.v.service.XrayAutoSearchProbeService.startProbe(
+            appContext,
+            workerIndex,
+            request,
+            receiver
+        );
+        if (!started) {
+            return AutoSearchProbeResult.failure("worker dispatch failed");
+        }
+        long perCandidateBudgetMs =
+            (long) Math.max(1, request.downloadAttempts) * (long) Math.max(1, request.downloadTimeoutSeconds) * 1000L +
+            30_000L;
+        try {
+            if (!latch.await(perCandidateBudgetMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                return AutoSearchProbeResult.failure("worker timeout");
+            }
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+            return AutoSearchProbeResult.failure("interrupted");
+        }
+        AutoSearchProbeResult result = sink.get();
+        return result != null ? result : AutoSearchProbeResult.failure("empty result");
+    }
+
+    private void handleWorkerProgress(
+        @NonNull Mode mode,
+        @NonNull CandidateResult candidate,
+        @NonNull AutoSearchProbeRequest request,
+        int totalCandidates,
+        @NonNull java.util.concurrent.atomic.AtomicInteger successfulCounter,
+        @Nullable android.os.Bundle bundle
+    ) {
+        if (bundle == null) {
+            return;
+        }
+        String stage = bundle.getString(AutoSearchProbeKernel.PROGRESS_KEY_STAGE, "");
+        int attempt = bundle.getInt(AutoSearchProbeKernel.PROGRESS_KEY_ATTEMPT, 0);
+        int attemptCount = bundle.getInt(AutoSearchProbeKernel.PROGRESS_KEY_ATTEMPT_COUNT, request.downloadAttempts);
+        long bytesRead = bundle.getLong(AutoSearchProbeKernel.PROGRESS_KEY_BYTES_READ, 0L);
+        long targetBytes = bundle.getLong(AutoSearchProbeKernel.PROGRESS_KEY_TARGET_BYTES, request.downloadSizeBytes);
+        long speed = bundle.getLong(AutoSearchProbeKernel.PROGRESS_KEY_SPEED, 0L);
+
+        String metric;
+        switch (stage) {
+            case AutoSearchProbeKernel.STAGE_PREFLIGHT:
+                metric = appContext.getString(R.string.auto_search_preflight_summary);
+                break;
+            case AutoSearchProbeKernel.STAGE_DOWNLOAD:
+                if (bytesRead > 0L) {
+                    metric = appContext.getString(
+                        R.string.auto_search_download_metric,
+                        attempt,
+                        attemptCount,
+                        attempt,
+                        UiFormatter.formatBytes(appContext, bytesRead),
+                        UiFormatter.formatBytes(appContext, targetBytes),
+                        UiFormatter.formatBytesPerSecond(appContext, speed)
+                    );
+                } else {
+                    metric = appContext.getString(
+                        R.string.auto_search_download_connecting_metric,
+                        attempt,
+                        attemptCount,
+                        attempt
+                    );
+                }
+                break;
+            case AutoSearchProbeKernel.STAGE_WARMUP:
+            default:
+                metric = appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs);
+                break;
+        }
+
+        updateState(
+            State.running(
+                mode,
+                appContext.getString(R.string.auto_search_step_download),
+                appContext.getString(R.string.auto_search_download_summary),
+                false,
+                request.candidateOrdinal,
+                totalCandidates,
+                safeProfileTitle(candidate.profile),
+                metric,
+                speed,
+                successfulCounter.get(),
+                candidate.latencyMs
+            )
+        );
+    }
+
+    private static void applyProbeResultToCandidate(
+        @NonNull CandidateResult candidate,
+        @NonNull AutoSearchProbeResult probe
+    ) {
+        candidate.live = candidate.live || probe.live;
+        candidate.downloadedBytes = Math.max(candidate.downloadedBytes, probe.downloadedBytes);
+        candidate.successfulAttempts = probe.successfulAttempts;
+        candidate.completedRuns = probe.completedRuns;
+        candidate.stableRuns = probe.stableRuns;
+        candidate.totalDownloadSpeedBytesPerSecond = probe.totalSpeedBytesPerSecond;
+        candidate.averageDownloadSpeedBytesPerSecond = probe.averageSpeedBytesPerSecond;
+        candidate.stable = probe.stable;
+    }
+
+    private static final class CandidatePair {
+
+        final CandidateResult candidate;
+        final AutoSearchProbeResult result;
+
+        CandidatePair(CandidateResult candidate, AutoSearchProbeResult result) {
+            this.candidate = candidate;
+            this.result = result != null ? result : AutoSearchProbeResult.failure("null result");
+        }
     }
 
     private boolean isDownloadSuccessful(@Nullable CandidateResult candidate) {
