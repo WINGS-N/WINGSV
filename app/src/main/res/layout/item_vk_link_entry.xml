@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/row_vk_link_entry"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="64dp"
+    android:orientation="horizontal"
+    android:paddingStart="18dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="12dp">
+
+    <TextView
+        android:id="@+id/text_vk_link_index"
+        android:layout_width="32dp"
+        android:layout_height="wrap_content"
+        android:gravity="start"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:textColor="?android:textColorSecondary"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_vk_link_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorPrimary" />
+    </LinearLayout>
+
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/button_vk_link_delete"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?selectableItemBackgroundBorderless"
+        android:contentDescription="@string/vk_links_action_remove"
+        android:padding="8dp"
+        android:src="@drawable/ic_close_circle" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/image_vk_link_drag_handle"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/vk_links_action_drag"
+        android:padding="8dp"
+        android:src="@drawable/ic_drag_handle" />
+</LinearLayout>

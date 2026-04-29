@@ -38,8 +38,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     private static final String[] TURN_PROXY_PREFERENCE_KEYS = {
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
-        AppPrefs.KEY_VK_LINK,
+        AppPrefs.KEY_VK_LINKS_JSON,
+        AppPrefs.KEY_VK_LINK_SECONDARY,
         AppPrefs.KEY_THREADS,
+        AppPrefs.KEY_CREDS_GROUP_SIZE,
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
         AppPrefs.KEY_MANUAL_CAPTCHA,
@@ -53,8 +55,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     private static final String[] VK_TURN_RELAY_PREFERENCE_KEYS = {
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
-        AppPrefs.KEY_VK_LINK,
+        AppPrefs.KEY_VK_LINKS_JSON,
+        AppPrefs.KEY_VK_LINK_SECONDARY,
         AppPrefs.KEY_THREADS,
+        AppPrefs.KEY_CREDS_GROUP_SIZE,
         AppPrefs.KEY_USE_UDP,
         AppPrefs.KEY_NO_OBFUSCATION,
         AppPrefs.KEY_MANUAL_CAPTCHA,
@@ -185,6 +189,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         setPreferencesFromResource(R.xml.vk_turn_preferences, rootKey);
         bindNumericPreference(AppPrefs.KEY_THREADS);
+        bindNumericPreference(AppPrefs.KEY_CREDS_GROUP_SIZE);
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
         bindNumericPreference(AmneziaStore.KEY_INTERFACE_LISTEN_PORT);
         bindNumericPreference(AmneziaStore.KEY_INTERFACE_MTU);
@@ -203,7 +208,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindImportFromClipboardPreference();
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
-        bindSummaryPreference(AppPrefs.KEY_VK_LINK);
+        bindOpenVkLinksPreference();
         bindSummaryPreference(AppPrefs.KEY_LOCAL_ENDPOINT);
         bindSummaryPreference(AppPrefs.KEY_TURN_HOST);
         bindSummaryPreference(AppPrefs.KEY_TURN_PORT);
@@ -248,7 +253,6 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSecretPreference(AmneziaStore.KEY_PEER_PUBLIC_KEY);
         bindSecretPreference(AmneziaStore.KEY_PEER_PRESHARED_KEY);
 
-        makeMultiLine(AppPrefs.KEY_VK_LINK);
         makeMultiLine(AppPrefs.KEY_AWG_QUICK_CONFIG);
         makeMultiLine(AppPrefs.KEY_WG_PRIVATE_KEY);
         makeMultiLine(AppPrefs.KEY_WG_PUBLIC_KEY);
@@ -373,6 +377,34 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
+    private void bindOpenVkLinksPreference() {
+        Preference preference = findPreference(AppPrefs.KEY_OPEN_VK_LINKS);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceClickListener(p -> {
+            Haptics.softSelection(getListView() != null ? getListView() : requireView());
+            startActivity(wings.v.VkLinksActivity.createIntent(requireContext()));
+            return true;
+        });
+    }
+
+    private void updateOpenVkLinksSummary(int count) {
+        Preference preference = findPreference(AppPrefs.KEY_OPEN_VK_LINKS);
+        if (preference == null) {
+            return;
+        }
+        if (count <= 0) {
+            preference.setSummary(getString(R.string.vk_links_summary_count_zero));
+        } else if (count == 1) {
+            preference.setSummary(getString(R.string.vk_links_summary_count_one));
+        } else if (count >= 2 && count <= 4) {
+            preference.setSummary(getString(R.string.vk_links_summary_count_few, count));
+        } else {
+            preference.setSummary(getString(R.string.vk_links_summary_count_many, count));
+        }
+    }
+
     private void bindRawConfigPreference() {
         EditTextPreference preference = findPreference(AppPrefs.KEY_AWG_QUICK_CONFIG);
         if (preference == null) {
@@ -482,8 +514,12 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             ProxySettings settings = AppPrefs.getSettings(requireContext());
 
             syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
-            syncEditTextPreference(AppPrefs.KEY_VK_LINK, settings.vkLink);
+            updateOpenVkLinksSummary(settings.vkLinks == null ? 0 : settings.vkLinks.size());
             syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));
+            syncEditTextPreference(
+                AppPrefs.KEY_CREDS_GROUP_SIZE,
+                String.valueOf(settings.credsGroupSize > 0 ? settings.credsGroupSize : 12)
+            );
             syncSwitchPreference(AppPrefs.KEY_USE_UDP, settings.useUdp);
             syncSwitchPreference(AppPrefs.KEY_NO_OBFUSCATION, settings.noObfuscation);
             syncSwitchPreference(AppPrefs.KEY_MANUAL_CAPTCHA, settings.manualCaptcha);

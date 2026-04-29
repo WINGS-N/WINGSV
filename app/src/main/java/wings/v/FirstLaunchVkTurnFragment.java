@@ -344,7 +344,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         applyingValues = true;
         setText(AppPrefs.KEY_ENDPOINT, settings.endpoint);
         setText(AppPrefs.KEY_VK_LINK, settings.vkLink);
-        setText(AppPrefs.KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 8));
+        setText(AppPrefs.KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 24));
         if (useUdpCheckBox != null) {
             useUdpCheckBox.setChecked(settings.useUdp);
         }
@@ -438,7 +438,12 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         settings.backendType = BackendType.VK_TURN_WIREGUARD;
         settings.endpoint = text(AppPrefs.KEY_ENDPOINT);
         settings.vkLink = text(AppPrefs.KEY_VK_LINK);
-        settings.threads = parsePositiveInt(text(AppPrefs.KEY_THREADS), 8);
+        settings.vkLinks.clear();
+        if (!android.text.TextUtils.isEmpty(settings.vkLink)) {
+            settings.vkLinks.add(settings.vkLink);
+        }
+        settings.vkLinkSecondary = AppPrefs.getVkLinkSecondary(requireContext());
+        settings.threads = parsePositiveInt(text(AppPrefs.KEY_THREADS), 24);
         settings.useUdp = useUdpCheckBox == null || useUdpCheckBox.isChecked();
         settings.noObfuscation = noObfuscationCheckBox != null && noObfuscationCheckBox.isChecked();
         settings.manualCaptcha = manualCaptchaCheckBox != null && manualCaptchaCheckBox.isChecked();
