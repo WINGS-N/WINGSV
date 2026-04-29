@@ -685,6 +685,7 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     implementation(libs.zstd.jni)
     implementation(libs.dexkit)
+    implementation(libs.livekit.android)
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
     implementation(project(":vpnhotspot-bridge"))

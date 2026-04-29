@@ -29,6 +29,11 @@
         android:summary="@string/vk_turn_settings_summary" />
 
     <Preference
+        android:key="pref_open_wb_stream_settings"
+        android:title="@string/wb_stream_settings_title"
+        android:summary="@string/wb_stream_settings_summary" />
+
+    <Preference
         android:key="pref_open_bydpi_settings"
         android:title="@string/byedpi_title"
         android:summary="@string/byedpi_open_summary" />

@@ -395,6 +395,13 @@ public class HomeFragment extends Fragment {
             }
             return getString(R.string.backend_wireguard_title);
         }
+        if (settings.backendType == BackendType.WB_STREAM) {
+            String roomId = wings.v.core.AppPrefs.getWbStreamRoomId(requireContext());
+            if (!TextUtils.isEmpty(roomId)) {
+                return getString(R.string.backend_wb_stream_with_room, roomId);
+            }
+            return getString(R.string.backend_wb_stream_title);
+        }
         if (!TextUtils.isEmpty(settings.endpoint)) {
             return settings.endpoint;
         }
