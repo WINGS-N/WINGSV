@@ -2712,11 +2712,11 @@ public class ProxyTunnelService extends Service {
                     lastError = error;
                     appendRuntimeLogLine(
                         "WB Stream room exchange attempt " +
-                        attempt +
-                        "/" +
-                        WB_STREAM_EXCHANGE_MAX_ATTEMPTS +
-                        " failed: " +
-                        firstNonEmpty(error.getMessage(), error.toString())
+                            attempt +
+                            "/" +
+                            WB_STREAM_EXCHANGE_MAX_ATTEMPTS +
+                            " failed: " +
+                            firstNonEmpty(error.getMessage(), error.toString())
                     );
                     if (attempt < WB_STREAM_EXCHANGE_MAX_ATTEMPTS) {
                         Thread.sleep(WB_STREAM_EXCHANGE_RETRY_DELAY_MS * attempt);
@@ -2726,7 +2726,7 @@ public class ProxyTunnelService extends Service {
             if (lastError != null) {
                 throw new IllegalStateException(
                     "VK TURN handshake для обмена room id не удался: " +
-                    firstNonEmpty(lastError.getMessage(), lastError.toString()),
+                        firstNonEmpty(lastError.getMessage(), lastError.toString()),
                     lastError
                 );
             }
