@@ -1019,8 +1019,11 @@ public final class WingsImportParser {
             if (config.hasWbStream()) {
                 parseWbStream(config.getWbStream(), importedConfig);
             }
-            if (importedConfig.wbStreamExchangeViaVkTurn && config.hasTurn()) {
+            if (config.hasTurn()) {
                 parseTurn(config.getTurn(), importedConfig);
+            }
+            if (config.hasWg()) {
+                parseWireGuard(config.getWg(), importedConfig);
             }
             handled = true;
             if (!allSettings) {
