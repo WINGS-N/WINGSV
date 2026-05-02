@@ -46,6 +46,13 @@ public abstract class XrayAutoSearchProbeService extends Service {
         }
     }
 
+    public static void stopProbe(@NonNull Context context, int workerIndex) {
+        Intent intent = new Intent(context, workerClass(workerIndex));
+        try {
+            context.stopService(intent);
+        } catch (RuntimeException ignored) {}
+    }
+
     private static Class<? extends XrayAutoSearchProbeService> workerClass(int workerIndex) {
         switch (Math.floorMod(workerIndex, WORKER_COUNT)) {
             case 1:
