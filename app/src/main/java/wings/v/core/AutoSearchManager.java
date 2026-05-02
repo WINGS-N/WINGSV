@@ -856,10 +856,17 @@ public final class AutoSearchManager {
                 );
                 if (successful.size() >= targetCount) {
                     stop.set(true);
+                    for (int idx = 0; idx < parallelism; idx++) {
+                        wings.v.service.XrayAutoSearchProbeService.stopProbe(appContext, idx);
+                    }
+                    break;
                 }
             }
         } finally {
             dispatchPool.shutdownNow();
+            for (int idx = 0; idx < parallelism; idx++) {
+                wings.v.service.XrayAutoSearchProbeService.stopProbe(appContext, idx);
+            }
         }
 
         List<CandidateResult> result = new ArrayList<>();
