@@ -27,13 +27,15 @@
     <EditTextPreference
         android:key="pref_threads"
         android:title="Потоки"
-        android:defaultValue="24" />
+        android:defaultValue="24"
+        app:useSimpleSummaryProvider="true" />
 
     <EditTextPreference
         android:key="pref_creds_group_size"
         android:title="@string/creds_group_size_title"
         android:summary="@string/creds_group_size_summary"
-        android:defaultValue="12" />
+        android:defaultValue="12"
+        app:useSimpleSummaryProvider="true" />
 
     <SwitchPreferenceCompat
         android:key="pref_use_udp"
@@ -75,7 +77,8 @@
     <EditTextPreference
         android:key="pref_local_endpoint"
         android:title="Локальный endpoint"
-        android:defaultValue="127.0.0.1:9000" />
+        android:defaultValue="127.0.0.1:9000"
+        app:useSimpleSummaryProvider="true" />
 
     <EditTextPreference
         android:key="pref_turn_host"
@@ -264,7 +267,8 @@
 
     <EditTextPreference
         android:key="pref_wg_private_key"
-        android:title="Private key" />
+        android:title="Private key"
+        app:useSimpleSummaryProvider="true" />
 
     <EditTextPreference
         android:key="pref_wg_addresses"
@@ -280,7 +284,8 @@
     <EditTextPreference
         android:key="pref_wg_mtu"
         android:title="MTU"
-        android:defaultValue="1280" />
+        android:defaultValue="1280"
+        app:useSimpleSummaryProvider="true" />
 
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
         android:key="pref_inset_after_wg_interface" />
@@ -291,11 +296,13 @@
 
     <EditTextPreference
         android:key="pref_wg_public_key"
-        android:title="Public key" />
+        android:title="Public key"
+        app:useSimpleSummaryProvider="true" />
 
     <EditTextPreference
         android:key="pref_wg_preshared_key"
-        android:title="Preshared key (PSK)" />
+        android:title="Preshared key (PSK)"
+        app:useSimpleSummaryProvider="true" />
 
     <EditTextPreference
         android:key="pref_wg_allowed_ips"
