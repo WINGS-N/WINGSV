@@ -79,6 +79,7 @@ public final class XraySubscriptionUpdater {
         List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context, allowUniversalSeed);
         LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
         LinkedHashMap<String, List<XrayProfile>> existingProfilesBySubscription = new LinkedHashMap<>();
+        LinkedHashMap<String, Map<String, String>> existingIdsBySubAndKey = new LinkedHashMap<>();
         for (XrayProfile existingProfile : XrayStore.getProfiles(context)) {
             if (existingProfile == null || TextUtils.isEmpty(existingProfile.rawLink)) {
                 continue;
@@ -91,6 +92,11 @@ public final class XraySubscriptionUpdater {
                     ignored -> new ArrayList<>()
                 );
                 subscriptionProfiles.add(existingProfile);
+                Map<String, String> keyToId = existingIdsBySubAndKey.computeIfAbsent(
+                    existingProfile.subscriptionId,
+                    ignored -> new LinkedHashMap<>()
+                );
+                keyToId.putIfAbsent(existingProfile.stableDedupKey(), existingProfile.id);
             }
         }
         List<XraySubscription> updatedSubscriptions = new ArrayList<>();
@@ -113,12 +119,27 @@ public final class XraySubscriptionUpdater {
             }
             try {
                 FetchResult fetched = fetch(context, subscription.url);
+                Map<String, String> reuseIds = existingIdsBySubAndKey.get(subscription.id);
                 for (XrayProfile profile : XraySubscriptionParser.parseProfiles(
                     fetched.body,
                     subscription.id,
                     subscription.title
                 )) {
                     if (profile != null) {
+                        if (reuseIds != null) {
+                            String reusedId = reuseIds.get(profile.stableDedupKey());
+                            if (!TextUtils.isEmpty(reusedId) && !TextUtils.equals(reusedId, profile.id)) {
+                                profile = new XrayProfile(
+                                    reusedId,
+                                    profile.title,
+                                    profile.rawLink,
+                                    profile.subscriptionId,
+                                    profile.subscriptionTitle,
+                                    profile.address,
+                                    profile.port
+                                );
+                            }
+                        }
                         profiles.put(XrayStore.getProfileStorageKey(profile), profile);
                     }
                 }
