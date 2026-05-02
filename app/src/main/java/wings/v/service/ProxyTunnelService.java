@@ -1452,7 +1452,7 @@ public class ProxyTunnelService extends Service {
         }
         ensureRuntimeStillWanted(generation);
 
-        if (rootModeActive) {
+        if (rootModeActive && shouldInitializeRootSharing()) {
             VpnHotspotBridge.initializeRootServer(getApplicationContext());
         }
 
@@ -1539,7 +1539,7 @@ public class ProxyTunnelService extends Service {
             throw new IllegalStateException("Xray core не перешел в состояние running");
         }
 
-        if (rootModeActive) {
+        if (rootModeActive && shouldInitializeRootSharing()) {
             registerTetherReceiverIfNeeded();
             registerTetherEventCallbackIfNeeded();
             syncRootTetherRouting(null);
@@ -1619,7 +1619,7 @@ public class ProxyTunnelService extends Service {
         }
         ensureRuntimeStillWanted(generation);
 
-        if (rootModeActive) {
+        if (rootModeActive && shouldInitializeRootSharing()) {
             VpnHotspotBridge.initializeRootServer(getApplicationContext());
         }
 
@@ -1636,7 +1636,7 @@ public class ProxyTunnelService extends Service {
             }
         }
 
-        if (rootModeActive) {
+        if (rootModeActive && shouldInitializeRootSharing()) {
             registerTetherReceiverIfNeeded();
             registerTetherEventCallbackIfNeeded();
             syncRootTetherRouting(null);
@@ -1654,7 +1654,12 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         activeXrayProxyOnly = false;
         activeVkTurnProxyOnly = false;
-        if (!settings.rootModeEnabled || !settings.kernelWireguardEnabled) {
+        boolean willUseKernelWireGuard =
+            settings.rootModeEnabled &&
+            settings.kernelWireguardEnabled &&
+            activeBackendType != null &&
+            activeBackendType.supportsKernelWireGuard();
+        if (!willUseKernelWireGuard) {
             ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
             ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
             ensureOwnedVpnBackendStopped("WireGuard", generation);
@@ -1695,7 +1700,7 @@ public class ProxyTunnelService extends Service {
         if (kernelWireguardActive) {
             syncRootAppTunnelRouting();
         }
-        if (rootModeActive) {
+        if (rootModeActive && shouldInitializeRootSharing()) {
             registerTetherReceiverIfNeeded();
             registerTetherEventCallbackIfNeeded();
             syncRootTetherRouting(null);
@@ -3908,11 +3913,15 @@ public class ProxyTunnelService extends Service {
             return;
         }
         rootModeActive = true;
-        if (!settings.kernelWireguardEnabled) {
+        boolean kernelWgEligible =
+            settings.kernelWireguardEnabled && activeBackendType != null && activeBackendType.supportsKernelWireGuard();
+        if (!kernelWgEligible) {
             kernelWireguardActive = false;
             activeTunnelName = ROOT_TUNNEL_NAME;
             backend = new GoBackend(getApplicationContext());
-            VpnHotspotBridge.initializeRootServer(getApplicationContext());
+            if (shouldInitializeRootSharing()) {
+                VpnHotspotBridge.initializeRootServer(getApplicationContext());
+            }
             ensureProtectBridgeReady();
             return;
         }
@@ -4622,6 +4631,32 @@ public class ProxyTunnelService extends Service {
             AppPrefs.isSharingDhcpWorkaroundEnabled(getApplicationContext()),
             AppPrefs.isSharingDisableIpv6Enabled(getApplicationContext())
         );
+    }
+
+    /**
+     * Returns true if the root-server / tether-routing scaffolding must be
+     * initialised on this run. Kernel WireGuard always needs it for routing
+     * RootShell traffic. Userspace backends with rootMode only need it when
+     * the user actually relies on hotspot/USB sharing — initialising the root
+     * server unconditionally has been observed to destabilise WB Stream
+     * connections (the iptables/MASQUERADE rules pushed by syncSharing for an
+     * empty tether set still touched routing tables and disrupted the
+     * libvkturn child process).
+     */
+    private boolean shouldInitializeRootSharing() {
+        if (kernelWireguardActive) {
+            return true;
+        }
+        Context appContext = getApplicationContext();
+        if (AppPrefs.isSharingAutoStartOnBootEnabled(appContext)) {
+            return true;
+        }
+        Set<TetherType> savedTypes = AppPrefs.getSharingLastActiveTypes(appContext);
+        if (savedTypes != null && !savedTypes.isEmpty()) {
+            return true;
+        }
+        Set<TetherType> currentTypes = TetherType.readEnabledTypes(getStickyTetherIntent());
+        return currentTypes != null && !currentTypes.isEmpty();
     }
 
     private boolean usesVpnServiceUpstreamForRootSharing() {
