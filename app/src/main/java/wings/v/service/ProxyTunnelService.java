@@ -2768,6 +2768,13 @@ public class ProxyTunnelService extends Service {
         if (TextUtils.isEmpty(settings.endpoint)) {
             throw new IllegalStateException("VK TURN endpoint is empty — fill it in VK TURN settings");
         }
+        if (isLoopbackEndpoint(settings.endpoint)) {
+            throw new IllegalStateException(
+                "VK TURN endpoint указывает на localhost (" +
+                    settings.endpoint +
+                    "). Room exchange передаётся VK TURN серверу 3x-ui — укажите его публичный endpoint в VK TURN settings, а 127.0.0.1:9000 оставьте только в \"Локальный endpoint\"."
+            );
+        }
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
         command.add("-room-exchange-mode");
@@ -2791,6 +2798,24 @@ public class ProxyTunnelService extends Service {
             throw new IOException("vk-turn-proxy room-exchange exited with code " + exit);
         }
         appendRuntimeLogLine("VK TURN room exchange delivered");
+    }
+
+    private static boolean isLoopbackEndpoint(@Nullable String endpoint) {
+        if (TextUtils.isEmpty(endpoint)) {
+            return false;
+        }
+        String host = endpoint.trim();
+        int colon = host.lastIndexOf(':');
+        if (host.startsWith("[")) {
+            int closing = host.indexOf(']');
+            if (closing > 0) {
+                host = host.substring(1, closing);
+            }
+        } else if (colon > 0) {
+            host = host.substring(0, colon);
+        }
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        return host.equals("localhost") || host.equals("::1") || host.startsWith("127.");
     }
 
     @Nullable
