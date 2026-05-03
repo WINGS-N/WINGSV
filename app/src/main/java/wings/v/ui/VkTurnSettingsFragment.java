@@ -40,6 +40,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINKS_JSON,
         AppPrefs.KEY_VK_LINK_SECONDARY,
+        AppPrefs.KEY_OPEN_VK_LINKS,
         AppPrefs.KEY_THREADS,
         AppPrefs.KEY_CREDS_GROUP_SIZE,
         AppPrefs.KEY_USE_UDP,
@@ -57,6 +58,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINKS_JSON,
         AppPrefs.KEY_VK_LINK_SECONDARY,
+        AppPrefs.KEY_OPEN_VK_LINKS,
         AppPrefs.KEY_THREADS,
         AppPrefs.KEY_CREDS_GROUP_SIZE,
         AppPrefs.KEY_USE_UDP,
@@ -600,7 +602,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 suppressPreferenceSync = true;
                 try {
                     AmneziaStore.syncRawConfigFromStructuredPrefs(requireContext());
-                    syncFromStore();
+                    syncEditTextPreference(
+                        AppPrefs.KEY_AWG_QUICK_CONFIG,
+                        prefs.getString(AppPrefs.KEY_AWG_QUICK_CONFIG, "")
+                    );
                 } finally {
                     suppressPreferenceSync = false;
                 }
