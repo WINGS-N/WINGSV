@@ -36,6 +36,16 @@
         android:summary="@string/settings_export_amnezia_summary" />
 
     <Preference
+        android:key="pref_export_wb_stream_settings"
+        android:title="@string/settings_export_wb_stream_title"
+        android:summary="@string/settings_export_wb_stream_summary" />
+
+    <Preference
+        android:key="pref_export_xposed_settings"
+        android:title="@string/settings_export_xposed_title"
+        android:summary="@string/settings_export_xposed_summary" />
+
+    <Preference
         android:key="pref_export_app_routing_bypass"
         android:title="@string/settings_export_app_routing_bypass_title"
         android:summary="@string/settings_export_app_routing_bypass_summary" />

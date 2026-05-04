@@ -1072,6 +1072,10 @@
     <string name="settings_export_wireguard_summary">Endpoint, Interface и Peer для WireGuard</string>
     <string name="settings_export_amnezia_title">Экспортировать AmneziaWG настройки</string>
     <string name="settings_export_amnezia_summary">Raw AmneziaWG конфигурация и выбранный AmneziaWG backend</string>
+    <string name="settings_export_wb_stream_title">Экспортировать WB Stream настройки</string>
+    <string name="settings_export_wb_stream_summary">Room ID, display name, E2E ключ; при включённом обмене через VK TURN — также VK TURN параметры</string>
+    <string name="settings_export_xposed_title">Экспортировать Xposed настройки</string>
+    <string name="settings_export_xposed_summary">Тумблеры модуля, hook-режимы, списки целевых и скрываемых VPN-приложений</string>
     <string name="settings_export_app_routing_bypass_title">Экспортировать bypass приложения</string>
     <string name="settings_export_app_routing_bypass_summary">Только список выбранных приложений для обхода VPN</string>
     <string name="settings_export_clip_label">WINGSV settings</string>
