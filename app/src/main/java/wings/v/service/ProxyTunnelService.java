@@ -403,6 +403,11 @@ public class ProxyTunnelService extends Service {
     private Process tproxyXrayProcess;
     private static final int XRAY_TPROXY_PORT = 12345;
     private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
+    private static final long TPROXY_MARK_REFRESH_INTERVAL_MS = 1_000L;
+    private long tproxyLoBaselineTxBytes = -1L;
+    private long tproxyMarkAbsoluteBytes;
+    private long tproxyMarkLastReadingBytes = -1L;
+    private long tproxyMarkLastReadElapsedMs;
     private boolean activeVkTurnProxyOnly;
     private BackendType activeBackendType = BackendType.VK_TURN_WIREGUARD;
     private String byeDpiDialHost = "127.0.0.1";
@@ -4295,6 +4300,7 @@ public class ProxyTunnelService extends Service {
                 previous.destroy();
             } catch (Exception ignored) {}
         }
+        resetTproxyTrafficBaselines();
         reapOrphanXrayTproxyRuntime(appContext);
         Process process = RootUtils.spawnRootHelperProcess(
             appContext,
@@ -4348,6 +4354,7 @@ public class ProxyTunnelService extends Service {
             return;
         }
         tproxyXrayProcess = null;
+        resetTproxyTrafficBaselines();
         try {
             process.destroy();
         } catch (Exception ignored) {}
@@ -5503,6 +5510,11 @@ public class ProxyTunnelService extends Service {
         if (!sRunning) {
             return;
         }
+        if (activeXrayTproxyMode) {
+            InterfaceTrafficSnapshot snapshot = readTproxyTrafficSnapshot();
+            applyTrafficStatsSnapshot(snapshot.rxBytes, snapshot.txBytes);
+            return;
+        }
         if (activeXrayProxyOnly || activeVkTurnProxyOnly) {
             applyUserspaceTrafficSnapshot(readUidTrafficSnapshot());
             return;
@@ -6171,6 +6183,91 @@ public class ProxyTunnelService extends Service {
         } catch (RuntimeException ignored) {
             return InterfaceTrafficSnapshot.ZERO;
         }
+    }
+
+    /**
+     * Reconstructs proxy throughput in TPROXY mode where neither a TUN interface
+     * nor wings.v's UID counters reflect the relayed bytes (Xray runs in a
+     * root-launched subprocess, traffic flows app → mark → lo → Xray → wlan).
+     *
+     * TX (app → proxy) is read from the IPv4+IPv6 mangle MARK rule byte counters
+     * — these are the exact bytes that wings.v's iptables chain redirected into
+     * Xray. Counters are root-only, polled at most once per second to keep
+     * battery cost bounded against the 100ms-200ms sampling cadence.
+     *
+     * RX (proxy → app) has no clean kernel hook because Xray's reply path is
+     * delivered locally without crossing wings.v's mangle chains. We approximate
+     * it as {@code lo.tx_delta - tx_mark}: every proxied packet (both
+     * directions) traverses the loopback device once, so subtracting the
+     * known-TX leaves the inbound replies. Background lo activity (DNS,
+     * binder-over-tcp) leaks in as small RX noise; acceptable trade-off
+     * for a non-zero per-direction split.
+     */
+    private InterfaceTrafficSnapshot readTproxyTrafficSnapshot() {
+        long loTx = readLoopbackTxBytes();
+        if (tproxyLoBaselineTxBytes < 0L) {
+            tproxyLoBaselineTxBytes = loTx;
+        }
+        long loDelta = Math.max(0L, loTx - tproxyLoBaselineTxBytes);
+
+        long now = SystemClock.elapsedRealtime();
+        if (tproxyMarkLastReadingBytes < 0L || now - tproxyMarkLastReadElapsedMs >= TPROXY_MARK_REFRESH_INTERVAL_MS) {
+            long markNow = XrayTproxyRouter.readMarkBytesQuiet(getApplicationContext());
+            if (tproxyMarkLastReadingBytes < 0L) {
+                tproxyMarkAbsoluteBytes = markNow;
+            } else if (markNow >= tproxyMarkLastReadingBytes) {
+                tproxyMarkAbsoluteBytes += markNow - tproxyMarkLastReadingBytes;
+            } else {
+                // Counter reset (e.g., XrayTproxyRouter.apply re-flushed chains
+                // after a network change). Pick up from the new zero baseline.
+                tproxyMarkAbsoluteBytes += markNow;
+            }
+            tproxyMarkLastReadingBytes = markNow;
+            tproxyMarkLastReadElapsedMs = now;
+        }
+
+        long rxTotal = Math.max(0L, loDelta - tproxyMarkAbsoluteBytes);
+        return new InterfaceTrafficSnapshot(rxTotal, tproxyMarkAbsoluteBytes);
+    }
+
+    private long readLoopbackTxBytes() {
+        if (procNetDevAccessDenied) {
+            return 0L;
+        }
+        try (
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(PROC_NET_DEV_PATH), StandardCharsets.UTF_8)
+            )
+        ) {
+            String line = reader.readLine();
+            while (line != null) {
+                int separator = line.indexOf(':');
+                if (separator > 0) {
+                    String iface = line.substring(0, separator).trim();
+                    if ("lo".equals(iface)) {
+                        String[] columns = line.substring(separator + 1).trim().split("\\s+");
+                        if (columns.length >= PROC_NET_DEV_MIN_COLUMNS) {
+                            return parseLong(columns[8]);
+                        }
+                        break;
+                    }
+                }
+                line = reader.readLine();
+            }
+        } catch (IOException | RuntimeException error) {
+            if (isProcNetDevPermissionDenied(error) && !procNetDevAccessDenied) {
+                procNetDevAccessDenied = true;
+                appendRuntimeLogLine(PROC_NET_DEV_PATH + " denied; tproxy traffic stats disabled");
+            }
+        }
+        return 0L;
+    }
+
+    private void resetTproxyTrafficBaselines() {
+        tproxyLoBaselineTxBytes = -1L;
+        tproxyMarkAbsoluteBytes = 0L;
+        tproxyMarkLastReadingBytes = -1L;
+        tproxyMarkLastReadElapsedMs = 0L;
     }
 
     @Nullable
