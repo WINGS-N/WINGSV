@@ -5,6 +5,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.io.IOException;
@@ -29,6 +30,8 @@ import wings.v.service.ProxyTunnelService;
 )
 public final class DirectNetworkConnection {
 
+    private static final String TAG = "DirectNetwork";
+
     private DirectNetworkConnection() {}
 
     @NonNull
@@ -51,9 +54,33 @@ public final class DirectNetworkConnection {
         }
         Network network = findUsablePhysicalNetwork(context);
         if (network == null) {
-            throw new IOException("No usable physical network");
+            // No usable physical Network candidate (rare; e.g., during transient
+            // disconnects). The default route still resolves through the kernel,
+            // and the VpnService provider's own UID auto-bypasses its own tunnel.
+            return (HttpURLConnection) url.openConnection();
         }
-        return (HttpURLConnection) network.openConnection(url);
+        try {
+            return (HttpURLConnection) network.openConnection(url);
+        } catch (IOException error) {
+            // Network.openConnection() internally calls bindSocketToNetwork(),
+            // which can throw "Binding socket to network N failed: EPERM" when:
+            //   - WINGSV is itself the active VpnService provider and the kernel
+            //     restricts explicit binds to underlying physical netIds for VPN
+            //     UIDs (would normally need VpnService.protect(fd), unavailable on
+            //     a HttpURLConnection-managed socket);
+            //   - Background restrictions (Data Saver / app standby) deny binding
+            //     to specific networks for non-foreground UIDs;
+            //   - Android 12+ refuses binds to networks the app didn't request via
+            //     NetworkRequest.
+            // The default route is fine in all of these cases — the VPN provider's
+            // own UID auto-bypasses its own tunnel at the kernel level, and external
+            // VPNs without lockdown also let WINGSV's own UID through.
+            Log.w(
+                TAG,
+                "network.openConnection() failed (" + error.getMessage() + "); " + "falling back to default route"
+            );
+            return (HttpURLConnection) url.openConnection();
+        }
     }
 
     @Nullable
