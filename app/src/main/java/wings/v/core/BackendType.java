@@ -96,7 +96,7 @@ public enum BackendType {
     }
 
     public boolean supportsKernelWireGuard() {
-        return this == VK_TURN_WIREGUARD || this == WIREGUARD;
+        return this == VK_TURN_WIREGUARD || this == WIREGUARD || this == WB_STREAM;
     }
 
     public boolean isPlainBackend() {
