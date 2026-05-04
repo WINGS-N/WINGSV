@@ -3,18 +3,23 @@ package wings.v.ui;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
+import android.text.TextUtils;
+import android.util.Base64;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
+import java.security.SecureRandom;
 import wings.v.R;
 import wings.v.VkLinksActivity;
 import wings.v.core.AppPrefs;
 
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AvoidUsingHardCodedIP" })
 public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
+
+    private static final int E2E_KEY_BYTES = 32;
 
     private static final String[] VK_TURN_PREFERENCE_KEYS = {
         AppPrefs.KEY_ENDPOINT,
@@ -49,9 +54,7 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         }
         EditTextPreference e2eSecret = findPreference(AppPrefs.KEY_WB_STREAM_E2E_SECRET);
         if (e2eSecret != null) {
-            e2eSecret.setOnBindEditTextListener(text ->
-                text.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD)
-            );
+            e2eSecret.setOnBindEditTextListener(text -> text.setInputType(InputType.TYPE_CLASS_TEXT));
         }
 
         Preference openVkLinks = findPreference(AppPrefs.KEY_OPEN_VK_LINKS);
@@ -65,6 +68,9 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         applyVisibility();
 
         listener = (sharedPreferences, key) -> {
+            if (AppPrefs.KEY_WB_STREAM_E2E_ENABLED.equals(key)) {
+                ensureE2eSecret();
+            }
             if (
                 AppPrefs.KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN.equals(key) ||
                 AppPrefs.KEY_WB_STREAM_E2E_ENABLED.equals(key)
@@ -72,6 +78,23 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
                 applyVisibility();
             }
         };
+    }
+
+    private void ensureE2eSecret() {
+        if (!AppPrefs.isWbStreamE2eEnabled(requireContext())) {
+            return;
+        }
+        if (!TextUtils.isEmpty(AppPrefs.getWbStreamE2eSecret(requireContext()))) {
+            return;
+        }
+        byte[] key = new byte[E2E_KEY_BYTES];
+        new SecureRandom().nextBytes(key);
+        String encoded = Base64.encodeToString(key, Base64.NO_WRAP);
+        AppPrefs.setWbStreamE2eSecret(requireContext(), encoded);
+        EditTextPreference e2eSecret = findPreference(AppPrefs.KEY_WB_STREAM_E2E_SECRET);
+        if (e2eSecret != null) {
+            e2eSecret.setText(encoded);
+        }
     }
 
     @Override

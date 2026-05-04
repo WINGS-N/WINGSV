@@ -2682,7 +2682,7 @@ public class ProxyTunnelService extends Service {
         String roomId = AppPrefs.getWbStreamRoomId(appContext);
         String displayName = AppPrefs.getWbStreamDisplayName(appContext);
         if (TextUtils.isEmpty(displayName)) {
-            displayName = "wb-stream-android";
+            displayName = wings.v.wbstream.Namegen.generate();
         }
         boolean e2eEnabled = AppPrefs.isWbStreamE2eEnabled(appContext);
         String e2eSecret = e2eEnabled ? AppPrefs.getWbStreamE2eSecret(appContext) : "";
