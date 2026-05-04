@@ -419,7 +419,21 @@ public final class XrayStore {
     }
 
     public static void setActiveProfileId(Context context, String profileId) {
-        prefs(context).edit().putString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_ID, trim(profileId)).commit();
+        String trimmedId = trim(profileId);
+        String rawLink = "";
+        if (!TextUtils.isEmpty(trimmedId)) {
+            for (XrayProfile profile : getProfiles(context)) {
+                if (profile != null && TextUtils.equals(profile.id, trimmedId)) {
+                    rawLink = profile.rawLink == null ? "" : profile.rawLink;
+                    break;
+                }
+            }
+        }
+        prefs(context)
+            .edit()
+            .putString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_ID, trimmedId)
+            .putString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_RAW_LINK, rawLink)
+            .commit();
     }
 
     public static XrayProfile getActiveProfile(Context context) {
@@ -431,6 +445,21 @@ public final class XrayStore {
         for (XrayProfile profile : profiles) {
             if (TextUtils.equals(profile.id, activeProfileId)) {
                 return profile;
+            }
+        }
+        // Subscription refresh can mint a fresh UUID for the same upstream
+        // profile (e.g., when the server rotated something in the share link
+        // and the parser couldn't dedup-key match). Recover the user's
+        // selection by matching on the rawLink we persisted alongside the id;
+        // only if that fails fall back to the first profile.
+        String activeRawLink = trim(prefs(context).getString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_RAW_LINK, ""));
+        if (!TextUtils.isEmpty(activeRawLink)) {
+            String activeStableKey = activeRawLink.toLowerCase(Locale.ROOT);
+            for (XrayProfile profile : profiles) {
+                if (TextUtils.equals(profile.stableDedupKey(), activeStableKey)) {
+                    setActiveProfileId(context, profile.id);
+                    return profile;
+                }
             }
         }
         XrayProfile firstProfile = profiles.get(0);

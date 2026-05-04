@@ -99,6 +99,7 @@ public final class AppPrefs {
     public static final String KEY_XRAY_PROFILE_TRAFFIC_JSON = "pref_xray_profile_traffic_json";
     public static final String KEY_XRAY_PROFILE_TCPING_JSON = "pref_xray_profile_tcping_json";
     public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
+    public static final String KEY_XRAY_ACTIVE_PROFILE_RAW_LINK = "pref_xray_active_profile_raw_link";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES = "pref_xray_subscriptions_refresh_minutes";
     public static final String KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED =
