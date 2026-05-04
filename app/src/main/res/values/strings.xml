@@ -535,7 +535,7 @@
     <string name="wb_stream_exchange_via_vk_turn_title">Обмен room data через VK TURN</string>
     <string name="wb_stream_exchange_via_vk_turn_summary">Передавать ID комнаты серверу через короткий VK TURN handshake вместо ручного обмена</string>
     <string name="wb_stream_e2e_enabled_title">E2E-шифрование</string>
-    <string name="wb_stream_e2e_enabled_summary">Дополнительно шифровать пакеты chacha20-poly1305 поверх LiveKit DataChannel</string>
+    <string name="wb_stream_e2e_enabled_summary">Дополнительно шифровать пакеты AES-256-GCM поверх LiveKit DataChannel</string>
     <string name="wb_stream_e2e_secret_title">E2E-секрет</string>
     <string name="wb_stream_e2e_secret_summary">Предобщий секрет в Base64. Должен совпадать на клиенте и сервере</string>
     <string name="wb_stream_vk_turn_section">VK TURN — обмен ID комнаты</string>
