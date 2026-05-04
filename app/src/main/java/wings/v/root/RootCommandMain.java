@@ -24,6 +24,10 @@ public final class RootCommandMain {
             RootShellCommands.handle(commandArgs);
             return;
         }
+        if ("xray-tproxy".equals(command)) {
+            RootXrayCommands.handle(commandArgs);
+            return;
+        }
         throw new IllegalArgumentException("Unknown root command: " + command);
     }
 

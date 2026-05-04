@@ -365,6 +365,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         PreferenceCategory rootCategory = findPreference("pref_category_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
+        SwitchPreferenceCompat xrayTproxyPreference = findPreference(AppPrefs.KEY_XRAY_TPROXY_MODE);
         Preference rootInterfaceSettingsPreference = findPreference(AppPrefs.KEY_OPEN_ROOT_INTERFACE_SETTINGS);
         Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
         boolean rootGranted = AppPrefs.isRootAccessGranted(context);
@@ -377,6 +378,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (!rootGranted) {
             rootModePreference.setVisible(false);
             kernelWireGuardPreference.setVisible(false);
+            if (xrayTproxyPreference != null) {
+                xrayTproxyPreference.setVisible(false);
+            }
             if (rootInterfaceSettingsPreference != null) {
                 rootInterfaceSettingsPreference.setVisible(false);
             }
@@ -388,6 +392,22 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         rootModePreference.setVisible(true);
         kernelWireGuardPreference.setVisible(true);
+        if (xrayTproxyPreference != null) {
+            boolean xrayBackend = backendType != null && backendType.usesXrayCore();
+            String tproxyUnavailable = RootUtils.getXrayTproxyUnavailableReason(context, false);
+            boolean tproxySupported = TextUtils.isEmpty(tproxyUnavailable);
+            xrayTproxyPreference.setVisible(true);
+            xrayTproxyPreference.setEnabled(xrayBackend && tproxySupported);
+            if (!xrayBackend) {
+                xrayTproxyPreference.setSummary(
+                    getString(R.string.xray_tproxy_unavailable, "доступно только на Xray backend")
+                );
+            } else if (!tproxySupported) {
+                xrayTproxyPreference.setSummary(getString(R.string.xray_tproxy_unavailable, tproxyUnavailable));
+            } else {
+                xrayTproxyPreference.setSummary(getString(R.string.xray_tproxy_summary));
+            }
+        }
         if (rootInterfaceSettingsPreference != null) {
             rootInterfaceSettingsPreference.setVisible(true);
             rootInterfaceSettingsPreference.setEnabled(true);

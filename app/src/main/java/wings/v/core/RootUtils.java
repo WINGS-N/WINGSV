@@ -162,6 +162,21 @@ public final class RootUtils {
         return null;
     }
 
+    public static boolean isXrayTproxySupported(Context context, boolean refreshAccess) {
+        return TextUtils.isEmpty(getXrayTproxyUnavailableReason(context, refreshAccess));
+    }
+
+    public static String getXrayTproxyUnavailableReason(Context context, boolean refreshAccess) {
+        boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
+        if (!rootGranted) {
+            return "Root-доступ не подтверждён";
+        }
+        if (!runRootCheck(context, "grep -qE '(^| )TPROXY( |$)' /proc/net/ip_tables_targets 2>/dev/null")) {
+            return "Kernel-модуль xt_TPROXY не загружен";
+        }
+        return null;
+    }
+
     public static boolean isRootInterfaceAlive(Context context, String interfaceName) {
         if (TextUtils.isEmpty(interfaceName)) {
             return false;
@@ -184,6 +199,34 @@ public final class RootUtils {
     }
 
     public static String runRootHelper(Context context, String... args) throws Exception {
+        Process process = new ProcessBuilder("su", "-c", buildRootHelperShellCommand(context, args))
+            .redirectErrorStream(true)
+            .start();
+        String output;
+        try (InputStream inputStream = process.getInputStream()) {
+            output = readFully(inputStream);
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new IllegalStateException(
+                TextUtils.isEmpty(output) ? "Root helper exited with code " + exitCode : output.trim()
+            );
+        }
+        return output == null ? "" : output.trim();
+    }
+
+    /**
+     * Spawns a long-running root helper subprocess (via {@code su} + {@code app_process}) and
+     * returns the {@link Process} handle without waiting for completion. Caller is responsible
+     * for reading stdout/stderr and calling {@link Process#destroy()} on shutdown.
+     */
+    public static Process spawnRootHelperProcess(Context context, String... args) throws Exception {
+        return new ProcessBuilder("su", "-c", buildRootHelperShellCommand(context, args))
+            .redirectErrorStream(true)
+            .start();
+    }
+
+    private static String buildRootHelperShellCommand(Context context, String... args) {
         String packageCodePath = context.getApplicationInfo() != null ? context.getApplicationInfo().sourceDir : null;
         StringBuilder command = new StringBuilder();
         command
@@ -206,19 +249,7 @@ public final class RootUtils {
                 command.append(' ').append(shellQuote(argument));
             }
         }
-
-        Process process = new ProcessBuilder("su", "-c", command.toString()).redirectErrorStream(true).start();
-        String output;
-        try (InputStream inputStream = process.getInputStream()) {
-            output = readFully(inputStream);
-        }
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new IllegalStateException(
-                TextUtils.isEmpty(output) ? "Root helper exited with code " + exitCode : output.trim()
-            );
-        }
-        return output == null ? "" : output.trim();
+        return command.toString();
     }
 
     private static boolean runRootCheck(Context context, String command) {

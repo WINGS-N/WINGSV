@@ -67,6 +67,12 @@
         android:summary="@string/kernel_wireguard_summary"
         android:defaultValue="false" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_xray_tproxy_mode"
+        android:title="@string/xray_tproxy_title"
+        android:summary="@string/xray_tproxy_summary"
+        android:defaultValue="false" />
+
     <Preference
         android:key="pref_open_root_interface_settings"
         android:title="@string/root_interface_settings_title"
