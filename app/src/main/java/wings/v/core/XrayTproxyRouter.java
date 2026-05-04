@@ -159,6 +159,43 @@ public final class XrayTproxyRouter {
         }
     }
 
+    /**
+     * Reads cumulative bytes counted by the {@code MARK} rules in our IPv4 + IPv6
+     * OUTPUT mangle chains. Counters are the ones {@code XrayTproxyRouter.apply}
+     * created with the chain — they reset to zero on every reapply.
+     *
+     * Returns 0 if the chains are not in place or if the root shell call fails.
+     */
+    public static long readMarkBytesQuiet(@NonNull Context context) {
+        try {
+            String script =
+                "iptables -t mangle -nvxL " +
+                CHAIN_OUT +
+                " 2>/dev/null; " +
+                "ip6tables -t mangle -nvxL " +
+                CHAIN_OUT6 +
+                " 2>/dev/null";
+            String output = RootShellCommand.exec(context, script);
+            if (output == null) {
+                return 0L;
+            }
+            long total = 0L;
+            for (String rawLine : output.split("\n")) {
+                String[] parts = rawLine.trim().split("\\s+");
+                // Expected layout: pkts bytes target prot opt in out src dst [extras...]
+                if (parts.length < 3 || !"MARK".equals(parts[2])) {
+                    continue;
+                }
+                try {
+                    total += Long.parseLong(parts[1]);
+                } catch (NumberFormatException ignored) {}
+            }
+            return total;
+        } catch (Exception ignored) {
+            return 0L;
+        }
+    }
+
     public static List<Integer> resolveRoutedUids(@NonNull Context context, @Nullable Set<String> packageNames) {
         List<Integer> uids = new ArrayList<>();
         if (packageNames == null || packageNames.isEmpty()) {
