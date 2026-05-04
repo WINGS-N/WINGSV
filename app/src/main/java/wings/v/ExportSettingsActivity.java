@@ -31,6 +31,8 @@ public class ExportSettingsActivity extends AppCompatActivity {
         VK_TURN,
         WIREGUARD,
         AMNEZIA,
+        WB_STREAM,
+        XPOSED,
         APP_ROUTING_BYPASS,
         XRAY_ROUTING,
     }
@@ -81,6 +83,12 @@ public class ExportSettingsActivity extends AppCompatActivity {
         if (action == ExportAction.AMNEZIA) {
             return WingsImportParser.buildAmneziaSettingsLink(this);
         }
+        if (action == ExportAction.WB_STREAM) {
+            return WingsImportParser.buildWbStreamSettingsLink(this);
+        }
+        if (action == ExportAction.XPOSED) {
+            return WingsImportParser.buildXposedSettingsLink(this);
+        }
         if (action == ExportAction.APP_ROUTING_BYPASS) {
             return WingsImportParser.buildAppRoutingBypassLink(this);
         }
@@ -100,6 +108,8 @@ public class ExportSettingsActivity extends AppCompatActivity {
             bindExportPreference("pref_export_vk_turn_settings", ExportAction.VK_TURN);
             bindExportPreference("pref_export_wireguard_settings", ExportAction.WIREGUARD);
             bindExportPreference("pref_export_amnezia_settings", ExportAction.AMNEZIA);
+            bindExportPreference("pref_export_wb_stream_settings", ExportAction.WB_STREAM);
+            bindExportPreference("pref_export_xposed_settings", ExportAction.XPOSED);
             bindExportPreference("pref_export_app_routing_bypass", ExportAction.APP_ROUTING_BYPASS);
             bindExportPreference("pref_export_xray_routing", ExportAction.XRAY_ROUTING);
         }

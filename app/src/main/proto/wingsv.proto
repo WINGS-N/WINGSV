@@ -5,6 +5,7 @@ package wingsv;
 option java_package = "wings.v.proto";
 option java_outer_classname = "WingsvProto";
 option optimize_for = LITE_RUNTIME;
+option go_package = "v.wingsnet.org/internal/gen/wingsvpb";
 
 message Config {
   uint32 ver = 1;
@@ -16,6 +17,12 @@ message Config {
   AmneziaWG awg = 7;
   AppRouting app_routing = 8;
   WbStream wb_stream = 9;
+  Xposed xposed = 10;
+  RootSettings root = 11;
+  AppPreferences app_preferences = 12;
+  SubscriptionHwid subscription_hwid = 13;
+  Sharing sharing = 14;
+  ByeDpi bye_dpi = 15;
 }
 
 enum ConfigType {
@@ -27,6 +34,7 @@ enum ConfigType {
   CONFIG_TYPE_APP_ROUTING = 5;
   CONFIG_TYPE_XRAY_ROUTING = 6;
   CONFIG_TYPE_WB_STREAM = 7;
+  CONFIG_TYPE_XPOSED = 8;
 }
 
 enum BackendType {
@@ -74,6 +82,10 @@ message Turn {
   repeated string links = 10;
   string link_secondary = 11;
   optional uint32 creds_group_size = 12;
+  optional bool manual_captcha = 13;
+  string captcha_auto_solver = 14;
+  optional bool restart_on_network_change = 15;
+  ProxyRuntimeMode runtime_mode = 16;
 }
 
 enum TurnSessionMode {
@@ -81,6 +93,12 @@ enum TurnSessionMode {
   TURN_SESSION_MODE_AUTO = 1;
   TURN_SESSION_MODE_MAINLINE = 2;
   TURN_SESSION_MODE_MUX = 3;
+}
+
+enum ProxyRuntimeMode {
+  PROXY_RUNTIME_MODE_UNSPECIFIED = 0;
+  PROXY_RUNTIME_MODE_VPN = 1;
+  PROXY_RUNTIME_MODE_PROXY = 2;
 }
 
 message WireGuard {
@@ -183,10 +201,165 @@ message XraySettings {
   string local_proxy_password = 12;
   optional bool restart_on_network_change = 13;
   XrayTransportMode transport_mode = 14;
+  ProxyRuntimeMode runtime_mode = 15;
 }
 
 enum XrayTransportMode {
   XRAY_TRANSPORT_MODE_UNSPECIFIED = 0;
   XRAY_TRANSPORT_MODE_DIRECT = 1;
   XRAY_TRANSPORT_MODE_VK_TURN_TCP = 2;
+}
+
+message Xposed {
+  optional bool enabled = 1;
+  optional bool all_apps = 2;
+  optional bool native_hook_enabled = 3;
+  optional bool inline_hooks_enabled = 4;
+  optional bool hide_vpn_apps = 5;
+  optional bool hide_from_dumpsys = 6;
+  XposedProcfsHookMode procfs_hook_mode = 7;
+  XposedIcmpSpoofingMode icmp_spoofing_mode = 8;
+  repeated string target_packages = 9;
+  repeated string hidden_vpn_packages = 10;
+}
+
+enum XposedProcfsHookMode {
+  XPOSED_PROCFS_HOOK_MODE_UNSPECIFIED = 0;
+  XPOSED_PROCFS_HOOK_MODE_DISABLED = 1;
+  XPOSED_PROCFS_HOOK_MODE_FILTER = 2;
+  XPOSED_PROCFS_HOOK_MODE_NO_ACCESS = 3;
+  XPOSED_PROCFS_HOOK_MODE_FILE_NOT_FOUND = 4;
+}
+
+enum XposedIcmpSpoofingMode {
+  XPOSED_ICMP_SPOOFING_MODE_UNSPECIFIED = 0;
+  XPOSED_ICMP_SPOOFING_MODE_DISABLED = 1;
+  XPOSED_ICMP_SPOOFING_MODE_PING_NOT_FOUND = 2;
+  XPOSED_ICMP_SPOOFING_MODE_EMPTY_RESPONSE = 3;
+}
+
+message RootSettings {
+  optional bool enabled = 1;
+  optional bool kernel_wireguard = 2;
+  optional bool xray_tproxy_mode = 3;
+  string wg_interface_name = 4;
+}
+
+message AppPreferences {
+  ThemeMode theme_mode = 1;
+  optional bool auto_start_on_boot = 2;
+}
+
+enum ThemeMode {
+  THEME_MODE_UNSPECIFIED = 0;
+  THEME_MODE_LIGHT = 1;
+  THEME_MODE_DARK = 2;
+  THEME_MODE_SYSTEM = 3;
+}
+
+message SubscriptionHwid {
+  optional bool enabled = 1;
+  optional bool manual_enabled = 2;
+  string value = 3;
+  string device_os = 4;
+  string ver_os = 5;
+  string device_model = 6;
+}
+
+message Sharing {
+  optional bool auto_start_on_boot = 1;
+  repeated string last_active_types = 2;
+  string upstream_interface = 3;
+  string fallback_upstream_interface = 4;
+  SharingMasqueradeMode masquerade_mode = 5;
+  optional bool disable_ipv6 = 6;
+  optional bool dhcp_workaround = 7;
+  SharingWifiLock wifi_lock = 8;
+  optional bool repeater_safe_mode = 9;
+  optional bool temp_hotspot_use_system = 10;
+  SharingIpMonitorMode ip_monitor_mode = 11;
+}
+
+enum SharingMasqueradeMode {
+  SHARING_MASQUERADE_MODE_UNSPECIFIED = 0;
+  SHARING_MASQUERADE_MODE_NONE = 1;
+  SHARING_MASQUERADE_MODE_SIMPLE = 2;
+  SHARING_MASQUERADE_MODE_NETD = 3;
+}
+
+enum SharingWifiLock {
+  SHARING_WIFI_LOCK_UNSPECIFIED = 0;
+  SHARING_WIFI_LOCK_SYSTEM = 1;
+  SHARING_WIFI_LOCK_FULL = 2;
+  SHARING_WIFI_LOCK_HIGH_PERF = 3;
+  SHARING_WIFI_LOCK_LOW_LATENCY = 4;
+}
+
+enum SharingIpMonitorMode {
+  SHARING_IP_MONITOR_MODE_UNSPECIFIED = 0;
+  SHARING_IP_MONITOR_MODE_NETLINK = 1;
+  SHARING_IP_MONITOR_MODE_NETLINK_ROOT = 2;
+  SHARING_IP_MONITOR_MODE_POLL = 3;
+  SHARING_IP_MONITOR_MODE_POLL_ROOT = 4;
+}
+
+message ByeDpi {
+  optional bool auto_start_with_xray = 1;
+  optional bool use_command_settings = 2;
+  string proxy_ip = 3;
+  optional uint32 proxy_port = 4;
+  optional bool proxy_auth_enabled = 5;
+  string proxy_username = 6;
+  string proxy_password = 7;
+  optional uint32 max_connections = 8;
+  optional uint32 buffer_size = 9;
+  optional bool no_domain = 10;
+  optional bool tcp_fast_open = 11;
+  ByeDpiHostsMode hosts_mode = 12;
+  string hosts_blacklist = 13;
+  string hosts_whitelist = 14;
+  optional uint32 default_ttl = 15;
+  ByeDpiDesyncMethod desync_method = 16;
+  optional uint32 split_position = 17;
+  optional bool split_at_host = 18;
+  optional bool drop_sack = 19;
+  optional uint32 fake_ttl = 20;
+  optional uint32 fake_offset = 21;
+  string fake_sni = 22;
+  string oob_data = 23;
+  optional bool desync_http = 24;
+  optional bool desync_https = 25;
+  optional bool desync_udp = 26;
+  optional bool host_mixed_case = 27;
+  optional bool domain_mixed_case = 28;
+  optional bool host_remove_spaces = 29;
+  optional bool tlsrec_enabled = 30;
+  optional uint32 tlsrec_position = 31;
+  optional bool tlsrec_at_sni = 32;
+  optional uint32 udp_fake_count = 33;
+  string cmd_args = 34;
+  optional uint32 proxytest_delay = 35;
+  optional uint32 proxytest_requests = 36;
+  optional uint32 proxytest_limit = 37;
+  optional uint32 proxytest_timeout = 38;
+  string proxytest_sni = 39;
+  optional bool proxytest_use_custom_strategies = 40;
+  string proxytest_custom_strategies = 41;
+}
+
+enum ByeDpiHostsMode {
+  BYE_DPI_HOSTS_MODE_UNSPECIFIED = 0;
+  BYE_DPI_HOSTS_MODE_DISABLE = 1;
+  BYE_DPI_HOSTS_MODE_BLACKLIST = 2;
+  BYE_DPI_HOSTS_MODE_WHITELIST = 3;
+}
+
+enum ByeDpiDesyncMethod {
+  BYE_DPI_DESYNC_METHOD_UNSPECIFIED = 0;
+  BYE_DPI_DESYNC_METHOD_NONE = 1;
+  BYE_DPI_DESYNC_METHOD_SPLIT = 2;
+  BYE_DPI_DESYNC_METHOD_DISORDER = 3;
+  BYE_DPI_DESYNC_METHOD_FAKE = 4;
+  BYE_DPI_DESYNC_METHOD_OOB = 5;
+  BYE_DPI_DESYNC_METHOD_DISOOB = 6;
 }

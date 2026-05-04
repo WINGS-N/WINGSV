@@ -118,6 +118,7 @@ public final class AppPrefs {
     public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
+    public static final String KEY_XRAY_TPROXY_MODE = "pref_xray_tproxy_mode";
     public static final String KEY_ROOT_ACCESS_GRANTED = "pref_root_access_granted";
     public static final String KEY_ROOT_ACCESS_CHECKED_AT = "pref_root_access_checked_at";
     public static final String KEY_ROOT_RUNTIME_ACTIVE = "pref_root_runtime_active";
@@ -239,6 +240,14 @@ public final class AppPrefs {
             return preferences.getBoolean(KEY_KERNEL_WIREGUARD, false);
         }
         return preferences.getBoolean(KEY_ROOT_MODE, false);
+    }
+
+    public static boolean isXrayTproxyModeEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_XRAY_TPROXY_MODE, false);
+    }
+
+    public static void setXrayTproxyModeEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_XRAY_TPROXY_MODE, enabled).commit();
     }
 
     public static void setKernelWireGuardEnabled(Context context, boolean enabled) {
@@ -849,6 +858,24 @@ public final class AppPrefs {
             }
             setAppRoutingPackages(context, new LinkedHashSet<>(importedConfig.appRoutingPackages));
         }
+        if (importedConfig.hasXposedSettings) {
+            applyImportedXposedSettings(context, importedConfig);
+        }
+        if (importedConfig.hasRootSettings) {
+            applyImportedRootSettings(context, importedConfig);
+        }
+        if (importedConfig.hasAppPreferences) {
+            applyImportedAppPreferences(context, importedConfig);
+        }
+        if (importedConfig.hasSubscriptionHwid) {
+            applyImportedSubscriptionHwid(context, importedConfig);
+        }
+        if (importedConfig.hasSharingSettings) {
+            applyImportedSharingSettings(context, importedConfig);
+        }
+        if (importedConfig.hasByeDpiSettings) {
+            applyImportedByeDpiSettings(context, importedConfig);
+        }
 
         if (importedConfig.updateBackendType) {
             ActiveProbingManager.clearRestoreBackend(context);
@@ -896,7 +923,17 @@ public final class AppPrefs {
         );
         editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
         editor.putBoolean(KEY_NO_OBFUSCATION, importedConfig.noObfuscation != null && importedConfig.noObfuscation);
-        editor.putBoolean(KEY_MANUAL_CAPTCHA, false);
+        editor.putBoolean(KEY_MANUAL_CAPTCHA, importedConfig.manualCaptcha != null && importedConfig.manualCaptcha);
+        if (!TextUtils.isEmpty(importedConfig.captchaAutoSolver)) {
+            editor.putString(KEY_CAPTCHA_AUTO_SOLVER, normalizeCaptchaAutoSolver(importedConfig.captchaAutoSolver));
+        }
+        editor.putBoolean(
+            KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
+            importedConfig.vkTurnRestartOnNetworkChange == null || importedConfig.vkTurnRestartOnNetworkChange
+        );
+        if (importedConfig.vkTurnRuntimeMode != null) {
+            editor.putString(KEY_VK_TURN_RUNTIME_MODE, importedConfig.vkTurnRuntimeMode.prefValue);
+        }
         editor.putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(importedConfig.turnSessionMode));
         editor.putString(
             KEY_LOCAL_ENDPOINT,
@@ -958,6 +995,217 @@ public final class AppPrefs {
             XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
         }
         XrayStore.setLastSubscriptionsError(context, "");
+    }
+
+    private static void applyImportedRootSettings(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        SharedPreferences.Editor editor = prefs(context).edit();
+        if (importedConfig.rootModeEnabled != null) {
+            editor.putBoolean(KEY_ROOT_MODE, importedConfig.rootModeEnabled);
+        }
+        if (importedConfig.kernelWireguardEnabled != null) {
+            editor.putBoolean(KEY_KERNEL_WIREGUARD, importedConfig.kernelWireguardEnabled);
+        }
+        if (importedConfig.xrayTproxyModeEnabled != null) {
+            editor.putBoolean(KEY_XRAY_TPROXY_MODE, importedConfig.xrayTproxyModeEnabled);
+        }
+        if (!TextUtils.isEmpty(importedConfig.rootWireguardInterfaceName)) {
+            String normalized = normalizeRootWireGuardInterfaceNameTemplate(importedConfig.rootWireguardInterfaceName);
+            editor.putString(KEY_ROOT_WIREGUARD_INTERFACE_NAME, normalized);
+        }
+        editor.apply();
+    }
+
+    private static void applyImportedAppPreferences(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        SharedPreferences.Editor editor = prefs(context).edit();
+        if (!TextUtils.isEmpty(importedConfig.themeMode)) {
+            editor.putString(KEY_THEME_MODE, normalizeThemeMode(importedConfig.themeMode));
+        }
+        if (importedConfig.autoStartOnBoot != null) {
+            editor.putBoolean(KEY_AUTO_START_ON_BOOT, importedConfig.autoStartOnBoot);
+        }
+        editor.apply();
+    }
+
+    private static void applyImportedSubscriptionHwid(
+        Context context,
+        WingsImportParser.ImportedConfig importedConfig
+    ) {
+        SharedPreferences.Editor editor = prefs(context).edit();
+        if (importedConfig.subscriptionHwidEnabled != null) {
+            editor.putBoolean(KEY_SUBSCRIPTION_HWID_ENABLED, importedConfig.subscriptionHwidEnabled);
+        }
+        if (importedConfig.subscriptionHwidManualEnabled != null) {
+            editor.putBoolean(KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, importedConfig.subscriptionHwidManualEnabled);
+        }
+        if (!TextUtils.isEmpty(importedConfig.subscriptionHwidValue)) {
+            editor.putString(KEY_SUBSCRIPTION_HWID_VALUE, trim(importedConfig.subscriptionHwidValue));
+        }
+        if (!TextUtils.isEmpty(importedConfig.subscriptionHwidDeviceOs)) {
+            editor.putString(KEY_SUBSCRIPTION_HWID_DEVICE_OS, trim(importedConfig.subscriptionHwidDeviceOs));
+        }
+        if (!TextUtils.isEmpty(importedConfig.subscriptionHwidVerOs)) {
+            editor.putString(KEY_SUBSCRIPTION_HWID_VER_OS, trim(importedConfig.subscriptionHwidVerOs));
+        }
+        if (!TextUtils.isEmpty(importedConfig.subscriptionHwidDeviceModel)) {
+            editor.putString(KEY_SUBSCRIPTION_HWID_DEVICE_MODEL, trim(importedConfig.subscriptionHwidDeviceModel));
+        }
+        editor.apply();
+    }
+
+    private static void applyImportedSharingSettings(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        SharedPreferences.Editor editor = prefs(context).edit();
+        if (importedConfig.sharingAutoStartOnBoot != null) {
+            editor.putBoolean(KEY_SHARING_AUTO_START_ON_BOOT, importedConfig.sharingAutoStartOnBoot);
+        }
+        if (!importedConfig.sharingLastActiveTypes.isEmpty()) {
+            LinkedHashSet<String> commandNames = new LinkedHashSet<>();
+            for (String entry : importedConfig.sharingLastActiveTypes) {
+                String trimmed = trim(entry);
+                if (!TextUtils.isEmpty(trimmed)) {
+                    commandNames.add(trimmed);
+                }
+            }
+            editor.putStringSet(KEY_SHARING_LAST_ACTIVE_TYPES, commandNames);
+        }
+        if (!TextUtils.isEmpty(importedConfig.sharingUpstreamInterface)) {
+            editor.putString(KEY_SHARING_UPSTREAM_INTERFACE, trim(importedConfig.sharingUpstreamInterface));
+        }
+        if (!TextUtils.isEmpty(importedConfig.sharingFallbackUpstreamInterface)) {
+            editor.putString(
+                KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE,
+                trim(importedConfig.sharingFallbackUpstreamInterface)
+            );
+        }
+        if (!TextUtils.isEmpty(importedConfig.sharingMasqueradeMode)) {
+            editor.putString(KEY_SHARING_MASQUERADE_MODE, trim(importedConfig.sharingMasqueradeMode));
+        }
+        if (importedConfig.sharingDisableIpv6 != null) {
+            editor.putBoolean(KEY_SHARING_DISABLE_IPV6, importedConfig.sharingDisableIpv6);
+        }
+        if (importedConfig.sharingDhcpWorkaround != null) {
+            editor.putBoolean(KEY_SHARING_DHCP_WORKAROUND, importedConfig.sharingDhcpWorkaround);
+        }
+        if (!TextUtils.isEmpty(importedConfig.sharingWifiLockMode)) {
+            editor.putString(KEY_SHARING_WIFI_LOCK, trim(importedConfig.sharingWifiLockMode));
+        }
+        if (importedConfig.sharingRepeaterSafeMode != null) {
+            editor.putBoolean(KEY_SHARING_REPEATER_SAFE_MODE, importedConfig.sharingRepeaterSafeMode);
+        }
+        if (importedConfig.sharingTempHotspotUseSystem != null) {
+            editor.putBoolean(KEY_SHARING_TEMP_HOTSPOT_USE_SYSTEM, importedConfig.sharingTempHotspotUseSystem);
+        }
+        if (!TextUtils.isEmpty(importedConfig.sharingIpMonitorMode)) {
+            editor.putString(KEY_SHARING_IP_MONITOR_MODE, trim(importedConfig.sharingIpMonitorMode));
+        }
+        editor.apply();
+    }
+
+    private static void applyImportedByeDpiSettings(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        ByeDpiSettings s = importedConfig.byeDpiSettings;
+        if (s == null) {
+            return;
+        }
+        SharedPreferences.Editor editor = prefs(context).edit();
+        editor.putBoolean(ByeDpiStore.KEY_AUTO_START_WITH_XRAY, s.launchOnXrayStart);
+        editor.putBoolean(ByeDpiStore.KEY_USE_COMMAND_SETTINGS, s.useCommandLineSettings);
+        editor.putString(ByeDpiStore.KEY_PROXY_IP, trim(s.proxyIp));
+        editor.putString(ByeDpiStore.KEY_PROXY_PORT, String.valueOf(s.proxyPort));
+        editor.putBoolean(ByeDpiStore.KEY_PROXY_AUTH_ENABLED, s.proxyAuthEnabled);
+        if (!TextUtils.isEmpty(s.proxyUsername)) {
+            editor.putString(ByeDpiStore.KEY_PROXY_USERNAME, trim(s.proxyUsername));
+        }
+        if (!TextUtils.isEmpty(s.proxyPassword)) {
+            editor.putString(ByeDpiStore.KEY_PROXY_PASSWORD, trim(s.proxyPassword));
+        }
+        editor.putString(ByeDpiStore.KEY_MAX_CONNECTIONS, String.valueOf(s.maxConnections));
+        editor.putString(ByeDpiStore.KEY_BUFFER_SIZE, String.valueOf(s.bufferSize));
+        editor.putBoolean(ByeDpiStore.KEY_NO_DOMAIN, s.noDomain);
+        editor.putBoolean(ByeDpiStore.KEY_TCP_FAST_OPEN, s.tcpFastOpen);
+        editor.putString(
+            ByeDpiStore.KEY_HOSTS_MODE,
+            s.hostsMode == null ? ByeDpiSettings.HostsMode.DISABLE.prefValue : s.hostsMode.prefValue
+        );
+        editor.putString(ByeDpiStore.KEY_HOSTS_BLACKLIST, trim(s.hostsBlacklist));
+        editor.putString(ByeDpiStore.KEY_HOSTS_WHITELIST, trim(s.hostsWhitelist));
+        editor.putString(ByeDpiStore.KEY_DEFAULT_TTL, String.valueOf(s.defaultTtl));
+        editor.putString(
+            ByeDpiStore.KEY_DESYNC_METHOD,
+            s.desyncMethod == null ? ByeDpiSettings.DesyncMethod.OOB.prefValue : s.desyncMethod.prefValue
+        );
+        editor.putString(ByeDpiStore.KEY_SPLIT_POSITION, String.valueOf(s.splitPosition));
+        editor.putBoolean(ByeDpiStore.KEY_SPLIT_AT_HOST, s.splitAtHost);
+        editor.putBoolean(ByeDpiStore.KEY_DROP_SACK, s.dropSack);
+        editor.putString(ByeDpiStore.KEY_FAKE_TTL, String.valueOf(s.fakeTtl));
+        editor.putString(ByeDpiStore.KEY_FAKE_OFFSET, String.valueOf(s.fakeOffset));
+        editor.putString(ByeDpiStore.KEY_FAKE_SNI, trim(s.fakeSni));
+        editor.putString(ByeDpiStore.KEY_OOB_DATA, trim(s.oobData));
+        editor.putBoolean(ByeDpiStore.KEY_DESYNC_HTTP, s.desyncHttp);
+        editor.putBoolean(ByeDpiStore.KEY_DESYNC_HTTPS, s.desyncHttps);
+        editor.putBoolean(ByeDpiStore.KEY_DESYNC_UDP, s.desyncUdp);
+        editor.putBoolean(ByeDpiStore.KEY_HOST_MIXED_CASE, s.hostMixedCase);
+        editor.putBoolean(ByeDpiStore.KEY_DOMAIN_MIXED_CASE, s.domainMixedCase);
+        editor.putBoolean(ByeDpiStore.KEY_HOST_REMOVE_SPACES, s.hostRemoveSpaces);
+        editor.putBoolean(ByeDpiStore.KEY_TLSREC_ENABLED, s.tlsRecordSplit);
+        editor.putString(ByeDpiStore.KEY_TLSREC_POSITION, String.valueOf(s.tlsRecordSplitPosition));
+        editor.putBoolean(ByeDpiStore.KEY_TLSREC_AT_SNI, s.tlsRecordSplitAtSni);
+        editor.putString(ByeDpiStore.KEY_UDP_FAKE_COUNT, String.valueOf(s.udpFakeCount));
+        editor.putString(ByeDpiStore.KEY_CMD_ARGS, trim(s.rawCommandArgs));
+        editor.putString(ByeDpiStore.KEY_PROXYTEST_DELAY, String.valueOf(s.proxyTestDelaySeconds));
+        editor.putString(ByeDpiStore.KEY_PROXYTEST_REQUESTS, String.valueOf(s.proxyTestRequests));
+        editor.putString(ByeDpiStore.KEY_PROXYTEST_LIMIT, String.valueOf(s.proxyTestConcurrencyLimit));
+        editor.putString(ByeDpiStore.KEY_PROXYTEST_TIMEOUT, String.valueOf(s.proxyTestTimeoutSeconds));
+        editor.putString(ByeDpiStore.KEY_PROXYTEST_SNI, trim(s.proxyTestSni));
+        editor.putBoolean(ByeDpiStore.KEY_PROXYTEST_USE_CUSTOM_STRATEGIES, s.proxyTestUseCustomStrategies);
+        editor.putString(ByeDpiStore.KEY_PROXYTEST_CUSTOM_STRATEGIES, trim(s.proxyTestCustomStrategies));
+        editor.apply();
+    }
+
+    private static void applyImportedXposedSettings(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        SharedPreferences.Editor editor = XposedModulePrefs.prefs(context).edit();
+        if (importedConfig.xposedEnabled != null) {
+            editor.putBoolean(XposedModulePrefs.KEY_ENABLED, importedConfig.xposedEnabled);
+        }
+        if (importedConfig.xposedAllApps != null) {
+            editor.putBoolean(XposedModulePrefs.KEY_ALL_APPS, importedConfig.xposedAllApps);
+        }
+        if (importedConfig.xposedNativeHookEnabled != null) {
+            editor.putBoolean(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED, importedConfig.xposedNativeHookEnabled);
+        }
+        if (importedConfig.xposedInlineHooksEnabled != null) {
+            editor.putBoolean(XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED, importedConfig.xposedInlineHooksEnabled);
+        }
+        if (importedConfig.xposedHideVpnApps != null) {
+            editor.putBoolean(XposedModulePrefs.KEY_HIDE_VPN_APPS, importedConfig.xposedHideVpnApps);
+        }
+        if (importedConfig.xposedHideFromDumpsys != null) {
+            editor.putBoolean(XposedModulePrefs.KEY_HIDE_FROM_DUMPSYS, importedConfig.xposedHideFromDumpsys);
+        }
+        if (!TextUtils.isEmpty(importedConfig.xposedProcfsHookMode)) {
+            editor.putString(
+                XposedModulePrefs.KEY_PROCFS_HOOK_MODE,
+                XposedModulePrefs.normalizeProcfsHookMode(importedConfig.xposedProcfsHookMode)
+            );
+        }
+        if (!TextUtils.isEmpty(importedConfig.xposedIcmpSpoofingMode)) {
+            editor.putString(
+                XposedModulePrefs.KEY_ICMP_SPOOFING_MODE,
+                XposedModulePrefs.normalizeIcmpSpoofingMode(importedConfig.xposedIcmpSpoofingMode)
+            );
+        }
+        if (!importedConfig.xposedTargetPackages.isEmpty()) {
+            editor.putStringSet(
+                XposedModulePrefs.KEY_TARGET_PACKAGES,
+                new LinkedHashSet<>(importedConfig.xposedTargetPackages)
+            );
+        }
+        if (!importedConfig.xposedHiddenVpnPackages.isEmpty()) {
+            editor.putStringSet(
+                XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES,
+                new LinkedHashSet<>(importedConfig.xposedHiddenVpnPackages)
+            );
+        }
+        editor.apply();
+        XposedModulePrefs.export(context);
     }
 
     public static void applyVkTurnSettings(Context context, ProxySettings settings) {

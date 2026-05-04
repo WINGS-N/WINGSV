@@ -1,6 +1,7 @@
 package wings.v.core;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.text.TextUtils;
 import android.util.Base64;
 import java.io.ByteArrayOutputStream;
@@ -60,6 +61,7 @@ public final class WingsImportParser {
         WB_STREAM,
         APP_ROUTING_BYPASS,
         XRAY_ROUTING,
+        XPOSED,
     }
 
     private WingsImportParser() {}
@@ -126,6 +128,12 @@ public final class WingsImportParser {
             scopedSettings(context, ExportScope.WB_STREAM),
             ExportScope.WB_STREAM
         );
+        return encodeConfig(config);
+    }
+
+    public static String buildXposedSettingsLink(Context context) throws Exception {
+        requireContext(context);
+        WingsvProto.Config config = buildProtoConfig(context, null, ExportScope.XPOSED);
         return encodeConfig(config);
     }
 
@@ -476,6 +484,34 @@ public final class WingsImportParser {
             if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
                 builder.setXray(xray);
             }
+            WingsvProto.WbStream wb = buildWbStream(context, scopedSettings(context, ExportScope.WB_STREAM), false);
+            if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
+                builder.setWbStream(wb);
+            }
+            WingsvProto.Xposed xposed = buildXposed(context, false);
+            if (!xposed.equals(WingsvProto.Xposed.getDefaultInstance())) {
+                builder.setXposed(xposed);
+            }
+            WingsvProto.RootSettings root = buildRootSettings(context, false);
+            if (!root.equals(WingsvProto.RootSettings.getDefaultInstance())) {
+                builder.setRoot(root);
+            }
+            WingsvProto.AppPreferences appPrefs = buildAppPreferences(context, false);
+            if (!appPrefs.equals(WingsvProto.AppPreferences.getDefaultInstance())) {
+                builder.setAppPreferences(appPrefs);
+            }
+            WingsvProto.SubscriptionHwid hwid = buildSubscriptionHwid(context, false);
+            if (!hwid.equals(WingsvProto.SubscriptionHwid.getDefaultInstance())) {
+                builder.setSubscriptionHwid(hwid);
+            }
+            WingsvProto.Sharing sharing = buildSharing(context, false);
+            if (!sharing.equals(WingsvProto.Sharing.getDefaultInstance())) {
+                builder.setSharing(sharing);
+            }
+            WingsvProto.ByeDpi byeDpi = buildByeDpi(context, false);
+            if (!byeDpi.equals(WingsvProto.ByeDpi.getDefaultInstance())) {
+                builder.setByeDpi(byeDpi);
+            }
             return builder.build();
         }
         if (scope == ExportScope.APP_ROUTING_BYPASS) {
@@ -494,6 +530,14 @@ public final class WingsImportParser {
                 .setBackend(BackendType.XRAY.toProto())
                 .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY_ROUTING)
                 .setXray(xray)
+                .build();
+        }
+        if (scope == ExportScope.XPOSED) {
+            requireContext(context);
+            return WingsvProto.Config.newBuilder()
+                .setVer(CURRENT_VERSION)
+                .setType(WingsvProto.ConfigType.CONFIG_TYPE_XPOSED)
+                .setXposed(buildXposed(context, false))
                 .build();
         }
 
@@ -625,6 +669,715 @@ public final class WingsImportParser {
             builder.setAwgQuickConfig(value(settings.awgQuickConfig));
         }
         return builder.build();
+    }
+
+    private static WingsvProto.Xposed buildXposed(Context context, boolean includeDefaults) {
+        WingsvProto.Xposed.Builder builder = WingsvProto.Xposed.newBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        SharedPreferences prefs = XposedModulePrefs.prefs(context);
+        boolean enabled = prefs.getBoolean(XposedModulePrefs.KEY_ENABLED, XposedModulePrefs.DEFAULT_ENABLED);
+        if (includeDefaults || enabled != XposedModulePrefs.DEFAULT_ENABLED) {
+            builder.setEnabled(enabled);
+        }
+        boolean allApps = prefs.getBoolean(XposedModulePrefs.KEY_ALL_APPS, XposedModulePrefs.DEFAULT_ALL_APPS);
+        if (includeDefaults || allApps != XposedModulePrefs.DEFAULT_ALL_APPS) {
+            builder.setAllApps(allApps);
+        }
+        boolean nativeHook = prefs.getBoolean(
+            XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED,
+            XposedModulePrefs.DEFAULT_NATIVE_HOOK_ENABLED
+        );
+        if (includeDefaults || nativeHook != XposedModulePrefs.DEFAULT_NATIVE_HOOK_ENABLED) {
+            builder.setNativeHookEnabled(nativeHook);
+        }
+        boolean inlineHooks = prefs.getBoolean(
+            XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED,
+            XposedModulePrefs.DEFAULT_INLINE_HOOKS_ENABLED
+        );
+        if (includeDefaults || inlineHooks != XposedModulePrefs.DEFAULT_INLINE_HOOKS_ENABLED) {
+            builder.setInlineHooksEnabled(inlineHooks);
+        }
+        boolean hideVpnApps = prefs.getBoolean(
+            XposedModulePrefs.KEY_HIDE_VPN_APPS,
+            XposedModulePrefs.DEFAULT_HIDE_VPN_APPS
+        );
+        if (includeDefaults || hideVpnApps != XposedModulePrefs.DEFAULT_HIDE_VPN_APPS) {
+            builder.setHideVpnApps(hideVpnApps);
+        }
+        boolean hideFromDumpsys = prefs.getBoolean(
+            XposedModulePrefs.KEY_HIDE_FROM_DUMPSYS,
+            XposedModulePrefs.DEFAULT_HIDE_FROM_DUMPSYS
+        );
+        if (includeDefaults || hideFromDumpsys != XposedModulePrefs.DEFAULT_HIDE_FROM_DUMPSYS) {
+            builder.setHideFromDumpsys(hideFromDumpsys);
+        }
+        String procfsHookMode = XposedModulePrefs.normalizeProcfsHookMode(
+            prefs.getString(XposedModulePrefs.KEY_PROCFS_HOOK_MODE, XposedModulePrefs.DEFAULT_PROCFS_HOOK_MODE)
+        );
+        if (includeDefaults || !XposedModulePrefs.DEFAULT_PROCFS_HOOK_MODE.equals(procfsHookMode)) {
+            builder.setProcfsHookMode(toProtoProcfsHookMode(procfsHookMode));
+        }
+        String icmpSpoofingMode = XposedModulePrefs.normalizeIcmpSpoofingMode(
+            prefs.getString(XposedModulePrefs.KEY_ICMP_SPOOFING_MODE, XposedModulePrefs.DEFAULT_ICMP_SPOOFING_MODE)
+        );
+        if (includeDefaults || !XposedModulePrefs.DEFAULT_ICMP_SPOOFING_MODE.equals(icmpSpoofingMode)) {
+            builder.setIcmpSpoofingMode(toProtoIcmpSpoofingMode(icmpSpoofingMode));
+        }
+        for (String pkg : XposedModulePrefs.getPackageSet(context, XposedModulePrefs.KEY_TARGET_PACKAGES)) {
+            if (!TextUtils.isEmpty(pkg)) {
+                builder.addTargetPackages(pkg);
+            }
+        }
+        Set<String> hiddenVpnPackages = XposedModulePrefs.getPackageSet(
+            context,
+            XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES
+        );
+        Set<String> defaultHidden = XposedModulePrefs.getDefaultHiddenVpnPackages();
+        if (includeDefaults || !defaultHidden.equals(hiddenVpnPackages)) {
+            for (String pkg : hiddenVpnPackages) {
+                if (!TextUtils.isEmpty(pkg)) {
+                    builder.addHiddenVpnPackages(pkg);
+                }
+            }
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.XposedProcfsHookMode toProtoProcfsHookMode(String mode) {
+        if (XposedModulePrefs.PROCFS_HOOK_MODE_FILTER.equals(mode)) {
+            return WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_FILTER;
+        }
+        if (XposedModulePrefs.PROCFS_HOOK_MODE_NO_ACCESS.equals(mode)) {
+            return WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_NO_ACCESS;
+        }
+        if (XposedModulePrefs.PROCFS_HOOK_MODE_FILE_NOT_FOUND.equals(mode)) {
+            return WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_FILE_NOT_FOUND;
+        }
+        return WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_DISABLED;
+    }
+
+    private static String fromProtoProcfsHookMode(WingsvProto.XposedProcfsHookMode mode) {
+        if (mode == WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_FILTER) {
+            return XposedModulePrefs.PROCFS_HOOK_MODE_FILTER;
+        }
+        if (mode == WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_NO_ACCESS) {
+            return XposedModulePrefs.PROCFS_HOOK_MODE_NO_ACCESS;
+        }
+        if (mode == WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_FILE_NOT_FOUND) {
+            return XposedModulePrefs.PROCFS_HOOK_MODE_FILE_NOT_FOUND;
+        }
+        return XposedModulePrefs.PROCFS_HOOK_MODE_DISABLED;
+    }
+
+    private static WingsvProto.XposedIcmpSpoofingMode toProtoIcmpSpoofingMode(String mode) {
+        if (XposedModulePrefs.ICMP_SPOOFING_MODE_PING_NOT_FOUND.equals(mode)) {
+            return WingsvProto.XposedIcmpSpoofingMode.XPOSED_ICMP_SPOOFING_MODE_PING_NOT_FOUND;
+        }
+        if (XposedModulePrefs.ICMP_SPOOFING_MODE_EMPTY_RESPONSE.equals(mode)) {
+            return WingsvProto.XposedIcmpSpoofingMode.XPOSED_ICMP_SPOOFING_MODE_EMPTY_RESPONSE;
+        }
+        return WingsvProto.XposedIcmpSpoofingMode.XPOSED_ICMP_SPOOFING_MODE_DISABLED;
+    }
+
+    private static String fromProtoIcmpSpoofingMode(WingsvProto.XposedIcmpSpoofingMode mode) {
+        if (mode == WingsvProto.XposedIcmpSpoofingMode.XPOSED_ICMP_SPOOFING_MODE_PING_NOT_FOUND) {
+            return XposedModulePrefs.ICMP_SPOOFING_MODE_PING_NOT_FOUND;
+        }
+        if (mode == WingsvProto.XposedIcmpSpoofingMode.XPOSED_ICMP_SPOOFING_MODE_EMPTY_RESPONSE) {
+            return XposedModulePrefs.ICMP_SPOOFING_MODE_EMPTY_RESPONSE;
+        }
+        return XposedModulePrefs.ICMP_SPOOFING_MODE_DISABLED;
+    }
+
+    private static void parseXposed(WingsvProto.Xposed xposed, ImportedConfig importedConfig) {
+        importedConfig.hasXposedSettings = true;
+        if (xposed.hasEnabled()) {
+            importedConfig.xposedEnabled = xposed.getEnabled();
+        }
+        if (xposed.hasAllApps()) {
+            importedConfig.xposedAllApps = xposed.getAllApps();
+        }
+        if (xposed.hasNativeHookEnabled()) {
+            importedConfig.xposedNativeHookEnabled = xposed.getNativeHookEnabled();
+        }
+        if (xposed.hasInlineHooksEnabled()) {
+            importedConfig.xposedInlineHooksEnabled = xposed.getInlineHooksEnabled();
+        }
+        if (xposed.hasHideVpnApps()) {
+            importedConfig.xposedHideVpnApps = xposed.getHideVpnApps();
+        }
+        if (xposed.hasHideFromDumpsys()) {
+            importedConfig.xposedHideFromDumpsys = xposed.getHideFromDumpsys();
+        }
+        if (xposed.getProcfsHookMode() != WingsvProto.XposedProcfsHookMode.XPOSED_PROCFS_HOOK_MODE_UNSPECIFIED) {
+            importedConfig.xposedProcfsHookMode = fromProtoProcfsHookMode(xposed.getProcfsHookMode());
+        }
+        if (xposed.getIcmpSpoofingMode() != WingsvProto.XposedIcmpSpoofingMode.XPOSED_ICMP_SPOOFING_MODE_UNSPECIFIED) {
+            importedConfig.xposedIcmpSpoofingMode = fromProtoIcmpSpoofingMode(xposed.getIcmpSpoofingMode());
+        }
+        for (String pkg : xposed.getTargetPackagesList()) {
+            String trimmed = value(pkg);
+            if (!TextUtils.isEmpty(trimmed)) {
+                importedConfig.xposedTargetPackages.add(trimmed);
+            }
+        }
+        for (String pkg : xposed.getHiddenVpnPackagesList()) {
+            String trimmed = value(pkg);
+            if (!TextUtils.isEmpty(trimmed)) {
+                importedConfig.xposedHiddenVpnPackages.add(trimmed);
+            }
+        }
+    }
+
+    private static WingsvProto.RootSettings buildRootSettings(Context context, boolean includeDefaults) {
+        WingsvProto.RootSettings.Builder builder = WingsvProto.RootSettings.newBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        SharedPreferences prefs = AppPrefs.defaultSharedPreferences(context);
+        boolean rootMode = AppPrefs.isRootModeEnabled(context);
+        if (includeDefaults || rootMode) {
+            builder.setEnabled(rootMode);
+        }
+        // Kernel WG default mirrors KEY_ROOT_MODE when not explicitly set; only emit
+        // when the user has overridden it.
+        if (prefs.contains(AppPrefs.KEY_KERNEL_WIREGUARD)) {
+            boolean kernelWg = AppPrefs.isKernelWireGuardEnabled(context);
+            if (includeDefaults || kernelWg != rootMode) {
+                builder.setKernelWireguard(kernelWg);
+            }
+        } else if (includeDefaults) {
+            builder.setKernelWireguard(rootMode);
+        }
+        boolean tproxy = AppPrefs.isXrayTproxyModeEnabled(context);
+        if (includeDefaults || tproxy) {
+            builder.setXrayTproxyMode(tproxy);
+        }
+        String wgIfaceTemplate = AppPrefs.getRootWireGuardInterfaceNameTemplate(context);
+        String defaultTemplate = AppPrefs.normalizeRootWireGuardInterfaceNameTemplate("");
+        if (!TextUtils.isEmpty(wgIfaceTemplate) && (includeDefaults || !defaultTemplate.equals(wgIfaceTemplate))) {
+            builder.setWgInterfaceName(wgIfaceTemplate);
+        }
+        return builder.build();
+    }
+
+    private static void parseRootSettings(WingsvProto.RootSettings root, ImportedConfig importedConfig) {
+        importedConfig.hasRootSettings = true;
+        if (root.hasEnabled()) {
+            importedConfig.rootModeEnabled = root.getEnabled();
+        }
+        if (root.hasKernelWireguard()) {
+            importedConfig.kernelWireguardEnabled = root.getKernelWireguard();
+        }
+        if (root.hasXrayTproxyMode()) {
+            importedConfig.xrayTproxyModeEnabled = root.getXrayTproxyMode();
+        }
+        String iface = value(root.getWgInterfaceName());
+        if (!TextUtils.isEmpty(iface)) {
+            importedConfig.rootWireguardInterfaceName = iface;
+        }
+    }
+
+    private static WingsvProto.AppPreferences buildAppPreferences(Context context, boolean includeDefaults) {
+        WingsvProto.AppPreferences.Builder builder = WingsvProto.AppPreferences.newBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        String themeMode = AppPrefs.getThemeMode(context);
+        if (includeDefaults || !AppPrefs.THEME_MODE_SYSTEM.equals(themeMode)) {
+            builder.setThemeMode(toProtoThemeMode(themeMode));
+        }
+        boolean autoStartOnBoot = AppPrefs.isAutoStartOnBootEnabled(context);
+        if (includeDefaults || autoStartOnBoot) {
+            builder.setAutoStartOnBoot(autoStartOnBoot);
+        }
+        return builder.build();
+    }
+
+    private static void parseAppPreferences(WingsvProto.AppPreferences ap, ImportedConfig importedConfig) {
+        importedConfig.hasAppPreferences = true;
+        if (ap.getThemeMode() != WingsvProto.ThemeMode.THEME_MODE_UNSPECIFIED) {
+            importedConfig.themeMode = fromProtoThemeMode(ap.getThemeMode());
+        }
+        if (ap.hasAutoStartOnBoot()) {
+            importedConfig.autoStartOnBoot = ap.getAutoStartOnBoot();
+        }
+    }
+
+    private static WingsvProto.ThemeMode toProtoThemeMode(String mode) {
+        if (AppPrefs.THEME_MODE_LIGHT.equals(mode)) {
+            return WingsvProto.ThemeMode.THEME_MODE_LIGHT;
+        }
+        if (AppPrefs.THEME_MODE_DARK.equals(mode)) {
+            return WingsvProto.ThemeMode.THEME_MODE_DARK;
+        }
+        return WingsvProto.ThemeMode.THEME_MODE_SYSTEM;
+    }
+
+    private static String fromProtoThemeMode(WingsvProto.ThemeMode mode) {
+        if (mode == WingsvProto.ThemeMode.THEME_MODE_LIGHT) {
+            return AppPrefs.THEME_MODE_LIGHT;
+        }
+        if (mode == WingsvProto.ThemeMode.THEME_MODE_DARK) {
+            return AppPrefs.THEME_MODE_DARK;
+        }
+        return AppPrefs.THEME_MODE_SYSTEM;
+    }
+
+    private static WingsvProto.SubscriptionHwid buildSubscriptionHwid(Context context, boolean includeDefaults) {
+        WingsvProto.SubscriptionHwid.Builder builder = WingsvProto.SubscriptionHwid.newBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        SubscriptionHwidStore.SettingsModel settings = SubscriptionHwidStore.getSettings(context);
+        if (includeDefaults || !settings.enabled) {
+            builder.setEnabled(settings.enabled);
+        }
+        if (includeDefaults || settings.manualValues) {
+            builder.setManualEnabled(settings.manualValues);
+        }
+        if (!TextUtils.isEmpty(settings.hwid)) {
+            builder.setValue(settings.hwid);
+        }
+        if (!TextUtils.isEmpty(settings.deviceOs)) {
+            builder.setDeviceOs(settings.deviceOs);
+        }
+        if (!TextUtils.isEmpty(settings.verOs)) {
+            builder.setVerOs(settings.verOs);
+        }
+        if (!TextUtils.isEmpty(settings.deviceModel)) {
+            builder.setDeviceModel(settings.deviceModel);
+        }
+        return builder.build();
+    }
+
+    private static void parseSubscriptionHwid(WingsvProto.SubscriptionHwid hwid, ImportedConfig importedConfig) {
+        importedConfig.hasSubscriptionHwid = true;
+        if (hwid.hasEnabled()) {
+            importedConfig.subscriptionHwidEnabled = hwid.getEnabled();
+        }
+        if (hwid.hasManualEnabled()) {
+            importedConfig.subscriptionHwidManualEnabled = hwid.getManualEnabled();
+        }
+        importedConfig.subscriptionHwidValue = value(hwid.getValue());
+        importedConfig.subscriptionHwidDeviceOs = value(hwid.getDeviceOs());
+        importedConfig.subscriptionHwidVerOs = value(hwid.getVerOs());
+        importedConfig.subscriptionHwidDeviceModel = value(hwid.getDeviceModel());
+    }
+
+    private static WingsvProto.Sharing buildSharing(Context context, boolean includeDefaults) {
+        WingsvProto.Sharing.Builder builder = WingsvProto.Sharing.newBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        boolean autoStart = AppPrefs.isSharingAutoStartOnBootEnabled(context);
+        if (includeDefaults || autoStart) {
+            builder.setAutoStartOnBoot(autoStart);
+        }
+        Set<TetherType> lastActiveTypes = AppPrefs.getSharingLastActiveTypes(context);
+        if (includeDefaults || !lastActiveTypes.isEmpty()) {
+            for (TetherType type : lastActiveTypes) {
+                builder.addLastActiveTypes(type.commandName);
+            }
+        }
+        String upstream = AppPrefs.getSharingUpstreamInterface(context);
+        if (!TextUtils.isEmpty(upstream)) {
+            builder.setUpstreamInterface(upstream);
+        }
+        String fallbackUpstream = AppPrefs.getSharingFallbackUpstreamInterface(context);
+        if (!TextUtils.isEmpty(fallbackUpstream)) {
+            builder.setFallbackUpstreamInterface(fallbackUpstream);
+        }
+        String masquerade = AppPrefs.getSharingMasqueradeMode(context);
+        if (includeDefaults || !AppPrefs.SHARING_MASQUERADE_SIMPLE.equals(masquerade)) {
+            builder.setMasqueradeMode(toProtoSharingMasqueradeMode(masquerade));
+        }
+        boolean disableIpv6 = AppPrefs.isSharingDisableIpv6Enabled(context);
+        if (includeDefaults || !disableIpv6) {
+            builder.setDisableIpv6(disableIpv6);
+        }
+        boolean dhcpWorkaround = AppPrefs.isSharingDhcpWorkaroundEnabled(context);
+        if (includeDefaults || dhcpWorkaround) {
+            builder.setDhcpWorkaround(dhcpWorkaround);
+        }
+        String wifiLock = AppPrefs.getSharingWifiLockMode(context);
+        if (includeDefaults || !AppPrefs.SHARING_WIFI_LOCK_SYSTEM.equals(wifiLock)) {
+            builder.setWifiLock(toProtoSharingWifiLock(wifiLock));
+        }
+        boolean repeaterSafe = AppPrefs.isSharingRepeaterSafeModeEnabled(context);
+        if (includeDefaults || !repeaterSafe) {
+            builder.setRepeaterSafeMode(repeaterSafe);
+        }
+        boolean tempHotspotSystem = AppPrefs.isSharingTempHotspotUseSystemEnabled(context);
+        if (includeDefaults || tempHotspotSystem) {
+            builder.setTempHotspotUseSystem(tempHotspotSystem);
+        }
+        String ipMonitor = AppPrefs.getSharingIpMonitorMode(context);
+        if (includeDefaults || !AppPrefs.SHARING_IP_MONITOR_NETLINK.equals(ipMonitor)) {
+            builder.setIpMonitorMode(toProtoSharingIpMonitorMode(ipMonitor));
+        }
+        return builder.build();
+    }
+
+    private static void parseSharing(WingsvProto.Sharing sharing, ImportedConfig importedConfig) {
+        importedConfig.hasSharingSettings = true;
+        if (sharing.hasAutoStartOnBoot()) {
+            importedConfig.sharingAutoStartOnBoot = sharing.getAutoStartOnBoot();
+        }
+        for (String type : sharing.getLastActiveTypesList()) {
+            String trimmed = value(type);
+            if (!TextUtils.isEmpty(trimmed)) {
+                importedConfig.sharingLastActiveTypes.add(trimmed);
+            }
+        }
+        importedConfig.sharingUpstreamInterface = value(sharing.getUpstreamInterface());
+        importedConfig.sharingFallbackUpstreamInterface = value(sharing.getFallbackUpstreamInterface());
+        if (sharing.getMasqueradeMode() != WingsvProto.SharingMasqueradeMode.SHARING_MASQUERADE_MODE_UNSPECIFIED) {
+            importedConfig.sharingMasqueradeMode = fromProtoSharingMasqueradeMode(sharing.getMasqueradeMode());
+        }
+        if (sharing.hasDisableIpv6()) {
+            importedConfig.sharingDisableIpv6 = sharing.getDisableIpv6();
+        }
+        if (sharing.hasDhcpWorkaround()) {
+            importedConfig.sharingDhcpWorkaround = sharing.getDhcpWorkaround();
+        }
+        if (sharing.getWifiLock() != WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_UNSPECIFIED) {
+            importedConfig.sharingWifiLockMode = fromProtoSharingWifiLock(sharing.getWifiLock());
+        }
+        if (sharing.hasRepeaterSafeMode()) {
+            importedConfig.sharingRepeaterSafeMode = sharing.getRepeaterSafeMode();
+        }
+        if (sharing.hasTempHotspotUseSystem()) {
+            importedConfig.sharingTempHotspotUseSystem = sharing.getTempHotspotUseSystem();
+        }
+        if (sharing.getIpMonitorMode() != WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_UNSPECIFIED) {
+            importedConfig.sharingIpMonitorMode = fromProtoSharingIpMonitorMode(sharing.getIpMonitorMode());
+        }
+    }
+
+    private static WingsvProto.SharingMasqueradeMode toProtoSharingMasqueradeMode(String mode) {
+        if (AppPrefs.SHARING_MASQUERADE_NONE.equals(mode)) {
+            return WingsvProto.SharingMasqueradeMode.SHARING_MASQUERADE_MODE_NONE;
+        }
+        if (AppPrefs.SHARING_MASQUERADE_NETD.equals(mode)) {
+            return WingsvProto.SharingMasqueradeMode.SHARING_MASQUERADE_MODE_NETD;
+        }
+        return WingsvProto.SharingMasqueradeMode.SHARING_MASQUERADE_MODE_SIMPLE;
+    }
+
+    private static String fromProtoSharingMasqueradeMode(WingsvProto.SharingMasqueradeMode mode) {
+        if (mode == WingsvProto.SharingMasqueradeMode.SHARING_MASQUERADE_MODE_NONE) {
+            return AppPrefs.SHARING_MASQUERADE_NONE;
+        }
+        if (mode == WingsvProto.SharingMasqueradeMode.SHARING_MASQUERADE_MODE_NETD) {
+            return AppPrefs.SHARING_MASQUERADE_NETD;
+        }
+        return AppPrefs.SHARING_MASQUERADE_SIMPLE;
+    }
+
+    private static WingsvProto.SharingWifiLock toProtoSharingWifiLock(String mode) {
+        if (AppPrefs.SHARING_WIFI_LOCK_FULL.equals(mode)) {
+            return WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_FULL;
+        }
+        if (AppPrefs.SHARING_WIFI_LOCK_HIGH_PERF.equals(mode)) {
+            return WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_HIGH_PERF;
+        }
+        if (AppPrefs.SHARING_WIFI_LOCK_LOW_LATENCY.equals(mode)) {
+            return WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_LOW_LATENCY;
+        }
+        return WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_SYSTEM;
+    }
+
+    private static String fromProtoSharingWifiLock(WingsvProto.SharingWifiLock mode) {
+        if (mode == WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_FULL) {
+            return AppPrefs.SHARING_WIFI_LOCK_FULL;
+        }
+        if (mode == WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_HIGH_PERF) {
+            return AppPrefs.SHARING_WIFI_LOCK_HIGH_PERF;
+        }
+        if (mode == WingsvProto.SharingWifiLock.SHARING_WIFI_LOCK_LOW_LATENCY) {
+            return AppPrefs.SHARING_WIFI_LOCK_LOW_LATENCY;
+        }
+        return AppPrefs.SHARING_WIFI_LOCK_SYSTEM;
+    }
+
+    private static WingsvProto.SharingIpMonitorMode toProtoSharingIpMonitorMode(String mode) {
+        if (AppPrefs.SHARING_IP_MONITOR_NETLINK_ROOT.equals(mode)) {
+            return WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_NETLINK_ROOT;
+        }
+        if (AppPrefs.SHARING_IP_MONITOR_POLL.equals(mode)) {
+            return WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_POLL;
+        }
+        if (AppPrefs.SHARING_IP_MONITOR_POLL_ROOT.equals(mode)) {
+            return WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_POLL_ROOT;
+        }
+        return WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_NETLINK;
+    }
+
+    private static String fromProtoSharingIpMonitorMode(WingsvProto.SharingIpMonitorMode mode) {
+        if (mode == WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_NETLINK_ROOT) {
+            return AppPrefs.SHARING_IP_MONITOR_NETLINK_ROOT;
+        }
+        if (mode == WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_POLL) {
+            return AppPrefs.SHARING_IP_MONITOR_POLL;
+        }
+        if (mode == WingsvProto.SharingIpMonitorMode.SHARING_IP_MONITOR_MODE_POLL_ROOT) {
+            return AppPrefs.SHARING_IP_MONITOR_POLL_ROOT;
+        }
+        return AppPrefs.SHARING_IP_MONITOR_NETLINK;
+    }
+
+    private static WingsvProto.ByeDpi buildByeDpi(Context context, boolean includeDefaults) {
+        WingsvProto.ByeDpi.Builder builder = WingsvProto.ByeDpi.newBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        ByeDpiSettings s = ByeDpiStore.getSettings(context);
+        if (s == null) {
+            return builder.build();
+        }
+        if (includeDefaults || s.launchOnXrayStart) {
+            builder.setAutoStartWithXray(s.launchOnXrayStart);
+        }
+        if (includeDefaults || s.useCommandLineSettings) {
+            builder.setUseCommandSettings(s.useCommandLineSettings);
+        }
+        if (!TextUtils.isEmpty(s.proxyIp) && (includeDefaults || !"127.0.0.1".equals(s.proxyIp))) {
+            builder.setProxyIp(s.proxyIp);
+        }
+        if (s.proxyPort > 0 && (includeDefaults || s.proxyPort != 1080)) {
+            builder.setProxyPort(s.proxyPort);
+        }
+        if (includeDefaults || !s.proxyAuthEnabled) {
+            builder.setProxyAuthEnabled(s.proxyAuthEnabled);
+        }
+        if (!TextUtils.isEmpty(s.proxyUsername)) {
+            builder.setProxyUsername(s.proxyUsername);
+        }
+        if (!TextUtils.isEmpty(s.proxyPassword)) {
+            builder.setProxyPassword(s.proxyPassword);
+        }
+        if (s.maxConnections > 0 && (includeDefaults || s.maxConnections != 512)) {
+            builder.setMaxConnections(s.maxConnections);
+        }
+        if (s.bufferSize > 0 && (includeDefaults || s.bufferSize != 16384)) {
+            builder.setBufferSize(s.bufferSize);
+        }
+        if (includeDefaults || s.noDomain) {
+            builder.setNoDomain(s.noDomain);
+        }
+        if (includeDefaults || s.tcpFastOpen) {
+            builder.setTcpFastOpen(s.tcpFastOpen);
+        }
+        if (s.hostsMode != null && (includeDefaults || s.hostsMode != ByeDpiSettings.HostsMode.DISABLE)) {
+            builder.setHostsMode(toProtoByeDpiHostsMode(s.hostsMode));
+        }
+        if (!TextUtils.isEmpty(s.hostsBlacklist)) {
+            builder.setHostsBlacklist(s.hostsBlacklist);
+        }
+        if (!TextUtils.isEmpty(s.hostsWhitelist)) {
+            builder.setHostsWhitelist(s.hostsWhitelist);
+        }
+        if (s.defaultTtl > 0 || includeDefaults) {
+            builder.setDefaultTtl(s.defaultTtl);
+        }
+        if (s.desyncMethod != null && (includeDefaults || s.desyncMethod != ByeDpiSettings.DesyncMethod.OOB)) {
+            builder.setDesyncMethod(toProtoByeDpiDesyncMethod(s.desyncMethod));
+        }
+        if (includeDefaults || s.splitPosition != 1) {
+            builder.setSplitPosition(s.splitPosition);
+        }
+        if (includeDefaults || s.splitAtHost) {
+            builder.setSplitAtHost(s.splitAtHost);
+        }
+        if (includeDefaults || s.dropSack) {
+            builder.setDropSack(s.dropSack);
+        }
+        if (includeDefaults || s.fakeTtl != 8) {
+            builder.setFakeTtl(s.fakeTtl);
+        }
+        if (includeDefaults || s.fakeOffset != 0) {
+            builder.setFakeOffset(s.fakeOffset);
+        }
+        if (!TextUtils.isEmpty(s.fakeSni) && (includeDefaults || !"www.iana.org".equals(s.fakeSni))) {
+            builder.setFakeSni(s.fakeSni);
+        }
+        if (!TextUtils.isEmpty(s.oobData) && (includeDefaults || !"a".equals(s.oobData))) {
+            builder.setOobData(s.oobData);
+        }
+        if (includeDefaults || !s.desyncHttp) {
+            builder.setDesyncHttp(s.desyncHttp);
+        }
+        if (includeDefaults || !s.desyncHttps) {
+            builder.setDesyncHttps(s.desyncHttps);
+        }
+        if (includeDefaults || !s.desyncUdp) {
+            builder.setDesyncUdp(s.desyncUdp);
+        }
+        if (includeDefaults || s.hostMixedCase) {
+            builder.setHostMixedCase(s.hostMixedCase);
+        }
+        if (includeDefaults || s.domainMixedCase) {
+            builder.setDomainMixedCase(s.domainMixedCase);
+        }
+        if (includeDefaults || s.hostRemoveSpaces) {
+            builder.setHostRemoveSpaces(s.hostRemoveSpaces);
+        }
+        if (includeDefaults || !s.tlsRecordSplit) {
+            builder.setTlsrecEnabled(s.tlsRecordSplit);
+        }
+        if (includeDefaults || s.tlsRecordSplitPosition != 1) {
+            builder.setTlsrecPosition(s.tlsRecordSplitPosition);
+        }
+        if (includeDefaults || !s.tlsRecordSplitAtSni) {
+            builder.setTlsrecAtSni(s.tlsRecordSplitAtSni);
+        }
+        if (includeDefaults || s.udpFakeCount != 1) {
+            builder.setUdpFakeCount(s.udpFakeCount);
+        }
+        if (
+            !TextUtils.isEmpty(s.rawCommandArgs) &&
+            (includeDefaults || !ByeDpiSettings.DEFAULT_COMMAND_ARGS.equals(s.rawCommandArgs))
+        ) {
+            builder.setCmdArgs(s.rawCommandArgs);
+        }
+        if (includeDefaults || s.proxyTestDelaySeconds != 1) {
+            builder.setProxytestDelay(s.proxyTestDelaySeconds);
+        }
+        if (includeDefaults || s.proxyTestRequests != 1) {
+            builder.setProxytestRequests(s.proxyTestRequests);
+        }
+        if (includeDefaults || s.proxyTestConcurrencyLimit != 20) {
+            builder.setProxytestLimit(s.proxyTestConcurrencyLimit);
+        }
+        if (includeDefaults || s.proxyTestTimeoutSeconds != 5) {
+            builder.setProxytestTimeout(s.proxyTestTimeoutSeconds);
+        }
+        if (!TextUtils.isEmpty(s.proxyTestSni) && (includeDefaults || !"max.ru".equals(s.proxyTestSni))) {
+            builder.setProxytestSni(s.proxyTestSni);
+        }
+        if (includeDefaults || s.proxyTestUseCustomStrategies) {
+            builder.setProxytestUseCustomStrategies(s.proxyTestUseCustomStrategies);
+        }
+        if (!TextUtils.isEmpty(s.proxyTestCustomStrategies)) {
+            builder.setProxytestCustomStrategies(s.proxyTestCustomStrategies);
+        }
+        return builder.build();
+    }
+
+    private static void parseByeDpi(WingsvProto.ByeDpi b, ImportedConfig importedConfig) {
+        importedConfig.hasByeDpiSettings = true;
+        ByeDpiSettings s = new ByeDpiSettings();
+        s.launchOnXrayStart = b.hasAutoStartWithXray() ? b.getAutoStartWithXray() : false;
+        s.useCommandLineSettings = b.hasUseCommandSettings() ? b.getUseCommandSettings() : false;
+        s.proxyIp = !TextUtils.isEmpty(value(b.getProxyIp())) ? value(b.getProxyIp()) : "127.0.0.1";
+        s.proxyPort = b.hasProxyPort() ? b.getProxyPort() : 1080;
+        s.proxyAuthEnabled = b.hasProxyAuthEnabled() ? b.getProxyAuthEnabled() : true;
+        s.proxyUsername = value(b.getProxyUsername());
+        s.proxyPassword = value(b.getProxyPassword());
+        s.maxConnections = b.hasMaxConnections() ? b.getMaxConnections() : 512;
+        s.bufferSize = b.hasBufferSize() ? b.getBufferSize() : 16384;
+        s.noDomain = b.hasNoDomain() && b.getNoDomain();
+        s.tcpFastOpen = b.hasTcpFastOpen() && b.getTcpFastOpen();
+        s.hostsMode =
+            b.getHostsMode() != WingsvProto.ByeDpiHostsMode.BYE_DPI_HOSTS_MODE_UNSPECIFIED
+                ? fromProtoByeDpiHostsMode(b.getHostsMode())
+                : ByeDpiSettings.HostsMode.DISABLE;
+        s.hostsBlacklist = value(b.getHostsBlacklist());
+        s.hostsWhitelist = value(b.getHostsWhitelist());
+        s.defaultTtl = b.hasDefaultTtl() ? b.getDefaultTtl() : 0;
+        s.desyncMethod =
+            b.getDesyncMethod() != WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_UNSPECIFIED
+                ? fromProtoByeDpiDesyncMethod(b.getDesyncMethod())
+                : ByeDpiSettings.DesyncMethod.OOB;
+        s.splitPosition = b.hasSplitPosition() ? b.getSplitPosition() : 1;
+        s.splitAtHost = b.hasSplitAtHost() && b.getSplitAtHost();
+        s.dropSack = b.hasDropSack() && b.getDropSack();
+        s.fakeTtl = b.hasFakeTtl() ? b.getFakeTtl() : 8;
+        s.fakeOffset = b.hasFakeOffset() ? b.getFakeOffset() : 0;
+        s.fakeSni = !TextUtils.isEmpty(value(b.getFakeSni())) ? value(b.getFakeSni()) : "www.iana.org";
+        s.oobData = !TextUtils.isEmpty(value(b.getOobData())) ? value(b.getOobData()) : "a";
+        s.desyncHttp = !b.hasDesyncHttp() || b.getDesyncHttp();
+        s.desyncHttps = !b.hasDesyncHttps() || b.getDesyncHttps();
+        s.desyncUdp = !b.hasDesyncUdp() || b.getDesyncUdp();
+        s.hostMixedCase = b.hasHostMixedCase() && b.getHostMixedCase();
+        s.domainMixedCase = b.hasDomainMixedCase() && b.getDomainMixedCase();
+        s.hostRemoveSpaces = b.hasHostRemoveSpaces() && b.getHostRemoveSpaces();
+        s.tlsRecordSplit = !b.hasTlsrecEnabled() || b.getTlsrecEnabled();
+        s.tlsRecordSplitPosition = b.hasTlsrecPosition() ? b.getTlsrecPosition() : 1;
+        s.tlsRecordSplitAtSni = !b.hasTlsrecAtSni() || b.getTlsrecAtSni();
+        s.udpFakeCount = b.hasUdpFakeCount() ? b.getUdpFakeCount() : 1;
+        s.rawCommandArgs = !TextUtils.isEmpty(value(b.getCmdArgs()))
+            ? value(b.getCmdArgs())
+            : ByeDpiSettings.DEFAULT_COMMAND_ARGS;
+        s.proxyTestDelaySeconds = b.hasProxytestDelay() ? b.getProxytestDelay() : 1;
+        s.proxyTestRequests = b.hasProxytestRequests() ? b.getProxytestRequests() : 1;
+        s.proxyTestConcurrencyLimit = b.hasProxytestLimit() ? b.getProxytestLimit() : 20;
+        s.proxyTestTimeoutSeconds = b.hasProxytestTimeout() ? b.getProxytestTimeout() : 5;
+        s.proxyTestSni = !TextUtils.isEmpty(value(b.getProxytestSni())) ? value(b.getProxytestSni()) : "max.ru";
+        s.proxyTestUseCustomStrategies = b.hasProxytestUseCustomStrategies() && b.getProxytestUseCustomStrategies();
+        s.proxyTestCustomStrategies = value(b.getProxytestCustomStrategies());
+        importedConfig.byeDpiSettings = s;
+    }
+
+    private static WingsvProto.ByeDpiHostsMode toProtoByeDpiHostsMode(ByeDpiSettings.HostsMode mode) {
+        if (mode == ByeDpiSettings.HostsMode.BLACKLIST) {
+            return WingsvProto.ByeDpiHostsMode.BYE_DPI_HOSTS_MODE_BLACKLIST;
+        }
+        if (mode == ByeDpiSettings.HostsMode.WHITELIST) {
+            return WingsvProto.ByeDpiHostsMode.BYE_DPI_HOSTS_MODE_WHITELIST;
+        }
+        return WingsvProto.ByeDpiHostsMode.BYE_DPI_HOSTS_MODE_DISABLE;
+    }
+
+    private static ByeDpiSettings.HostsMode fromProtoByeDpiHostsMode(WingsvProto.ByeDpiHostsMode mode) {
+        if (mode == WingsvProto.ByeDpiHostsMode.BYE_DPI_HOSTS_MODE_BLACKLIST) {
+            return ByeDpiSettings.HostsMode.BLACKLIST;
+        }
+        if (mode == WingsvProto.ByeDpiHostsMode.BYE_DPI_HOSTS_MODE_WHITELIST) {
+            return ByeDpiSettings.HostsMode.WHITELIST;
+        }
+        return ByeDpiSettings.HostsMode.DISABLE;
+    }
+
+    private static WingsvProto.ByeDpiDesyncMethod toProtoByeDpiDesyncMethod(ByeDpiSettings.DesyncMethod mode) {
+        if (mode == ByeDpiSettings.DesyncMethod.NONE) {
+            return WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_NONE;
+        }
+        if (mode == ByeDpiSettings.DesyncMethod.SPLIT) {
+            return WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_SPLIT;
+        }
+        if (mode == ByeDpiSettings.DesyncMethod.DISORDER) {
+            return WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_DISORDER;
+        }
+        if (mode == ByeDpiSettings.DesyncMethod.FAKE) {
+            return WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_FAKE;
+        }
+        if (mode == ByeDpiSettings.DesyncMethod.DISOOB) {
+            return WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_DISOOB;
+        }
+        return WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_OOB;
+    }
+
+    private static ByeDpiSettings.DesyncMethod fromProtoByeDpiDesyncMethod(WingsvProto.ByeDpiDesyncMethod mode) {
+        if (mode == WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_NONE) {
+            return ByeDpiSettings.DesyncMethod.NONE;
+        }
+        if (mode == WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_SPLIT) {
+            return ByeDpiSettings.DesyncMethod.SPLIT;
+        }
+        if (mode == WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_DISORDER) {
+            return ByeDpiSettings.DesyncMethod.DISORDER;
+        }
+        if (mode == WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_FAKE) {
+            return ByeDpiSettings.DesyncMethod.FAKE;
+        }
+        if (mode == WingsvProto.ByeDpiDesyncMethod.BYE_DPI_DESYNC_METHOD_DISOOB) {
+            return ByeDpiSettings.DesyncMethod.DISOOB;
+        }
+        return ByeDpiSettings.DesyncMethod.OOB;
     }
 
     private static WingsvProto.AppRouting buildAppRouting(Context context) {
@@ -862,7 +1615,37 @@ public final class WingsImportParser {
                 builder.setPort(Integer.parseInt(value(settings.turnPort)));
             } catch (NumberFormatException ignored) {}
         }
+        if (includeDefaults || settings.manualCaptcha) {
+            builder.setManualCaptcha(settings.manualCaptcha);
+        }
+        String captchaSolver = value(settings.captchaAutoSolver);
+        if (!TextUtils.isEmpty(captchaSolver) && (includeDefaults || !"v2".equals(captchaSolver))) {
+            builder.setCaptchaAutoSolver(captchaSolver);
+        }
+        if (includeDefaults || !settings.vkTurnRestartOnNetworkChange) {
+            builder.setRestartOnNetworkChange(settings.vkTurnRestartOnNetworkChange);
+        }
+        if (
+            settings.vkTurnRuntimeMode != null &&
+            (includeDefaults || settings.vkTurnRuntimeMode != ProxyRuntimeMode.VPN)
+        ) {
+            builder.setRuntimeMode(toProtoRuntimeMode(settings.vkTurnRuntimeMode));
+        }
         return builder.build();
+    }
+
+    private static WingsvProto.ProxyRuntimeMode toProtoRuntimeMode(ProxyRuntimeMode mode) {
+        if (mode == ProxyRuntimeMode.PROXY) {
+            return WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_PROXY;
+        }
+        return WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_VPN;
+    }
+
+    private static ProxyRuntimeMode fromProtoRuntimeMode(WingsvProto.ProxyRuntimeMode mode) {
+        if (mode == WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_PROXY) {
+            return ProxyRuntimeMode.PROXY;
+        }
+        return ProxyRuntimeMode.VPN;
     }
 
     private static void setEndpoint(WingsvProto.Turn.Builder builder, String endpoint, boolean remote)
@@ -1046,6 +1829,47 @@ public final class WingsImportParser {
             handled = true;
         }
 
+        if (allSettings || config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XPOSED || config.hasXposed()) {
+            if (config.hasXposed()) {
+                parseXposed(config.getXposed(), importedConfig);
+            }
+            if (!allSettings && config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XPOSED) {
+                importedConfig.updateBackendType = false;
+            }
+            handled = true;
+        }
+
+        if (allSettings || config.hasRoot()) {
+            if (config.hasRoot()) {
+                parseRootSettings(config.getRoot(), importedConfig);
+            }
+            handled = true;
+        }
+        if (allSettings || config.hasAppPreferences()) {
+            if (config.hasAppPreferences()) {
+                parseAppPreferences(config.getAppPreferences(), importedConfig);
+            }
+            handled = true;
+        }
+        if (allSettings || config.hasSubscriptionHwid()) {
+            if (config.hasSubscriptionHwid()) {
+                parseSubscriptionHwid(config.getSubscriptionHwid(), importedConfig);
+            }
+            handled = true;
+        }
+        if (allSettings || config.hasSharing()) {
+            if (config.hasSharing()) {
+                parseSharing(config.getSharing(), importedConfig);
+            }
+            handled = true;
+        }
+        if (allSettings || config.hasByeDpi()) {
+            if (config.hasByeDpi()) {
+                parseByeDpi(config.getByeDpi(), importedConfig);
+            }
+            handled = true;
+        }
+
         if (!handled) {
             throw new IllegalArgumentException(
                 "Поддерживается только type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing"
@@ -1101,6 +1925,19 @@ public final class WingsImportParser {
         importedConfig.localEndpoint = turn.hasLocalEndpoint() ? formatEndpoint(turn.getLocalEndpoint()) : "";
         importedConfig.turnHost = value(turn.getHost());
         importedConfig.turnPort = turn.hasPort() ? String.valueOf(turn.getPort()) : "";
+        if (turn.hasManualCaptcha()) {
+            importedConfig.manualCaptcha = turn.getManualCaptcha();
+        }
+        String solver = value(turn.getCaptchaAutoSolver());
+        if (!TextUtils.isEmpty(solver)) {
+            importedConfig.captchaAutoSolver = solver;
+        }
+        if (turn.hasRestartOnNetworkChange()) {
+            importedConfig.vkTurnRestartOnNetworkChange = turn.getRestartOnNetworkChange();
+        }
+        if (turn.getRuntimeMode() != WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_UNSPECIFIED) {
+            importedConfig.vkTurnRuntimeMode = fromProtoRuntimeMode(turn.getRuntimeMode());
+        }
     }
 
     private static void parseWireGuard(WingsvProto.WireGuard wg, ImportedConfig importedConfig) throws Exception {
@@ -1555,6 +2392,9 @@ public final class WingsImportParser {
         if (settings.getTransportMode() != WingsvProto.XrayTransportMode.XRAY_TRANSPORT_MODE_UNSPECIFIED) {
             result.transportMode = fromProtoXrayTransportMode(settings.getTransportMode());
         }
+        if (settings.getRuntimeMode() != WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_UNSPECIFIED) {
+            result.runtimeMode = fromProtoRuntimeMode(settings.getRuntimeMode());
+        }
         return result;
     }
 
@@ -1608,6 +2448,9 @@ public final class WingsImportParser {
         }
         if (includeDefaults || settings.transportMode != XrayTransportMode.DIRECT) {
             builder.setTransportMode(toProtoXrayTransportMode(settings.transportMode));
+        }
+        if (settings.runtimeMode != null && (includeDefaults || settings.runtimeMode != ProxyRuntimeMode.VPN)) {
+            builder.setRuntimeMode(toProtoRuntimeMode(settings.runtimeMode));
         }
         return builder.build();
     }
@@ -1718,6 +2561,11 @@ public final class WingsImportParser {
         public Integer threads;
         public Boolean useUdp;
         public Boolean noObfuscation;
+        public Boolean manualCaptcha;
+        public String captchaAutoSolver;
+        public Boolean vkTurnRestartOnNetworkChange;
+        public ProxyRuntimeMode vkTurnRuntimeMode;
+        public ProxyRuntimeMode xrayRuntimeMode;
         public String turnSessionMode;
         public String localEndpoint;
         public String turnHost;
@@ -1742,5 +2590,45 @@ public final class WingsImportParser {
         public String xrayRoutingGeositeUrl;
         public Boolean appRoutingBypass;
         public final List<String> appRoutingPackages = new ArrayList<>();
+        public boolean hasXposedSettings;
+        public Boolean xposedEnabled;
+        public Boolean xposedAllApps;
+        public Boolean xposedNativeHookEnabled;
+        public Boolean xposedInlineHooksEnabled;
+        public Boolean xposedHideVpnApps;
+        public Boolean xposedHideFromDumpsys;
+        public String xposedProcfsHookMode;
+        public String xposedIcmpSpoofingMode;
+        public final List<String> xposedTargetPackages = new ArrayList<>();
+        public final List<String> xposedHiddenVpnPackages = new ArrayList<>();
+        public boolean hasRootSettings;
+        public Boolean rootModeEnabled;
+        public Boolean kernelWireguardEnabled;
+        public Boolean xrayTproxyModeEnabled;
+        public String rootWireguardInterfaceName;
+        public boolean hasAppPreferences;
+        public String themeMode;
+        public Boolean autoStartOnBoot;
+        public boolean hasSubscriptionHwid;
+        public Boolean subscriptionHwidEnabled;
+        public Boolean subscriptionHwidManualEnabled;
+        public String subscriptionHwidValue;
+        public String subscriptionHwidDeviceOs;
+        public String subscriptionHwidVerOs;
+        public String subscriptionHwidDeviceModel;
+        public boolean hasSharingSettings;
+        public Boolean sharingAutoStartOnBoot;
+        public final List<String> sharingLastActiveTypes = new ArrayList<>();
+        public String sharingUpstreamInterface;
+        public String sharingFallbackUpstreamInterface;
+        public String sharingMasqueradeMode;
+        public Boolean sharingDisableIpv6;
+        public Boolean sharingDhcpWorkaround;
+        public String sharingWifiLockMode;
+        public Boolean sharingRepeaterSafeMode;
+        public Boolean sharingTempHotspotUseSystem;
+        public String sharingIpMonitorMode;
+        public boolean hasByeDpiSettings;
+        public ByeDpiSettings byeDpiSettings;
     }
 }
