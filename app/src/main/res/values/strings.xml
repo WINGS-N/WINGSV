@@ -293,6 +293,9 @@
     <string name="kernel_wireguard_title">Kernel WireGuard</string>
     <string name="kernel_wireguard_summary">Для VK TURN + WireGuard использует kernel WireGuard вместо Android VpnService</string>
     <string name="kernel_wireguard_unavailable">Kernel WireGuard недоступен: %1$s</string>
+    <string name="xray_tproxy_title">Xray через TPROXY</string>
+    <string name="xray_tproxy_summary">Прозрачный перехват трафика для Xray через iptables вместо VpnService</string>
+    <string name="xray_tproxy_unavailable">Xray TPROXY недоступен: %1$s</string>
     <string name="root_interface_settings_title">Настройки интерфейсов</string>
     <string name="root_interface_settings_summary">Имя root WireGuard интерфейса</string>
     <string name="root_interface_category_title">Названия интерфейсов</string>

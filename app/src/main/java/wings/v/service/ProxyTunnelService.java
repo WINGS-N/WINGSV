@@ -102,6 +102,7 @@ import wings.v.core.TetherType;
 import wings.v.core.UiFormatter;
 import wings.v.core.WireGuardConfigFactory;
 import wings.v.core.XrayStore;
+import wings.v.core.XrayTproxyRouter;
 import wings.v.core.XrayTransportMode;
 import wings.v.qs.QuickSettingsTiles;
 import wings.v.root.server.RootProcessResult;
@@ -398,6 +399,10 @@ public class ProxyTunnelService extends Service {
     private boolean byeDpiFrontProxyActive;
     private boolean activeXrayUsesTurnProxy;
     private boolean activeXrayProxyOnly;
+    private boolean activeXrayTproxyMode;
+    private Process tproxyXrayProcess;
+    private static final int XRAY_TPROXY_PORT = 12345;
+    private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
     private boolean activeVkTurnProxyOnly;
     private BackendType activeBackendType = BackendType.VK_TURN_WIREGUARD;
     private String byeDpiDialHost = "127.0.0.1";
@@ -444,6 +449,7 @@ public class ProxyTunnelService extends Service {
     private long lastProxyStartedAtElapsedMs;
     private volatile long lastProxyDtlsActivityAtElapsedMs;
     private final AtomicBoolean wakeFastPathCheckQueued = new AtomicBoolean();
+    private final AtomicBoolean xrayTproxyReapplyQueued = new AtomicBoolean();
     private final ConnectivityManager.NetworkCallback physicalNetworkCallback =
         new ConnectivityManager.NetworkCallback() {
             @Override
@@ -1392,20 +1398,26 @@ public class ProxyTunnelService extends Service {
         protectSocketName = null;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = isXrayProxyOnly(settings);
+        activeXrayTproxyMode =
+            !activeXrayProxyOnly &&
+            settings != null &&
+            settings.rootModeEnabled &&
+            AppPrefs.isXrayTproxyModeEnabled(getApplicationContext()) &&
+            RootUtils.isXrayTproxySupported(getApplicationContext(), false);
         activeVkTurnProxyOnly = false;
 
         ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
-        if (activeXrayProxyOnly) {
-            forceStopXrayVpnServiceAndWait("Xray proxy-only startup cleanup");
+        if (activeXrayProxyOnly || activeXrayTproxyMode) {
+            forceStopXrayVpnServiceAndWait("Xray proxy-only/tproxy startup cleanup");
             ensureRuntimeStillWanted(generation);
         } else {
             ensureOwnedVpnBackendStopped("Xray", generation);
         }
 
-        int tunFd = activeXrayProxyOnly ? 0 : -1;
+        int tunFd = (activeXrayProxyOnly || activeXrayTproxyMode) ? 0 : -1;
         XrayVpnService vpnService = null;
         Exception startupError = null;
-        if (!activeXrayProxyOnly) {
+        if (!activeXrayProxyOnly && !activeXrayTproxyMode) {
             Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
             if (vpnPermissionIntent != null) {
                 if (hasOwnedVpnServiceRuntime()) {
@@ -1458,14 +1470,14 @@ public class ProxyTunnelService extends Service {
 
         ByeDpiSettings byeDpiSettings = settings != null ? settings.byeDpiSettings : null;
         boolean launchByeDpiFrontProxy =
-            !activeXrayProxyOnly && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
-        boolean xrayExternalRelayEnabled = usesXrayExternalTcpRelay(settings);
+            !activeXrayProxyOnly && !activeXrayTproxyMode && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
+        boolean xrayExternalRelayEnabled = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
         ParsedLocalEndpoint xrayTcpRelayEndpoint = null;
         if (xrayExternalRelayEnabled) {
             xrayTcpRelayEndpoint = parseLocalEndpoint(settings.localEndpoint);
             activeXrayUsesTurnProxy = true;
         }
-        if (!activeXrayProxyOnly) {
+        if (!activeXrayProxyOnly && !activeXrayTproxyMode) {
             ensureProtectBridgeReady(XrayVpnService::getServiceNow, null, "Не удалось запустить Xray protect bridge");
         }
         if (xrayExternalRelayEnabled) {
@@ -1497,13 +1509,16 @@ public class ProxyTunnelService extends Service {
 
         String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
         String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
-        if (activeXrayProxyOnly) {
+        if (activeXrayProxyOnly || activeXrayTproxyMode) {
             XrayBridge.prepareRuntimeDirect(remoteDns, directDns);
         } else {
             XrayBridge.prepareRuntime(vpnService, remoteDns, directDns);
         }
         String configJson;
-        if (xrayExternalRelayEnabled) {
+        if (activeXrayTproxyMode) {
+            configJson = XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, XRAY_TPROXY_PORT);
+            appendRuntimeLogLine("Starting Xray backend via TPROXY on port " + XRAY_TPROXY_PORT);
+        } else if (xrayExternalRelayEnabled) {
             configJson = XrayConfigFactory.buildConfigJson(
                 getApplicationContext(),
                 settings,
@@ -1534,9 +1549,33 @@ public class ProxyTunnelService extends Service {
         if (XrayBridge.usesCachedStateFallback()) {
             appendRuntimeLogLine("Xray native state query disabled; using cached running state");
         }
-        XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
-        if (!XrayBridge.isRunning()) {
-            throw new IllegalStateException("Xray core не перешел в состояние running");
+        if (activeXrayTproxyMode) {
+            spawnTproxyXrayProcess(configJson, generation);
+        } else {
+            XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
+            if (!XrayBridge.isRunning()) {
+                throw new IllegalStateException("Xray core не перешел в состояние running");
+            }
+        }
+
+        if (activeXrayTproxyMode) {
+            XrayTproxyRouter.AppRoutingMode tproxyAppMode;
+            java.util.Set<String> routedPackages = AppPrefs.getAppRoutingPackages(getApplicationContext());
+            if (routedPackages == null || routedPackages.isEmpty()) {
+                tproxyAppMode = XrayTproxyRouter.AppRoutingMode.NONE;
+            } else if (AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
+                tproxyAppMode = XrayTproxyRouter.AppRoutingMode.BYPASS;
+            } else {
+                tproxyAppMode = XrayTproxyRouter.AppRoutingMode.ONLY_SELECTED;
+            }
+            java.util.List<Integer> routedUids = XrayTproxyRouter.resolveRoutedUids(
+                getApplicationContext(),
+                routedPackages
+            );
+            XrayTproxyRouter.apply(getApplicationContext(), XRAY_TPROXY_PORT, tproxyAppMode, routedUids);
+            appendRuntimeLogLine(
+                "Xray TPROXY routing applied (mode=" + tproxyAppMode + ", apps=" + routedUids.size() + ")"
+            );
         }
 
         if (rootModeActive && shouldInitializeRootSharing()) {
@@ -1907,6 +1946,16 @@ public class ProxyTunnelService extends Service {
 
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly();
         if (usesXrayBackend(activeBackendType)) {
+            if (activeXrayTproxyMode) {
+                runFastStopCleanupStep("Xray TPROXY routing revert", FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, () ->
+                    XrayTproxyRouter.revertQuietly(getApplicationContext())
+                );
+                runFastStopCleanupStep(
+                    "Xray TPROXY runtime stop",
+                    FAST_STOP_CLEANUP_TIMEOUT_MS,
+                    this::stopTproxyXrayProcess
+                );
+            }
             runFastStopCleanupStep("Xray core stop", FAST_STOP_CLEANUP_TIMEOUT_MS, XrayBridge::stop);
             runFastStopCleanupStep("Xray VPN service force stop", FAST_STOP_CLEANUP_TIMEOUT_MS, () ->
                 forceStopXrayVpnServiceAndWait("Xray VPN service force stop")
@@ -4218,6 +4267,162 @@ public class ProxyTunnelService extends Service {
         });
     }
 
+    private void spawnTproxyXrayProcess(String configJson, int generation) throws Exception {
+        Context appContext = getApplicationContext();
+        File configFile = new File(appContext.getFilesDir(), "xray-tproxy/config.json");
+        File parentDir = configFile.getParentFile();
+        if (parentDir != null && !parentDir.exists() && !parentDir.mkdirs()) {
+            throw new IOException("Не удалось создать директорию для TPROXY конфига");
+        }
+        try (java.io.FileWriter writer = new java.io.FileWriter(configFile, false)) {
+            writer.write(configJson);
+        }
+        if (!configFile.setReadable(false, false) || !configFile.setReadable(true, true)) {
+            appendRuntimeLogLine("Не удалось ограничить права на TPROXY конфиг");
+        }
+        configFile.setWritable(false, false);
+        configFile.setWritable(true, true);
+
+        File datDir = new File(appContext.getFilesDir(), "xray/geo");
+        if (!datDir.exists()) {
+            datDir.mkdirs();
+        }
+        String libDir = appContext.getApplicationInfo().nativeLibraryDir;
+
+        Process previous = tproxyXrayProcess;
+        if (previous != null) {
+            try {
+                previous.destroy();
+            } catch (Exception ignored) {}
+        }
+        reapOrphanXrayTproxyRuntime(appContext);
+        Process process = RootUtils.spawnRootHelperProcess(
+            appContext,
+            "xray-tproxy",
+            "--config",
+            configFile.getAbsolutePath(),
+            "--lib-dir",
+            libDir,
+            "--data-dir",
+            datDir.getAbsolutePath()
+        );
+        tproxyXrayProcess = process;
+        startProxyOutputReader(process, new AtomicReference<>());
+        if (!waitForLocalListenerOnPort(XRAY_TPROXY_PORT, XRAY_TPROXY_LISTEN_TIMEOUT_MS, generation)) {
+            try {
+                process.destroy();
+            } catch (Exception ignored) {}
+            tproxyXrayProcess = null;
+            throw new IllegalStateException(
+                "Xray TPROXY listener не открылся на 0.0.0.0:" + XRAY_TPROXY_PORT + " за отведённое время"
+            );
+        }
+        appendRuntimeLogLine("Xray TPROXY runtime запущен под root, listener на :" + XRAY_TPROXY_PORT);
+    }
+
+    private boolean waitForLocalListenerOnPort(int port, long timeoutMs, int generation) {
+        long deadline = SystemClock.elapsedRealtime() + Math.max(500L, timeoutMs);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            try {
+                ensureRuntimeStillWanted(generation);
+            } catch (Exception interrupted) {
+                return false;
+            }
+            try (java.net.Socket socket = new java.net.Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", port), 250);
+                return true;
+            } catch (Exception ignored) {}
+            try {
+                Thread.sleep(150L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private void stopTproxyXrayProcess() {
+        Process process = tproxyXrayProcess;
+        if (process == null) {
+            return;
+        }
+        tproxyXrayProcess = null;
+        try {
+            process.destroy();
+        } catch (Exception ignored) {}
+        try {
+            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            process.destroyForcibly();
+        }
+    }
+
+    /**
+     * Kills any leftover Xray TPROXY runtime spawned by a previous WINGSV process
+     * that was force-killed before it could call {@link #stopTproxyXrayProcess()}.
+     * The orphan keeps {@code :12345} bound, so a fresh spawn would silently lose
+     * the bind race while {@link #waitForLocalListenerOnPort(int, long, int)}
+     * still saw the old listener and reported a phantom success.
+     *
+     * Match key is the cmdline emitted by {@link wings.v.core.RootUtils#buildRootHelperShellCommand}:
+     * {@code app_process … wings.v.root.RootCommandMain xray-tproxy …}.
+     */
+    private void reapOrphanXrayTproxyRuntime(Context appContext) {
+        try {
+            RootUtils.runRootHelper(
+                appContext,
+                "shell",
+                "pkill -KILL -f 'wings.v.root.RootCommandMain xray-tproxy' 2>/dev/null; true"
+            );
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                "Reap orphan TPROXY Xray failed: " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+        }
+    }
+
+    private void requestXrayTproxyReapplyIfNeeded(String reason) {
+        if (!activeXrayTproxyMode) {
+            return;
+        }
+        if (!xrayTproxyReapplyQueued.compareAndSet(false, true)) {
+            return;
+        }
+        workExecutor.execute(() -> {
+            try {
+                if (!activeXrayTproxyMode || sServiceState != ServiceState.RUNNING) {
+                    return;
+                }
+                if (XrayTproxyRouter.isFullyApplied(getApplicationContext())) {
+                    return;
+                }
+                appendRuntimeLogLine("Xray TPROXY routing missing after " + reason + ", reapplying");
+                XrayTproxyRouter.AppRoutingMode mode;
+                java.util.Set<String> packages = AppPrefs.getAppRoutingPackages(getApplicationContext());
+                if (packages == null || packages.isEmpty()) {
+                    mode = XrayTproxyRouter.AppRoutingMode.NONE;
+                } else if (AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
+                    mode = XrayTproxyRouter.AppRoutingMode.BYPASS;
+                } else {
+                    mode = XrayTproxyRouter.AppRoutingMode.ONLY_SELECTED;
+                }
+                java.util.List<Integer> uids = XrayTproxyRouter.resolveRoutedUids(getApplicationContext(), packages);
+                XrayTproxyRouter.apply(getApplicationContext(), XRAY_TPROXY_PORT, mode, uids);
+                appendRuntimeLogLine("Xray TPROXY routing reapplied (" + reason + ")");
+            } catch (Exception error) {
+                appendRuntimeLogLine(
+                    "Xray TPROXY reapply failed: " + firstNonEmpty(error.getMessage(), error.toString())
+                );
+            } finally {
+                xrayTproxyReapplyQueued.set(false);
+            }
+        });
+    }
+
     private Set<String> readLiveTetheredInterfaces(@Nullable Intent tetherIntent) {
         LinkedHashSet<String> interfaces = new LinkedHashSet<>();
         interfaces.addAll(activeTetheredInterfaces);
@@ -4685,6 +4890,9 @@ public class ProxyTunnelService extends Service {
     }
 
     private boolean usesVpnServiceUpstreamForRootSharing() {
+        if (activeXrayTproxyMode) {
+            return false;
+        }
         if (usesXrayBackend(activeBackendType) || usesAmneziaBackend(activeBackendType)) {
             return true;
         }
@@ -6184,6 +6392,15 @@ public class ProxyTunnelService extends Service {
                     return;
                 }
             }
+            if (activeXrayTproxyMode) {
+                Process xrayProcess = tproxyXrayProcess;
+                if (xrayProcess == null || !xrayProcess.isAlive()) {
+                    scheduleRuntimeReconnect("Xray TPROXY runtime exited unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
+                    return;
+                }
+                requestXrayTproxyReapplyIfNeeded("periodic health check");
+                return;
+            }
             if (!XrayBridge.isRunning()) {
                 scheduleRuntimeReconnect("Xray core stopped unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
                 return;
@@ -6201,7 +6418,11 @@ public class ProxyTunnelService extends Service {
             return;
         }
 
-        if (kernelWireguardActive && usesTurnProxyBackend(activeBackendType)) {
+        if (
+            kernelWireguardActive &&
+            usesTurnProxyBackend(activeBackendType) &&
+            activeBackendType != BackendType.WB_STREAM
+        ) {
             long proxyPid = readRootProxyPid();
             if (proxyPid <= 0L || !isExpectedRootProxyProcess(proxyPid)) {
                 scheduleRuntimeReconnect("Root vk-turn-proxy process disappeared", RUNTIME_RECONNECT_DELAY_MS);
@@ -6981,7 +7202,9 @@ public class ProxyTunnelService extends Service {
                     currentFingerprint
             );
             lastUnderlyingNetworkFingerprint = currentFingerprint;
-            if (shouldReconnectOnUnderlyingNetworkChange()) {
+            if (activeXrayTproxyMode) {
+                requestXrayTproxyReapplyIfNeeded("network change " + previousFingerprint + " -> " + currentFingerprint);
+            } else if (shouldReconnectOnUnderlyingNetworkChange()) {
                 scheduleRuntimeReconnect(
                     "Underlying network changed from " + previousFingerprint + " to " + currentFingerprint,
                     UNDERLYING_NETWORK_RECONNECT_DELAY_MS
@@ -6998,7 +7221,9 @@ public class ProxyTunnelService extends Service {
                 "Underlying network became usable again on " + eventTag + " (" + networkTag + "): " + currentFingerprint
             );
             lastUnderlyingNetworkFingerprint = currentFingerprint;
-            if (shouldReconnectOnUnderlyingNetworkChange()) {
+            if (activeXrayTproxyMode) {
+                requestXrayTproxyReapplyIfNeeded("network resumed after loss");
+            } else if (shouldReconnectOnUnderlyingNetworkChange()) {
                 scheduleRuntimeReconnect(
                     "Underlying network resumed after temporary loss",
                     UNDERLYING_NETWORK_RECONNECT_DELAY_MS

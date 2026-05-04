@@ -41,6 +41,7 @@ import wings.v.core.XraySettings;
 public final class XrayConfigFactory {
 
     private static final String TUN_TAG = "tun-in";
+    private static final String TPROXY_TAG = "tproxy-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String PROXY_TAG = "proxy";
     private static final String BYEDPI_FRONT_TAG = "byedpi-front";
@@ -86,6 +87,39 @@ public final class XrayConfigFactory {
         ByeDpiSettings byeDpiSettings,
         boolean includeTunInbound
     ) throws Exception {
+        return buildConfigJson(
+            context,
+            settings,
+            outboundHostOverride,
+            outboundPortOverride,
+            byeDpiSettings,
+            includeTunInbound,
+            0
+        );
+    }
+
+    public static String buildTproxyConfigJson(Context context, ProxySettings settings, int tproxyPort)
+        throws Exception {
+        return buildConfigJson(
+            context,
+            settings,
+            null,
+            0,
+            settings != null ? settings.byeDpiSettings : null,
+            false,
+            tproxyPort
+        );
+    }
+
+    public static String buildConfigJson(
+        Context context,
+        ProxySettings settings,
+        String outboundHostOverride,
+        int outboundPortOverride,
+        ByeDpiSettings byeDpiSettings,
+        boolean includeTunInbound,
+        int tproxyPort
+    ) throws Exception {
         if (
             settings == null ||
             settings.activeXrayProfile == null ||
@@ -107,9 +141,9 @@ public final class XrayConfigFactory {
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
-        root.put("inbounds", buildInbounds(context, xraySettings, includeTunInbound));
+        root.put("inbounds", buildInbounds(context, xraySettings, includeTunInbound, tproxyPort));
         root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, byeDpiSettings));
-        root.put("routing", buildRouting(context, xraySettings, includeTunInbound));
+        root.put("routing", buildRouting(context, xraySettings, includeTunInbound, tproxyPort));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
         return configJson;
@@ -278,8 +312,12 @@ public final class XrayConfigFactory {
         return values;
     }
 
-    private static JSONArray buildInbounds(Context context, XraySettings settings, boolean includeTunInbound)
-        throws Exception {
+    private static JSONArray buildInbounds(
+        Context context,
+        XraySettings settings,
+        boolean includeTunInbound,
+        int tproxyPort
+    ) throws Exception {
         JSONArray inbounds = new JSONArray();
         if (includeTunInbound) {
             JSONObject tunInbound = new JSONObject();
@@ -292,6 +330,25 @@ public final class XrayConfigFactory {
             tunInbound.put("settings", tunSettings);
             tunInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(tunInbound);
+        }
+
+        if (tproxyPort > 0) {
+            JSONObject tproxyInbound = new JSONObject();
+            tproxyInbound.put("tag", TPROXY_TAG);
+            tproxyInbound.put("protocol", "dokodemo-door");
+            tproxyInbound.put("listen", "0.0.0.0");
+            tproxyInbound.put("port", tproxyPort);
+            JSONObject tproxySettings = new JSONObject();
+            tproxySettings.put("network", "tcp,udp");
+            tproxySettings.put("followRedirect", true);
+            tproxyInbound.put("settings", tproxySettings);
+            JSONObject streamSettings = new JSONObject();
+            JSONObject sockopt = new JSONObject();
+            sockopt.put("tproxy", "tproxy");
+            streamSettings.put("sockopt", sockopt);
+            tproxyInbound.put("streamSettings", streamSettings);
+            tproxyInbound.put("sniffing", buildSniffing(settings));
+            inbounds.put(tproxyInbound);
         }
 
         if (isLocalProxyEnabled(settings)) {
@@ -374,13 +431,17 @@ public final class XrayConfigFactory {
         }
     }
 
-    private static JSONObject buildRouting(Context context, XraySettings settings, boolean includeTunInbound)
-        throws Exception {
+    private static JSONObject buildRouting(
+        Context context,
+        XraySettings settings,
+        boolean includeTunInbound,
+        int tproxyPort
+    ) throws Exception {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
         JSONArray rules = new JSONArray();
 
-        JSONArray trafficInboundTags = buildTrafficInboundTags(settings, includeTunInbound);
+        JSONArray trafficInboundTags = buildTrafficInboundTags(settings, includeTunInbound, tproxyPort);
         JSONObject dnsRule = new JSONObject();
         dnsRule.put("type", "field");
         dnsRule.put("inboundTag", trafficInboundTags);
@@ -423,10 +484,13 @@ public final class XrayConfigFactory {
         return routing;
     }
 
-    private static JSONArray buildTrafficInboundTags(XraySettings settings, boolean includeTunInbound) {
+    private static JSONArray buildTrafficInboundTags(XraySettings settings, boolean includeTunInbound, int tproxyPort) {
         JSONArray inboundTags = new JSONArray();
         if (includeTunInbound) {
             inboundTags.put(TUN_TAG);
+        }
+        if (tproxyPort > 0) {
+            inboundTags.put(TPROXY_TAG);
         }
         if (isLocalProxyEnabled(settings)) {
             inboundTags.put(SOCKS_TAG);
