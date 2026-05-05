@@ -594,6 +594,10 @@ public final class WingsImportParser {
                     builder.setTurn(turn);
                 }
             }
+            WingsvProto.WireGuard wg = buildWireGuard(settings, scope != ExportScope.ACTIVE);
+            if (!wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
+                builder.setWg(wg);
+            }
             return builder.build();
         }
 
