@@ -4195,7 +4195,18 @@ public class ProxyTunnelService extends Service {
             return;
         }
         String upstreamNameForLog;
-        if (usesVpnServiceUpstreamForRootSharing()) {
+        if (activeXrayTproxyMode) {
+            String physicalInterface = firstNonEmpty(
+                AppPrefs.getSharingUpstreamInterface(getApplicationContext()),
+                resolveActivePhysicalInterfaceName()
+            );
+            if (TextUtils.isEmpty(physicalInterface)) {
+                AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+                appendRuntimeLogLine("Root tether routing skipped: TPROXY upstream interface not resolved");
+                return;
+            }
+            upstreamNameForLog = physicalInterface;
+        } else if (usesVpnServiceUpstreamForRootSharing()) {
             upstreamNameForLog = firstNonEmpty(AppPrefs.getSharingUpstreamInterface(getApplicationContext()), "vpn");
         } else {
             String liveTunnelName =
@@ -4851,12 +4862,16 @@ public class ProxyTunnelService extends Service {
             explicitDnsServers = AmneziaStore.getConfiguredDns(getApplicationContext());
         }
 
-        if (!usesVpnServiceUpstreamForRootSharing() && TextUtils.isEmpty(upstreamInterface)) {
-            upstreamInterface = activeTunnelName;
-            if (rootModeActive && !RootUtils.isRootInterfaceAlive(getApplicationContext(), upstreamInterface)) {
-                String recoveredTunnelName = resolveRecoveryTunnelName();
-                if (!TextUtils.isEmpty(recoveredTunnelName)) {
-                    upstreamInterface = recoveredTunnelName;
+        if (TextUtils.isEmpty(upstreamInterface)) {
+            if (activeXrayTproxyMode) {
+                upstreamInterface = resolveActivePhysicalInterfaceName();
+            } else if (!usesVpnServiceUpstreamForRootSharing()) {
+                upstreamInterface = activeTunnelName;
+                if (rootModeActive && !RootUtils.isRootInterfaceAlive(getApplicationContext(), upstreamInterface)) {
+                    String recoveredTunnelName = resolveRecoveryTunnelName();
+                    if (!TextUtils.isEmpty(recoveredTunnelName)) {
+                        upstreamInterface = recoveredTunnelName;
+                    }
                 }
             }
         }
@@ -5342,6 +5357,37 @@ public class ProxyTunnelService extends Service {
 
     private void markUnderlyingConnectivityEvent() {
         lastUnderlyingConnectivityEventAtElapsedMs = SystemClock.elapsedRealtime();
+    }
+
+    @Nullable
+    private String resolveActivePhysicalInterfaceName() {
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager == null) {
+            return null;
+        }
+        try {
+            Network active = connectivityManager.getActiveNetwork();
+            if (active != null) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(active);
+                if (isUsablePhysicalNetwork(capabilities)) {
+                    LinkProperties linkProperties = connectivityManager.getLinkProperties(active);
+                    if (linkProperties != null && !TextUtils.isEmpty(linkProperties.getInterfaceName())) {
+                        return linkProperties.getInterfaceName();
+                    }
+                }
+            }
+            for (Network network : connectivityManager.getAllNetworks()) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (!isUsablePhysicalNetwork(capabilities)) {
+                    continue;
+                }
+                LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
+                if (linkProperties != null && !TextUtils.isEmpty(linkProperties.getInterfaceName())) {
+                    return linkProperties.getInterfaceName();
+                }
+            }
+        } catch (RuntimeException ignored) {}
+        return null;
     }
 
     private boolean isUsablePhysicalNetwork(@Nullable NetworkCapabilities capabilities) {
