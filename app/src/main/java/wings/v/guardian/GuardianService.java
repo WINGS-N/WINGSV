@@ -230,9 +230,23 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     @Override
     public void onConfigPush(GuardianProto.ConfigPush push) {
         Log.i(TAG, "config push revision=" + push.getRevision());
-        // TODO: hook applyImportedConfig once WingsImportParser learns how to
-        // round-trip a Config proto directly. For now we no-op the apply step
-        // to land the wire pipeline; the panel still gets StateReport echoes.
+        if (push.getConfig() != null) {
+            try {
+                wings.v.core.WingsImportParser.ImportedConfig imported =
+                    wings.v.core.WingsImportParser.parseProtoConfig(push.getConfig());
+                // The panel is allowed to push every other setting, but never
+                // its own credentials — we don't want a runtime ConfigPush to
+                // accidentally rebind us to a different panel.
+                imported.hasGuardian = false;
+                imported.guardianWsUrl = null;
+                imported.guardianClientId = null;
+                imported.guardianClientToken = null;
+                imported.guardianClientName = null;
+                wings.v.core.AppPrefs.applyImportedConfig(getApplicationContext(), imported);
+            } catch (Exception error) {
+                Log.w(TAG, "config push apply failed: " + error.getMessage());
+            }
+        }
         if (client != null) {
             client.sendFrame(buildStateReport());
         }
@@ -260,8 +274,19 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             .setTunnelActive(ProxyTunnelService.isActive())
             .setPhase(GuardianProto.TunnelPhase.TUNNEL_PHASE_UNSPECIFIED)
             .build();
-        return GuardianProto.Frame.newBuilder()
-            .setStateReport(GuardianProto.StateReport.newBuilder().setRuntime(runtime))
-            .build();
+        GuardianProto.StateReport.Builder report = GuardianProto.StateReport.newBuilder().setRuntime(runtime);
+        try {
+            wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildAllSettingsProto(
+                getApplicationContext()
+            );
+            // Strip Guardian credentials from the snapshot we send back —
+            // they're already known to the panel and including them would only
+            // leak the token through StateReport echoes.
+            wings.v.proto.WingsvProto.Config sanitised = snapshot.toBuilder().clearGuardian().build();
+            report.setSnapshot(sanitised);
+        } catch (Exception error) {
+            Log.w(TAG, "snapshot build failed: " + error.getMessage());
+        }
+        return GuardianProto.Frame.newBuilder().setStateReport(report).build();
     }
 }
