@@ -537,6 +537,8 @@
     <string name="wb_stream_display_name_title">Имя участника</string>
     <string name="wb_stream_exchange_via_vk_turn_title">Обмен room data через VK TURN</string>
     <string name="wb_stream_exchange_via_vk_turn_summary">Передавать ID комнаты серверу через короткий VK TURN handshake вместо ручного обмена</string>
+    <string name="wb_stream_room_count_title">Параллельных LiveKit-комнат</string>
+    <string name="wb_stream_room_count_summary">Сколько LiveKit-комнат открывать параллельно (1–16). При &gt;1 трафик распределяется round-robin между комнатами для обхода SFU per-room лимитов</string>
     <string name="wb_stream_e2e_enabled_title">E2E-шифрование</string>
     <string name="wb_stream_e2e_enabled_summary">Дополнительно шифровать пакеты AES-256-GCM поверх LiveKit DataChannel</string>
     <string name="wb_stream_e2e_secret_title">E2E-секрет</string>

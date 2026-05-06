@@ -52,6 +52,22 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         if (displayName != null) {
             displayName.setOnBindEditTextListener(text -> text.setInputType(InputType.TYPE_CLASS_TEXT));
         }
+        EditTextPreference roomCount = findPreference(AppPrefs.KEY_WB_STREAM_ROOM_COUNT);
+        if (roomCount != null) {
+            roomCount.setOnBindEditTextListener(text -> text.setInputType(InputType.TYPE_CLASS_NUMBER));
+            roomCount.setOnPreferenceChangeListener((preference, newValue) -> {
+                int parsed;
+                try {
+                    parsed = Integer.parseInt(String.valueOf(newValue).trim());
+                } catch (NumberFormatException ignored) {
+                    parsed = AppPrefs.DEFAULT_WB_STREAM_ROOM_COUNT;
+                }
+                int clamped = AppPrefs.clampWbStreamRoomCount(parsed);
+                AppPrefs.setWbStreamRoomCount(requireContext(), clamped);
+                ((EditTextPreference) preference).setText(String.valueOf(clamped));
+                return false;
+            });
+        }
         EditTextPreference e2eSecret = findPreference(AppPrefs.KEY_WB_STREAM_E2E_SECRET);
         if (e2eSecret != null) {
             e2eSecret.setOnBindEditTextListener(text -> text.setInputType(InputType.TYPE_CLASS_TEXT));

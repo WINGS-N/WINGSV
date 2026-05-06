@@ -17,6 +17,13 @@
         android:title="@string/wb_stream_display_name_title"
         app:useSimpleSummaryProvider="true" />
 
+    <EditTextPreference
+        android:key="pref_wb_stream_room_count"
+        android:title="@string/wb_stream_room_count_title"
+        android:summary="@string/wb_stream_room_count_summary"
+        android:defaultValue="1"
+        app:useSimpleSummaryProvider="true" />
+
     <SwitchPreferenceCompat
         android:key="pref_wb_stream_exchange_via_vk_turn"
         android:title="@string/wb_stream_exchange_via_vk_turn_title"
@@ -162,11 +169,6 @@
         android:key="pref_wg_allowed_ips"
         android:title="Allowed IPs"
         android:defaultValue="0.0.0.0/0, ::/0"
-        app:useSimpleSummaryProvider="true" />
-
-    <EditTextPreference
-        android:key="pref_wg_endpoint"
-        android:title="Endpoint"
         app:useSimpleSummaryProvider="true" />
 
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory

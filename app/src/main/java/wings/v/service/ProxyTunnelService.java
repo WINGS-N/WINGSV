@@ -2735,38 +2735,46 @@ public class ProxyTunnelService extends Service {
 
     private Process buildWbStreamProxyProcess(ProxySettings settings, File executable) throws Exception {
         Context appContext = getApplicationContext();
-        String roomId = AppPrefs.getWbStreamRoomId(appContext);
+        String primaryRoomId = AppPrefs.getWbStreamRoomId(appContext);
         String displayName = AppPrefs.getWbStreamDisplayName(appContext);
         if (TextUtils.isEmpty(displayName)) {
             displayName = wings.v.wbstream.Namegen.generate();
         }
         boolean e2eEnabled = AppPrefs.isWbStreamE2eEnabled(appContext);
         String e2eSecret = e2eEnabled ? AppPrefs.getWbStreamE2eSecret(appContext) : "";
+        int roomCount = AppPrefs.getWbStreamRoomCount(appContext);
 
-        // Pre-create the LiveKit room from Java when no room_id is set yet, so
-        // the room-exchange handshake and the long-running proxy use the same
-        // identifier. Otherwise the handshake delivers "any" while the proxy
-        // creates a fresh room of its own — client and server end up in
+        // Pre-create LiveKit rooms from Java so the handshake and the long-running
+        // proxy operate on the SAME ids. Otherwise handshake delivers "any" while
+        // the CLI mints fresh rooms of its own → client and server land in
         // different rooms.
-        if (TextUtils.isEmpty(roomId)) {
-            try {
-                String accessToken = wings.v.wbstream.WbStreamApi.registerGuest(displayName);
-                roomId = wings.v.wbstream.WbStreamApi.createRoom(accessToken);
-                AppPrefs.setWbStreamRoomId(appContext, roomId);
-                appendRuntimeLogLine("WB Stream pre-created room: " + roomId);
-            } catch (Exception error) {
-                throw new IllegalStateException(
-                    "Не удалось создать LiveKit-комнату: " + firstNonEmpty(error.getMessage(), error.toString()),
-                    error
-                );
-            }
+        java.util.List<String> roomIds = new ArrayList<>();
+        if (!TextUtils.isEmpty(primaryRoomId)) {
+            roomIds.add(primaryRoomId);
         }
+        try {
+            while (roomIds.size() < roomCount) {
+                String accessToken = wings.v.wbstream.WbStreamApi.registerGuest(displayName);
+                String fresh = wings.v.wbstream.WbStreamApi.createRoom(accessToken);
+                roomIds.add(fresh);
+            }
+        } catch (Exception error) {
+            throw new IllegalStateException(
+                "Не удалось создать LiveKit-комнату: " + firstNonEmpty(error.getMessage(), error.toString()),
+                error
+            );
+        }
+        if (TextUtils.isEmpty(primaryRoomId) && !roomIds.isEmpty()) {
+            primaryRoomId = roomIds.get(0);
+            AppPrefs.setWbStreamRoomId(appContext, primaryRoomId);
+        }
+        appendRuntimeLogLine("WB Stream pre-created rooms: " + roomIds);
 
         if (AppPrefs.isWbStreamExchangeViaVkTurn(appContext)) {
             Exception lastError = null;
             for (int attempt = 1; attempt <= WB_STREAM_EXCHANGE_MAX_ATTEMPTS; attempt++) {
                 try {
-                    deliverWbStreamRoomExchange(executable, settings, roomId, displayName, e2eEnabled, e2eSecret);
+                    deliverWbStreamRoomExchange(executable, settings, roomIds, displayName, e2eEnabled, e2eSecret);
                     lastError = null;
                     break;
                 } catch (Exception error) {
@@ -2797,8 +2805,13 @@ public class ProxyTunnelService extends Service {
         command.add(executable.getAbsolutePath());
         command.add("-dns");
         command.add(AppPrefs.getDnsMode(appContext));
-        command.add("-wb-stream-room-id");
-        command.add(roomId);
+        if (roomIds.size() > 1) {
+            command.add("-wb-stream-room-ids");
+            command.add(TextUtils.join(",", roomIds));
+        } else {
+            command.add("-wb-stream-room-id");
+            command.add(primaryRoomId);
+        }
         command.add("-wb-stream-display-name");
         command.add(displayName);
         command.add("-listen");
@@ -2811,14 +2824,14 @@ public class ProxyTunnelService extends Service {
             command.add("-protect-sock");
             command.add(protectSocketName);
         }
-        appendRuntimeLogLine("Spawning WB Stream proxy (room=" + roomId + ", listen=" + settings.localEndpoint + ")");
+        appendRuntimeLogLine("Spawning WB Stream proxy (rooms=" + roomIds + ", listen=" + settings.localEndpoint + ")");
         return new ProcessBuilder(command).redirectErrorStream(true).start();
     }
 
     private void deliverWbStreamRoomExchange(
         File executable,
         ProxySettings settings,
-        String roomId,
+        java.util.List<String> roomIds,
         String displayName,
         boolean e2eEnabled,
         String e2eSecret
@@ -2833,6 +2846,9 @@ public class ProxyTunnelService extends Service {
                     "). Room exchange передаётся VK TURN серверу 3x-ui — укажите его публичный endpoint в VK TURN settings, а 127.0.0.1:9000 оставьте только в \"Локальный endpoint\"."
             );
         }
+        if (roomIds == null || roomIds.isEmpty()) {
+            throw new IllegalStateException("Empty room id list for VK TURN room exchange");
+        }
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
         command.add("-dns");
@@ -2840,8 +2856,13 @@ public class ProxyTunnelService extends Service {
         command.add("-room-exchange-mode");
         command.add("-peer");
         command.add(settings.endpoint);
-        command.add("-room-exchange-room-id");
-        command.add(roomId);
+        if (roomIds.size() > 1) {
+            command.add("-room-exchange-room-ids");
+            command.add(TextUtils.join(",", roomIds));
+        } else {
+            command.add("-room-exchange-room-id");
+            command.add(roomIds.get(0));
+        }
         command.add("-room-exchange-display-name");
         command.add(displayName);
         if (e2eEnabled) {
@@ -2851,7 +2872,11 @@ public class ProxyTunnelService extends Service {
                 command.add(e2eSecret);
             }
         }
-        appendRuntimeLogLine("VK TURN room exchange → " + settings.endpoint + " (room=" + roomId + ")");
+        if (!TextUtils.isEmpty(protectSocketName)) {
+            command.add("-protect-sock");
+            command.add(protectSocketName);
+        }
+        appendRuntimeLogLine("VK TURN room exchange → " + settings.endpoint + " (rooms=" + roomIds + ")");
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         int exit = process.waitFor();
         if (exit != 0) {
