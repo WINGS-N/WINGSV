@@ -414,7 +414,8 @@ val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class)
             "protoc",
             "--proto_path=${protoSourceDir.absolutePath}",
             "--java_out=lite:${outDir.absolutePath}",
-            "${protoSourceDir.resolve("wingsv.proto").absolutePath}"
+            "${protoSourceDir.resolve("wingsv.proto").absolutePath}",
+            "${protoSourceDir.resolve("guardian.proto").absolutePath}"
         )
     }
 }
@@ -678,6 +679,7 @@ dependencies {
     implementation(libs.oneui.design)
     implementation(libs.sesl.pickerBasic)
     implementation(libs.protobuf.javalite)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
     implementation(libs.shadowhook)
