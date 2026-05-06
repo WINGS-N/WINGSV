@@ -94,6 +94,14 @@
         android:title="@string/settings_theme_title"
         android:summary="@string/theme_mode_system" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_dns_mode"
+        android:title="@string/dns_mode_title"
+        android:summary="@string/dns_mode_summary"
+        android:defaultValue="auto"
+        android:entries="@array/dns_mode_entries"
+        android:entryValues="@array/dns_mode_values" />
+
     <Preference
         android:key="pref_open_permissions"
         android:title="Проверить разрешения"
