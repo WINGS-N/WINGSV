@@ -210,6 +210,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference guardianPreference = findPreference("pref_open_guardian_settings");
+        if (guardianPreference != null) {
+            guardianPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(wings.v.guardian.GuardianActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         Preference proxyLogsPreference = findPreference("pref_open_proxy_logs");
         if (proxyLogsPreference != null) {
             proxyLogsPreference.setOnPreferenceClickListener(preference -> {

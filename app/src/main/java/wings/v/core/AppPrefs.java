@@ -167,6 +167,15 @@ public final class AppPrefs {
     public static final String DNS_MODE_UDP = "udp";
     public static final String DNS_MODE_DOH = "doh";
     public static final String KEY_DNS_MODE = "pref_dns_mode";
+    public static final String KEY_GUARDIAN_ENABLED = "pref_guardian_enabled";
+    public static final String KEY_GUARDIAN_AUTO_START_ON_BOOT = "pref_guardian_auto_start_on_boot";
+    public static final String KEY_GUARDIAN_WS_URL = "pref_guardian_ws_url";
+    public static final String KEY_GUARDIAN_CLIENT_ID = "pref_guardian_client_id";
+    public static final String KEY_GUARDIAN_CLIENT_TOKEN_B64 = "pref_guardian_client_token_b64";
+    public static final String KEY_GUARDIAN_CLIENT_NAME = "pref_guardian_client_name";
+    public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";
+    public static final String KEY_GUARDIAN_LOG_PROXY_ALLOWED = "pref_guardian_log_proxy_allowed";
+    public static final String KEY_GUARDIAN_LOG_XRAY_ALLOWED = "pref_guardian_log_xray_allowed";
 
     private AppPrefs() {}
 
@@ -284,6 +293,94 @@ public final class AppPrefs {
             return normalized;
         }
         return DNS_MODE_AUTO;
+    }
+
+    public static boolean isGuardianEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_GUARDIAN_ENABLED, true);
+    }
+
+    public static void setGuardianEnabled(Context context, boolean value) {
+        prefs(context).edit().putBoolean(KEY_GUARDIAN_ENABLED, value).apply();
+    }
+
+    public static boolean isGuardianAutoStartOnBootEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_GUARDIAN_AUTO_START_ON_BOOT, true);
+    }
+
+    public static void setGuardianAutoStartOnBootEnabled(Context context, boolean value) {
+        prefs(context).edit().putBoolean(KEY_GUARDIAN_AUTO_START_ON_BOOT, value).apply();
+    }
+
+    public static String getGuardianWsUrl(Context context) {
+        return prefs(context).getString(KEY_GUARDIAN_WS_URL, "");
+    }
+
+    public static String getGuardianClientId(Context context) {
+        return prefs(context).getString(KEY_GUARDIAN_CLIENT_ID, "");
+    }
+
+    public static String getGuardianClientTokenB64(Context context) {
+        return prefs(context).getString(KEY_GUARDIAN_CLIENT_TOKEN_B64, "");
+    }
+
+    public static String getGuardianClientName(Context context) {
+        return prefs(context).getString(KEY_GUARDIAN_CLIENT_NAME, "");
+    }
+
+    public static boolean isGuardianConfigured(Context context) {
+        return (
+            !TextUtils.isEmpty(getGuardianWsUrl(context)) &&
+            !TextUtils.isEmpty(getGuardianClientId(context)) &&
+            !TextUtils.isEmpty(getGuardianClientTokenB64(context))
+        );
+    }
+
+    public static void setGuardianCredentials(
+        Context context,
+        String wsUrl,
+        String clientId,
+        String clientTokenB64,
+        String clientName
+    ) {
+        prefs(context)
+            .edit()
+            .putString(KEY_GUARDIAN_WS_URL, wsUrl == null ? "" : wsUrl.trim())
+            .putString(KEY_GUARDIAN_CLIENT_ID, clientId == null ? "" : clientId.trim())
+            .putString(KEY_GUARDIAN_CLIENT_TOKEN_B64, clientTokenB64 == null ? "" : clientTokenB64.trim())
+            .putString(KEY_GUARDIAN_CLIENT_NAME, clientName == null ? "" : clientName.trim())
+            .apply();
+    }
+
+    public static void clearGuardian(Context context) {
+        prefs(context)
+            .edit()
+            .remove(KEY_GUARDIAN_WS_URL)
+            .remove(KEY_GUARDIAN_CLIENT_ID)
+            .remove(KEY_GUARDIAN_CLIENT_TOKEN_B64)
+            .remove(KEY_GUARDIAN_CLIENT_NAME)
+            .putBoolean(KEY_GUARDIAN_ENABLED, false)
+            .apply();
+    }
+
+    public static boolean isGuardianLogRuntimeAllowed(Context context) {
+        return prefs(context).getBoolean(KEY_GUARDIAN_LOG_RUNTIME_ALLOWED, true);
+    }
+
+    public static boolean isGuardianLogProxyAllowed(Context context) {
+        return prefs(context).getBoolean(KEY_GUARDIAN_LOG_PROXY_ALLOWED, true);
+    }
+
+    public static boolean isGuardianLogXRayAllowed(Context context) {
+        return prefs(context).getBoolean(KEY_GUARDIAN_LOG_XRAY_ALLOWED, true);
+    }
+
+    public static void setGuardianLogControl(Context context, boolean runtime, boolean proxy, boolean xray) {
+        prefs(context)
+            .edit()
+            .putBoolean(KEY_GUARDIAN_LOG_RUNTIME_ALLOWED, runtime)
+            .putBoolean(KEY_GUARDIAN_LOG_PROXY_ALLOWED, proxy)
+            .putBoolean(KEY_GUARDIAN_LOG_XRAY_ALLOWED, xray)
+            .apply();
     }
 
     public static String getRootWireGuardInterfaceNameTemplate(Context context) {
@@ -897,6 +994,9 @@ public final class AppPrefs {
         if (importedConfig.hasAppPreferences) {
             applyImportedAppPreferences(context, importedConfig);
         }
+        if (importedConfig.hasGuardian) {
+            applyImportedGuardian(context, importedConfig);
+        }
         if (importedConfig.hasSubscriptionHwid) {
             applyImportedSubscriptionHwid(context, importedConfig);
         }
@@ -1057,6 +1157,41 @@ public final class AppPrefs {
             editor.putString(KEY_DNS_MODE, normalizeDnsMode(importedConfig.dnsMode));
         }
         editor.apply();
+    }
+
+    private static void applyImportedGuardian(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        if (
+            TextUtils.isEmpty(importedConfig.guardianWsUrl) ||
+            TextUtils.isEmpty(importedConfig.guardianClientId) ||
+            importedConfig.guardianClientToken == null ||
+            importedConfig.guardianClientToken.length == 0
+        ) {
+            return;
+        }
+        String tokenB64 = android.util.Base64.encodeToString(
+            importedConfig.guardianClientToken,
+            android.util.Base64.NO_WRAP | android.util.Base64.URL_SAFE
+        );
+        setGuardianCredentials(
+            context,
+            importedConfig.guardianWsUrl,
+            importedConfig.guardianClientId,
+            tokenB64,
+            importedConfig.guardianClientName == null ? "" : importedConfig.guardianClientName
+        );
+        setGuardianEnabled(context, true);
+        Context appContext = context.getApplicationContext();
+        android.content.Intent start = new android.content.Intent(
+            appContext,
+            wings.v.guardian.GuardianService.class
+        ).setAction("wings.v.guardian.START");
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                appContext.startForegroundService(start);
+            } else {
+                appContext.startService(start);
+            }
+        } catch (RuntimeException ignored) {}
     }
 
     private static void applyImportedSubscriptionHwid(

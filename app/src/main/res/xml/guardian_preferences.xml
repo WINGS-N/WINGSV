@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <SwitchPreferenceCompat
+        android:key="pref_guardian_enabled"
+        android:title="@string/guardian_pref_master_title"
+        android:summaryOn="@string/guardian_pref_master_summary_on"
+        android:summaryOff="@string/guardian_pref_master_summary_off"
+        android:defaultValue="true" />
+
+    <Preference
+        android:key="pref_guardian_status"
+        android:title="@string/guardian_pref_status_title"
+        android:selectable="false" />
+
+    <Preference
+        android:key="pref_guardian_ws_url_view"
+        android:title="@string/guardian_pref_ws_url_title"
+        android:selectable="false" />
+
+    <Preference
+        android:key="pref_guardian_client_id_view"
+        android:title="@string/guardian_pref_client_id_title"
+        android:selectable="false" />
+
+    <Preference
+        android:key="pref_guardian_client_name_view"
+        android:title="@string/guardian_pref_client_name_title"
+        android:selectable="false" />
+
+    <Preference
+        android:key="pref_guardian_logs_view"
+        android:title="@string/guardian_pref_logs_title"
+        android:selectable="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_guardian_auto_start_on_boot"
+        android:title="@string/guardian_pref_auto_start_title"
+        android:summary="@string/guardian_pref_auto_start_summary"
+        android:defaultValue="true" />
+
+    <Preference
+        android:key="pref_guardian_revoke"
+        android:title="@string/guardian_pref_revoke_title" />
+
+</PreferenceScreen>

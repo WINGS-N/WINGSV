@@ -103,6 +103,11 @@
         android:entryValues="@array/dns_mode_values" />
 
     <Preference
+        android:key="pref_open_guardian_settings"
+        android:title="@string/guardian_settings_title"
+        android:summary="@string/guardian_settings_summary_not_configured" />
+
+    <Preference
         android:key="pref_open_permissions"
         android:title="Проверить разрешения"
         android:summary="Открыть стартовый экран разрешений вручную" />
