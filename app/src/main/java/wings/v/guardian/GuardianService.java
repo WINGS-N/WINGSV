@@ -8,7 +8,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -51,6 +53,17 @@ public final class GuardianService extends Service implements GuardianClient.Lis
 
     private GuardianClient client;
     private SharedPreferences.OnSharedPreferenceChangeListener prefListener;
+    private final Handler logPumpHandler = new Handler(Looper.getMainLooper());
+    private long lastRuntimeLogVersion;
+    private long lastProxyLogVersion;
+    private static final long LOG_PUMP_INTERVAL_MS = 1_000L;
+    private final Runnable logPump = new Runnable() {
+        @Override
+        public void run() {
+            pumpLogs();
+            logPumpHandler.postDelayed(this, LOG_PUMP_INTERVAL_MS);
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -82,6 +95,9 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             client = new GuardianClient(getApplicationContext(), this);
             client.start();
             registerPrefsListener();
+            lastRuntimeLogVersion = ProxyTunnelService.getRuntimeLogVersion();
+            lastProxyLogVersion = ProxyTunnelService.getProxyLogVersion();
+            logPumpHandler.postDelayed(logPump, LOG_PUMP_INTERVAL_MS);
         }
         return START_STICKY;
     }
@@ -93,6 +109,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     }
 
     private void tearDown() {
+        logPumpHandler.removeCallbacks(logPump);
         if (prefListener != null) {
             try {
                 getSharedPreferences(
@@ -267,6 +284,48 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         if (client != null) {
             client.sendFrame(buildStateReport());
         }
+    }
+
+    private void pumpLogs() {
+        if (client == null || !connected) {
+            return;
+        }
+        Context ctx = getApplicationContext();
+        long currentRuntime = ProxyTunnelService.getRuntimeLogVersion();
+        if (AppPrefs.isGuardianLogRuntimeAllowed(ctx) && currentRuntime > lastRuntimeLogVersion) {
+            java.util.List<ProxyTunnelService.RuntimeLogEntry> entries =
+                ProxyTunnelService.snapshotRuntimeLogLinesSince(lastRuntimeLogVersion);
+            sendLogChunk(GuardianProto.LogStream.LOG_STREAM_RUNTIME, entries);
+        }
+        // Always advance the bookmark, even when disabled, so re-enabling
+        // doesn't replay history.
+        lastRuntimeLogVersion = currentRuntime;
+
+        long currentProxy = ProxyTunnelService.getProxyLogVersion();
+        if (AppPrefs.isGuardianLogProxyAllowed(ctx) && currentProxy > lastProxyLogVersion) {
+            java.util.List<ProxyTunnelService.RuntimeLogEntry> entries = ProxyTunnelService.snapshotProxyLogLinesSince(
+                lastProxyLogVersion
+            );
+            sendLogChunk(GuardianProto.LogStream.LOG_STREAM_PROXY, entries);
+        }
+        lastProxyLogVersion = currentProxy;
+    }
+
+    private void sendLogChunk(
+        GuardianProto.LogStream stream,
+        java.util.List<ProxyTunnelService.RuntimeLogEntry> entries
+    ) {
+        if (entries.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        GuardianProto.LogChunk.Builder chunk = GuardianProto.LogChunk.newBuilder()
+            .setStream(stream)
+            .setFirstSeq(entries.get(0).seq);
+        for (ProxyTunnelService.RuntimeLogEntry e : entries) {
+            chunk.addLines(GuardianProto.LogLine.newBuilder().setTsMs(now).setText(e.text == null ? "" : e.text));
+        }
+        client.sendFrame(GuardianProto.Frame.newBuilder().setLogChunk(chunk).build());
     }
 
     private GuardianProto.Frame buildStateReport() {

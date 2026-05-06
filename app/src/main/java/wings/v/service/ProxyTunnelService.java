@@ -944,6 +944,76 @@ public class ProxyTunnelService extends Service {
         return sRuntimeLogVersion;
     }
 
+    /** Returned by {@link #snapshotRuntimeLogLinesSince(long)}. */
+    public static final class RuntimeLogEntry {
+
+        public final long seq;
+        public final String text;
+
+        public RuntimeLogEntry(long seq, String text) {
+            this.seq = seq;
+            this.text = text;
+        }
+    }
+
+    /**
+     * Returns lines that arrived after {@code sinceVersion}, up to the in-memory
+     * deque cap. Each entry carries the monotonic sequence (== version-counter
+     * value at the moment the line was appended) so the reader can tail without
+     * gaps unless the deque already rotated past it.
+     */
+    public static java.util.List<RuntimeLogEntry> snapshotRuntimeLogLinesSince(long sinceVersion) {
+        long current = sRuntimeLogVersion;
+        if (current <= sinceVersion) {
+            return java.util.Collections.emptyList();
+        }
+        synchronized (RUNTIME_LOG_LOCK) {
+            int size = sRuntimeLogLines.size();
+            if (size == 0) {
+                return java.util.Collections.emptyList();
+            }
+            long gap = current - sinceVersion;
+            int take = (int) Math.min(gap, size);
+            java.util.ArrayList<String> reversed = new java.util.ArrayList<>(take);
+            java.util.Iterator<String> it = sRuntimeLogLines.descendingIterator();
+            for (int i = 0; i < take && it.hasNext(); i++) {
+                reversed.add(it.next());
+            }
+            java.util.ArrayList<RuntimeLogEntry> out = new java.util.ArrayList<>(take);
+            long startSeq = current - take + 1;
+            for (int i = reversed.size() - 1; i >= 0; i--) {
+                out.add(new RuntimeLogEntry(startSeq++, reversed.get(i)));
+            }
+            return out;
+        }
+    }
+
+    public static java.util.List<RuntimeLogEntry> snapshotProxyLogLinesSince(long sinceVersion) {
+        long current = sProxyLogVersion;
+        if (current <= sinceVersion) {
+            return java.util.Collections.emptyList();
+        }
+        synchronized (PROXY_LOG_LOCK) {
+            int size = sProxyLogLines.size();
+            if (size == 0) {
+                return java.util.Collections.emptyList();
+            }
+            long gap = current - sinceVersion;
+            int take = (int) Math.min(gap, size);
+            java.util.ArrayList<String> reversed = new java.util.ArrayList<>(take);
+            java.util.Iterator<String> it = sProxyLogLines.descendingIterator();
+            for (int i = 0; i < take && it.hasNext(); i++) {
+                reversed.add(it.next());
+            }
+            java.util.ArrayList<RuntimeLogEntry> out = new java.util.ArrayList<>(take);
+            long startSeq = current - take + 1;
+            for (int i = reversed.size() - 1; i >= 0; i--) {
+                out.add(new RuntimeLogEntry(startSeq++, reversed.get(i)));
+            }
+            return out;
+        }
+    }
+
     public static String getRuntimeLogSnapshot() {
         if (!hasLocalService()) {
             return RuntimeStateStore.getRuntimeLogSnapshot();
