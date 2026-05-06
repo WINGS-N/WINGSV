@@ -23,6 +23,7 @@ message Config {
   SubscriptionHwid subscription_hwid = 13;
   Sharing sharing = 14;
   ByeDpi bye_dpi = 15;
+  Guardian guardian = 16;
 }
 
 enum ConfigType {
@@ -35,6 +36,14 @@ enum ConfigType {
   CONFIG_TYPE_XRAY_ROUTING = 6;
   CONFIG_TYPE_WB_STREAM = 7;
   CONFIG_TYPE_XPOSED = 8;
+  CONFIG_TYPE_GUARDIAN = 9;
+}
+
+message Guardian {
+  string ws_url = 1;
+  string client_id = 2;
+  bytes client_token = 3;
+  string client_name = 4;
 }
 
 enum BackendType {

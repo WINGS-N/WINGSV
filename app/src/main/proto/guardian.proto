@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package wingsv.guardian;
+
+import "wingsv.proto";
+
+option java_package = "wings.v.proto";
+option java_outer_classname = "GuardianProto";
+option optimize_for = LITE_RUNTIME;
+option go_package = "v.wingsnet.org/internal/gen/guardianpb";
+
+message Frame {
+  oneof payload {
+    ClientHello client_hello = 1;
+    ServerHello server_hello = 2;
+    Heartbeat heartbeat = 3;
+    StateReport state_report = 4;
+    ConfigPush config_push = 5;
+    LogChunk log_chunk = 6;
+    LogControl log_control = 7;
+    Command command = 8;
+    CommandAck command_ack = 9;
+    StatusUpdate status_update = 10;
+    ServerError error = 11;
+  }
+}
+
+message ClientHello {
+  string client_id = 1;
+  bytes client_token = 2;
+  uint32 protocol_version = 3;
+  string app_version = 4;
+  string device_name = 5;
+  string device_model = 6;
+  string os_version = 7;
+  string hwid = 8;
+}
+
+message ServerHello {
+  bool accepted = 1;
+  string error_message = 2;
+  uint32 protocol_version = 3;
+}
+
+message Heartbeat {
+  int64 ts_ms = 1;
+}
+
+message StateReport {
+  wingsv.Config snapshot = 1;
+  RuntimeState runtime = 2;
+}
+
+message RuntimeState {
+  bool tunnel_active = 1;
+  TunnelPhase phase = 2;
+  string active_backend = 3;
+  string error_message = 4;
+}
+
+enum TunnelPhase {
+  TUNNEL_PHASE_UNSPECIFIED = 0;
+  TUNNEL_PHASE_IDLE = 1;
+  TUNNEL_PHASE_STARTING = 2;
+  TUNNEL_PHASE_AUTH_READY = 3;
+  TUNNEL_PHASE_DTLS_READY = 4;
+  TUNNEL_PHASE_RUNNING = 5;
+  TUNNEL_PHASE_ERROR = 6;
+}
+
+message ConfigPush {
+  wingsv.Config config = 1;
+  string revision = 2;
+}
+
+message LogChunk {
+  LogStream stream = 1;
+  uint64 first_seq = 2;
+  repeated LogLine lines = 3;
+}
+
+message LogLine {
+  int64 ts_ms = 1;
+  string text = 2;
+}
+
+enum LogStream {
+  LOG_STREAM_UNSPECIFIED = 0;
+  LOG_STREAM_RUNTIME = 1;
+  LOG_STREAM_PROXY = 2;
+  LOG_STREAM_XRAY = 3;
+}
+
+message LogControl {
+  bool runtime_enabled = 1;
+  bool proxy_enabled = 2;
+  bool xray_enabled = 3;
+}
+
+message Command {
+  CommandType type = 1;
+  string id = 2;
+}
+
+enum CommandType {
+  COMMAND_TYPE_UNSPECIFIED = 0;
+  COMMAND_TYPE_START_TUNNEL = 1;
+  COMMAND_TYPE_STOP_TUNNEL = 2;
+  COMMAND_TYPE_RECONNECT = 3;
+  COMMAND_TYPE_REPORT_NOW = 4;
+}
+
+message CommandAck {
+  string id = 1;
+  bool ok = 2;
+  string error_message = 3;
+}
+
+message StatusUpdate {
+  RuntimeState runtime = 1;
+}
+
+message ServerError {
+  string code = 1;
+  string message = 2;
+}
