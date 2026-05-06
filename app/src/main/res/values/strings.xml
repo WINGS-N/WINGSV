@@ -905,6 +905,7 @@
     <string name="guardian_notification_connecting">Подключение к панели…</string>
     <string name="guardian_notification_connected">Подключено к %1$s</string>
     <string name="guardian_notification_disconnected">Нет соединения с панелью</string>
+    <string name="guardian_main_chip_label">Контролируется %1$s</string>
     <string name="auto_start_title">Автозапуск при старте устройства</string>
     <string name="auto_start_summary">Автоматически поднимать подключение после загрузки системы</string>
 

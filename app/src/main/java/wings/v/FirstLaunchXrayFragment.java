@@ -219,15 +219,56 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
         try {
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            AppPrefs.applyImportedConfig(context, importedConfig);
-            requestReconnectAfterImport(context, text);
-            loadSettings(XrayStore.getXraySettings(context));
-            Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
-            if (getActivity() instanceof Host) {
-                ((Host) getActivity()).onXraySettingsCompleted();
+            if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
+                pendingImportRawText = text;
+                pendingImport = importedConfig;
+                pendingImportInvalidMessageRes = invalidMessageRes;
+                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                return;
             }
+            applyParsedImport(text, importedConfig);
         } catch (Exception ignored) {
             Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static final int REQUEST_GUARDIAN_CONFIRM = 4302;
+    private String pendingImportRawText;
+    private WingsImportParser.ImportedConfig pendingImport;
+    private int pendingImportInvalidMessageRes;
+
+    @Override
+    public void onActivityResult(
+        int requestCode,
+        int resultCode,
+        @androidx.annotation.Nullable android.content.Intent data
+    ) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_GUARDIAN_CONFIRM) {
+            String text = pendingImportRawText;
+            WingsImportParser.ImportedConfig parsed = pendingImport;
+            pendingImportRawText = null;
+            pendingImport = null;
+            Context context = getContext();
+            if (context == null) {
+                return;
+            }
+            if (resultCode == android.app.Activity.RESULT_OK && parsed != null && text != null) {
+                applyParsedImport(text, parsed);
+            } else {
+                Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void applyParsedImport(String rawText, WingsImportParser.ImportedConfig importedConfig) {
+        Context context = requireContext();
+        AppPrefs.applyImportedConfig(context, importedConfig);
+        requestReconnectAfterImport(context, rawText);
+        loadSettings(XrayStore.getXraySettings(context));
+        Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+        if (getActivity() instanceof Host) {
+            ((Host) getActivity()).onXraySettingsCompleted();
         }
     }
 

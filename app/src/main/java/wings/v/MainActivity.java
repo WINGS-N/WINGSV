@@ -37,6 +37,7 @@ import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateManager;
 import wings.v.core.BackendType;
+import wings.v.core.GuardianImportGate;
 import wings.v.core.Haptics;
 import wings.v.core.ImportConfigSummary;
 import wings.v.core.PermissionUtils;
@@ -209,14 +210,27 @@ public class MainActivity extends AppCompatActivity {
         registerPreferencesListener();
         appUpdateManager.registerListener(updateStateListener);
         appUpdateManager.checkForUpdatesIfStale();
+        wings.v.guardian.GuardianStateBroadcast.register(guardianStateListener);
     }
 
     @Override
     protected void onStop() {
         unregisterPreferencesListener();
         appUpdateManager.unregisterListener(updateStateListener);
+        wings.v.guardian.GuardianStateBroadcast.unregister(guardianStateListener);
         super.onStop();
     }
+
+    private final wings.v.guardian.GuardianStateBroadcast.Listener guardianStateListener = (connected, host) -> {
+        if (binding == null) {
+            return;
+        }
+        if (connected && host != null && !host.isEmpty()) {
+            binding.toolbarLayout.setSubtitle(getString(R.string.guardian_main_chip_label, host));
+        } else {
+            binding.toolbarLayout.setSubtitle(null);
+        }
+    };
 
     @Override
     protected void onDestroy() {
@@ -631,13 +645,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void beginApplyImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
-        if (parsed.hasGuardian) {
+        if (GuardianImportGate.needsConfirmation(parsed)) {
             pendingImportRawData = rawData;
             pendingImport = parsed;
-            startActivityForResult(
-                WarningConfirmActivity.createIntent(this, getString(R.string.guardian_warning_text), 5),
-                REQUEST_GUARDIAN_CONFIRM
-            );
+            GuardianImportGate.launchFromActivity(this, REQUEST_GUARDIAN_CONFIRM);
             return;
         }
         applyImport(rawData, parsed);
