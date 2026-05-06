@@ -613,16 +613,50 @@ public class MainActivity extends AppCompatActivity {
         promptToImport(rawData, parsed);
     }
 
+    private static final int REQUEST_GUARDIAN_CONFIRM = 4201;
+
+    private String pendingImportRawData;
+    private WingsImportParser.ImportedConfig pendingImport;
+
     private void promptToImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
         String summary = ImportConfigSummary.forUser(this, parsed);
         new AlertDialog.Builder(this)
             .setTitle(R.string.import_confirm_title)
             .setMessage(summary)
-            .setPositiveButton(R.string.import_confirm_apply, (dialog, which) -> applyImport(rawData, parsed))
+            .setPositiveButton(R.string.import_confirm_apply, (dialog, which) -> beginApplyImport(rawData, parsed))
             .setNegativeButton(android.R.string.cancel, (dialog, which) ->
                 Toast.makeText(this, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show()
             )
             .show();
+    }
+
+    private void beginApplyImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
+        if (parsed.hasGuardian) {
+            pendingImportRawData = rawData;
+            pendingImport = parsed;
+            startActivityForResult(
+                WarningConfirmActivity.createIntent(this, getString(R.string.guardian_warning_text), 5),
+                REQUEST_GUARDIAN_CONFIRM
+            );
+            return;
+        }
+        applyImport(rawData, parsed);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_GUARDIAN_CONFIRM) {
+            String rawData = pendingImportRawData;
+            WingsImportParser.ImportedConfig parsed = pendingImport;
+            pendingImportRawData = null;
+            pendingImport = null;
+            if (resultCode == RESULT_OK && rawData != null && parsed != null) {
+                applyImport(rawData, parsed);
+            } else {
+                Toast.makeText(this, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void applyImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {

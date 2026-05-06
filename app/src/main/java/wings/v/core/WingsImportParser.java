@@ -922,6 +922,15 @@ public final class WingsImportParser {
         }
     }
 
+    private static void parseGuardian(WingsvProto.Guardian g, ImportedConfig importedConfig) {
+        importedConfig.hasGuardian = true;
+        importedConfig.guardianWsUrl = g.getWsUrl() == null ? "" : g.getWsUrl();
+        importedConfig.guardianClientId = g.getClientId() == null ? "" : g.getClientId();
+        importedConfig.guardianClientToken =
+            g.getClientToken() == null ? new byte[0] : g.getClientToken().toByteArray();
+        importedConfig.guardianClientName = g.getClientName() == null ? "" : g.getClientName();
+    }
+
     private static WingsvProto.DnsMode toProtoDnsMode(String mode) {
         if (AppPrefs.DNS_MODE_UDP.equals(mode)) {
             return WingsvProto.DnsMode.DNS_MODE_UDP;
@@ -1887,6 +1896,15 @@ public final class WingsImportParser {
             }
             handled = true;
         }
+        if (allSettings || config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_GUARDIAN || config.hasGuardian()) {
+            if (config.hasGuardian()) {
+                parseGuardian(config.getGuardian(), importedConfig);
+            }
+            if (!allSettings && config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_GUARDIAN) {
+                importedConfig.updateBackendType = false;
+            }
+            handled = true;
+        }
         if (allSettings || config.hasSubscriptionHwid()) {
             if (config.hasSubscriptionHwid()) {
                 parseSubscriptionHwid(config.getSubscriptionHwid(), importedConfig);
@@ -2650,6 +2668,11 @@ public final class WingsImportParser {
         public String themeMode;
         public Boolean autoStartOnBoot;
         public String dnsMode;
+        public boolean hasGuardian;
+        public String guardianWsUrl;
+        public String guardianClientId;
+        public byte[] guardianClientToken;
+        public String guardianClientName;
         public boolean hasSubscriptionHwid;
         public Boolean subscriptionHwidEnabled;
         public Boolean subscriptionHwidManualEnabled;
