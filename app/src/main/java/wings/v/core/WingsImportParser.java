@@ -897,6 +897,10 @@ public final class WingsImportParser {
         if (includeDefaults || autoStartOnBoot) {
             builder.setAutoStartOnBoot(autoStartOnBoot);
         }
+        String dnsMode = AppPrefs.getDnsMode(context);
+        if (includeDefaults || !AppPrefs.DNS_MODE_AUTO.equals(dnsMode)) {
+            builder.setDnsMode(toProtoDnsMode(dnsMode));
+        }
         return builder.build();
     }
 
@@ -908,6 +912,29 @@ public final class WingsImportParser {
         if (ap.hasAutoStartOnBoot()) {
             importedConfig.autoStartOnBoot = ap.getAutoStartOnBoot();
         }
+        if (ap.getDnsMode() != WingsvProto.DnsMode.DNS_MODE_UNSPECIFIED) {
+            importedConfig.dnsMode = fromProtoDnsMode(ap.getDnsMode());
+        }
+    }
+
+    private static WingsvProto.DnsMode toProtoDnsMode(String mode) {
+        if (AppPrefs.DNS_MODE_UDP.equals(mode)) {
+            return WingsvProto.DnsMode.DNS_MODE_UDP;
+        }
+        if (AppPrefs.DNS_MODE_DOH.equals(mode)) {
+            return WingsvProto.DnsMode.DNS_MODE_DOH;
+        }
+        return WingsvProto.DnsMode.DNS_MODE_AUTO;
+    }
+
+    private static String fromProtoDnsMode(WingsvProto.DnsMode mode) {
+        if (mode == WingsvProto.DnsMode.DNS_MODE_UDP) {
+            return AppPrefs.DNS_MODE_UDP;
+        }
+        if (mode == WingsvProto.DnsMode.DNS_MODE_DOH) {
+            return AppPrefs.DNS_MODE_DOH;
+        }
+        return AppPrefs.DNS_MODE_AUTO;
     }
 
     private static WingsvProto.ThemeMode toProtoThemeMode(String mode) {
@@ -2613,6 +2640,7 @@ public final class WingsImportParser {
         public boolean hasAppPreferences;
         public String themeMode;
         public Boolean autoStartOnBoot;
+        public String dnsMode;
         public boolean hasSubscriptionHwid;
         public Boolean subscriptionHwidEnabled;
         public Boolean subscriptionHwidManualEnabled;

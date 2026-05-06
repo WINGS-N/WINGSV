@@ -160,6 +160,10 @@ public final class AppPrefs {
     public static final String THEME_MODE_SYSTEM = "system";
     public static final String THEME_MODE_DARK = "dark";
     public static final String THEME_MODE_LIGHT = "light";
+    public static final String DNS_MODE_AUTO = "auto";
+    public static final String DNS_MODE_UDP = "udp";
+    public static final String DNS_MODE_DOH = "doh";
+    public static final String KEY_DNS_MODE = "pref_dns_mode";
 
     private AppPrefs() {}
 
@@ -261,6 +265,22 @@ public final class AppPrefs {
 
     public static void setThemeMode(Context context, String value) {
         prefs(context).edit().putString(KEY_THEME_MODE, normalizeThemeMode(value)).apply();
+    }
+
+    public static String getDnsMode(Context context) {
+        return normalizeDnsMode(prefs(context).getString(KEY_DNS_MODE, DNS_MODE_AUTO));
+    }
+
+    public static void setDnsMode(Context context, String value) {
+        prefs(context).edit().putString(KEY_DNS_MODE, normalizeDnsMode(value)).apply();
+    }
+
+    public static String normalizeDnsMode(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (DNS_MODE_UDP.equals(normalized) || DNS_MODE_DOH.equals(normalized)) {
+            return normalized;
+        }
+        return DNS_MODE_AUTO;
     }
 
     public static String getRootWireGuardInterfaceNameTemplate(Context context) {
@@ -1023,6 +1043,9 @@ public final class AppPrefs {
         }
         if (importedConfig.autoStartOnBoot != null) {
             editor.putBoolean(KEY_AUTO_START_ON_BOOT, importedConfig.autoStartOnBoot);
+        }
+        if (!TextUtils.isEmpty(importedConfig.dnsMode)) {
+            editor.putString(KEY_DNS_MODE, normalizeDnsMode(importedConfig.dnsMode));
         }
         editor.apply();
     }

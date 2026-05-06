@@ -2649,6 +2649,8 @@ public class ProxyTunnelService extends Service {
 
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
+        command.add("-dns");
+        command.add(AppPrefs.getDnsMode(getApplicationContext()));
         command.add("-peer");
         command.add(settings.endpoint);
         command.add("-vk-link");
@@ -2793,6 +2795,8 @@ public class ProxyTunnelService extends Service {
 
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
+        command.add("-dns");
+        command.add(AppPrefs.getDnsMode(appContext));
         command.add("-wb-stream-room-id");
         command.add(roomId);
         command.add("-wb-stream-display-name");
@@ -2831,6 +2835,8 @@ public class ProxyTunnelService extends Service {
         }
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
+        command.add("-dns");
+        command.add(AppPrefs.getDnsMode(getApplicationContext()));
         command.add("-room-exchange-mode");
         command.add("-peer");
         command.add(settings.endpoint);

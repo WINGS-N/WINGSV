@@ -59,6 +59,18 @@
         <item>v1</item>
     </string-array>
 
+    <string-array name="dns_mode_entries">
+        <item>@string/dns_mode_auto</item>
+        <item>@string/dns_mode_udp</item>
+        <item>@string/dns_mode_doh</item>
+    </string-array>
+
+    <string-array name="dns_mode_values">
+        <item>auto</item>
+        <item>udp</item>
+        <item>doh</item>
+    </string-array>
+
     <string-array name="theme_mode_entries">
         <item>@string/theme_mode_system</item>
         <item>@string/theme_mode_dark</item>

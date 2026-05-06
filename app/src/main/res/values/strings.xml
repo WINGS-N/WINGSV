@@ -873,6 +873,11 @@
     <string name="theme_mode_dark_summary">Всегда использовать тёмное оформление приложения</string>
     <string name="theme_mode_light">Светлая</string>
     <string name="theme_mode_light_summary">Всегда использовать светлое оформление приложения</string>
+    <string name="dns_mode_title">DNS resolver</string>
+    <string name="dns_mode_summary">Auto: пробует UDP/53 (Yandex/Google/CF), на белых списках при фейле зацепляется за DoH. UDP-only: только UDP/53. DoH-only: всегда DNS-over-HTTPS</string>
+    <string name="dns_mode_auto">Авто (UDP → DoH fallback)</string>
+    <string name="dns_mode_udp">Только UDP/53</string>
+    <string name="dns_mode_doh">Только DNS-over-HTTPS</string>
     <string name="auto_start_title">Автозапуск при старте устройства</string>
     <string name="auto_start_summary">Автоматически поднимать подключение после загрузки системы</string>
 

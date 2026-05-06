@@ -248,6 +248,7 @@ message RootSettings {
 message AppPreferences {
   ThemeMode theme_mode = 1;
   optional bool auto_start_on_boot = 2;
+  DnsMode dns_mode = 3;
 }
 
 enum ThemeMode {
@@ -255,6 +256,13 @@ enum ThemeMode {
   THEME_MODE_LIGHT = 1;
   THEME_MODE_DARK = 2;
   THEME_MODE_SYSTEM = 3;
+}
+
+enum DnsMode {
+  DNS_MODE_UNSPECIFIED = 0;
+  DNS_MODE_AUTO = 1;
+  DNS_MODE_UDP = 2;
+  DNS_MODE_DOH = 3;
 }
 
 message SubscriptionHwid {
