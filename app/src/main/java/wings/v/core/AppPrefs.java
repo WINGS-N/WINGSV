@@ -371,7 +371,7 @@ public final class AppPrefs {
     }
 
     public static boolean isGuardianLogXRayAllowed(Context context) {
-        return prefs(context).getBoolean(KEY_GUARDIAN_LOG_XRAY_ALLOWED, true);
+        return prefs(context).getBoolean(KEY_GUARDIAN_LOG_XRAY_ALLOWED, false);
     }
 
     public static void setGuardianLogControl(Context context, boolean runtime, boolean proxy, boolean xray) {

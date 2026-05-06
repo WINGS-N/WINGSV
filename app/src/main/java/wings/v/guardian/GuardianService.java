@@ -56,7 +56,11 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     private final Handler logPumpHandler = new Handler(Looper.getMainLooper());
     private long lastRuntimeLogVersion;
     private long lastProxyLogVersion;
+    private long xrayErrorOffset;
+    private long xrayAccessOffset;
+    private long xrayChunkSeq;
     private static final long LOG_PUMP_INTERVAL_MS = 1_000L;
+    private static final int XRAY_MAX_BYTES_PER_TICK = 16 * 1024;
     private final Runnable logPump = new Runnable() {
         @Override
         public void run() {
@@ -97,6 +101,11 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             registerPrefsListener();
             lastRuntimeLogVersion = ProxyTunnelService.getRuntimeLogVersion();
             lastProxyLogVersion = ProxyTunnelService.getProxyLogVersion();
+            // Anchor Xray offsets at the current end-of-file so we don't replay
+            // an entire historical log on first connect.
+            java.io.File logDir = new java.io.File(getFilesDir(), "xray/log");
+            xrayErrorOffset = new java.io.File(logDir, "error.log").length();
+            xrayAccessOffset = new java.io.File(logDir, "access.log").length();
             logPumpHandler.postDelayed(logPump, LOG_PUMP_INTERVAL_MS);
         }
         return START_STICKY;
@@ -309,6 +318,56 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             sendLogChunk(GuardianProto.LogStream.LOG_STREAM_PROXY, entries);
         }
         lastProxyLogVersion = currentProxy;
+
+        pumpXrayLogs();
+    }
+
+    private void pumpXrayLogs() {
+        boolean allowed = AppPrefs.isGuardianLogXRayAllowed(getApplicationContext());
+        java.io.File logDir = new java.io.File(getFilesDir(), "xray/log");
+        java.io.File errorLog = new java.io.File(logDir, "error.log");
+        java.io.File accessLog = new java.io.File(logDir, "access.log");
+        xrayErrorOffset = drainXrayFile(errorLog, xrayErrorOffset, allowed, "[xray:error] ");
+        xrayAccessOffset = drainXrayFile(accessLog, xrayAccessOffset, allowed, "[xray:access] ");
+    }
+
+    /** Returns the new byte offset after draining (rotated files reset to 0). */
+    private long drainXrayFile(java.io.File file, long lastOffset, boolean allowed, String prefix) {
+        if (!file.exists()) {
+            return 0L;
+        }
+        long size = file.length();
+        if (size < lastOffset) {
+            // Log rotation truncated the file; restart from zero.
+            lastOffset = 0L;
+        }
+        if (size == lastOffset) {
+            return lastOffset;
+        }
+        if (size - lastOffset > XRAY_MAX_BYTES_PER_TICK) {
+            // Skip ahead on backlog to keep the wire chunk size bounded.
+            lastOffset = size - XRAY_MAX_BYTES_PER_TICK;
+        }
+        if (!allowed) {
+            return size;
+        }
+        java.util.List<ProxyTunnelService.RuntimeLogEntry> entries = new java.util.ArrayList<>();
+        try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "r")) {
+            raf.seek(lastOffset);
+            int remaining = (int) Math.min(XRAY_MAX_BYTES_PER_TICK, size - lastOffset);
+            byte[] buf = new byte[remaining];
+            raf.readFully(buf);
+            String text = new String(buf, java.nio.charset.StandardCharsets.UTF_8);
+            for (String line : text.split("\\r?\\n")) {
+                if (line.isEmpty()) continue;
+                entries.add(new ProxyTunnelService.RuntimeLogEntry(++xrayChunkSeq, prefix + line));
+            }
+        } catch (java.io.IOException error) {
+            Log.w(TAG, "xray log read failed: " + error.getMessage());
+            return lastOffset;
+        }
+        sendLogChunk(GuardianProto.LogStream.LOG_STREAM_XRAY, entries);
+        return size;
     }
 
     private void sendLogChunk(
