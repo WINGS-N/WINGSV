@@ -403,18 +403,57 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         }
         try {
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            AppPrefs.applyImportedConfig(context, importedConfig);
-            requestReconnectAfterImport(context, text);
-            loadSettings(AppPrefs.getSettings(context));
-            validationAttempted = true;
-            validateSettings(collectSettings(), false);
-            updateImportButtonStyle();
-            Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
-            if (getActivity() instanceof Host) {
-                ((Host) getActivity()).onVkTurnSettingsCompleted();
+            if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
+                pendingImportRawText = text;
+                pendingImport = importedConfig;
+                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                return;
             }
+            applyParsedImport(text, importedConfig);
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.first_launch_vk_turn_import_invalid, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static final int REQUEST_GUARDIAN_CONFIRM = 4301;
+    private String pendingImportRawText;
+    private WingsImportParser.ImportedConfig pendingImport;
+
+    @Override
+    public void onActivityResult(
+        int requestCode,
+        int resultCode,
+        @androidx.annotation.Nullable android.content.Intent data
+    ) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_GUARDIAN_CONFIRM) {
+            String text = pendingImportRawText;
+            WingsImportParser.ImportedConfig parsed = pendingImport;
+            pendingImportRawText = null;
+            pendingImport = null;
+            Context context = getContext();
+            if (context == null) {
+                return;
+            }
+            if (resultCode == android.app.Activity.RESULT_OK && parsed != null && text != null) {
+                applyParsedImport(text, parsed);
+            } else {
+                Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void applyParsedImport(String rawText, WingsImportParser.ImportedConfig importedConfig) {
+        Context context = requireContext();
+        AppPrefs.applyImportedConfig(context, importedConfig);
+        requestReconnectAfterImport(context, rawText);
+        loadSettings(AppPrefs.getSettings(context));
+        validationAttempted = true;
+        validateSettings(collectSettings(), false);
+        updateImportButtonStyle();
+        Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+        if (getActivity() instanceof Host) {
+            ((Host) getActivity()).onVkTurnSettingsCompleted();
         }
     }
 
