@@ -219,10 +219,6 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
         try {
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            if (importedConfig.backendType == null || !importedConfig.backendType.usesXrayCore()) {
-                Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
-                return;
-            }
             AppPrefs.applyImportedConfig(context, importedConfig);
             requestReconnectAfterImport(context, text);
             loadSettings(XrayStore.getXraySettings(context));

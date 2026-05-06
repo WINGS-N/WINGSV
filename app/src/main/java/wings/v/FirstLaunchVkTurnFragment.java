@@ -403,10 +403,6 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         }
         try {
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            if (importedConfig.backendType != BackendType.VK_TURN_WIREGUARD) {
-                Toast.makeText(context, R.string.first_launch_vk_turn_import_invalid, Toast.LENGTH_SHORT).show();
-                return;
-            }
             AppPrefs.applyImportedConfig(context, importedConfig);
             requestReconnectAfterImport(context, text);
             loadSettings(AppPrefs.getSettings(context));
