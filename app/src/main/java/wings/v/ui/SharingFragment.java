@@ -200,6 +200,36 @@ public class SharingFragment extends Fragment {
     public void onResume() {
         super.onResume();
         refreshUi();
+        maybeReverifyRootAccess();
+    }
+
+    /**
+     * Heals the case where {@code KEY_ROOT_MODE} stays {@code true} but
+     * {@code KEY_ROOT_ACCESS_GRANTED} ends up {@code false} (e.g., a transient
+     * su-probe failure during a previous tunnel start). Sharing UI gates on
+     * the cached {@code isRootAccessGranted} flag, so without re-probing it
+     * keeps showing "no root" forever even after root is functionally back.
+     */
+    private void maybeReverifyRootAccess() {
+        if (!isAdded()) {
+            return;
+        }
+        Context context = requireContext();
+        if (!AppPrefs.isRootModeEnabled(context) || AppPrefs.isRootAccessGranted(context)) {
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        executor.execute(() -> {
+            boolean granted = RootUtils.refreshRootAccessState(appContext);
+            if (!granted) {
+                return;
+            }
+            mainHandler.post(() -> {
+                if (isAdded()) {
+                    refreshUi();
+                }
+            });
+        });
     }
 
     @Override
