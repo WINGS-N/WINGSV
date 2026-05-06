@@ -81,6 +81,17 @@ public final class WingsImportParser {
         return encodeConfig(config);
     }
 
+    /**
+     * Builds a {@code Config} proto that captures every user-facing setting,
+     * for the Guardian StateReport snapshot. Same payload as
+     * {@link #buildAllSettingsLink} but returns the proto directly (no zlib /
+     * base64 wrap).
+     */
+    public static WingsvProto.Config buildAllSettingsProto(Context context) throws Exception {
+        requireContext(context);
+        return buildProtoConfig(context, AppPrefs.getSettings(context), ExportScope.ALL);
+    }
+
     public static String buildXraySettingsLink(Context context) throws Exception {
         requireContext(context);
         WingsvProto.Config config = buildProtoConfig(
@@ -1767,7 +1778,7 @@ public final class WingsImportParser {
         return builder.build();
     }
 
-    private static ImportedConfig parseProtoConfig(WingsvProto.Config config) throws Exception {
+    public static ImportedConfig parseProtoConfig(WingsvProto.Config config) throws Exception {
         if (config.getVer() <= 0) {
             throw new IllegalArgumentException("Отсутствует или некорректен ver");
         }
