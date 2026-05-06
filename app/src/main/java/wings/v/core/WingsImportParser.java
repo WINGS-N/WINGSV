@@ -664,6 +664,11 @@ public final class WingsImportParser {
                 }
             } catch (IllegalArgumentException ignored) {}
         }
+        int roomCount =
+            context != null ? AppPrefs.getWbStreamRoomCount(context) : AppPrefs.DEFAULT_WB_STREAM_ROOM_COUNT;
+        if (includeDefaults || roomCount != AppPrefs.DEFAULT_WB_STREAM_ROOM_COUNT) {
+            builder.setRoomCount(roomCount);
+        }
         return builder.build();
     }
 
@@ -1921,6 +1926,9 @@ public final class WingsImportParser {
                 android.util.Base64.NO_WRAP
             );
         }
+        if (wb.hasRoomCount()) {
+            importedConfig.wbStreamRoomCount = wb.getRoomCount();
+        }
     }
 
     private static void parseTurn(WingsvProto.Turn turn, ImportedConfig importedConfig) {
@@ -2584,6 +2592,7 @@ public final class WingsImportParser {
         public boolean wbStreamExchangeViaVkTurn;
         public boolean wbStreamE2eEnabled;
         public String wbStreamE2eSecret;
+        public Integer wbStreamRoomCount;
         public String endpoint;
         public String link;
         public java.util.List<String> links = new java.util.ArrayList<>();

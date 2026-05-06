@@ -68,6 +68,9 @@ public final class AppPrefs {
     public static final String KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN = "pref_wb_stream_exchange_via_vk_turn";
     public static final String KEY_WB_STREAM_E2E_ENABLED = "pref_wb_stream_e2e_enabled";
     public static final String KEY_WB_STREAM_E2E_SECRET = "pref_wb_stream_e2e_secret";
+    public static final String KEY_WB_STREAM_ROOM_COUNT = "pref_wb_stream_room_count";
+    public static final int DEFAULT_WB_STREAM_ROOM_COUNT = 1;
+    public static final int MAX_WB_STREAM_ROOM_COUNT = 16;
     public static final String KEY_OPEN_WB_STREAM_SETTINGS = "pref_open_wb_stream_settings";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
     public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
@@ -852,6 +855,12 @@ public final class AppPrefs {
             if (!TextUtils.isEmpty(importedConfig.wbStreamE2eSecret)) {
                 editor.putString(KEY_WB_STREAM_E2E_SECRET, trim(importedConfig.wbStreamE2eSecret));
             }
+            if (importedConfig.wbStreamRoomCount != null) {
+                editor.putString(
+                    KEY_WB_STREAM_ROOM_COUNT,
+                    String.valueOf(clampWbStreamRoomCount(importedConfig.wbStreamRoomCount))
+                );
+            }
         }
         editor.apply();
 
@@ -1513,6 +1522,31 @@ public final class AppPrefs {
 
     public static void setWbStreamE2eSecret(Context context, String value) {
         prefs(context).edit().putString(KEY_WB_STREAM_E2E_SECRET, trim(value)).apply();
+    }
+
+    public static int getWbStreamRoomCount(Context context) {
+        int raw = parseInt(
+            prefs(context).getString(KEY_WB_STREAM_ROOM_COUNT, String.valueOf(DEFAULT_WB_STREAM_ROOM_COUNT)),
+            DEFAULT_WB_STREAM_ROOM_COUNT
+        );
+        return clampWbStreamRoomCount(raw);
+    }
+
+    public static void setWbStreamRoomCount(Context context, int value) {
+        prefs(context)
+            .edit()
+            .putString(KEY_WB_STREAM_ROOM_COUNT, String.valueOf(clampWbStreamRoomCount(value)))
+            .apply();
+    }
+
+    public static int clampWbStreamRoomCount(int value) {
+        if (value < 1) {
+            return 1;
+        }
+        if (value > MAX_WB_STREAM_ROOM_COUNT) {
+            return MAX_WB_STREAM_ROOM_COUNT;
+        }
+        return value;
     }
 
     private static List<String> readVkLinks(SharedPreferences sharedPreferences, String legacyFallback) {

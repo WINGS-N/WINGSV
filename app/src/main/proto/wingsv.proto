@@ -53,6 +53,7 @@ message WbStream {
   bool e2e_enabled = 3;
   bytes e2e_secret = 4;
   string display_name = 5;
+  optional uint32 room_count = 6;
 }
 
 message AmneziaWG {
