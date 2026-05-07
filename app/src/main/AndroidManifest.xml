@@ -311,7 +311,11 @@
         <service
             android:name=".guardian.GuardianService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="guardian_remote_control_channel" />
+        </service>
 
         <activity
             android:name=".guardian.GuardianActivity"
