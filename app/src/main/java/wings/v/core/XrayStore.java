@@ -34,8 +34,8 @@ public final class XrayStore {
     private static final String DEFAULT_SUBSCRIPTION_URL =
         "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt";
     private static final String DEFAULT_SUBSCRIPTION_TITLE = "Universal";
-    private static final String DEFAULT_REMOTE_DNS = "https://common.dot.dns.yandex.net/dns-query";
-    private static final String DEFAULT_DIRECT_DNS = "https://common.dot.dns.yandex.net/dns-query";
+    private static final String DEFAULT_REMOTE_DNS = "";
+    private static final String DEFAULT_DIRECT_DNS = "";
 
     private XrayStore() {}
 
