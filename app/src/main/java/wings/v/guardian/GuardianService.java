@@ -54,13 +54,15 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     private GuardianClient client;
     private SharedPreferences.OnSharedPreferenceChangeListener prefListener;
     private final Handler logPumpHandler = new Handler(Looper.getMainLooper());
-    private long lastRuntimeLogVersion;
-    private long lastProxyLogVersion;
+    private long runtimeLogOffset;
+    private long proxyLogOffset;
     private long xrayErrorOffset;
     private long xrayAccessOffset;
+    private long runtimeChunkSeq;
+    private long proxyChunkSeq;
     private long xrayChunkSeq;
     private static final long LOG_PUMP_INTERVAL_MS = 1_000L;
-    private static final int XRAY_MAX_BYTES_PER_TICK = 16 * 1024;
+    private static final int LOG_MAX_BYTES_PER_TICK = 16 * 1024;
     private final Runnable logPump = new Runnable() {
         @Override
         public void run() {
@@ -83,6 +85,13 @@ public final class GuardianService extends Service implements GuardianClient.Lis
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        // CRITICAL: any path triggered by startForegroundService() MUST call
+        // startForeground() within ~5 seconds, otherwise the OS throws
+        // ForegroundServiceDidNotStartInTimeException and the app crashes.
+        // We always promote ourselves to foreground first, then evaluate
+        // whether we actually want to keep running.
+        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.guardian_notification_connecting)));
+
         String action = intent == null ? "" : (intent.getAction() == null ? "" : intent.getAction());
         if ("wings.v.guardian.STOP".equals(action)) {
             tearDown();
@@ -93,19 +102,18 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             stopSelf(startId);
             return START_NOT_STICKY;
         }
-        startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.guardian_notification_connecting)));
         serviceRunning = true;
         if (client == null) {
             client = new GuardianClient(getApplicationContext(), this);
             client.start();
             registerPrefsListener();
-            lastRuntimeLogVersion = ProxyTunnelService.getRuntimeLogVersion();
-            lastProxyLogVersion = ProxyTunnelService.getProxyLogVersion();
-            // Anchor Xray offsets at the current end-of-file so we don't replay
-            // an entire historical log on first connect.
-            java.io.File logDir = new java.io.File(getFilesDir(), "xray/log");
-            xrayErrorOffset = new java.io.File(logDir, "error.log").length();
-            xrayAccessOffset = new java.io.File(logDir, "access.log").length();
+            // Anchor offsets at current EOF so we don't replay an entire
+            // historical log on first connect.
+            runtimeLogOffset = new java.io.File(getFilesDir(), "wingsv_runtime.log").length();
+            proxyLogOffset = new java.io.File(getFilesDir(), "wingsv_proxy.log").length();
+            java.io.File xrayLogDir = new java.io.File(getFilesDir(), "xray/log");
+            xrayErrorOffset = new java.io.File(xrayLogDir, "error.log").length();
+            xrayAccessOffset = new java.io.File(xrayLogDir, "access.log").length();
             logPumpHandler.postDelayed(logPump, LOG_PUMP_INTERVAL_MS);
         }
         return START_STICKY;
@@ -121,10 +129,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         logPumpHandler.removeCallbacks(logPump);
         if (prefListener != null) {
             try {
-                getSharedPreferences(
-                    "wings.v.app_prefs",
-                    Context.MODE_PRIVATE
-                ).unregisterOnSharedPreferenceChangeListener(prefListener);
+                AppPrefs.defaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(prefListener);
             } catch (RuntimeException ignored) {}
             prefListener = null;
         }
@@ -163,6 +168,10 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFERRED)
             .build();
     }
 
@@ -182,9 +191,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             client.sendFrame(buildStateReport());
         };
         try {
-            getSharedPreferences("wings.v.app_prefs", Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(
-                prefListener
-            );
+            AppPrefs.defaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(prefListener);
         } catch (RuntimeException ignored) {}
     }
 
@@ -193,13 +200,37 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         connected = true;
         updateNotification(getString(R.string.guardian_notification_connected, host));
         GuardianStateBroadcast.send(this, true, host);
+        ProxyTunnelService.writeRuntimeLogLine("[guardian] connected to " + host);
         if (client != null) {
             client.sendFrame(buildStateReport());
         }
+        sendInstalledAppsAsync();
+    }
+
+    private void sendInstalledAppsAsync() {
+        Context appContext = getApplicationContext();
+        new Thread(
+            () -> {
+                try {
+                    GuardianProto.InstalledApps inventory = wings.v.guardian.InstalledAppsBuilder.build(appContext);
+                    if (client != null && inventory != null) {
+                        client.sendFrame(GuardianProto.Frame.newBuilder().setInstalledApps(inventory).build());
+                    }
+                } catch (Throwable error) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "[guardian] installed apps inventory failed: " + error.getMessage()
+                    );
+                }
+            },
+            "guardian-apps-inventory"
+        ).start();
     }
 
     @Override
     public void onDisconnected() {
+        if (connected) {
+            ProxyTunnelService.writeRuntimeLogLine("[guardian] disconnected");
+        }
         connected = false;
         updateNotification(getString(R.string.guardian_notification_disconnected));
         GuardianStateBroadcast.send(this, false, "");
@@ -208,6 +239,9 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     @Override
     public void onCommand(GuardianProto.Command command) {
         Log.i(TAG, "command=" + command.getType().name() + " id=" + command.getId());
+        ProxyTunnelService.writeRuntimeLogLine(
+            "[guardian] command=" + command.getType().name() + " id=" + command.getId()
+        );
         Context ctx = getApplicationContext();
         boolean ok = true;
         String error = "";
@@ -230,6 +264,13 @@ public final class GuardianService extends Service implements GuardianClient.Lis
                     if (client != null) {
                         client.sendFrame(buildStateReport());
                     }
+                    break;
+                case COMMAND_TYPE_REFRESH_SUBSCRIPTION:
+                case COMMAND_TYPE_REFRESH_ALL_SUBSCRIPTIONS:
+                    runSubscriptionRefresh(ctx);
+                    break;
+                case COMMAND_TYPE_REFRESH_INSTALLED_APPS:
+                    sendInstalledAppsAsync();
                     break;
                 default:
                     ok = false;
@@ -256,23 +297,8 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     @Override
     public void onConfigPush(GuardianProto.ConfigPush push) {
         Log.i(TAG, "config push revision=" + push.getRevision());
-        if (push.getConfig() != null) {
-            try {
-                wings.v.core.WingsImportParser.ImportedConfig imported =
-                    wings.v.core.WingsImportParser.parseProtoConfig(push.getConfig());
-                // The panel is allowed to push every other setting, but never
-                // its own credentials — we don't want a runtime ConfigPush to
-                // accidentally rebind us to a different panel.
-                imported.hasGuardian = false;
-                imported.guardianWsUrl = null;
-                imported.guardianClientId = null;
-                imported.guardianClientToken = null;
-                imported.guardianClientName = null;
-                wings.v.core.AppPrefs.applyImportedConfig(getApplicationContext(), imported);
-            } catch (Exception error) {
-                Log.w(TAG, "config push apply failed: " + error.getMessage());
-            }
-        }
+        ProxyTunnelService.writeRuntimeLogLine("[guardian] config push revision=" + push.getRevision());
+        GuardianCommandHandler.applyConfigPush(getApplicationContext(), push);
         if (client != null) {
             client.sendFrame(buildStateReport());
         }
@@ -286,6 +312,14 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             control.getProxyEnabled(),
             control.getXrayEnabled()
         );
+        ProxyTunnelService.writeRuntimeLogLine(
+            "[guardian] log-control runtime=" +
+                control.getRuntimeEnabled() +
+                " proxy=" +
+                control.getProxyEnabled() +
+                " xray=" +
+                control.getXrayEnabled()
+        );
     }
 
     @Override
@@ -295,58 +329,104 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         }
     }
 
+    private void runSubscriptionRefresh(Context ctx) {
+        new Thread(
+            () -> {
+                try {
+                    wings.v.core.XraySubscriptionUpdater.refreshAll(ctx);
+                    ProxyTunnelService.writeRuntimeLogLine("[guardian] subscription refresh ok");
+                    if (client != null) {
+                        client.sendFrame(buildStateReport());
+                    }
+                } catch (Exception error) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "[guardian] subscription refresh failed: " + error.getMessage()
+                    );
+                }
+            },
+            "guardian-sub-refresh"
+        )
+            .start();
+    }
+
     private void pumpLogs() {
         if (client == null || !connected) {
             return;
         }
         Context ctx = getApplicationContext();
-        long currentRuntime = ProxyTunnelService.getRuntimeLogVersion();
-        if (AppPrefs.isGuardianLogRuntimeAllowed(ctx) && currentRuntime > lastRuntimeLogVersion) {
-            java.util.List<ProxyTunnelService.RuntimeLogEntry> entries =
-                ProxyTunnelService.snapshotRuntimeLogLinesSince(lastRuntimeLogVersion);
-            sendLogChunk(GuardianProto.LogStream.LOG_STREAM_RUNTIME, entries);
-        }
-        // Always advance the bookmark, even when disabled, so re-enabling
-        // doesn't replay history.
-        lastRuntimeLogVersion = currentRuntime;
-
-        long currentProxy = ProxyTunnelService.getProxyLogVersion();
-        if (AppPrefs.isGuardianLogProxyAllowed(ctx) && currentProxy > lastProxyLogVersion) {
-            java.util.List<ProxyTunnelService.RuntimeLogEntry> entries = ProxyTunnelService.snapshotProxyLogLinesSince(
-                lastProxyLogVersion
-            );
-            sendLogChunk(GuardianProto.LogStream.LOG_STREAM_PROXY, entries);
-        }
-        lastProxyLogVersion = currentProxy;
-
-        pumpXrayLogs();
+        runtimeLogOffset = drainLogFile(
+            new java.io.File(getFilesDir(), "wingsv_runtime.log"),
+            runtimeLogOffset,
+            AppPrefs.isGuardianLogRuntimeAllowed(ctx),
+            "",
+            GuardianProto.LogStream.LOG_STREAM_RUNTIME,
+            runtimeChunkSeqInc()
+        );
+        proxyLogOffset = drainLogFile(
+            new java.io.File(getFilesDir(), "wingsv_proxy.log"),
+            proxyLogOffset,
+            AppPrefs.isGuardianLogProxyAllowed(ctx),
+            "",
+            GuardianProto.LogStream.LOG_STREAM_PROXY,
+            proxyChunkSeqInc()
+        );
+        java.io.File xrayDir = new java.io.File(getFilesDir(), "xray/log");
+        boolean xrayAllowed = AppPrefs.isGuardianLogXRayAllowed(ctx);
+        xrayErrorOffset = drainLogFile(
+            new java.io.File(xrayDir, "error.log"),
+            xrayErrorOffset,
+            xrayAllowed,
+            "[xray:error] ",
+            GuardianProto.LogStream.LOG_STREAM_XRAY,
+            xrayChunkSeqInc()
+        );
+        xrayAccessOffset = drainLogFile(
+            new java.io.File(xrayDir, "access.log"),
+            xrayAccessOffset,
+            xrayAllowed,
+            "[xray:access] ",
+            GuardianProto.LogStream.LOG_STREAM_XRAY,
+            xrayChunkSeqInc()
+        );
     }
 
-    private void pumpXrayLogs() {
-        boolean allowed = AppPrefs.isGuardianLogXRayAllowed(getApplicationContext());
-        java.io.File logDir = new java.io.File(getFilesDir(), "xray/log");
-        java.io.File errorLog = new java.io.File(logDir, "error.log");
-        java.io.File accessLog = new java.io.File(logDir, "access.log");
-        xrayErrorOffset = drainXrayFile(errorLog, xrayErrorOffset, allowed, "[xray:error] ");
-        xrayAccessOffset = drainXrayFile(accessLog, xrayAccessOffset, allowed, "[xray:access] ");
+    private interface SeqAllocator {
+        long next();
+    }
+
+    private SeqAllocator runtimeChunkSeqInc() {
+        return () -> ++runtimeChunkSeq;
+    }
+
+    private SeqAllocator proxyChunkSeqInc() {
+        return () -> ++proxyChunkSeq;
+    }
+
+    private SeqAllocator xrayChunkSeqInc() {
+        return () -> ++xrayChunkSeq;
     }
 
     /** Returns the new byte offset after draining (rotated files reset to 0). */
-    private long drainXrayFile(java.io.File file, long lastOffset, boolean allowed, String prefix) {
+    private long drainLogFile(
+        java.io.File file,
+        long lastOffset,
+        boolean allowed,
+        String prefix,
+        GuardianProto.LogStream stream,
+        SeqAllocator seq
+    ) {
         if (!file.exists()) {
             return 0L;
         }
         long size = file.length();
         if (size < lastOffset) {
-            // Log rotation truncated the file; restart from zero.
-            lastOffset = 0L;
+            return size;
         }
         if (size == lastOffset) {
             return lastOffset;
         }
-        if (size - lastOffset > XRAY_MAX_BYTES_PER_TICK) {
-            // Skip ahead on backlog to keep the wire chunk size bounded.
-            lastOffset = size - XRAY_MAX_BYTES_PER_TICK;
+        if (size - lastOffset > LOG_MAX_BYTES_PER_TICK) {
+            lastOffset = size - LOG_MAX_BYTES_PER_TICK;
         }
         if (!allowed) {
             return size;
@@ -354,19 +434,19 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         java.util.List<ProxyTunnelService.RuntimeLogEntry> entries = new java.util.ArrayList<>();
         try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "r")) {
             raf.seek(lastOffset);
-            int remaining = (int) Math.min(XRAY_MAX_BYTES_PER_TICK, size - lastOffset);
+            int remaining = (int) Math.min(LOG_MAX_BYTES_PER_TICK, size - lastOffset);
             byte[] buf = new byte[remaining];
             raf.readFully(buf);
             String text = new String(buf, java.nio.charset.StandardCharsets.UTF_8);
             for (String line : text.split("\\r?\\n")) {
                 if (line.isEmpty()) continue;
-                entries.add(new ProxyTunnelService.RuntimeLogEntry(++xrayChunkSeq, prefix + line));
+                entries.add(new ProxyTunnelService.RuntimeLogEntry(seq.next(), prefix + line));
             }
         } catch (java.io.IOException error) {
-            Log.w(TAG, "xray log read failed: " + error.getMessage());
+            Log.w(TAG, "log read failed for " + file.getName() + ": " + error.getMessage());
             return lastOffset;
         }
-        sendLogChunk(GuardianProto.LogStream.LOG_STREAM_XRAY, entries);
+        sendLogChunk(stream, entries);
         return size;
     }
 
@@ -394,7 +474,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             .build();
         GuardianProto.StateReport.Builder report = GuardianProto.StateReport.newBuilder().setRuntime(runtime);
         try {
-            wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildAllSettingsProto(
+            wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildGuardianSnapshotProto(
                 getApplicationContext()
             );
             // Strip Guardian credentials from the snapshot we send back —

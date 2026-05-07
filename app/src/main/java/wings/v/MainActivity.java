@@ -125,6 +125,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
+        maybeStartGuardianOnLaunch();
         BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
         hasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
         hasSharingTab = AppPrefs.isRootModeEnabled(this);
@@ -218,7 +219,20 @@ public class MainActivity extends AppCompatActivity {
         unregisterPreferencesListener();
         appUpdateManager.unregisterListener(updateStateListener);
         wings.v.guardian.GuardianStateBroadcast.unregister(guardianStateListener);
+        wings.v.guardian.GuardianForegroundClient.stop();
         super.onStop();
+    }
+
+    private void maybeStartGuardianOnLaunch() {
+        if (!AppPrefs.isGuardianEnabled(this) || !AppPrefs.isGuardianConfigured(this)) {
+            return;
+        }
+        wings.v.guardian.GuardianRunner.applyMode(getApplicationContext());
+        if (
+            AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(AppPrefs.getGuardianSyncMode(this))
+        ) {
+            wings.v.guardian.GuardianForegroundClient.start(getApplicationContext());
+        }
     }
 
     private final wings.v.guardian.GuardianStateBroadcast.Listener guardianStateListener = (connected, host) -> {

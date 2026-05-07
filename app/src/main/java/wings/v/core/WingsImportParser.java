@@ -92,6 +92,71 @@ public final class WingsImportParser {
         return buildProtoConfig(context, AppPrefs.getSettings(context), ExportScope.ALL);
     }
 
+    /**
+     * Verbose snapshot used for the Guardian panel. Differs from
+     * {@link #buildAllSettingsProto}:
+     * <ul>
+     *   <li>includes Xray profiles imported from subscriptions
+     *       ({@code includeSubscriptionProfiles=true}); the panel needs to
+     *       show every profile the device knows about, not just hand-edited
+     *       ones;</li>
+     *   <li>passes {@code includeDefaults=true} to every sub-builder, so
+     *       sections like Xposed appear even when all fields are at default
+     *       values. Without this, the admin form would be empty for users
+     *       who haven't deviated from defaults.</li>
+     * </ul>
+     */
+    public static WingsvProto.Config buildGuardianSnapshotProto(Context context) throws Exception {
+        requireContext(context);
+        BackendType backendType = XrayStore.getBackendType(context);
+        WingsvProto.Config.Builder builder = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(backendType.toProto())
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_ALL)
+            .setAppRouting(buildAppRouting(context));
+        ProxySettings settings = AppPrefs.getSettings(context);
+
+        WingsvProto.Turn turn = buildTurn(scopedSettings(context, ExportScope.VK_TURN), true);
+        if (!turn.equals(WingsvProto.Turn.getDefaultInstance())) {
+            builder.setTurn(turn);
+        }
+        WingsvProto.WireGuard wg = buildWireGuard(scopedSettings(context, ExportScope.WIREGUARD), true);
+        if (!wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
+            builder.setWg(wg);
+        }
+        WingsvProto.AmneziaWG awg = buildAmnezia(scopedSettings(context, ExportScope.AMNEZIAWG), true);
+        if (!awg.equals(WingsvProto.AmneziaWG.getDefaultInstance())) {
+            builder.setAwg(awg);
+        }
+        WingsvProto.Xray xray = buildXray(
+            context,
+            scopedSettings(context, ExportScope.XRAY),
+            true /* includeProfiles */,
+            true /* includeSubscriptionProfiles — panel needs to see ALL of them */,
+            true /* includeRouting */,
+            true /* includeDefaults */
+        );
+        if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
+            builder.setXray(xray);
+        }
+        WingsvProto.WbStream wb = buildWbStream(context, scopedSettings(context, ExportScope.WB_STREAM), true);
+        if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
+            builder.setWbStream(wb);
+        }
+        // includeDefaults=true on remaining sections so admin sees the full
+        // canvas even if user hasn't deviated from defaults.
+        builder.setXposed(buildXposed(context, true));
+        builder.setRoot(buildRootSettings(context, true));
+        builder.setAppPreferences(buildAppPreferences(context, true));
+        WingsvProto.SubscriptionHwid hwid = buildSubscriptionHwid(context, true);
+        if (!hwid.equals(WingsvProto.SubscriptionHwid.getDefaultInstance())) {
+            builder.setSubscriptionHwid(hwid);
+        }
+        builder.setSharing(buildSharing(context, true));
+        builder.setByeDpi(buildByeDpi(context, true));
+        return builder.build();
+    }
+
     public static String buildXraySettingsLink(Context context) throws Exception {
         requireContext(context);
         WingsvProto.Config config = buildProtoConfig(
@@ -940,6 +1005,18 @@ public final class WingsImportParser {
         importedConfig.guardianClientToken =
             g.getClientToken() == null ? new byte[0] : g.getClientToken().toByteArray();
         importedConfig.guardianClientName = g.getClientName() == null ? "" : g.getClientName();
+        importedConfig.guardianSyncMode = fromProtoSyncMode(g.getSyncMode());
+        importedConfig.guardianPeriodicIntervalMinutes = g.getPeriodicIntervalMinutes();
+    }
+
+    private static String fromProtoSyncMode(WingsvProto.GuardianSyncMode mode) {
+        if (mode == WingsvProto.GuardianSyncMode.GUARDIAN_SYNC_MODE_PERIODIC) {
+            return AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC;
+        }
+        if (mode == WingsvProto.GuardianSyncMode.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY) {
+            return AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY;
+        }
+        return AppPrefs.GUARDIAN_SYNC_MODE_ALWAYS;
     }
 
     private static WingsvProto.DnsMode toProtoDnsMode(String mode) {
@@ -2684,6 +2761,8 @@ public final class WingsImportParser {
         public String guardianClientId;
         public byte[] guardianClientToken;
         public String guardianClientName;
+        public String guardianSyncMode;
+        public int guardianPeriodicIntervalMinutes;
         public boolean hasSubscriptionHwid;
         public Boolean subscriptionHwidEnabled;
         public Boolean subscriptionHwidManualEnabled;
