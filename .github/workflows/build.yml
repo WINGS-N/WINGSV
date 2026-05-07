@@ -20,12 +20,16 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      # GO
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
+      - name: Patch Go environment in build script
+        run: |
+          sed -i 's/GOSUMDB=off/GOSUMDB=sum.golang.org/g' build/main.py || true
+          sed -i 's/"GOSUMDB": *"off"/"GOSUMDB": "sum.golang.org"/g' build/main.py || true
+          sed -i '/GOSUMDB/d' build/main.py || true
+            # GO
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                go-version: '1.22'
 
       # 🔥 ЖЁСТКИЙ ФИКС
       - name: Force Go checksum DB
