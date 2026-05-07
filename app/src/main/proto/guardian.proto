@@ -22,6 +22,7 @@ message Frame {
     CommandAck command_ack = 9;
     StatusUpdate status_update = 10;
     ServerError error = 11;
+    InstalledApps installed_apps = 12;
   }
 }
 
@@ -100,6 +101,7 @@ message LogControl {
 message Command {
   CommandType type = 1;
   string id = 2;
+  string subscription_id = 3;
 }
 
 enum CommandType {
@@ -108,6 +110,21 @@ enum CommandType {
   COMMAND_TYPE_STOP_TUNNEL = 2;
   COMMAND_TYPE_RECONNECT = 3;
   COMMAND_TYPE_REPORT_NOW = 4;
+  COMMAND_TYPE_REFRESH_SUBSCRIPTION = 5;
+  COMMAND_TYPE_REFRESH_ALL_SUBSCRIPTIONS = 6;
+  COMMAND_TYPE_REFRESH_INSTALLED_APPS = 7;
+}
+
+message InstalledApps {
+  repeated InstalledApp apps = 1;
+  int64 ts_ms = 2;
+}
+
+message InstalledApp {
+  string package_name = 1;
+  string label = 2;
+  bytes icon_png = 3;
+  bool system = 4;
 }
 
 message CommandAck {
