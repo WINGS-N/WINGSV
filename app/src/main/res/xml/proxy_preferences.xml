@@ -33,6 +33,14 @@
         android:title="@string/wb_stream_settings_title"
         android:summary="@string/wb_stream_settings_summary" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_dns_mode"
+        android:title="@string/dns_mode_title"
+        android:summary="@string/dns_mode_summary"
+        android:defaultValue="auto"
+        android:entries="@array/dns_mode_entries"
+        android:entryValues="@array/dns_mode_values" />
+
     <Preference
         android:key="pref_open_bydpi_settings"
         android:title="@string/byedpi_title"
@@ -94,18 +102,12 @@
         android:title="@string/settings_theme_title"
         android:summary="@string/theme_mode_system" />
 
-    <androidx.preference.DropDownPreference
-        android:key="pref_dns_mode"
-        android:title="@string/dns_mode_title"
-        android:summary="@string/dns_mode_summary"
-        android:defaultValue="auto"
-        android:entries="@array/dns_mode_entries"
-        android:entryValues="@array/dns_mode_values" />
-
-    <Preference
-        android:key="pref_open_guardian_settings"
+    <wings.v.guardian.MasterSwitchPreference
+        android:key="pref_guardian_enabled"
         android:title="@string/guardian_settings_title"
-        android:summary="@string/guardian_settings_summary_not_configured" />
+        android:summary="@string/guardian_settings_short_summary"
+        android:defaultValue="false"
+        android:layout="@layout/preference_master_switch" />
 
     <Preference
         android:key="pref_open_permissions"
