@@ -14,36 +14,35 @@ jobs:
         with:
           submodules: recursive
 
-      # --- JAVA ---
+      # JAVA
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # --- GO (FIX ДЛЯ ТВОЕЙ ОШИБКИ) ---
+      # GO (разрешаем авто-скачивание toolchain)
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      - name: Fix Go environment
+      - name: Fix Go env
         run: |
           echo "GOSUMDB=sum.golang.org" >> $GITHUB_ENV
-          echo "GOTOOLCHAIN=local" >> $GITHUB_ENV
 
-      # --- SESL credentials ---
+      # SESL
       - name: Setup Gradle properties
         run: |
           mkdir -p ~/.gradle
           echo "seslUser=${{ secrets.SESL_USER }}" >> ~/.gradle/gradle.properties
           echo "seslToken=${{ secrets.SESL_TOKEN }}" >> ~/.gradle/gradle.properties
 
-      # --- BUILD ---
+      # BUILD
       - name: Build APK
         run: ./gradlew assembleDebug --no-daemon
 
-      # --- ARTIFACT ---
+      # ARTIFACT
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
