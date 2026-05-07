@@ -540,14 +540,52 @@ public class HomeFragment extends Fragment {
                 importSubscriptionUrls(context, rawText, importedConfig);
                 return;
             }
-            AppPrefs.applyImportedConfig(context, importedConfig);
-            requestReconnectAfterImport(context, rawText);
-            Haptics.softConfirm(binding.buttonImportClipboard);
-            Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
-            refreshUi();
+            if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
+                pendingImportRawText = rawText;
+                pendingImport = importedConfig;
+                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                return;
+            }
+            applyImportedConfigInternal(context, rawText, importedConfig);
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private static final int REQUEST_GUARDIAN_CONFIRM = 4303;
+    private String pendingImportRawText;
+    private WingsImportParser.ImportedConfig pendingImport;
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_GUARDIAN_CONFIRM) {
+            String rawText = pendingImportRawText;
+            WingsImportParser.ImportedConfig parsed = pendingImport;
+            pendingImportRawText = null;
+            pendingImport = null;
+            Context context = getContext();
+            if (context == null) return;
+            if (resultCode == android.app.Activity.RESULT_OK && parsed != null) {
+                applyImportedConfigInternal(context, rawText, parsed);
+            } else {
+                Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void applyImportedConfigInternal(
+        Context context,
+        @Nullable String rawText,
+        WingsImportParser.ImportedConfig importedConfig
+    ) {
+        AppPrefs.applyImportedConfig(context, importedConfig);
+        requestReconnectAfterImport(context, rawText);
+        if (binding != null) {
+            Haptics.softConfirm(binding.buttonImportClipboard);
+        }
+        Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
+        refreshUi();
     }
 
     private void importSubscriptionUrls(
