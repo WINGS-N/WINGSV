@@ -182,6 +182,50 @@ public final class XraySubscriptionUpdater {
             }
         }
 
+        if (!TextUtils.isEmpty(previousActiveProfileId) && previousActiveProfile != null) {
+            boolean stillPresent = false;
+            for (XrayProfile candidate : profiles.values()) {
+                if (TextUtils.equals(candidate.id, previousActiveProfileId)) {
+                    stillPresent = true;
+                    break;
+                }
+            }
+            if (!stillPresent) {
+                String matchKey = null;
+                XrayProfile match = null;
+                for (Map.Entry<String, XrayProfile> entry : profiles.entrySet()) {
+                    XrayProfile candidate = entry.getValue();
+                    if (candidate == null) {
+                        continue;
+                    }
+                    if (!TextUtils.equals(candidate.subscriptionId, previousActiveProfile.subscriptionId)) {
+                        continue;
+                    }
+                    if (
+                        !TextUtils.isEmpty(candidate.address) &&
+                        TextUtils.equals(candidate.address, previousActiveProfile.address) &&
+                        candidate.port == previousActiveProfile.port
+                    ) {
+                        match = candidate;
+                        matchKey = entry.getKey();
+                        break;
+                    }
+                }
+                if (match != null) {
+                    XrayProfile remapped = new XrayProfile(
+                        previousActiveProfileId,
+                        match.title,
+                        match.rawLink,
+                        match.subscriptionId,
+                        match.subscriptionTitle,
+                        match.address,
+                        match.port
+                    );
+                    profiles.put(matchKey, remapped);
+                }
+            }
+        }
+
         XrayStore.setSubscriptions(context, updatedSubscriptions);
         XrayStore.setProfiles(context, new ArrayList<>(profiles.values()));
         if (anySubscriptionUpdated) {
@@ -189,9 +233,17 @@ public final class XraySubscriptionUpdater {
         }
         XrayStore.setLastSubscriptionsError(context, firstError);
 
-        XrayProfile activeProfile = XrayStore.getActiveProfile(context);
-        if (activeProfile == null && !profiles.isEmpty()) {
-            XrayStore.setActiveProfileId(context, profiles.values().iterator().next().id);
+        XrayProfile activeProfile = null;
+        if (!TextUtils.isEmpty(previousActiveProfileId)) {
+            for (XrayProfile candidate : profiles.values()) {
+                if (TextUtils.equals(candidate.id, previousActiveProfileId)) {
+                    XrayStore.setActiveProfileId(context, previousActiveProfileId);
+                    activeProfile = candidate;
+                    break;
+                }
+            }
+        }
+        if (activeProfile == null) {
             activeProfile = XrayStore.getActiveProfile(context);
         }
 
