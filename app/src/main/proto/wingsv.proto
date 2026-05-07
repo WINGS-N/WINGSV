@@ -44,6 +44,15 @@ message Guardian {
   string client_id = 2;
   bytes client_token = 3;
   string client_name = 4;
+  GuardianSyncMode sync_mode = 5;
+  uint32 periodic_interval_minutes = 6;
+}
+
+enum GuardianSyncMode {
+  GUARDIAN_SYNC_MODE_UNSPECIFIED = 0;
+  GUARDIAN_SYNC_MODE_ALWAYS = 1;
+  GUARDIAN_SYNC_MODE_PERIODIC = 2;
+  GUARDIAN_SYNC_MODE_FOREGROUND_ONLY = 3;
 }
 
 enum BackendType {
