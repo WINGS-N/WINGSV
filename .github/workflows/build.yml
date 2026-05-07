@@ -27,6 +27,12 @@ jobs:
         with:
           go-version: '1.22'
 
+      # 🔥 ЖЁСТКИЙ ФИКС
+      - name: Force Go checksum DB
+        run: |
+          go env -w GOSUMDB=sum.golang.org
+          go env -w GOPROXY=https://proxy.golang.org,direct
+
       # SESL
       - name: Setup Gradle properties
         run: |
@@ -34,10 +40,8 @@ jobs:
           echo "seslUser=${{ secrets.SESL_USER }}" >> ~/.gradle/gradle.properties
           echo "seslToken=${{ secrets.SESL_TOKEN }}" >> ~/.gradle/gradle.properties
 
-      # BUILD (КЛЮЧЕВОЙ ФИКС ЗДЕСЬ)
+      # BUILD
       - name: Build APK
-        env:
-          GOSUMDB: sum.golang.org
         run: ./gradlew assembleDebug --no-daemon
 
       # ARTIFACT
