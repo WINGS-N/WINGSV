@@ -3,7 +3,6 @@ package wings.v.guardian;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import wings.v.core.AppPrefs;
 
 /** Brings GuardianService back up after boot when the user opted in. */
@@ -25,11 +24,6 @@ public final class GuardianBootReceiver extends BroadcastReceiver {
         ) {
             return;
         }
-        Intent start = GuardianService.startIntent(context);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(start);
-        } else {
-            context.startService(start);
-        }
+        GuardianRunner.applyMode(context);
     }
 }

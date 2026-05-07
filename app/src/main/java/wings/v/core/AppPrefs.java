@@ -176,6 +176,15 @@ public final class AppPrefs {
     public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";
     public static final String KEY_GUARDIAN_LOG_PROXY_ALLOWED = "pref_guardian_log_proxy_allowed";
     public static final String KEY_GUARDIAN_LOG_XRAY_ALLOWED = "pref_guardian_log_xray_allowed";
+    public static final String KEY_GUARDIAN_SYNC_MODE = "pref_guardian_sync_mode";
+    public static final String KEY_GUARDIAN_PERIODIC_MINUTES = "pref_guardian_periodic_minutes";
+
+    public static final String GUARDIAN_SYNC_MODE_ALWAYS = "always";
+    public static final String GUARDIAN_SYNC_MODE_PERIODIC = "periodic";
+    public static final String GUARDIAN_SYNC_MODE_FOREGROUND_ONLY = "foreground";
+
+    public static final int GUARDIAN_PERIODIC_DEFAULT_MINUTES = 30;
+    public static final int GUARDIAN_PERIODIC_MIN_MINUTES = 15;
 
     private AppPrefs() {}
 
@@ -296,7 +305,7 @@ public final class AppPrefs {
     }
 
     public static boolean isGuardianEnabled(Context context) {
-        return prefs(context).getBoolean(KEY_GUARDIAN_ENABLED, true);
+        return prefs(context).getBoolean(KEY_GUARDIAN_ENABLED, false);
     }
 
     public static void setGuardianEnabled(Context context, boolean value) {
@@ -309,6 +318,36 @@ public final class AppPrefs {
 
     public static void setGuardianAutoStartOnBootEnabled(Context context, boolean value) {
         prefs(context).edit().putBoolean(KEY_GUARDIAN_AUTO_START_ON_BOOT, value).apply();
+    }
+
+    public static String getGuardianSyncMode(Context context) {
+        return normalizeGuardianSyncMode(prefs(context).getString(KEY_GUARDIAN_SYNC_MODE, GUARDIAN_SYNC_MODE_ALWAYS));
+    }
+
+    public static void setGuardianSyncMode(Context context, String value) {
+        prefs(context).edit().putString(KEY_GUARDIAN_SYNC_MODE, normalizeGuardianSyncMode(value)).apply();
+    }
+
+    public static String normalizeGuardianSyncMode(String value) {
+        if (value == null) return GUARDIAN_SYNC_MODE_ALWAYS;
+        String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (
+            GUARDIAN_SYNC_MODE_PERIODIC.equals(normalized) ||
+            GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(normalized)
+        ) {
+            return normalized;
+        }
+        return GUARDIAN_SYNC_MODE_ALWAYS;
+    }
+
+    public static int getGuardianPeriodicIntervalMinutes(Context context) {
+        int v = prefs(context).getInt(KEY_GUARDIAN_PERIODIC_MINUTES, GUARDIAN_PERIODIC_DEFAULT_MINUTES);
+        return Math.max(GUARDIAN_PERIODIC_MIN_MINUTES, v);
+    }
+
+    public static void setGuardianPeriodicIntervalMinutes(Context context, int minutes) {
+        int normalized = Math.max(GUARDIAN_PERIODIC_MIN_MINUTES, minutes <= 0 ? GUARDIAN_PERIODIC_DEFAULT_MINUTES : minutes);
+        prefs(context).edit().putInt(KEY_GUARDIAN_PERIODIC_MINUTES, normalized).apply();
     }
 
     public static String getGuardianWsUrl(Context context) {
@@ -1160,38 +1199,41 @@ public final class AppPrefs {
     }
 
     private static void applyImportedGuardian(Context context, WingsImportParser.ImportedConfig importedConfig) {
-        if (
-            TextUtils.isEmpty(importedConfig.guardianWsUrl) ||
-            TextUtils.isEmpty(importedConfig.guardianClientId) ||
-            importedConfig.guardianClientToken == null ||
-            importedConfig.guardianClientToken.length == 0
-        ) {
+        boolean hasCreds =
+            !TextUtils.isEmpty(importedConfig.guardianWsUrl) &&
+            !TextUtils.isEmpty(importedConfig.guardianClientId) &&
+            importedConfig.guardianClientToken != null &&
+            importedConfig.guardianClientToken.length > 0;
+        boolean hasSyncOnly =
+            !hasCreds &&
+            (
+                !TextUtils.isEmpty(importedConfig.guardianSyncMode) ||
+                importedConfig.guardianPeriodicIntervalMinutes > 0
+            );
+        if (!hasCreds && !hasSyncOnly) {
             return;
         }
-        String tokenB64 = android.util.Base64.encodeToString(
-            importedConfig.guardianClientToken,
-            android.util.Base64.NO_WRAP | android.util.Base64.URL_SAFE
-        );
-        setGuardianCredentials(
-            context,
-            importedConfig.guardianWsUrl,
-            importedConfig.guardianClientId,
-            tokenB64,
-            importedConfig.guardianClientName == null ? "" : importedConfig.guardianClientName
-        );
-        setGuardianEnabled(context, true);
-        Context appContext = context.getApplicationContext();
-        android.content.Intent start = new android.content.Intent(
-            appContext,
-            wings.v.guardian.GuardianService.class
-        ).setAction("wings.v.guardian.START");
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                appContext.startForegroundService(start);
-            } else {
-                appContext.startService(start);
-            }
-        } catch (RuntimeException ignored) {}
+        if (hasCreds) {
+            String tokenB64 = android.util.Base64.encodeToString(
+                importedConfig.guardianClientToken,
+                android.util.Base64.NO_WRAP | android.util.Base64.URL_SAFE
+            );
+            setGuardianCredentials(
+                context,
+                importedConfig.guardianWsUrl,
+                importedConfig.guardianClientId,
+                tokenB64,
+                importedConfig.guardianClientName == null ? "" : importedConfig.guardianClientName
+            );
+            setGuardianEnabled(context, true);
+        }
+        if (!TextUtils.isEmpty(importedConfig.guardianSyncMode)) {
+            setGuardianSyncMode(context, importedConfig.guardianSyncMode);
+        }
+        if (importedConfig.guardianPeriodicIntervalMinutes > 0) {
+            setGuardianPeriodicIntervalMinutes(context, importedConfig.guardianPeriodicIntervalMinutes);
+        }
+        wings.v.guardian.GuardianRunner.applyMode(context.getApplicationContext());
     }
 
     private static void applyImportedSubscriptionHwid(

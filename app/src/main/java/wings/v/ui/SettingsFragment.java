@@ -87,6 +87,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final java.util.concurrent.ExecutorService executor =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = handler;
     private final Runnable runtimeBackendRefreshRunnable = new Runnable() {
         @Override
         public void run() {
@@ -210,11 +213,33 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
-        Preference guardianPreference = findPreference("pref_open_guardian_settings");
+        wings.v.guardian.MasterSwitchPreference guardianPreference = findPreference(AppPrefs.KEY_GUARDIAN_ENABLED);
         if (guardianPreference != null) {
+            boolean configured = AppPrefs.isGuardianConfigured(requireContext());
+            guardianPreference.setVisible(configured);
+            guardianPreference.setChecked(AppPrefs.isGuardianEnabled(requireContext()));
             guardianPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 startActivity(wings.v.guardian.GuardianActivity.createIntent(requireContext()));
+                return true;
+            });
+            guardianPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                boolean enabled = Boolean.TRUE.equals(newValue);
+                Context ctx = requireContext();
+                if (enabled && !AppPrefs.isGuardianConfigured(ctx)) {
+                    android.widget.Toast.makeText(
+                        ctx,
+                        R.string.guardian_settings_summary_not_configured,
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show();
+                    return false;
+                }
+                AppPrefs.setGuardianEnabled(ctx, enabled);
+                if (enabled) {
+                    wings.v.guardian.GuardianRunner.applyMode(ctx.getApplicationContext());
+                } else {
+                    wings.v.guardian.GuardianRunner.stopAll(ctx.getApplicationContext());
+                }
                 return true;
             });
         }
@@ -371,6 +396,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
+        // DNS resolver only affects vk-turn-proxy (used by VK TURN and WB Stream
+        // backends). Hide on backends that don't spawn it.
+        Preference dnsModePreference = findPreference(AppPrefs.KEY_DNS_MODE);
+        if (dnsModePreference != null) {
+            boolean usesVkTurnProxy =
+                backendType == BackendType.VK_TURN_WIREGUARD || backendType == BackendType.WB_STREAM;
+            dnsModePreference.setVisible(usesVkTurnProxy);
+        }
         PreferenceCategory rootCategory = findPreference("pref_category_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
@@ -399,13 +432,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
 
+        boolean rootModeEnabled = AppPrefs.isRootModeEnabled(context);
         rootModePreference.setVisible(true);
-        kernelWireGuardPreference.setVisible(true);
+        kernelWireGuardPreference.setVisible(rootModeEnabled);
         if (xrayTproxyPreference != null) {
             boolean xrayBackend = backendType != null && backendType.usesXrayCore();
             String tproxyUnavailable = RootUtils.getXrayTproxyUnavailableReason(context, false);
             boolean tproxySupported = TextUtils.isEmpty(tproxyUnavailable);
-            xrayTproxyPreference.setVisible(true);
+            xrayTproxyPreference.setVisible(rootModeEnabled);
             xrayTproxyPreference.setEnabled(xrayBackend && tproxySupported);
             if (!xrayBackend) {
                 xrayTproxyPreference.setSummary(
@@ -418,11 +452,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
         }
         if (rootInterfaceSettingsPreference != null) {
-            rootInterfaceSettingsPreference.setVisible(true);
-            rootInterfaceSettingsPreference.setEnabled(true);
+            rootInterfaceSettingsPreference.setVisible(rootModeEnabled);
+            rootInterfaceSettingsPreference.setEnabled(rootModeEnabled);
         }
         if (xposedSettingsPreference != null) {
-            boolean rootModeEnabled = AppPrefs.isRootModeEnabled(context);
             xposedSettingsPreference.setVisible(rootModeEnabled);
             xposedSettingsPreference.setEnabled(rootModeEnabled);
         }
@@ -440,19 +473,36 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 return true;
             }
             Context preferenceContext = preference.getContext();
-            String reason = RootUtils.getRootModeUnavailableReason(
-                preferenceContext,
-                XrayStore.getBackendType(preferenceContext),
-                false
-            );
-            if (!TextUtils.isEmpty(reason)) {
-                Toast.makeText(
-                    preferenceContext,
-                    getString(R.string.root_mode_unavailable, reason),
-                    Toast.LENGTH_SHORT
-                ).show();
-                return false;
-            }
+            Context appContext = preferenceContext.getApplicationContext();
+            SwitchPreferenceCompat switchPref = (SwitchPreferenceCompat) preference;
+            // Allow the toggle to commit immediately (cache may be stale or
+            // never populated on first run); kick off the actual su probe in
+            // the background and revert if it fails. Without this the toggle
+            // would never flip to ON when cache is false, which is the path
+            // Sharing UI relies on for "root granted" gating.
+            executor.execute(() -> {
+                boolean granted = RootUtils.refreshRootAccessState(appContext);
+                if (granted) {
+                    return;
+                }
+                String reason = RootUtils.getRootModeUnavailableReason(
+                    appContext,
+                    XrayStore.getBackendType(appContext),
+                    false
+                );
+                final String message = TextUtils.isEmpty(reason) ? "Root-доступ не подтверждён" : reason;
+                mainHandler.post(() -> {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    switchPref.setChecked(false);
+                    Toast.makeText(
+                        appContext,
+                        getString(R.string.root_mode_unavailable, message),
+                        Toast.LENGTH_SHORT
+                    ).show();
+                });
+            });
             return true;
         });
 
@@ -665,6 +715,28 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
             syncPreferenceValuesFromPrefs();
             refreshRuntimeBackedPreferences(true);
+            // Hide/show root sub-options live when the master toggle flips.
+            if (AppPrefs.KEY_ROOT_MODE.equals(key)) {
+                configureRootPreferences();
+            }
+            // Sync the master Guardian switch in the parent settings list with
+            // toggles done from inside GuardianActivity.
+            if (
+                AppPrefs.KEY_GUARDIAN_ENABLED.equals(key) ||
+                AppPrefs.KEY_GUARDIAN_WS_URL.equals(key) ||
+                AppPrefs.KEY_GUARDIAN_CLIENT_ID.equals(key) ||
+                AppPrefs.KEY_GUARDIAN_CLIENT_TOKEN_B64.equals(key)
+            ) {
+                wings.v.guardian.MasterSwitchPreference master = findPreference(AppPrefs.KEY_GUARDIAN_ENABLED);
+                if (master != null) {
+                    boolean configured = AppPrefs.isGuardianConfigured(requireContext());
+                    master.setVisible(configured);
+                    boolean nowEnabled = AppPrefs.isGuardianEnabled(requireContext());
+                    if (master.isChecked() != nowEnabled) {
+                        master.setChecked(nowEnabled);
+                    }
+                }
+            }
             requestRuntimeReconnectIfNeeded(key);
         };
         getPreferenceManager()

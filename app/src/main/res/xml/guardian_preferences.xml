@@ -7,7 +7,14 @@
         android:title="@string/guardian_pref_master_title"
         android:summaryOn="@string/guardian_pref_master_summary_on"
         android:summaryOff="@string/guardian_pref_master_summary_off"
-        android:defaultValue="true" />
+        android:defaultValue="false" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_master" />
+
+    <PreferenceCategory
+        android:key="pref_category_connection"
+        android:title="@string/guardian_category_connection" />
 
     <Preference
         android:key="pref_guardian_status"
@@ -30,9 +37,44 @@
         android:selectable="false" />
 
     <Preference
-        android:key="pref_guardian_logs_view"
-        android:title="@string/guardian_pref_logs_title"
+        android:key="pref_guardian_sync_mode_view"
+        android:title="@string/guardian_pref_sync_mode_title"
         android:selectable="false" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_connection" />
+
+    <PreferenceCategory
+        android:key="pref_category_log_streams"
+        android:title="@string/guardian_category_logs" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_guardian_log_runtime_allowed"
+        android:title="@string/guardian_pref_log_runtime_title"
+        android:summary="@string/guardian_pref_log_readonly_summary"
+        android:enabled="false"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_guardian_log_proxy_allowed"
+        android:title="@string/guardian_pref_log_proxy_title"
+        android:summary="@string/guardian_pref_log_readonly_summary"
+        android:enabled="false"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_guardian_log_xray_allowed"
+        android:title="@string/guardian_pref_log_xray_title"
+        android:summary="@string/guardian_pref_log_readonly_summary"
+        android:enabled="false"
+        android:defaultValue="false" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_logs" />
+
+    <PreferenceCategory
+        android:key="pref_category_options"
+        android:title="@string/guardian_category_options" />
 
     <SwitchPreferenceCompat
         android:key="pref_guardian_auto_start_on_boot"
@@ -40,8 +82,16 @@
         android:summary="@string/guardian_pref_auto_start_summary"
         android:defaultValue="true" />
 
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_options" />
+
+    <PreferenceCategory
+        android:key="pref_category_actions"
+        android:title="@string/guardian_category_actions" />
+
     <Preference
         android:key="pref_guardian_revoke"
-        android:title="@string/guardian_pref_revoke_title" />
+        android:title="@string/guardian_pref_revoke_title"
+        android:summary="@string/guardian_pref_revoke_summary" />
 
 </PreferenceScreen>
