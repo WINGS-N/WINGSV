@@ -459,11 +459,11 @@ public class SharingFragment extends Fragment {
             binding.textRootModeHint.setText(R.string.sharing_write_settings_required);
         }
 
-        updateTetherToggle(binding.itemWifi, TetherType.WIFI, tetherControlsReady);
-        updateTetherToggle(binding.itemUsb, TetherType.USB, tetherControlsReady);
-        updateTetherToggle(binding.itemBluetooth, TetherType.BLUETOOTH, tetherControlsReady);
+        updateTetherToggle(binding.itemWifi, TetherType.WIFI, rootModeReady);
+        updateTetherToggle(binding.itemUsb, TetherType.USB, rootModeReady);
+        updateTetherToggle(binding.itemBluetooth, TetherType.BLUETOOTH, rootModeReady);
         if (TetherType.isEthernetSupported()) {
-            updateTetherToggle(binding.itemEthernet, TetherType.ETHERNET, tetherControlsReady);
+            updateTetherToggle(binding.itemEthernet, TetherType.ETHERNET, rootModeReady);
         }
 
         updateBooleanSetting(binding.itemDisableIpv6, AppPrefs.isSharingDisableIpv6Enabled(requireContext()));
@@ -649,11 +649,7 @@ public class SharingFragment extends Fragment {
     }
 
     private boolean isRootModeReady() {
-        return (
-            isAdded() &&
-            AppPrefs.isRootModeEnabled(requireContext()) &&
-            RootUtils.isRootModeSupported(requireContext(), XrayStore.getBackendType(requireContext()), false)
-        );
+        return isAdded() && AppPrefs.isRootModeEnabled(requireContext());
     }
 
     private void requestWriteSettingsPermission() {
