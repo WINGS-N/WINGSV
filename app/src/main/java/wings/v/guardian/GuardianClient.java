@@ -27,6 +27,7 @@ import wings.v.core.DirectNetworkConnection;
 import wings.v.core.SubscriptionHwidStore;
 import wings.v.proto.GuardianProto;
 import wings.v.proto.WingsvProto;
+import wings.v.service.ProxyTunnelService;
 
 /**
  * Maintains a single WSS connection to the Guardian panel. Reconnects with
@@ -38,9 +39,11 @@ public final class GuardianClient {
 
     private static final String TAG = "GuardianClient";
     private static final int PROTOCOL_VERSION = 1;
-    private static final long INITIAL_BACKOFF_MS = 5_000L;
-    private static final long MAX_BACKOFF_MS = 300_000L;
+    private static final long INITIAL_BACKOFF_MS = 3_000L;
+    private static final long MAX_BACKOFF_MS = 60_000L;
     private static final long HEARTBEAT_INTERVAL_MS = 25_000L;
+    private static final long WATCHDOG_INTERVAL_MS = 5_000L;
+    private static final long WATCHDOG_SILENCE_LIMIT_MS = 75_000L;
 
     private final Context appContext;
     private final Handler mainHandler;
@@ -55,7 +58,10 @@ public final class GuardianClient {
     private boolean stopped;
     private Runnable scheduledConnect;
     private Runnable heartbeat;
+    private Runnable watchdog;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private long connectedAtMs;
+    private long lastFrameAtMs;
 
     public interface Listener {
         void onConnected(String host);
@@ -76,7 +82,10 @@ public final class GuardianClient {
         this.listener = listener;
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.defaultClient = new OkHttpClient.Builder()
-            .pingInterval(HEARTBEAT_INTERVAL_MS, TimeUnit.MILLISECONDS)
+            // Disable OkHttp's ping/pong watchdog: WS control frames sometimes
+            // get mangled by HTTP/2 ingresses. We rely on the application-level
+            // Heartbeat that the server bounces back, watched by watchdog().
+            .pingInterval(0, TimeUnit.MILLISECONDS)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.SECONDS)
             .build();
@@ -95,6 +104,7 @@ public final class GuardianClient {
             stopped = true;
             cancelScheduledConnect();
             cancelHeartbeat();
+            cancelWatchdog();
             if (socket != null) {
                 socket.cancel();
                 socket = null;
@@ -140,9 +150,14 @@ public final class GuardianClient {
         if (wsUrl.isEmpty()) {
             return;
         }
+        if (socket != null) {
+            socket.cancel();
+            socket = null;
+        }
         OkHttpClient client = buildClientForAttempt();
         Request request = new Request.Builder().url(wsUrl).build();
         Log.i(TAG, "connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
+        ProxyTunnelService.writeRuntimeLogLine("[guardian] connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
         currentClient = client;
         socket = client.newWebSocket(request, new GuardianListener(wsUrl));
     }
@@ -169,17 +184,63 @@ public final class GuardianClient {
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(@NonNull Network network) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && cm.getNetworkCapabilities(network) != null) {
-                    if (!phyBindActive && socket != null) {
-                        Log.i(TAG, "physical network became available, reconnecting");
-                        forceReconnect();
-                    }
-                }
+                evaluateNetworkChange(cm, "default-available");
+            }
+
+            @Override
+            public void onLost(@NonNull Network network) {
+                evaluateNetworkChange(cm, "default-lost");
+            }
+
+            @Override
+            public void onCapabilitiesChanged(@NonNull Network network, @NonNull android.net.NetworkCapabilities caps) {
+                evaluateNetworkChange(cm, "caps-changed");
             }
         };
         try {
             cm.registerDefaultNetworkCallback(networkCallback);
         } catch (RuntimeException ignored) {}
+    }
+
+    /**
+     * Re-evaluates whether to keep the current connection or fall back/up to a
+     * better one. Called from any default-network event:
+     * <ul>
+     *   <li>Tunnel coming up (default may flip to VPN) — if our current bind
+     *       was phy and phy is still reachable, keep going. If we were
+     *       routing through tunnel and now phy is back, reconnect via phy.</li>
+     *   <li>Tunnel going down — if we were routing through tunnel, the
+     *       socket's underlying route just disappeared; force reconnect
+     *       through phy.</li>
+     *   <li>Wi-Fi → mobile handover, etc.</li>
+     * </ul>
+     */
+    private void evaluateNetworkChange(ConnectivityManager cm, String reason) {
+        if (stopped) {
+            return;
+        }
+        Network phy = DirectNetworkConnection.findUsablePhysicalNetwork(appContext);
+        boolean phyAvailable = phy != null;
+        boolean shouldReconnect = false;
+        if (socket == null) {
+            // Not connected; let the regular schedule run.
+            return;
+        }
+        if (phyAvailable && !phyBindActive) {
+            // We were riding through default (probably tunnel); switch to phy.
+            shouldReconnect = true;
+        } else if (!phyAvailable && phyBindActive) {
+            // We were on phy but phy lost. Fall back to default route (which
+            // may still work if tunnel is up).
+            shouldReconnect = true;
+        }
+        if (shouldReconnect) {
+            Log.i(TAG, "network change (" + reason + ") triggers reconnect (phy=" + phyAvailable + ")");
+            ProxyTunnelService.writeRuntimeLogLine(
+                "[guardian] network change (" + reason + "), reconnecting (phy=" + phyAvailable + ")"
+            );
+            forceReconnect();
+        }
     }
 
     private void unregisterNetworkCallback() {
@@ -238,6 +299,36 @@ public final class GuardianClient {
         }
     }
 
+    private void scheduleWatchdog() {
+        cancelWatchdog();
+        watchdog = new Runnable() {
+            @Override
+            public void run() {
+                watchdog = null;
+                if (socket == null || stopped) {
+                    return;
+                }
+                long silenceMs = lastFrameAtMs > 0 ? System.currentTimeMillis() - lastFrameAtMs : 0L;
+                if (silenceMs > WATCHDOG_SILENCE_LIMIT_MS) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "[guardian] watchdog: " + (silenceMs / 1000L) + "s silence, forcing reconnect"
+                    );
+                    forceReconnect();
+                    return;
+                }
+                scheduleWatchdog();
+            }
+        };
+        mainHandler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
+    }
+
+    private void cancelWatchdog() {
+        if (watchdog != null) {
+            mainHandler.removeCallbacks(watchdog);
+            watchdog = null;
+        }
+    }
+
     private GuardianProto.ClientHello buildHello() {
         byte[] tokenBytes;
         try {
@@ -275,9 +366,13 @@ public final class GuardianClient {
 
         @Override
         public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
+            connectedAtMs = System.currentTimeMillis();
+            lastFrameAtMs = connectedAtMs;
             Log.i(TAG, "ws open");
+            ProxyTunnelService.writeRuntimeLogLine("[guardian] ws open, sending hello (phy=" + phyBindActive + ")");
             sendFrame(GuardianProto.Frame.newBuilder().setClientHello(buildHello()).build());
             scheduleHeartbeat();
+            scheduleWatchdog();
             String host = "";
             try {
                 host = URI.create(wsUrl).getHost();
@@ -288,6 +383,8 @@ public final class GuardianClient {
 
         @Override
         public void onMessage(@NonNull WebSocket webSocket, @NonNull ByteString bytes) {
+            lastFrameAtMs = System.currentTimeMillis();
+            resetBackoff();
             try {
                 GuardianProto.Frame frame = GuardianProto.Frame.parseFrom(bytes.toByteArray());
                 handleInbound(frame);
@@ -299,23 +396,62 @@ public final class GuardianClient {
         @Override
         public void onClosed(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
             Log.i(TAG, "ws closed " + code + " " + reason);
+            ProxyTunnelService.writeRuntimeLogLine(
+                "[guardian] ws closed " + code + " " + reason + " " + lifetimeAndIdleSummary()
+            );
             handleDisconnected();
         }
 
         @Override
         public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, @Nullable Response response) {
-            Log.w(TAG, "ws failure: " + t.getMessage());
+            String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+            int code = response == null ? 0 : response.code();
+            Log.w(TAG, "ws failure: " + msg + " (http=" + code + ")");
+            ProxyTunnelService.writeRuntimeLogLine(
+                "[guardian] ws failure: " +
+                    classifyFailure(t) +
+                    " — " +
+                    msg +
+                    " (http=" +
+                    code +
+                    ") " +
+                    lifetimeAndIdleSummary()
+            );
             handleDisconnected();
         }
+    }
+
+    private String lifetimeAndIdleSummary() {
+        long now = System.currentTimeMillis();
+        long lifetime = connectedAtMs > 0 ? (now - connectedAtMs) / 1000L : 0L;
+        long idle = lastFrameAtMs > 0 ? (now - lastFrameAtMs) / 1000L : 0L;
+        return "lifetime=" + lifetime + "s idle=" + idle + "s phy=" + phyBindActive;
+    }
+
+    private static String classifyFailure(Throwable t) {
+        if (t == null) return "unknown";
+        String name = t.getClass().getSimpleName();
+        String msg = t.getMessage() == null ? "" : t.getMessage().toLowerCase(java.util.Locale.ROOT);
+        if (t instanceof java.net.SocketTimeoutException || msg.contains("timed out") || msg.contains("timeout")) {
+            return "timeout";
+        }
+        if (msg.contains("ping")) return "ping";
+        if (msg.contains("network is unreachable") || msg.contains("ehostunreach")) return "unreachable";
+        if (msg.contains("software caused connection abort") || msg.contains("connection reset")) return "reset";
+        if (msg.contains("socket closed") || msg.contains("canceled") || msg.contains("cancelled")) return "cancelled";
+        return name;
     }
 
     private void handleInbound(GuardianProto.Frame frame) {
         switch (frame.getPayloadCase()) {
             case SERVER_HELLO:
                 if (frame.getServerHello().getAccepted()) {
+                    ProxyTunnelService.writeRuntimeLogLine("[guardian] server hello accepted");
                     resetBackoff();
                 } else {
-                    Log.w(TAG, "server hello rejected: " + frame.getServerHello().getErrorMessage());
+                    String reason = frame.getServerHello().getErrorMessage();
+                    Log.w(TAG, "server hello rejected: " + reason);
+                    ProxyTunnelService.writeRuntimeLogLine("[guardian] server hello rejected: " + reason);
                     if (socket != null) {
                         socket.cancel();
                     }
@@ -333,9 +469,20 @@ public final class GuardianClient {
             case COMMAND:
                 mainHandler.post(() -> listener.onCommand(frame.getCommand()));
                 break;
-            case ERROR:
-                Log.w(TAG, "server error: " + frame.getError().getCode() + ": " + frame.getError().getMessage());
+            case ERROR: {
+                String code = frame.getError().getCode();
+                Log.w(TAG, "server error: " + code + ": " + frame.getError().getMessage());
+                ProxyTunnelService.writeRuntimeLogLine(
+                    "[guardian] server error " + code + ": " + frame.getError().getMessage()
+                );
+                if ("revoked".equalsIgnoreCase(code) || "not_found".equalsIgnoreCase(code)) {
+                    mainHandler.post(() -> {
+                        wings.v.core.AppPrefs.clearGuardian(appContext);
+                        wings.v.guardian.GuardianRunner.stopAll(appContext);
+                    });
+                }
                 break;
+            }
             default:
                 break;
         }
@@ -343,6 +490,7 @@ public final class GuardianClient {
 
     private void handleDisconnected() {
         cancelHeartbeat();
+        cancelWatchdog();
         socket = null;
         mainHandler.post(listener::onDisconnected);
         if (!stopped) {
