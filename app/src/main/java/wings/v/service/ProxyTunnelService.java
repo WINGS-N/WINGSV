@@ -1096,18 +1096,31 @@ public class ProxyTunnelService extends Service {
         return false;
     }
 
+    private static String stamp(String line) {
+        if (line == null || line.isEmpty()) {
+            return line;
+        }
+        return android.text.format.DateFormat.format("HH:mm:ss", System.currentTimeMillis()).toString() + " " + line;
+    }
+
     private static void appendProxyLogLine(String line) {
         if (TextUtils.isEmpty(line)) {
             return;
         }
+        String stamped = stamp(line);
         synchronized (PROXY_LOG_LOCK) {
             while (sProxyLogLines.size() >= MAX_PROXY_LOG_LINES) {
                 sProxyLogLines.removeFirst();
             }
-            sProxyLogLines.addLast(line);
+            sProxyLogLines.addLast(stamped);
             sProxyLogVersion++;
         }
-        RuntimeStateStore.appendProxyLog(line);
+        RuntimeStateStore.appendProxyLog(stamped);
+    }
+
+    /** Public hook so other components (Guardian) can write into the runtime log. */
+    public static void writeRuntimeLogLine(String line) {
+        appendRuntimeLogLine(line);
     }
 
     private static void appendRuntimeLogLine(String line) {
@@ -1115,14 +1128,15 @@ public class ProxyTunnelService extends Service {
             return;
         }
         Log.d(TAG, line);
+        String stamped = stamp(line);
         synchronized (RUNTIME_LOG_LOCK) {
             while (sRuntimeLogLines.size() >= MAX_PROXY_LOG_LINES) {
                 sRuntimeLogLines.removeFirst();
             }
-            sRuntimeLogLines.addLast(line);
+            sRuntimeLogLines.addLast(stamped);
             sRuntimeLogVersion++;
         }
-        RuntimeStateStore.appendRuntimeLog(line);
+        RuntimeStateStore.appendRuntimeLog(stamped);
     }
 
     public static void applyPublicIpInfo(@Nullable PublicIpFetcher.IpInfo ipInfo) {
