@@ -1643,8 +1643,8 @@ public final class WingsImportParser {
         settings.allowLan = false;
         settings.allowInsecure = false;
         settings.localProxyPort = 10808;
-        settings.remoteDns = "https://common.dot.dns.yandex.net/dns-query";
-        settings.directDns = "https://common.dot.dns.yandex.net/dns-query";
+        settings.remoteDns = "";
+        settings.directDns = "";
         settings.ipv6 = true;
         settings.sniffingEnabled = true;
         settings.proxyQuicEnabled = false;
