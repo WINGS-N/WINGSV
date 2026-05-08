@@ -125,7 +125,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
-        maybeStartGuardianOnLaunch();
         BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
         hasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
         hasSharingTab = AppPrefs.isRootModeEnabled(this);
@@ -212,6 +211,7 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager.registerListener(updateStateListener);
         appUpdateManager.checkForUpdatesIfStale();
         wings.v.guardian.GuardianStateBroadcast.register(guardianStateListener);
+        maybeStartGuardianOnLaunch();
     }
 
     @Override
