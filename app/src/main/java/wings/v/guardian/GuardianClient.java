@@ -150,10 +150,17 @@ public final class GuardianClient {
         if (wsUrl.isEmpty()) {
             return;
         }
+        // Cancel any leftover heartbeat/watchdog from the prior socket
+        // synchronously, so they don't fire on the brand-new socket before
+        // its onOpen has had a chance to send ClientHello.
+        cancelHeartbeat();
+        cancelWatchdog();
         if (socket != null) {
             socket.cancel();
             socket = null;
         }
+        connectedAtMs = 0L;
+        lastFrameAtMs = 0L;
         OkHttpClient client = buildClientForAttempt();
         Request request = new Request.Builder().url(wsUrl).build();
         Log.i(TAG, "connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
