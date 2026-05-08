@@ -66,7 +66,24 @@ jobs:
             external/libXray/go.sum
             external/Xray-core/go.sum
             external/amneziawg-android/tunnel/tools/libwg-go/go.sum
-
+      
+      - name: 🔍 Search for Yandex DNS references (debug)
+        run: |
+          echo "=== Searching for Yandex DNS in source ==="
+          
+          echo "--- Java/Kotlin files ---"
+          grep -rn "common\.dot\.dns\.yandex\.net" . --include="*.java" --include="*.kt" 2>/dev/null || echo "✅ Not found in Java/Kotlin"
+          
+          echo "--- Config files (JSON/XML/TOML) ---"
+          grep -rn "common\.dot\.dns\.yandex\.net" . --include="*.json" --include="*.xml" --include="*.toml" 2>/dev/null || echo "✅ Not found in configs"
+          
+          echo "--- external/ submodules ---"
+          grep -rn "common\.dot\.dns\.yandex\.net" external/ --include="*.go" --include="*.java" --include="*.kt" 2>/dev/null || echo "✅ Not found in submodules"
+          
+          echo "--- build.gradle.kts ---"
+          grep -i "yandex\|dns-query" app/build.gradle.kts || echo "✅ Not found in build.gradle"
+          
+          echo "=== Search complete ==="
       - name: Cache vk-turn-proxy Go build state
         uses: actions/cache@v5
         with:
