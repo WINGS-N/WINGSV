@@ -1861,7 +1861,12 @@ public final class WingsImportParser {
         }
 
         ImportedConfig importedConfig = new ImportedConfig();
-        importedConfig.backendType = BackendType.fromProto(config.getBackend());
+        if (config.getBackend() != WingsvProto.BackendType.BACKEND_TYPE_UNSPECIFIED) {
+            importedConfig.backendType = BackendType.fromProto(config.getBackend());
+        } else {
+            importedConfig.backendType = null;
+            importedConfig.updateBackendType = false;
+        }
         boolean allSettings = config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_ALL;
         importedConfig.hasAllSettings = allSettings;
         boolean handled = allSettings;
