@@ -385,7 +385,7 @@ public final class XrayConfigFactory {
         dnsRule.put("type", "field");
         dnsRule.put("inboundTag", trafficInboundTags);
         dnsRule.put("network", "udp,tcp");
-        dnsRule.put("port", "53");
+        dnsRule.put("port", "453");
         dnsRule.put("outboundTag", DNS_OUT_TAG);
         rules.put(dnsRule);
 
