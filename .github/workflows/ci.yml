@@ -67,26 +67,32 @@ jobs:
             external/Xray-core/go.sum
             external/amneziawg-android/tunnel/tools/libwg-go/go.sum
 
-      - name: Cache vk-turn-proxy Go build state
-        uses: actions/cache@v5
+      # Split restore/save with run_id-suffixed keys так, чтобы post-save
+      # действительно срабатывал на каждом запуске (single key + restore-keys
+      # схема скипает save при partial-restore — деп-апдейты не доезжают
+      # до следующего билда).
+      - name: Restore vk-turn-proxy Go build state
+        uses: actions/cache/restore@v5
         with:
           path: |
             .gradle/vkturn/go-mod-cache
             .gradle/vkturn/go-cache
-          key: ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}
+          key: ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}-
             ${{ runner.os }}-vkturn-go-
 
-      - name: Cache libXray Go build state
-        uses: actions/cache@v5
+      - name: Restore libXray Go build state
+        uses: actions/cache/restore@v5
         with:
           path: |
             .gradle/libxray/go-mod-cache
             .gradle/libxray/go-cache
             .gradle/libxray/go-path
             .gradle/libxray/go-bin
-          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}
+          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}-
             ${{ runner.os }}-libxray-go-
 
       - name: Set up Android SDK
@@ -130,6 +136,26 @@ jobs:
 
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug -Pver=${{ steps.resolve-version.outputs.version }}
+
+      - name: Save vk-turn-proxy Go build state
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .gradle/vkturn/go-mod-cache
+            .gradle/vkturn/go-cache
+          key: ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}-${{ github.run_id }}
+
+      - name: Save libXray Go build state
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .gradle/libxray/go-mod-cache
+            .gradle/libxray/go-cache
+            .gradle/libxray/go-path
+            .gradle/libxray/go-bin
+          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}-${{ github.run_id }}
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v6
