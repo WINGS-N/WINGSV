@@ -34,6 +34,13 @@ public final class XrayTproxyRouter {
     private static final String CHAIN_OUT = "WINGS_XRAY_TP_OUT";
     private static final String CHAIN_PRE6 = "WINGS_XRAY_TP_PRE6";
     private static final String CHAIN_OUT6 = "WINGS_XRAY_TP_OUT6";
+    // -w 5 — wait up to 5 seconds for the kernel xtables lock so that parallel
+    // iptables invocations from vpnhotspot / ConnectivityService / system tether
+    // helpers don't collide with ours and trip "lock xtables already used by
+    // another app". Without this the chain ends up half-built and Xray loses
+    // its inbound traffic, which manifests as an endless upstream-reconnect.
+    private static final String IPT4 = "iptables -w 5";
+    private static final String IPT6 = "ip6tables -w 5";
 
     private XrayTproxyRouter() {}
 
@@ -50,8 +57,8 @@ public final class XrayTproxyRouter {
      */
     public static boolean isUidOwnerMatchSupported(@NonNull Context context) {
         String probe =
-            "iptables -t mangle -A OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && " +
-            "iptables -t mangle -D OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && echo OK";
+            IPT4 + " -t mangle -A OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && " +
+            IPT4 + " -t mangle -D OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && echo OK";
         try {
             String result = RootShellCommand.exec(context, probe);
             return result != null && result.contains("OK");
@@ -85,34 +92,34 @@ public final class XrayTproxyRouter {
         appendRouteSetup(s);
 
         // IPv4 chains
-        appendChainSetup(s, "iptables", CHAIN_PRE, CHAIN_OUT);
-        appendDestBypassV4(s, "iptables", CHAIN_PRE);
-        appendTproxyRules(s, "iptables", CHAIN_PRE, tproxyPort);
-        appendDestBypassV4(s, "iptables", CHAIN_OUT);
+        appendChainSetup(s, IPT4, CHAIN_PRE, CHAIN_OUT);
+        appendDestBypassV4(s, IPT4, CHAIN_PRE);
+        appendTproxyRules(s, IPT4, CHAIN_PRE, tproxyPort);
+        appendDestBypassV4(s, IPT4, CHAIN_OUT);
         // Xray runtime is forked under `su` (UID 0); excluding it here breaks the
         // outbound→TPROXY→Xray→outbound loop. Crucially we do NOT exclude
         // wings.v's own UID — the WINGSV process should see the proxied IP/country
         // when probing public IP endpoints, just like every other routed app.
-        appendOwnerExclusion(s, "iptables", CHAIN_OUT, 0);
-        appendAppRouting(s, "iptables", CHAIN_OUT, effectiveMode, uids);
-        appendChainHooks(s, "iptables", CHAIN_PRE, CHAIN_OUT);
+        appendOwnerExclusion(s, IPT4, CHAIN_OUT, 0);
+        appendAppRouting(s, IPT4, CHAIN_OUT, effectiveMode, uids);
+        appendChainHooks(s, IPT4, CHAIN_PRE, CHAIN_OUT);
 
         // IPv6 chains
-        appendChainSetup(s, "ip6tables", CHAIN_PRE6, CHAIN_OUT6);
-        appendDestBypassV6(s, "ip6tables", CHAIN_PRE6);
-        appendTproxyRules(s, "ip6tables", CHAIN_PRE6, tproxyPort);
-        appendDestBypassV6(s, "ip6tables", CHAIN_OUT6);
-        appendOwnerExclusion(s, "ip6tables", CHAIN_OUT6, 0);
-        appendAppRouting(s, "ip6tables", CHAIN_OUT6, effectiveMode, uids);
-        appendChainHooks(s, "ip6tables", CHAIN_PRE6, CHAIN_OUT6);
+        appendChainSetup(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
+        appendDestBypassV6(s, IPT6, CHAIN_PRE6);
+        appendTproxyRules(s, IPT6, CHAIN_PRE6, tproxyPort);
+        appendDestBypassV6(s, IPT6, CHAIN_OUT6);
+        appendOwnerExclusion(s, IPT6, CHAIN_OUT6, 0);
+        appendAppRouting(s, IPT6, CHAIN_OUT6, effectiveMode, uids);
+        appendChainHooks(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
 
         RootShellCommand.exec(context, s.toString());
     }
 
     public static void revert(@NonNull Context context) throws Exception {
         StringBuilder s = new StringBuilder();
-        appendChainTeardown(s, "iptables", CHAIN_PRE, CHAIN_OUT);
-        appendChainTeardown(s, "ip6tables", CHAIN_PRE6, CHAIN_OUT6);
+        appendChainTeardown(s, IPT4, CHAIN_PRE, CHAIN_OUT);
+        appendChainTeardown(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
         s.append("ip rule del fwmark ").append(FWMARK).append(" lookup ").append(ROUTE_TABLE).append(" 2>/dev/null; ");
         s.append("ip route del local default dev lo table ").append(ROUTE_TABLE).append(" 2>/dev/null; ");
         s
@@ -139,10 +146,10 @@ public final class XrayTproxyRouter {
      */
     public static boolean isFullyApplied(@NonNull Context context) {
         String probe =
-            "iptables -t mangle -C PREROUTING -j " +
+            IPT4 + " -t mangle -C PREROUTING -j " +
             CHAIN_PRE +
             " 2>/dev/null && " +
-            "iptables -t mangle -C OUTPUT -j " +
+            IPT4 + " -t mangle -C OUTPUT -j " +
             CHAIN_OUT +
             " 2>/dev/null && " +
             "ip rule show | grep -q 'fwmark 0x" +
@@ -169,10 +176,10 @@ public final class XrayTproxyRouter {
     public static long readMarkBytesQuiet(@NonNull Context context) {
         try {
             String script =
-                "iptables -t mangle -nvxL " +
+                IPT4 + " -t mangle -nvxL " +
                 CHAIN_OUT +
                 " 2>/dev/null; " +
-                "ip6tables -t mangle -nvxL " +
+                IPT6 + " -t mangle -nvxL " +
                 CHAIN_OUT6 +
                 " 2>/dev/null";
             String output = RootShellCommand.exec(context, script);
