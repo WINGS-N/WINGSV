@@ -10,6 +10,7 @@ import java.util.Set;
 /** In-process listener registry for GuardianService state changes. */
 public final class GuardianStateBroadcast {
 
+    @FunctionalInterface
     public interface Listener {
         void onGuardianStateChanged(boolean connected, String host);
     }

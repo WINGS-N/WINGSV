@@ -10,6 +10,7 @@ public final class GuardianCommandHandler {
 
     private static final String TAG = "GuardianCmd";
 
+    @FunctionalInterface
     public interface AckSender {
         void ack(GuardianProto.CommandAck ack);
     }
