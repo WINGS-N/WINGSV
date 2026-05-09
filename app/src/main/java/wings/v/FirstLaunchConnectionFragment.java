@@ -22,7 +22,7 @@ import wings.v.core.Haptics;
 import wings.v.core.WingsImportParser;
 import wings.v.databinding.FragmentFirstLaunchConnectionBinding;
 
-@SuppressWarnings({"PMD.NullAssignment", "PMD.AvoidCatchingGenericException"})
+@SuppressWarnings({ "PMD.NullAssignment", "PMD.AvoidCatchingGenericException" })
 public class FirstLaunchConnectionFragment extends Fragment {
 
     public static final String CHOICE_VK_TURN = "vk_turn";
@@ -36,6 +36,7 @@ public class FirstLaunchConnectionFragment extends Fragment {
 
     @Nullable
     private String pendingImportRawText;
+
     @Nullable
     private WingsImportParser.ImportedConfig pendingImportParsed;
 
@@ -119,10 +120,7 @@ public class FirstLaunchConnectionFragment extends Fragment {
         Haptics.softSelection(view);
         // Camera permission is requested by QrScanActivity itself only after
         // the user taps this — never on app startup.
-        Intent intent = QrScanActivity.Companion.createIntent(
-            requireContext(),
-            getString(R.string.qr_scan_title)
-        );
+        Intent intent = QrScanActivity.Companion.createIntent(requireContext(), getString(R.string.qr_scan_title));
         try {
             qrScanLauncher.launch(intent);
         } catch (android.content.ActivityNotFoundException ignored) {

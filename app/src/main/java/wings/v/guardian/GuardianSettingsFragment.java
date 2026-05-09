@@ -151,10 +151,7 @@ public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
     private String syncModeText(Context ctx) {
         String mode = AppPrefs.getGuardianSyncMode(ctx);
         if (AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC.equals(mode)) {
-            return getString(
-                R.string.guardian_sync_mode_periodic,
-                AppPrefs.getGuardianPeriodicIntervalMinutes(ctx)
-            );
+            return getString(R.string.guardian_sync_mode_periodic, AppPrefs.getGuardianPeriodicIntervalMinutes(ctx));
         }
         if (AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(mode)) {
             return getString(R.string.guardian_sync_mode_foreground);

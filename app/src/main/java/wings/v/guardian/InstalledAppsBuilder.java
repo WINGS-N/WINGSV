@@ -28,8 +28,9 @@ public final class InstalledAppsBuilder {
             return null;
         }
         List<ApplicationInfo> all = pm.getInstalledApplications(PackageManager.GET_META_DATA);
-        GuardianProto.InstalledApps.Builder out = GuardianProto.InstalledApps.newBuilder()
-            .setTsMs(System.currentTimeMillis());
+        GuardianProto.InstalledApps.Builder out = GuardianProto.InstalledApps.newBuilder().setTsMs(
+            System.currentTimeMillis()
+        );
         for (ApplicationInfo info : all) {
             if (info == null || TextUtils.isEmpty(info.packageName)) {
                 continue;

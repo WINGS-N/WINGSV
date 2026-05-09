@@ -223,7 +223,8 @@ public final class GuardianService extends Service implements GuardianClient.Lis
                 }
             },
             "guardian-apps-inventory"
-        ).start();
+        )
+            .start();
     }
 
     @Override
