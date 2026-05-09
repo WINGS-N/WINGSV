@@ -54,6 +54,7 @@ public class FirstLaunchActivity
 {
 
     private static final String EXTRA_START_AT_PERMISSIONS = "extra_start_at_permissions";
+    private static final String EXTRA_PLAY_INTRO_MUSIC = "extra_play_intro_music";
     private static final long PAGE_TRANSITION_OUT_MS = 1_000L;
     private static final long PAGE_TRANSITION_IN_MS = 1_000L;
     private static final int PAGE_TRANSITION_OFFSET_DP = 18;
@@ -80,6 +81,7 @@ public class FirstLaunchActivity
     private boolean introMusicLoopFromStart;
     private float introMusicCurrentVolume;
     private boolean introVideoStarted;
+    private boolean playIntroMusic;
 
     @Nullable
     private AutoSearchManager.Mode firstLaunchAutoSearchMode;
@@ -103,11 +105,21 @@ public class FirstLaunchActivity
         return new Intent(context, FirstLaunchActivity.class).putExtra(EXTRA_START_AT_PERMISSIONS, true);
     }
 
+    /**
+     * Variant that plays the intro music ({@code samsung_tv_over_the_horizon}).
+     * Used only by the easter-egg 5x-tap on the About screen — regular onboarding
+     * launches stay silent.
+     */
+    public static Intent createIntentWithMusic(Context context) {
+        return new Intent(context, FirstLaunchActivity.class).putExtra(EXTRA_PLAY_INTRO_MUSIC, true);
+    }
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         startAtPermissions = getIntent().getBooleanExtra(EXTRA_START_AT_PERMISSIONS, false);
+        playIntroMusic = getIntent().getBooleanExtra(EXTRA_PLAY_INTRO_MUSIC, false);
 
         if (savedInstanceState != null) {
             introMusicPositionMs = savedInstanceState.getInt(STATE_INTRO_MUSIC_POSITION_MS, INTRO_MUSIC_OFFSET_MS);
@@ -198,6 +210,16 @@ public class FirstLaunchActivity
         if (exitTransitionRunning) {
             return;
         }
+        completeFirstLaunch();
+    }
+
+    @Override
+    public void onConnectionImportApplied() {
+        if (exitTransitionRunning) {
+            return;
+        }
+        // Imported a wingsv:// / vless:// / subscription / awg-quick — config is
+        // already in prefs, no further setup needed. Finish onboarding.
         completeFirstLaunch();
     }
 
@@ -492,6 +514,11 @@ public class FirstLaunchActivity
     }
 
     private void resumeIntroMusic() {
+        if (!playIntroMusic) {
+            // По умолчанию музыки нет — она включается только при запуске
+            // через AboutAppActivity (5× тап на иконке приложения).
+            return;
+        }
         if (!requestIntroAudioFocus()) {
             return;
         }
