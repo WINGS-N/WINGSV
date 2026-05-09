@@ -3,7 +3,6 @@ package wings.v.guardian;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
-import android.net.NetworkRequest;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -26,7 +25,6 @@ import wings.v.core.AppPrefs;
 import wings.v.core.DirectNetworkConnection;
 import wings.v.core.SubscriptionHwidStore;
 import wings.v.proto.GuardianProto;
-import wings.v.proto.WingsvProto;
 import wings.v.service.ProxyTunnelService;
 
 /**

@@ -390,6 +390,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         );
     }
 
+    @FunctionalInterface
     private interface SeqAllocator {
         long next();
     }
