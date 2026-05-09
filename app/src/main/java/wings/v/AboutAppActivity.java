@@ -162,7 +162,7 @@ public class AboutAppActivity extends AppCompatActivity {
             return;
         }
         firstLaunchTriggerTapCount = 0;
-        startActivity(FirstLaunchActivity.createIntent(this));
+        startActivity(FirstLaunchActivity.createIntentWithMusic(this));
     }
 
     private Drawable loadAppIcon() {
