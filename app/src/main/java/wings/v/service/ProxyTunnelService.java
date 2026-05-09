@@ -205,6 +205,13 @@ public class ProxyTunnelService extends Service {
     private static final long PROXY_WARMUP_POLL_MS = 250L;
     private static final long PROXY_RETRY_DELAY_MS = 1_000L;
     private static final long RUNTIME_RECONNECT_DELAY_MS = 1_500L;
+    /** Backoff schedule for auto-retry after a failed runtime start. After the
+     *  last entry we keep using its value (so retries never give up). Streak
+     *  resets to zero once the runtime reaches RUNNING. */
+    private static final long[] RUNTIME_START_RETRY_DELAYS_MS = {
+        5_000L, 10_000L, 20_000L, 40_000L, 60_000L
+    };
+    private static final long NETWORK_WAIT_LOG_INTERVAL_MS = 10_000L;
     private static final long RUNTIME_SUPERVISOR_INTERVAL_MS = 5_000L;
     private static final long STATS_SAMPLE_FAST_INTERVAL_MS = 100L;
     private static final long STATS_SAMPLE_BACKGROUND_INTERVAL_MS = 500L;
@@ -379,6 +386,7 @@ public class ProxyTunnelService extends Service {
     private volatile Future<?> activeWorkTask;
     private volatile Future<?> byeDpiWorkTask;
     private final AtomicBoolean runtimeReconnectQueued = new AtomicBoolean();
+    private final AtomicInteger runtimeStartFailureStreak = new AtomicInteger();
     private final AtomicBoolean connectivityProbeInProgress = new AtomicBoolean();
     private final AtomicBoolean activeTunnelProbingInProgress = new AtomicBoolean();
     private Backend backend;
@@ -982,7 +990,8 @@ public class ProxyTunnelService extends Service {
             java.util.ArrayList<RuntimeLogEntry> out = new java.util.ArrayList<>(take);
             long startSeq = current - take + 1;
             for (int i = reversed.size() - 1; i >= 0; i--) {
-                out.add(new RuntimeLogEntry(startSeq++, reversed.get(i)));
+                out.add(new RuntimeLogEntry(startSeq, reversed.get(i)));
+                startSeq++;
             }
             return out;
         }
@@ -1008,7 +1017,8 @@ public class ProxyTunnelService extends Service {
             java.util.ArrayList<RuntimeLogEntry> out = new java.util.ArrayList<>(take);
             long startSeq = current - take + 1;
             for (int i = reversed.size() - 1; i >= 0; i--) {
-                out.add(new RuntimeLogEntry(startSeq++, reversed.get(i)));
+                out.add(new RuntimeLogEntry(startSeq, reversed.get(i)));
+                startSeq++;
             }
             return out;
         }
@@ -1402,11 +1412,45 @@ public class ProxyTunnelService extends Service {
             } catch (InterruptedException error) {
                 appendRuntimeLogLine("Runtime start cancelled: " + firstNonEmpty(error.getMessage(), "interrupted"));
             } catch (Exception error) {
-                if (!stopping) {
+                boolean userInitiatedStop = stopping;
+                if (!userInitiatedStop) {
                     setLastError(error.getMessage());
                 }
-                stopWorkInternal();
-                stopSelf();
+                if (userInitiatedStop) {
+                    stopWorkInternal();
+                    stopSelf();
+                    return;
+                }
+                // Отказ старта на нестабильной сети (LTE-глушилка, потеря Wi-Fi
+                // на secondary apn и т.п.) больше не валит сервис в STOPPED.
+                // Чистим то, что успели поднять, остаёмся в CONNECTING и
+                // ставим следующий retry с backoff. Сбрасывается, как только
+                // setServiceState(RUNNING) обнулит счётчик.
+                int streak = runtimeStartFailureStreak.incrementAndGet();
+                long delayMs = computeRuntimeStartRetryDelayMs(streak);
+                appendRuntimeLogLine(
+                    "Runtime start failed (#" +
+                        streak +
+                        "): " +
+                        firstNonEmpty(error.getMessage(), error.getClass().getSimpleName()) +
+                        " — retrying in " +
+                        (delayMs / 1000L) +
+                        "s"
+                );
+                stopWorkInternalForReconnect(activeBackendType, false);
+                if (sServiceState == ServiceState.STOPPED) {
+                    stopSelf();
+                    return;
+                }
+                stopping = false;
+                setServiceState(ServiceState.CONNECTING);
+                try {
+                    startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+                } catch (RuntimeException ignored) {}
+                scheduleRuntimeReconnect(
+                    "auto-retry after start failure (#" + streak + ")",
+                    delayMs
+                );
             }
         });
     }
@@ -4031,15 +4075,41 @@ public class ProxyTunnelService extends Service {
             return;
         }
 
-        long deadline = SystemClock.elapsedRealtime() + NETWORK_READY_TIMEOUT_MS;
-        while (SystemClock.elapsedRealtime() < deadline) {
+        // Ждём появления реальной физической сети без дедлайна. В местах с
+        // глушилками или метро это может занять минуты — раньше метод
+        // возвращался по таймауту 8с, и proxy после этого падал на warmup,
+        // обрушая сервис в STOPPED. Цикл прерывается только когда юзер
+        // явно остановил тоннель (ensureRuntimeStillWanted кинет
+        // InterruptedException) или когда ConnectivityManager сообщил
+        // об изменении generation.
+        long startedAtMs = SystemClock.elapsedRealtime();
+        long lastLoggedAtMs = 0L;
+        boolean waitedAtAll = false;
+        while (true) {
             ensureRuntimeStillWanted(generation);
             Network network = connectivityManager.getActiveNetwork();
             if (network != null) {
                 NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
                 if (isUsablePhysicalNetwork(capabilities)) {
+                    if (waitedAtAll) {
+                        appendRuntimeLogLine(
+                            "Physical network is back after " +
+                                ((SystemClock.elapsedRealtime() - startedAtMs) / 1000L) +
+                                "s wait; resuming start"
+                        );
+                    }
                     return;
                 }
+            }
+            waitedAtAll = true;
+            long now = SystemClock.elapsedRealtime();
+            if (now - lastLoggedAtMs >= NETWORK_WAIT_LOG_INTERVAL_MS) {
+                lastLoggedAtMs = now;
+                appendRuntimeLogLine(
+                    "No usable physical network yet (waited " +
+                        ((now - startedAtMs) / 1000L) +
+                        "s); holding start"
+                );
             }
             sleepInterruptibly(NETWORK_READY_POLL_MS, generation);
         }
@@ -5448,6 +5518,14 @@ public class ProxyTunnelService extends Service {
         if (generation != runtimeGeneration.get() || stopping || Thread.currentThread().isInterrupted()) {
             throw new InterruptedException("Runtime start interrupted");
         }
+    }
+
+    private static long computeRuntimeStartRetryDelayMs(int streak) {
+        if (streak <= 0) {
+            return RUNTIME_START_RETRY_DELAYS_MS[0];
+        }
+        int idx = Math.min(streak - 1, RUNTIME_START_RETRY_DELAYS_MS.length - 1);
+        return RUNTIME_START_RETRY_DELAYS_MS[idx];
     }
 
     private void sleepInterruptibly(long durationMs, int generation) throws InterruptedException {
@@ -7125,6 +7203,9 @@ public class ProxyTunnelService extends Service {
         }
         if (state == ServiceState.RUNNING) {
             lastRunningStateAtElapsedMs = SystemClock.elapsedRealtime();
+            // Один успешный запуск сбрасывает backoff — следующий сбой
+            // снова начинает с минимальной задержки.
+            runtimeStartFailureStreak.set(0);
         } else {
             lastRunningStateAtElapsedMs = 0L;
         }
