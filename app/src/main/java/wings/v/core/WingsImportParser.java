@@ -1764,7 +1764,27 @@ public final class WingsImportParser {
         ) {
             builder.setRuntimeMode(toProtoRuntimeMode(settings.vkTurnRuntimeMode));
         }
+        for (String entry : splitUserDnsEntries(settings.vkTurnUserDns)) {
+            builder.addUserDns(entry);
+        }
         return builder.build();
+    }
+
+    /** Раскладывает многострочный/CSV ввод user-dns на отдельные записи —
+     *  тот же формат, что принимает vk-turn-proxy через -user-dns. */
+    private static java.util.List<String> splitUserDnsEntries(String raw) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (TextUtils.isEmpty(raw)) {
+            return out;
+        }
+        String[] tokens = raw.split("[,;\\r\\n]+");
+        for (String token : tokens) {
+            String trimmed = token == null ? "" : token.trim();
+            if (!trimmed.isEmpty()) {
+                out.add(trimmed);
+            }
+        }
+        return out;
     }
 
     private static WingsvProto.ProxyRuntimeMode toProtoRuntimeMode(ProxyRuntimeMode mode) {
@@ -2087,6 +2107,20 @@ public final class WingsImportParser {
         }
         if (turn.getRuntimeMode() != WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_UNSPECIFIED) {
             importedConfig.vkTurnRuntimeMode = fromProtoRuntimeMode(turn.getRuntimeMode());
+        }
+        if (turn.getUserDnsCount() > 0) {
+            StringBuilder joined = new StringBuilder();
+            for (int i = 0; i < turn.getUserDnsCount(); i++) {
+                String entry = turn.getUserDns(i);
+                if (TextUtils.isEmpty(entry)) {
+                    continue;
+                }
+                if (joined.length() > 0) {
+                    joined.append('\n');
+                }
+                joined.append(entry.trim());
+            }
+            importedConfig.vkTurnUserDns = joined.toString();
         }
     }
 
@@ -2716,6 +2750,7 @@ public final class WingsImportParser {
         public String captchaAutoSolver;
         public Boolean vkTurnRestartOnNetworkChange;
         public ProxyRuntimeMode vkTurnRuntimeMode;
+        public String vkTurnUserDns;
         public ProxyRuntimeMode xrayRuntimeMode;
         public String turnSessionMode;
         public String localEndpoint;
