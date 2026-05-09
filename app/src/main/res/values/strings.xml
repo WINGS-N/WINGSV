@@ -109,6 +109,8 @@
     <string name="clipboard_empty">В буфере обмена нет ссылки WINGSV или VLESS</string>
     <string name="clipboard_import_success">Настройки импортированы</string>
     <string name="clipboard_import_invalid">Не удалось разобрать wingsv://, vless:// или URL подписки</string>
+    <string name="qr_scan_title">Сканировать QR</string>
+    <string name="qr_scan_camera_unavailable">Камера недоступна на этом устройстве</string>
     <string name="import_confirm_title">Импортировать конфигурацию?</string>
     <string name="import_confirm_apply">Импортировать</string>
     <string name="import_confirm_cancelled">Импорт отменён</string>

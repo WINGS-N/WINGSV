@@ -5,6 +5,14 @@
     </style>
     <style name="Theme.WINGSV.NoDisplay" parent="@android:style/Theme.NoDisplay" />
 
+    <!-- Full-screen, no app-bar theme for the OneUI QR scanner activity. The activity
+         builds its own UI programmatically and handles edge-to-edge insets itself. -->
+    <style name="Theme.WINGSV.QrScan" parent="Theme.WINGSV">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+
     <style name="Theme.AppCompat.PickerDialog" parent="Theme.AppCompat.Dialog.Alert" />
 
     <style name="Theme.AppCompat.Light.PickerDialog" parent="Theme.AppCompat.Light.Dialog.Alert" />
