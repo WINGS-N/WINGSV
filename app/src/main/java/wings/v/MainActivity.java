@@ -15,6 +15,7 @@ import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.MetricAffectingSpan;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,6 +31,7 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 import androidx.viewpager2.widget.ViewPager2;
 import dev.oneuiproject.oneui.layout.Badge;
+import dev.oneuiproject.oneui.qr.app.QrScanActivity;
 import dev.oneuiproject.oneui.widget.BottomTabLayout;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -120,6 +122,11 @@ public class MainActivity extends AppCompatActivity {
         }
     );
 
+    private final ActivityResultLauncher<Intent> qrScanLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> handleQrScanResult(result.getResultCode(), result.getData())
+    );
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -147,6 +154,9 @@ public class MainActivity extends AppCompatActivity {
                     currentTabId = tabId;
                     bottomTab().setSelectedItem(tabId);
                     updateTitle(tabId);
+                    if (changed) {
+                        invalidateOptionsMenu();
+                    }
                     if (pageSelectionReady && changed) {
                         Haptics.softSliderStep(binding.mainPager);
                     }
@@ -430,6 +440,72 @@ public class MainActivity extends AppCompatActivity {
 
     private void configureToolbar() {
         binding.toolbarLayout.setShowNavigationButton(false);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(@NonNull Menu menu) {
+        // ToolbarLayout calls setSupportActionBar() on its inner toolbar, so the
+        // standard options-menu callback is the lifecycle-stable place to add the
+        // QR scan button — direct toolbar.inflateMenu() gets wiped on the first
+        // invalidateOptionsMenu() that AppCompat issues during setup.
+        getMenuInflater().inflate(R.menu.menu_main_toolbar, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(@NonNull Menu menu) {
+        MenuItem qrItem = menu.findItem(R.id.menu_qr_scan);
+        if (qrItem != null) {
+            // Сканер показываем только на «Главной» и «Профилях» — на вкладках
+            // sharing/settings место в тулбаре отдаём под их собственные элементы.
+            qrItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == R.id.menu_qr_scan) {
+            launchQrScanner();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void launchQrScanner() {
+        // QrScanActivity self-manages camera permission via its own launcher,
+        // so we never request CAMERA on app start — only after the user taps this.
+        // No regex/prefix filter: WingsImportParser.parseFromText accepts wingsv://,
+        // vless://, AmneziaWG quick-config text, and subscription URLs — let it judge.
+        Intent intent = QrScanActivity.Companion.createIntent(
+            this,
+            getString(R.string.qr_scan_title)
+        );
+        try {
+            qrScanLauncher.launch(intent);
+        } catch (android.content.ActivityNotFoundException ignored) {
+            Toast.makeText(this, R.string.qr_scan_camera_unavailable, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void handleQrScanResult(int resultCode, @Nullable Intent data) {
+        if (resultCode != RESULT_OK || data == null) {
+            return;
+        }
+        String scanned = data.getStringExtra(QrScanActivity.EXTRA_QR_SCANNER_RESULT);
+        if (TextUtils.isEmpty(scanned)) {
+            return;
+        }
+        String trimmed = scanned.trim();
+        WingsImportParser.ImportedConfig parsed;
+        try {
+            parsed = WingsImportParser.parseFromText(trimmed);
+        } catch (Exception ignored) {
+            Toast.makeText(this, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        promptToImport(trimmed, parsed);
     }
 
     private void configureBackHandling() {

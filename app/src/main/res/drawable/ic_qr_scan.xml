@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/textColorPrimary">
+    <!-- Outer L-shaped corner brackets, matching One UI scanner glyphs. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3,3h6v2H5v4H3V3zM15,3h6v6h-2V5h-4V3zM3,15h2v4h4v2H3v-6zM19,15h2v6h-6v-2h4v-4z" />
+    <!-- Inner code pattern: three blocks + two pixel anchors. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M7,7h3v3H7V7zM14,7h3v3h-3V7zM7,14h3v3H7v-3zM12,12h2v2h-2v-2zM15,15h2v2h-2v-2z" />
+</vector>
