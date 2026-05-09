@@ -57,8 +57,10 @@ public final class XrayTproxyRouter {
      */
     public static boolean isUidOwnerMatchSupported(@NonNull Context context) {
         String probe =
-            IPT4 + " -t mangle -A OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && " +
-            IPT4 + " -t mangle -D OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && echo OK";
+            IPT4 +
+            " -t mangle -A OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && " +
+            IPT4 +
+            " -t mangle -D OUTPUT -m owner --uid-owner 0 -j RETURN 2>/dev/null && echo OK";
         try {
             String result = RootShellCommand.exec(context, probe);
             return result != null && result.contains("OK");
@@ -146,10 +148,12 @@ public final class XrayTproxyRouter {
      */
     public static boolean isFullyApplied(@NonNull Context context) {
         String probe =
-            IPT4 + " -t mangle -C PREROUTING -j " +
+            IPT4 +
+            " -t mangle -C PREROUTING -j " +
             CHAIN_PRE +
             " 2>/dev/null && " +
-            IPT4 + " -t mangle -C OUTPUT -j " +
+            IPT4 +
+            " -t mangle -C OUTPUT -j " +
             CHAIN_OUT +
             " 2>/dev/null && " +
             "ip rule show | grep -q 'fwmark 0x" +
@@ -176,10 +180,12 @@ public final class XrayTproxyRouter {
     public static long readMarkBytesQuiet(@NonNull Context context) {
         try {
             String script =
-                IPT4 + " -t mangle -nvxL " +
+                IPT4 +
+                " -t mangle -nvxL " +
                 CHAIN_OUT +
                 " 2>/dev/null; " +
-                IPT6 + " -t mangle -nvxL " +
+                IPT6 +
+                " -t mangle -nvxL " +
                 CHAIN_OUT6 +
                 " 2>/dev/null";
             String output = RootShellCommand.exec(context, script);

@@ -71,9 +71,7 @@ public final class GuardianRunner {
             AppPrefs.GUARDIAN_PERIODIC_MIN_MINUTES,
             AppPrefs.getGuardianPeriodicIntervalMinutes(app)
         );
-        Constraints constraints = new Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build();
+        Constraints constraints = new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();
         PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(
             GuardianSyncWorker.class,
             intervalMinutes,
@@ -83,8 +81,11 @@ public final class GuardianRunner {
             .addTag(PERIODIC_WORK_TAG)
             .build();
         try {
-            WorkManager.getInstance(app)
-                .enqueueUniquePeriodicWork(PERIODIC_WORK_TAG, ExistingPeriodicWorkPolicy.UPDATE, request);
+            WorkManager.getInstance(app).enqueueUniquePeriodicWork(
+                PERIODIC_WORK_TAG,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            );
         } catch (RuntimeException ignored) {}
     }
 

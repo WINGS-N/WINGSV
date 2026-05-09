@@ -45,7 +45,8 @@ public final class GuardianCommandHandler {
                         try {
                             wings.v.core.XraySubscriptionUpdater.refreshAll(ctx);
                         } catch (Exception ignored) {}
-                    }).start();
+                    })
+                        .start();
                     break;
                 case COMMAND_TYPE_REFRESH_INSTALLED_APPS:
                     // Handled by the caller (it has access to the WS client).
@@ -74,8 +75,9 @@ public final class GuardianCommandHandler {
         Context ctx = context.getApplicationContext();
         if (push == null || push.getConfig() == null) return;
         try {
-            wings.v.core.WingsImportParser.ImportedConfig imported =
-                wings.v.core.WingsImportParser.parseProtoConfig(push.getConfig());
+            wings.v.core.WingsImportParser.ImportedConfig imported = wings.v.core.WingsImportParser.parseProtoConfig(
+                push.getConfig()
+            );
             // Strip Guardian credentials but keep sync_mode/interval — those
             // are panel-driven behavioural knobs and must propagate live.
             imported.guardianWsUrl = null;

@@ -238,9 +238,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         wings.v.guardian.GuardianRunner.applyMode(getApplicationContext());
-        if (
-            AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(AppPrefs.getGuardianSyncMode(this))
-        ) {
+        if (AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(AppPrefs.getGuardianSyncMode(this))) {
             wings.v.guardian.GuardianForegroundClient.start(getApplicationContext());
         }
     }
@@ -477,10 +475,7 @@ public class MainActivity extends AppCompatActivity {
         // so we never request CAMERA on app start — only after the user taps this.
         // No regex/prefix filter: WingsImportParser.parseFromText accepts wingsv://,
         // vless://, AmneziaWG quick-config text, and subscription URLs — let it judge.
-        Intent intent = QrScanActivity.Companion.createIntent(
-            this,
-            getString(R.string.qr_scan_title)
-        );
+        Intent intent = QrScanActivity.Companion.createIntent(this, getString(R.string.qr_scan_title));
         try {
             qrScanLauncher.launch(intent);
         } catch (android.content.ActivityNotFoundException ignored) {
