@@ -35,6 +35,8 @@
     <string name="first_launch_connection_vk_turn">VK TURN</string>
     <string name="first_launch_connection_xray">Xray (VLESS)</string>
     <string name="first_launch_connection_auto_search">Автопоиск</string>
+    <string name="first_launch_connection_paste_clipboard">Вставить из буфера</string>
+    <string name="first_launch_connection_scan_qr">Сканировать QR код</string>
     <string name="first_launch_vk_turn_title">Настройки VK TURN</string>
     <string name="first_launch_vk_turn_description">Заполните параметры подключения или импортируйте готовую ссылку WINGSV</string>
     <string name="first_launch_vk_turn_import">Импортировать wingsv://</string>
