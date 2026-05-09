@@ -50,6 +50,7 @@ public final class AppPrefs {
     public static final String CAPTCHA_AUTO_SOLVER_DEFAULT = "v2";
     public static final String KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE = "pref_vk_turn_restart_on_network_change";
     public static final String KEY_VK_TURN_RUNTIME_MODE = "pref_vk_turn_runtime_mode";
+    public static final String KEY_VK_TURN_USER_DNS = "pref_vk_turn_user_dns";
     public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
@@ -331,10 +332,7 @@ public final class AppPrefs {
     public static String normalizeGuardianSyncMode(String value) {
         if (value == null) return GUARDIAN_SYNC_MODE_ALWAYS;
         String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
-        if (
-            GUARDIAN_SYNC_MODE_PERIODIC.equals(normalized) ||
-            GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(normalized)
-        ) {
+        if (GUARDIAN_SYNC_MODE_PERIODIC.equals(normalized) || GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(normalized)) {
             return normalized;
         }
         return GUARDIAN_SYNC_MODE_ALWAYS;
@@ -346,7 +344,10 @@ public final class AppPrefs {
     }
 
     public static void setGuardianPeriodicIntervalMinutes(Context context, int minutes) {
-        int normalized = Math.max(GUARDIAN_PERIODIC_MIN_MINUTES, minutes <= 0 ? GUARDIAN_PERIODIC_DEFAULT_MINUTES : minutes);
+        int normalized = Math.max(
+            GUARDIAN_PERIODIC_MIN_MINUTES,
+            minutes <= 0 ? GUARDIAN_PERIODIC_DEFAULT_MINUTES : minutes
+        );
         prefs(context).edit().putInt(KEY_GUARDIAN_PERIODIC_MINUTES, normalized).apply();
     }
 
@@ -936,6 +937,7 @@ public final class AppPrefs {
         settings.vkTurnRuntimeMode = ProxyRuntimeMode.fromPrefValue(
             prefs.getString(KEY_VK_TURN_RUNTIME_MODE, ProxyRuntimeMode.VPN.prefValue)
         );
+        settings.vkTurnUserDns = trim(prefs.getString(KEY_VK_TURN_USER_DNS, ""));
         settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
@@ -1103,6 +1105,9 @@ public final class AppPrefs {
         if (importedConfig.vkTurnRuntimeMode != null) {
             editor.putString(KEY_VK_TURN_RUNTIME_MODE, importedConfig.vkTurnRuntimeMode.prefValue);
         }
+        if (importedConfig.vkTurnUserDns != null) {
+            editor.putString(KEY_VK_TURN_USER_DNS, trim(importedConfig.vkTurnUserDns));
+        }
         editor.putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(importedConfig.turnSessionMode));
         editor.putString(
             KEY_LOCAL_ENDPOINT,
@@ -1206,10 +1211,7 @@ public final class AppPrefs {
             importedConfig.guardianClientToken.length > 0;
         boolean hasSyncOnly =
             !hasCreds &&
-            (
-                !TextUtils.isEmpty(importedConfig.guardianSyncMode) ||
-                importedConfig.guardianPeriodicIntervalMinutes > 0
-            );
+            (!TextUtils.isEmpty(importedConfig.guardianSyncMode) || importedConfig.guardianPeriodicIntervalMinutes > 0);
         if (!hasCreds && !hasSyncOnly) {
             return;
         }
@@ -1441,6 +1443,7 @@ public final class AppPrefs {
                     ? ProxyRuntimeMode.VPN.prefValue
                     : settings.vkTurnRuntimeMode.prefValue
             )
+            .putString(KEY_VK_TURN_USER_DNS, trim(settings.vkTurnUserDns))
             .putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(settings.turnSessionMode))
             .putString(
                 KEY_LOCAL_ENDPOINT,

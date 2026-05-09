@@ -111,6 +111,9 @@
     <string name="clipboard_empty">В буфере обмена нет ссылки WINGSV или VLESS</string>
     <string name="clipboard_import_success">Настройки импортированы</string>
     <string name="clipboard_import_invalid">Не удалось разобрать wingsv://, vless:// или URL подписки</string>
+    <string name="vk_turn_user_dns_title">Свои DNS-резолверы</string>
+    <string name="vk_turn_user_dns_summary">Добавить пользовательские DNS перед встроенным списком (Yandex → Google → Cloudflare). По одному на строку.</string>
+    <string name="vk_turn_user_dns_dialog_message">Форматы:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — обычный UDP\n• 77.88.8.8 — то же, plain UDP/53\nЗаписи без отклика на bootstrap отбрасываются; встроенный список остаётся как fallback.</string>
     <string name="qr_scan_title">Сканировать QR</string>
     <string name="qr_scan_camera_unavailable">Камера недоступна на этом устройстве</string>
     <string name="import_confirm_title">Импортировать конфигурацию?</string>

@@ -52,6 +52,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_LOCAL_ENDPOINT,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
+        AppPrefs.KEY_VK_TURN_USER_DNS,
     };
     private static final String[] VK_TURN_RELAY_PREFERENCE_KEYS = {
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
@@ -255,6 +256,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSecretPreference(AmneziaStore.KEY_PEER_PUBLIC_KEY);
         bindSecretPreference(AmneziaStore.KEY_PEER_PRESHARED_KEY);
 
+        makeMultiLine(AppPrefs.KEY_VK_TURN_USER_DNS);
         makeMultiLine(AppPrefs.KEY_AWG_QUICK_CONFIG);
         makeMultiLine(AppPrefs.KEY_WG_PRIVATE_KEY);
         makeMultiLine(AppPrefs.KEY_WG_PUBLIC_KEY);
@@ -538,6 +540,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             syncEditTextPreference(AppPrefs.KEY_LOCAL_ENDPOINT, settings.localEndpoint);
             syncEditTextPreference(AppPrefs.KEY_TURN_HOST, settings.turnHost);
             syncEditTextPreference(AppPrefs.KEY_TURN_PORT, settings.turnPort);
+            syncEditTextPreference(AppPrefs.KEY_VK_TURN_USER_DNS, settings.vkTurnUserDns);
             syncEditTextPreference(AppPrefs.KEY_WG_PRIVATE_KEY, settings.wgPrivateKey);
             syncEditTextPreference(AppPrefs.KEY_WG_ADDRESSES, settings.wgAddresses);
             syncEditTextPreference(AppPrefs.KEY_WG_DNS, settings.wgDns);

@@ -105,6 +105,14 @@ message Turn {
   string captcha_auto_solver = 14;
   optional bool restart_on_network_change = 15;
   ProxyRuntimeMode runtime_mode = 16;
+  // Пользовательские DNS-резолверы, ставятся ПЕРЕД встроенным (yandex →
+  // google → cloudflare). Каждая запись — одна строка в формате URL:
+  //   https://dns.example/dns-query  (DoH)
+  //   udp://77.88.8.8:53             (plain UDP/53; порт необязателен)
+  //   77.88.8.8                      (то же самое, plain UDP/53)
+  // Записи без ответа на bootstrap-резолюции просто отбрасываются;
+  // в любом случае встроенный список остаётся как fallback.
+  repeated string user_dns = 17;
 }
 
 enum TurnSessionMode {

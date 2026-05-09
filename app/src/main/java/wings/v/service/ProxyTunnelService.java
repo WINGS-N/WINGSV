@@ -208,9 +208,7 @@ public class ProxyTunnelService extends Service {
     /** Backoff schedule for auto-retry after a failed runtime start. After the
      *  last entry we keep using its value (so retries never give up). Streak
      *  resets to zero once the runtime reaches RUNNING. */
-    private static final long[] RUNTIME_START_RETRY_DELAYS_MS = {
-        5_000L, 10_000L, 20_000L, 40_000L, 60_000L
-    };
+    private static final long[] RUNTIME_START_RETRY_DELAYS_MS = { 5_000L, 10_000L, 20_000L, 40_000L, 60_000L };
     private static final long NETWORK_WAIT_LOG_INTERVAL_MS = 10_000L;
     private static final long RUNTIME_SUPERVISOR_INTERVAL_MS = 5_000L;
     private static final long STATS_SAMPLE_FAST_INTERVAL_MS = 100L;
@@ -1447,10 +1445,7 @@ public class ProxyTunnelService extends Service {
                 try {
                     startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
                 } catch (RuntimeException ignored) {}
-                scheduleRuntimeReconnect(
-                    "auto-retry after start failure (#" + streak + ")",
-                    delayMs
-                );
+                scheduleRuntimeReconnect("auto-retry after start failure (#" + streak + ")", delayMs);
             }
         });
     }
@@ -2742,6 +2737,21 @@ public class ProxyTunnelService extends Service {
         throw new IllegalStateException(firstNonEmpty(launchError, "Не удалось запустить proxy"));
     }
 
+    /** Передаём собственные DNS-резолверы юзера в vk-turn-proxy через
+     *  -user-dns. Прокси сам парсит формат и prepend'ит их к встроенному
+     *  списку (yandex → google → cloudflare). */
+    private static void appendUserDnsArg(List<String> command, @Nullable ProxySettings settings) {
+        if (settings == null || TextUtils.isEmpty(settings.vkTurnUserDns)) {
+            return;
+        }
+        String trimmed = settings.vkTurnUserDns.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        command.add("-user-dns");
+        command.add(trimmed);
+    }
+
     private static String joinVkLinks(ProxySettings settings) {
         if (settings.vkLinks != null && !settings.vkLinks.isEmpty()) {
             StringBuilder sb = new StringBuilder();
@@ -2779,6 +2789,7 @@ public class ProxyTunnelService extends Service {
         command.add(executable.getAbsolutePath());
         command.add("-dns");
         command.add(AppPrefs.getDnsMode(getApplicationContext()));
+        appendUserDnsArg(command, settings);
         command.add("-peer");
         command.add(settings.endpoint);
         command.add("-vk-link");
@@ -2933,6 +2944,7 @@ public class ProxyTunnelService extends Service {
         command.add(executable.getAbsolutePath());
         command.add("-dns");
         command.add(AppPrefs.getDnsMode(appContext));
+        appendUserDnsArg(command, settings);
         if (roomIds.size() > 1) {
             command.add("-wb-stream-room-ids");
             command.add(TextUtils.join(",", roomIds));
@@ -2981,6 +2993,7 @@ public class ProxyTunnelService extends Service {
         command.add(executable.getAbsolutePath());
         command.add("-dns");
         command.add(AppPrefs.getDnsMode(getApplicationContext()));
+        appendUserDnsArg(command, settings);
         command.add("-room-exchange-mode");
         command.add("-peer");
         command.add(settings.endpoint);
@@ -4106,9 +4119,7 @@ public class ProxyTunnelService extends Service {
             if (now - lastLoggedAtMs >= NETWORK_WAIT_LOG_INTERVAL_MS) {
                 lastLoggedAtMs = now;
                 appendRuntimeLogLine(
-                    "No usable physical network yet (waited " +
-                        ((now - startedAtMs) / 1000L) +
-                        "s); holding start"
+                    "No usable physical network yet (waited " + ((now - startedAtMs) / 1000L) + "s); holding start"
                 );
             }
             sleepInterruptibly(NETWORK_READY_POLL_MS, generation);
