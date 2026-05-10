@@ -125,6 +125,9 @@ message InstalledApp {
   string label = 2;
   bytes icon_png = 3;
   bool system = 4;
+  // Whether the app is in the bundled "recommended for VPN bypass" set
+  // (RuStoreRecommendedAppsAsset). Set on the device side at snapshot build.
+  bool recommended = 5;
 }
 
 message CommandAck {

@@ -10,6 +10,8 @@ import android.text.TextUtils;
 import com.google.protobuf.ByteString;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
+import java.util.Set;
+import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.proto.GuardianProto;
 
 public final class InstalledAppsBuilder {
@@ -28,6 +30,7 @@ public final class InstalledAppsBuilder {
             return null;
         }
         List<ApplicationInfo> all = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+        Set<String> recommendedNames = RuStoreRecommendedAppsAsset.getPackageNames(context);
         GuardianProto.InstalledApps.Builder out = GuardianProto.InstalledApps.newBuilder().setTsMs(
             System.currentTimeMillis()
         );
@@ -45,7 +48,8 @@ public final class InstalledAppsBuilder {
             GuardianProto.InstalledApp.Builder app = GuardianProto.InstalledApp.newBuilder()
                 .setPackageName(info.packageName)
                 .setLabel(label == null ? info.packageName : label.toString())
-                .setSystem(isSystem);
+                .setSystem(isSystem)
+                .setRecommended(recommendedNames.contains(info.packageName));
             if (iconPng != null && iconPng.length > 0) {
                 app.setIconPng(ByteString.copyFrom(iconPng));
             }
