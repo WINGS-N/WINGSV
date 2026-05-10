@@ -396,14 +396,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        // DNS resolver only affects vk-turn-proxy (used by VK TURN and WB Stream
-        // backends). Hide on backends that don't spawn it.
-        Preference dnsModePreference = findPreference(AppPrefs.KEY_DNS_MODE);
-        if (dnsModePreference != null) {
-            boolean usesVkTurnProxy =
-                backendType == BackendType.VK_TURN_WIREGUARD || backendType == BackendType.WB_STREAM;
-            dnsModePreference.setVisible(usesVkTurnProxy);
-        }
+        // DNS resolver setting moved into VK TURN / WB Stream settings — see
+        // their respective fragments. Nothing to gate here anymore.
         PreferenceCategory rootCategory = findPreference("pref_category_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
