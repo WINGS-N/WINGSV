@@ -90,6 +90,14 @@
         android:title="TURN port override"
         app:useSimpleSummaryProvider="true" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_dns_mode"
+        android:title="@string/dns_mode_title"
+        android:summary="@string/dns_mode_summary"
+        android:defaultValue="auto"
+        android:entries="@array/dns_mode_entries"
+        android:entryValues="@array/dns_mode_values" />
+
     <EditTextPreference
         android:key="pref_vk_turn_user_dns"
         android:title="@string/vk_turn_user_dns_title"

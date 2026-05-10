@@ -33,14 +33,6 @@
         android:title="@string/wb_stream_settings_title"
         android:summary="@string/wb_stream_settings_summary" />
 
-    <androidx.preference.DropDownPreference
-        android:key="pref_dns_mode"
-        android:title="@string/dns_mode_title"
-        android:summary="@string/dns_mode_summary"
-        android:defaultValue="auto"
-        android:entries="@array/dns_mode_entries"
-        android:entryValues="@array/dns_mode_values" />
-
     <Preference
         android:key="pref_open_bydpi_settings"
         android:title="@string/byedpi_title"

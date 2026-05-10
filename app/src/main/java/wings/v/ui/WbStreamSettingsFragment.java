@@ -34,6 +34,8 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_LOCAL_ENDPOINT,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
+        AppPrefs.KEY_DNS_MODE,
+        AppPrefs.KEY_VK_TURN_USER_DNS,
         "pref_category_wb_stream_vk_turn",
         "pref_inset_after_wb_stream_vk_turn",
     };
@@ -71,6 +73,24 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         EditTextPreference e2eSecret = findPreference(AppPrefs.KEY_WB_STREAM_E2E_SECRET);
         if (e2eSecret != null) {
             e2eSecret.setOnBindEditTextListener(text -> text.setInputType(InputType.TYPE_CLASS_TEXT));
+        }
+
+        androidx.preference.ListPreference dnsMode = findPreference(AppPrefs.KEY_DNS_MODE);
+        if (dnsMode != null) {
+            dnsMode.setSummaryProvider(androidx.preference.ListPreference.SimpleSummaryProvider.getInstance());
+        }
+
+        EditTextPreference userDns = findPreference(AppPrefs.KEY_VK_TURN_USER_DNS);
+        if (userDns != null) {
+            userDns.setOnBindEditTextListener(text -> {
+                text.setSingleLine(false);
+                text.setMinLines(3);
+                text.setInputType(
+                    InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_FLAG_MULTI_LINE |
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                );
+            });
         }
 
         Preference openVkLinks = findPreference(AppPrefs.KEY_OPEN_VK_LINKS);

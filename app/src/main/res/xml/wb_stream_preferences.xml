@@ -119,6 +119,21 @@
         android:title="TURN port override"
         app:useSimpleSummaryProvider="true" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_dns_mode"
+        android:title="@string/dns_mode_title"
+        android:summary="@string/dns_mode_summary"
+        android:defaultValue="auto"
+        android:entries="@array/dns_mode_entries"
+        android:entryValues="@array/dns_mode_values" />
+
+    <EditTextPreference
+        android:key="pref_vk_turn_user_dns"
+        android:title="@string/vk_turn_user_dns_title"
+        android:summary="@string/vk_turn_user_dns_summary"
+        android:dialogTitle="@string/vk_turn_user_dns_title"
+        android:dialogMessage="@string/vk_turn_user_dns_dialog_message" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
         android:key="pref_inset_after_wb_stream_vk_turn" />
 
