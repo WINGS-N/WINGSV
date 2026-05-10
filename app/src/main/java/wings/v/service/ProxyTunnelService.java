@@ -1333,7 +1333,10 @@ public class ProxyTunnelService extends Service {
             clearPendingCaptchaPrompt(getApplicationContext());
             beginErrorNoticeSession();
             clearProxyLogs();
-            clearRuntimeLogs();
+            // Сохраняем историю runtime-лога через reconnect: иначе строка
+            // "Scheduling runtime reconnect: <причина>" затирается следующим
+            // циклом и пользователь не видит, что именно сработало в watchdog'е.
+            // Авто-truncate по MAX_PROXY_LOG_LINES всё равно держит размер в норме.
             Context appContext = getApplicationContext();
             ProxySettings settings = AppPrefs.getSettings(appContext);
             String validationError = settings.validate();
@@ -6741,7 +6744,14 @@ public class ProxyTunnelService extends Service {
             }
             if (activeXrayTproxyMode) {
                 Process xrayProcess = tproxyXrayProcess;
-                if (xrayProcess == null || !xrayProcess.isAlive()) {
+                boolean processDead = xrayProcess == null || !xrayProcess.isAlive();
+                // Process.isAlive() может вернуть false-positive: например, su-fork
+                // переcнял ребёнка под себя и Java потеряла видимость exit-status,
+                // хотя реальный xray работает и слушает TPROXY-порт. Прежде чем
+                // объявлять "Xray умер" и убивать его сами своим reconnect-ом,
+                // проверим что local listener живой — если порт принимает TCP,
+                // значит Xray на месте и трогать его не надо.
+                if (processDead && !isLocalTcpPortReady("127.0.0.1", XRAY_TPROXY_PORT)) {
                     scheduleRuntimeReconnect("Xray TPROXY runtime exited unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
                     return;
                 }
@@ -7043,12 +7053,17 @@ public class ProxyTunnelService extends Service {
         BackendType resolvedTargetBackend = targetBackend != null ? targetBackend : getConfiguredBackendType();
         activeBackendType = resolvedTargetBackend;
         int reconnectGeneration = runtimeGeneration.incrementAndGet();
-        appendRuntimeLogLine(
-            "Runtime reconnect backend switch: stop=" +
-                (resolvedBackendToStop != null ? resolvedBackendToStop.prefValue : "unknown") +
-                " target=" +
-                resolvedTargetBackend.prefValue
-        );
+        boolean swappingBackend = (resolvedBackendToStop != null && resolvedBackendToStop != resolvedTargetBackend);
+        if (swappingBackend) {
+            appendRuntimeLogLine(
+                "Runtime reconnect: switching backend " +
+                    resolvedBackendToStop.prefValue +
+                    " → " +
+                    resolvedTargetBackend.prefValue
+            );
+        } else {
+            appendRuntimeLogLine("Runtime reconnect: keeping backend " + resolvedTargetBackend.prefValue);
+        }
         resetRuntimeSnapshot();
         clearLastError();
         setServiceState(ServiceState.CONNECTING);

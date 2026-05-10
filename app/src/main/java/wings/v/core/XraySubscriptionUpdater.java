@@ -75,7 +75,7 @@ public final class XraySubscriptionUpdater {
     ) throws Exception {
         XrayProfile previousActiveProfile = XrayStore.getActiveProfile(context);
         String previousActiveProfileId = previousActiveProfile != null ? previousActiveProfile.id : "";
-        String previousActiveRawLink = previousActiveProfile != null ? previousActiveProfile.rawLink : "";
+        String previousActiveFingerprint = profileConnectionFingerprint(previousActiveProfile);
         List<XraySubscription> subscriptions = XrayStore.getSubscriptions(context, allowUniversalSeed);
         LinkedHashMap<String, XrayProfile> profiles = new LinkedHashMap<>();
         LinkedHashMap<String, List<XrayProfile>> existingProfilesBySubscription = new LinkedHashMap<>();
@@ -248,10 +248,13 @@ public final class XraySubscriptionUpdater {
         }
 
         String activeProfileId = activeProfile != null ? activeProfile.id : "";
-        String activeRawLink = activeProfile != null ? activeProfile.rawLink : "";
-        boolean activeProfileChanged =
-            !TextUtils.equals(previousActiveProfileId, activeProfileId) ||
-            !TextUtils.equals(previousActiveRawLink, activeRawLink);
+        String activeFingerprint = profileConnectionFingerprint(activeProfile);
+        // Don't trigger reconnect just because the raw URL string differs
+        // between refreshes — many subscription servers re-shuffle query params
+        // or stamp session tokens, which cascades into a new id (id is derived
+        // from rawLink-based dedup key). The runtime only needs to restart if
+        // the actual connection target (host:port) changed.
+        boolean activeProfileChanged = !TextUtils.equals(previousActiveFingerprint, activeFingerprint);
 
         return new RefreshResult(
             new ArrayList<>(profiles.values()),
@@ -260,6 +263,19 @@ public final class XraySubscriptionUpdater {
             activeProfileId,
             activeProfileChanged
         );
+    }
+
+    /** Functional connection target — host and port the runtime will actually
+     *  connect to. We can't rely on id or rawLink because subscription
+     *  servers often re-stamp session tokens / reorder query params, which
+     *  cascades into a new id (id derives from rawLink-based dedup key). If
+     *  host:port is unchanged, the runtime doesn't need a restart. */
+    private static String profileConnectionFingerprint(XrayProfile profile) {
+        if (profile == null) {
+            return "";
+        }
+        String address = profile.address == null ? "" : profile.address.trim().toLowerCase(java.util.Locale.ROOT);
+        return address + ":" + profile.port;
     }
 
     private static boolean shouldRefreshSubscription(
