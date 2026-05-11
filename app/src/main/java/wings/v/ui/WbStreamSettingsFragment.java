@@ -113,24 +113,7 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
             ) {
                 applyVisibility();
             }
-            if (AppPrefs.KEY_WB_STREAM_TUNNEL_MODE.equals(key)) {
-                applyWbStreamTunnelModeToBackend(sharedPreferences);
-            }
         };
-    }
-
-    private void applyWbStreamTunnelModeToBackend(SharedPreferences prefs) {
-        wings.v.core.BackendType current = wings.v.core.XrayStore.getBackendType(requireContext());
-        if (!current.isWbStreamBackend()) {
-            return;
-        }
-        wings.v.core.TunnelMode mode = wings.v.core.TunnelMode.fromPrefValue(
-            prefs.getString(AppPrefs.KEY_WB_STREAM_TUNNEL_MODE, wings.v.core.TunnelMode.WIREGUARD.prefValue)
-        );
-        wings.v.core.BackendType next = wings.v.core.BackendType.fromTopLevelAndSub("wb_stream", mode);
-        if (next != current) {
-            wings.v.core.XrayStore.setBackendType(requireContext(), next);
-        }
     }
 
     private void ensureE2eSecret() {

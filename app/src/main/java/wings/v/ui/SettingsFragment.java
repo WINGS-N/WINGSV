@@ -152,8 +152,29 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         lastConfiguredBackendType = configuredBackendType;
         // Дропдаун теперь хранит top-level группу, а не внутренний enum prefValue.
         syncListPreference(AppPrefs.KEY_BACKEND_TOP, configuredBackendType.topLevelGroup());
+        configureSubBackendDropdowns(configuredBackendType);
         configureRootPreferences(configuredBackendType);
         configureXrayPreferences(configuredBackendType);
+    }
+
+    private void configureSubBackendDropdowns(BackendType backendType) {
+        String top = backendType == null ? "" : backendType.topLevelGroup();
+        ListPreference vkTurnSub = findPreference("pref_vk_turn_tunnel_mode_top");
+        if (vkTurnSub != null) {
+            vkTurnSub.setVisible("vk_turn".equals(top));
+            String stored = AppPrefs.getVkTurnTunnelMode(requireContext()).prefValue;
+            if (!TextUtils.equals(vkTurnSub.getValue(), stored)) {
+                vkTurnSub.setValue(stored);
+            }
+        }
+        ListPreference wbStreamSub = findPreference("pref_wb_stream_tunnel_mode_top");
+        if (wbStreamSub != null) {
+            wbStreamSub.setVisible("wb_stream".equals(top));
+            String stored = AppPrefs.getWbStreamTunnelMode(requireContext()).prefValue;
+            if (!TextUtils.equals(wbStreamSub.getValue(), stored)) {
+                wbStreamSub.setValue(stored);
+            }
+        }
     }
 
     private void configurePreferences() {
@@ -161,6 +182,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
         bindListPreference(AppPrefs.KEY_BACKEND_TOP);
+        bindSubBackendDropdown("pref_vk_turn_tunnel_mode_top", "vk_turn");
+        bindSubBackendDropdown("pref_wb_stream_tunnel_mode_top", "wb_stream");
         bindListPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
@@ -848,6 +871,37 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
             return;
         }
+    }
+
+    private void bindSubBackendDropdown(String prefKey, String associatedTopLevel) {
+        ListPreference preference = findPreference(prefKey);
+        if (preference == null) {
+            return;
+        }
+        preference.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
+        preference.setOnPreferenceChangeListener((pref, newValue) -> {
+            if (getListView() != null) {
+                Haptics.softSelection(getListView());
+            } else if (getView() != null) {
+                Haptics.softSelection(getView());
+            }
+            Context preferenceContext = pref.getContext();
+            TunnelMode mode = TunnelMode.fromPrefValue(newValue == null ? null : String.valueOf(newValue));
+            if ("vk_turn".equals(associatedTopLevel)) {
+                AppPrefs.setVkTurnTunnelMode(preferenceContext, mode);
+            } else if ("wb_stream".equals(associatedTopLevel)) {
+                AppPrefs.setWbStreamTunnelMode(preferenceContext, mode);
+            }
+            BackendType current = XrayStore.getBackendType(preferenceContext);
+            if (associatedTopLevel.equals(current.topLevelGroup())) {
+                BackendType next = BackendType.fromTopLevelAndSub(associatedTopLevel, mode);
+                if (next != current) {
+                    ExternalActions.setBackend(preferenceContext, next, true, false);
+                }
+            }
+            refreshRuntimeBackedPreferences(true);
+            return true;
+        });
     }
 
     private void syncListPreference(String key, @Nullable String value) {

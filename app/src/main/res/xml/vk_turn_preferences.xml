@@ -7,13 +7,6 @@
         android:title="Proxy" />
 
     <androidx.preference.DropDownPreference
-        android:key="pref_vk_turn_tunnel_mode"
-        android:title="@string/sub_backend_title"
-        android:defaultValue="wireguard"
-        android:entries="@array/tunnel_mode_entries"
-        android:entryValues="@array/tunnel_mode_values" />
-
-    <androidx.preference.DropDownPreference
         android:key="pref_vk_turn_runtime_mode"
         android:title="@string/runtime_mode_title"
         android:summary="@string/runtime_mode_summary"
