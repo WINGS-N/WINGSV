@@ -43,6 +43,7 @@ import wings.v.core.Haptics;
 import wings.v.core.ProxySettings;
 import wings.v.core.RootUtils;
 import wings.v.core.ThemeModeController;
+import wings.v.core.TunnelMode;
 import wings.v.core.UiFormatter;
 import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
@@ -149,7 +150,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         lastConfiguredBackendType = configuredBackendType;
-        syncListPreference(AppPrefs.KEY_BACKEND_TYPE, configuredBackendType.prefValue);
+        // Дропдаун теперь хранит top-level группу, а не внутренний enum prefValue.
+        syncListPreference(AppPrefs.KEY_BACKEND_TOP, configuredBackendType.topLevelGroup());
         configureRootPreferences(configuredBackendType);
         configureXrayPreferences(configuredBackendType);
     }
@@ -158,7 +160,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AppPrefs.KEY_THREADS);
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
-        bindListPreference(AppPrefs.KEY_BACKEND_TYPE);
+        bindListPreference(AppPrefs.KEY_BACKEND_TOP);
         bindListPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
@@ -819,7 +821,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         preference.setSummaryProvider(ListPreference.SimpleSummaryProvider.getInstance());
-        if (AppPrefs.KEY_BACKEND_TYPE.equals(key)) {
+        if (AppPrefs.KEY_BACKEND_TOP.equals(key)) {
             preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
                 if (getListView() != null) {
                     Haptics.softSelection(getListView());
@@ -827,9 +829,20 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     Haptics.softSelection(getView());
                 }
                 Context preferenceContext = changedPreference.getContext();
-                BackendType nextBackend = BackendType.fromPrefValue(newValue == null ? null : String.valueOf(newValue));
+                String topLevel = newValue == null ? "vk_turn" : String.valueOf(newValue);
+                // Под-backend читаем из соответствующего отдельного prefа.
+                TunnelMode subMode = TunnelMode.WIREGUARD;
+                if ("vk_turn".equals(topLevel)) {
+                    subMode = AppPrefs.getVkTurnTunnelMode(preferenceContext);
+                } else if ("wb_stream".equals(topLevel)) {
+                    subMode = AppPrefs.getWbStreamTunnelMode(preferenceContext);
+                }
+                BackendType nextBackend = BackendType.fromTopLevelAndSub(topLevel, subMode);
                 ExternalActions.setBackend(preferenceContext, nextBackend, true, false);
-                syncListPreference(AppPrefs.KEY_BACKEND_TYPE, XrayStore.getBackendType(preferenceContext).prefValue);
+                syncListPreference(
+                    AppPrefs.KEY_BACKEND_TOP,
+                    XrayStore.getBackendType(preferenceContext).topLevelGroup()
+                );
                 refreshRuntimeBackedPreferences(true);
                 return false;
             });

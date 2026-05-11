@@ -2790,7 +2790,7 @@ public class ProxyTunnelService extends Service {
         if (!executable.isFile()) {
             throw new IllegalStateException("VK TURN binary not found: " + executable.getAbsolutePath());
         }
-        if (activeBackendType == BackendType.WB_STREAM) {
+        if (activeBackendType.isWbStreamBackend()) {
             return buildWbStreamProxyProcess(settings, executable);
         }
         boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
@@ -6783,9 +6783,7 @@ public class ProxyTunnelService extends Service {
         }
 
         if (
-            kernelWireguardActive &&
-            usesTurnProxyBackend(activeBackendType) &&
-            activeBackendType != BackendType.WB_STREAM
+            kernelWireguardActive && usesTurnProxyBackend(activeBackendType) && !activeBackendType.isWbStreamBackend()
         ) {
             long proxyPid = readRootProxyPid();
             if (proxyPid <= 0L || !isExpectedRootProxyProcess(proxyPid)) {

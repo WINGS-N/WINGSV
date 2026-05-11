@@ -49,6 +49,36 @@
         <item>wb_stream</item>
     </string-array>
 
+    <!-- 5 top-level вариантов «Активный backend». Под-backend (WG / AWG)
+         для VK TURN и WB Stream хранится отдельно: pref_vk_turn_tunnel_mode
+         и pref_wb_stream_tunnel_mode. UI-листенер пересчитывает
+         pref_backend_type в SettingsFragment. -->
+    <string-array name="backend_top_entries">
+        <item>@string/backend_top_vk_turn_title</item>
+        <item>@string/backend_top_wb_stream_title</item>
+        <item>@string/backend_top_wireguard_title</item>
+        <item>@string/backend_top_amneziawg_title</item>
+        <item>@string/backend_xray_title</item>
+    </string-array>
+
+    <string-array name="backend_top_values">
+        <item>vk_turn</item>
+        <item>wb_stream</item>
+        <item>wireguard</item>
+        <item>amneziawg</item>
+        <item>xray</item>
+    </string-array>
+
+    <string-array name="tunnel_mode_entries">
+        <item>@string/tunnel_mode_wireguard_title</item>
+        <item>@string/tunnel_mode_amneziawg_title</item>
+    </string-array>
+
+    <string-array name="tunnel_mode_values">
+        <item>wireguard</item>
+        <item>amneziawg</item>
+    </string-array>
+
     <string-array name="captcha_auto_solver_entries">
         <item>@string/captcha_auto_solver_v2_label</item>
         <item>@string/captcha_auto_solver_v1_label</item>

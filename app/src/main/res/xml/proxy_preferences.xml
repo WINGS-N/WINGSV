@@ -6,12 +6,16 @@
         android:key="pref_category_backend"
         android:title="@string/settings_backend_category" />
 
+    <!-- Top-level выбор backend'а. Persistent=false — реальное значение
+         pref_backend_type вычисляется в SettingsFragment из пары
+         (top-level, pref_vk_turn_tunnel_mode / pref_wb_stream_tunnel_mode). -->
     <androidx.preference.DropDownPreference
-        android:key="pref_backend_type"
+        android:key="pref_backend_top"
         android:title="@string/settings_backend_title"
-        android:defaultValue="vk_turn_wireguard"
-        android:entries="@array/backend_entries"
-        android:entryValues="@array/backend_values" />
+        android:defaultValue="vk_turn"
+        android:persistent="false"
+        android:entries="@array/backend_top_entries"
+        android:entryValues="@array/backend_top_values" />
 
     <Preference
         android:key="pref_open_subscriptions"
