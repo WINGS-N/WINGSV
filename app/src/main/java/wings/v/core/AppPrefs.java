@@ -82,6 +82,9 @@ public final class AppPrefs {
     public static final String KEY_WB_STREAM_TUNNEL_MODE = "pref_wb_stream_tunnel_mode";
     public static final String KEY_PREFS_SCHEMA_VERSION = "pref_prefs_schema_version";
     public static final int CURRENT_PREFS_SCHEMA_VERSION = 1;
+    /** Версия последнего применённого guardian-конфига; отправляется в ClientHello и
+     *  переписывается на каждом успешном applyConfigPush. */
+    public static final String KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION = "pref_guardian_last_applied_config_version";
     public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
     public static final String KEY_OPEN_ROOT_INTERFACE_SETTINGS = "pref_open_root_interface_settings";
     public static final String KEY_ROOT_WIREGUARD_INTERFACE_NAME = "pref_root_wg_interface_name";
@@ -1694,6 +1697,14 @@ public final class AppPrefs {
             .edit()
             .putString(KEY_WB_STREAM_TUNNEL_MODE, (mode == null ? TunnelMode.WIREGUARD : mode).prefValue)
             .apply();
+    }
+
+    public static long getGuardianLastAppliedConfigVersion(Context context) {
+        return prefs(context).getLong(KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION, 0L);
+    }
+
+    public static void setGuardianLastAppliedConfigVersion(Context context, long version) {
+        prefs(context).edit().putLong(KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION, version).apply();
     }
 
     /**

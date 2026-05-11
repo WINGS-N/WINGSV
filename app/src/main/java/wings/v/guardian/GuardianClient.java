@@ -354,6 +354,7 @@ public final class GuardianClient {
             .setDeviceModel(safe(hwidPayload != null ? hwidPayload.deviceModel : Build.MODEL))
             .setOsVersion(safe(hwidPayload != null ? hwidPayload.verOs : Build.VERSION.RELEASE))
             .setHwid(safe(hwidPayload != null ? hwidPayload.hwid : ""))
+            .setLastAppliedConfigVersion(AppPrefs.getGuardianLastAppliedConfigVersion(appContext))
             .build();
     }
 
