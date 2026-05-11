@@ -745,6 +745,10 @@ public final class WingsImportParser {
         if (includeDefaults || roomCount != AppPrefs.DEFAULT_WB_STREAM_ROOM_COUNT) {
             builder.setRoomCount(roomCount);
         }
+        TunnelMode wbMode = context != null ? AppPrefs.getWbStreamTunnelMode(context) : TunnelMode.WIREGUARD;
+        if (includeDefaults || wbMode != TunnelMode.WIREGUARD) {
+            builder.setTunnelMode(wbMode.toProto());
+        }
         return builder.build();
     }
 
@@ -1767,6 +1771,11 @@ public final class WingsImportParser {
         for (String entry : splitUserDnsEntries(settings.vkTurnUserDns)) {
             builder.addUserDns(entry);
         }
+        TunnelMode vkTurnMode =
+            settings.backendType == BackendType.AMNEZIAWG ? TunnelMode.AMNEZIAWG : TunnelMode.WIREGUARD;
+        if (includeDefaults || vkTurnMode != TunnelMode.WIREGUARD) {
+            builder.setTunnelMode(vkTurnMode.toProto());
+        }
         return builder.build();
     }
 
@@ -1952,13 +1961,17 @@ public final class WingsImportParser {
             allSettings ||
             config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_WB_STREAM ||
             importedConfig.backendType == BackendType.WB_STREAM ||
+            importedConfig.backendType == BackendType.WB_STREAM_AMNEZIAWG ||
             config.hasWbStream()
         ) {
-            if (!allSettings) {
-                importedConfig.backendType = BackendType.WB_STREAM;
-            }
             if (config.hasWbStream()) {
                 parseWbStream(config.getWbStream(), importedConfig);
+            }
+            if (!allSettings) {
+                importedConfig.backendType =
+                    importedConfig.wbStreamTunnelMode == wings.v.core.TunnelMode.AMNEZIAWG
+                        ? BackendType.WB_STREAM_AMNEZIAWG
+                        : BackendType.WB_STREAM;
             }
             if (config.hasTurn()) {
                 parseTurn(config.getTurn(), importedConfig);
@@ -2060,6 +2073,7 @@ public final class WingsImportParser {
         if (wb.hasRoomCount()) {
             importedConfig.wbStreamRoomCount = wb.getRoomCount();
         }
+        importedConfig.wbStreamTunnelMode = wings.v.core.TunnelMode.fromProto(wb.getTunnelMode());
     }
 
     private static void parseTurn(WingsvProto.Turn turn, ImportedConfig importedConfig) {
@@ -2108,6 +2122,7 @@ public final class WingsImportParser {
         if (turn.getRuntimeMode() != WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_UNSPECIFIED) {
             importedConfig.vkTurnRuntimeMode = fromProtoRuntimeMode(turn.getRuntimeMode());
         }
+        importedConfig.vkTurnTunnelMode = wings.v.core.TunnelMode.fromProto(turn.getTunnelMode());
         if (turn.getUserDnsCount() > 0) {
             StringBuilder joined = new StringBuilder();
             for (int i = 0; i < turn.getUserDnsCount(); i++) {
@@ -2738,6 +2753,8 @@ public final class WingsImportParser {
         public boolean wbStreamE2eEnabled;
         public String wbStreamE2eSecret;
         public Integer wbStreamRoomCount;
+        public wings.v.core.TunnelMode wbStreamTunnelMode;
+        public wings.v.core.TunnelMode vkTurnTunnelMode;
         public String endpoint;
         public String link;
         public java.util.List<String> links = new java.util.ArrayList<>();

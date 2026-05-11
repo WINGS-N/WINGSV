@@ -589,7 +589,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
         Preference wbStreamSettingsPreference = findPreference(AppPrefs.KEY_OPEN_WB_STREAM_SETTINGS);
         if (wbStreamSettingsPreference != null) {
-            boolean wbStreamBackend = backendType == BackendType.WB_STREAM;
+            boolean wbStreamBackend = backendType != null && backendType.isWbStreamBackend();
             wbStreamSettingsPreference.setVisible(wbStreamBackend);
             wbStreamSettingsPreference.setEnabled(wbStreamBackend);
         }
