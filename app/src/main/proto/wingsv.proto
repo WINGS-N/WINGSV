@@ -24,6 +24,12 @@ message Config {
   Sharing sharing = 14;
   ByeDpi bye_dpi = 15;
   Guardian guardian = 16;
+  // Монотонно растущая ревизия конфига, выставляется панелью при
+  // UpsertClientConfig. Клиент сохраняет её при успешном apply и шлёт
+  // обратно в ClientHello.last_applied_config_version — сервер на welcome
+  // решает, нужен ли вообще ConfigPush, и тем самым не «перезатирает»
+  // только что отредактированные админом поля на reconnect-гонке.
+  uint64 config_version = 17;
 }
 
 enum ConfigType {
@@ -55,14 +61,32 @@ enum GuardianSyncMode {
   GUARDIAN_SYNC_MODE_FOREGROUND_ONLY = 3;
 }
 
+// BackendType — top-level выбор пользователя. Legacy-значения
+// BACKEND_TYPE_VK_TURN_WIREGUARD / BACKEND_TYPE_AMNEZIAWG /
+// BACKEND_TYPE_AMNEZIAWG_PLAIN остаются для совместимости со старыми
+// конфигами и читателями; новые конфиги используют BACKEND_TYPE_VK_TURN
+// + Turn.tunnel_mode и BACKEND_TYPE_AMNEZIAWG_PLAIN → BACKEND_TYPE_AMNEZIAWG
+// (без подтипа). Маппинг см. в Android BackendType.fromProto / WingsImportParser.
 enum BackendType {
   BACKEND_TYPE_UNSPECIFIED = 0;
-  BACKEND_TYPE_VK_TURN_WIREGUARD = 1;
+  BACKEND_TYPE_VK_TURN_WIREGUARD = 1 [deprecated = true];  // legacy alias for VK_TURN + WG
   BACKEND_TYPE_XRAY = 2;
-  BACKEND_TYPE_AMNEZIAWG = 3;
+  BACKEND_TYPE_AMNEZIAWG = 3 [deprecated = true];          // legacy alias for VK_TURN + AWG
   BACKEND_TYPE_WIREGUARD = 4;
-  BACKEND_TYPE_AMNEZIAWG_PLAIN = 5;
+  BACKEND_TYPE_AMNEZIAWG_PLAIN = 5 [deprecated = true];    // legacy alias for top-level AmneziaWG
   BACKEND_TYPE_WB_STREAM = 6;
+  BACKEND_TYPE_VK_TURN = 7;       // top-level "VK TURN"; реальный туннель — по Turn.tunnel_mode
+  BACKEND_TYPE_AMNEZIAWG_TL = 8;  // top-level "AmneziaWG" (заменяет AMNEZIAWG_PLAIN)
+}
+
+// TunnelMode — какой тип туннеля поднимать внутри backend-обёртки.
+// Применимо к BACKEND_TYPE_VK_TURN (Turn.tunnel_mode) и BACKEND_TYPE_WB_STREAM
+// (WbStream.tunnel_mode). Для top-level WIREGUARD / AMNEZIAWG_TL / XRAY значение
+// игнорируется — тип туннеля жёстко задан backend'ом.
+enum TunnelMode {
+  TUNNEL_MODE_UNSPECIFIED = 0;
+  TUNNEL_MODE_WIREGUARD = 1;
+  TUNNEL_MODE_AMNEZIAWG = 2;
 }
 
 message WbStream {
@@ -72,6 +96,9 @@ message WbStream {
   bytes e2e_secret = 4;
   string display_name = 5;
   optional uint32 room_count = 6;
+  // Какой туннель пускать поверх WB Stream userspace-прокси: WG или AWG.
+  // UNSPECIFIED трактуется как WIREGUARD (поведение до введения поля).
+  TunnelMode tunnel_mode = 7;
 }
 
 message AmneziaWG {
@@ -113,6 +140,9 @@ message Turn {
   // Записи без ответа на bootstrap-резолюции просто отбрасываются;
   // в любом случае встроенный список остаётся как fallback.
   repeated string user_dns = 17;
+  // Какой туннель пускать поверх VK TURN userspace-прокси: WG или AWG.
+  // UNSPECIFIED трактуется как WIREGUARD (поведение до введения поля).
+  TunnelMode tunnel_mode = 18;
 }
 
 enum TurnSessionMode {
