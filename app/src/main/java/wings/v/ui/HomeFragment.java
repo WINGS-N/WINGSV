@@ -395,12 +395,16 @@ public class HomeFragment extends Fragment {
             }
             return getString(R.string.backend_wireguard_title);
         }
-        if (settings.backendType == BackendType.WB_STREAM) {
+        if (settings.backendType != null && settings.backendType.isWbStreamBackend()) {
             String roomId = wings.v.core.AppPrefs.getWbStreamRoomId(requireContext());
+            int titleRes =
+                settings.backendType == BackendType.WB_STREAM_AMNEZIAWG
+                    ? R.string.backend_wb_stream_amneziawg_title
+                    : R.string.backend_wb_stream_title;
             if (!TextUtils.isEmpty(roomId)) {
                 return getString(R.string.backend_wb_stream_with_room, roomId);
             }
-            return getString(R.string.backend_wb_stream_title);
+            return getString(titleRes);
         }
         if (!TextUtils.isEmpty(settings.endpoint)) {
             return settings.endpoint;

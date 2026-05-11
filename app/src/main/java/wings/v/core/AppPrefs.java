@@ -1016,6 +1016,12 @@ public final class AppPrefs {
                     String.valueOf(clampWbStreamRoomCount(importedConfig.wbStreamRoomCount))
                 );
             }
+            if (importedConfig.wbStreamTunnelMode != null) {
+                editor.putString(KEY_WB_STREAM_TUNNEL_MODE, importedConfig.wbStreamTunnelMode.prefValue);
+            }
+        }
+        if (importedConfig.vkTurnTunnelMode != null) {
+            editor.putString(KEY_VK_TURN_TUNNEL_MODE, importedConfig.vkTurnTunnelMode.prefValue);
         }
         editor.apply();
 
