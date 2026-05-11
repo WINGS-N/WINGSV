@@ -35,6 +35,11 @@ message ClientHello {
   string device_model = 6;
   string os_version = 7;
   string hwid = 8;
+  // Версия конфига, которую устройство применило локально последней. Сервер
+  // на welcome решает по ней — слать ConfigPush или нет. Если у нас в DB
+  // версия не выше клиентской, значит у клиента уже свежее, и админские
+  // правки до отправки welcome'a не должны откатываться к DB-снимку.
+  uint64 last_applied_config_version = 9;
 }
 
 message ServerHello {
