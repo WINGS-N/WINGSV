@@ -1358,10 +1358,16 @@ public class ProxyTunnelService extends Service {
                 rootModeActive = settings.rootModeEnabled && !proxyOnlyRuntime;
                 kernelWireguardActive = false;
                 if (rootModeActive) {
+                    // Trust the cached grant from the onboarding probe. Re-probing
+                    // here triggers a second su-grant prompt on Kitsune Magisk /
+                    // KernelSU and often fails on those forks even though the user
+                    // already granted root on the permissions screen. If the cached
+                    // grant is actually stale, the real `runRootHelper` calls below
+                    // will fail loudly with a clear error.
                     String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
                         getApplicationContext(),
                         activeBackendType,
-                        true
+                        false
                     );
                     if (!TextUtils.isEmpty(rootUnavailableReason)) {
                         throw new IllegalStateException(rootUnavailableReason);
@@ -2635,10 +2641,11 @@ public class ProxyTunnelService extends Service {
         clearLastError();
         resetRuntimeSnapshot();
 
+        // Trust cached grant; see startWork comment.
         String rootUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
             getApplicationContext(),
             settings.backendType,
-            true
+            false
         );
         if (!TextUtils.isEmpty(rootUnavailableReason)) {
             throw new IllegalStateException(rootUnavailableReason);
