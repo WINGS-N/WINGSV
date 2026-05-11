@@ -83,6 +83,17 @@
                     android:padding="8dp"
                     android:src="@drawable/ic_copy"
                     app:tint="?android:textColorPrimary" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/button_clear_logs"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/proxy_logs_clear_title"
+                    android:padding="8dp"
+                    android:src="@drawable/ic_delete"
+                    app:tint="?android:textColorPrimary" />
             </LinearLayout>
 
             <LinearLayout

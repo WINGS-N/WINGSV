@@ -122,6 +122,10 @@ public class ProxyLogsActivity extends AppCompatActivity {
             Haptics.softSelection(view);
             copyCurrentLogText();
         });
+        binding.buttonClearLogs.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            clearCurrentLog();
+        });
         refreshLogs();
     }
 
@@ -300,6 +304,48 @@ public class ProxyLogsActivity extends AppCompatActivity {
         String[] rawLines = snapshot.split("\\r?\\n", -1);
         lines.addAll(Arrays.asList(rawLines));
         return lines;
+    }
+
+    private void clearCurrentLog() {
+        boolean ok = true;
+        if (MODE_RUNTIME.equals(logMode)) {
+            ProxyTunnelService.clearRuntimeLogs();
+        } else if (MODE_XRAY.equals(logMode)) {
+            ok = clearXrayLogFiles();
+        } else {
+            ProxyTunnelService.clearProxyLogs();
+        }
+        if (!ok) {
+            Toast.makeText(this, R.string.proxy_logs_clear_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // Сброс адаптера и счётчика версии — иначе следующий refresh решит, что
+        // изменений не было (lastRenderedLogVersion остаётся прежним) и не
+        // перерисует пустой стейт.
+        displayedLines.clear();
+        logsAdapter.notifyDataSetChanged();
+        lastRenderedLogVersion = -1L;
+        binding.textProxyLogsEmpty.setVisibility(View.VISIBLE);
+        Toast.makeText(this, R.string.proxy_logs_clear_done, Toast.LENGTH_SHORT).show();
+    }
+
+    private boolean clearXrayLogFiles() {
+        File logDir = new File(getFilesDir(), "xray/log");
+        boolean ok = truncateFile(new File(logDir, "error.log"));
+        ok &= truncateFile(new File(logDir, "access.log"));
+        return ok;
+    }
+
+    private boolean truncateFile(File file) {
+        if (file == null || !file.isFile()) {
+            return true;
+        }
+        try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
+            raf.setLength(0L);
+            return true;
+        } catch (java.io.IOException error) {
+            return false;
+        }
     }
 
     private void copyCurrentLogText() {
