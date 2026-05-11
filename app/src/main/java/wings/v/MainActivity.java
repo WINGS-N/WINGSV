@@ -74,6 +74,10 @@ public class MainActivity extends AppCompatActivity {
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
     private static final long BACK_EXIT_WINDOW_MS = 2_000L;
     private static final long NAVIGATION_REFRESH_INTERVAL_MS = 500L;
+    // Re-probe актуального состояния su периодически — Magisk/Kitsune может
+    // отозвать grant между resume/pause, и UI должен это поймать. 30 секунд
+    // — компромисс между ленью пользователя и стоимостью ProcessBuilder("su").
+    private static final long ROOT_STATE_REPROBE_INTERVAL_MS = 30_000L;
 
     private ActivityMainBinding binding;
     private final Handler navigationHandler = new Handler(Looper.getMainLooper());
@@ -97,6 +101,17 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private final ExecutorService rootStateExecutor = Executors.newSingleThreadExecutor();
     private volatile int rootStateRefreshGeneration;
+    private long lastRootStateReprobeAtMs;
+    private final Runnable rootStateReprobeRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (binding == null) {
+                return;
+            }
+            refreshRootStateAsync();
+            navigationHandler.postDelayed(this, ROOT_STATE_REPROBE_INTERVAL_MS);
+        }
+    };
     private AppUpdateManager appUpdateManager;
     private long lastBackPressedAtMs;
     private final AppUpdateManager.Listener updateStateListener = this::applyUpdateBadgeState;
@@ -205,13 +220,24 @@ public class MainActivity extends AppCompatActivity {
         syncNavigationState();
         startNavigationRefresh();
         refreshRootStateAsync();
+        startRootStateReprobe();
         maybeRecoverRuntimeState();
     }
 
     @Override
     protected void onPause() {
         stopNavigationRefresh();
+        stopRootStateReprobe();
         super.onPause();
+    }
+
+    private void startRootStateReprobe() {
+        navigationHandler.removeCallbacks(rootStateReprobeRunnable);
+        navigationHandler.postDelayed(rootStateReprobeRunnable, ROOT_STATE_REPROBE_INTERVAL_MS);
+    }
+
+    private void stopRootStateReprobe() {
+        navigationHandler.removeCallbacks(rootStateReprobeRunnable);
     }
 
     @Override
@@ -583,17 +609,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshRootStateAsync() {
-        if (!AppPrefs.isRootAccessGranted(this)) {
-            return;
-        }
+        // Раньше тут был ранний выход когда cache=false: «нечего перепроверять,
+        // root и так нет». Это пропускало обратное направление — пользователь
+        // включил Magisk grant в фоне, мы его не видели до следующего onResume.
+        // Теперь probe идёт всегда; refreshRootAccessState внутри сама поймёт
+        // и cache→true (user granted), и cache→false (revoke), и вызовет
+        // handleRootRevoked для UI cleanup.
         rootStateRefreshGeneration++;
         final int generation = rootStateRefreshGeneration;
+        lastRootStateReprobeAtMs = System.currentTimeMillis();
         rootStateExecutor.execute(() -> {
             Context appContext = getApplicationContext();
-            boolean granted = RootUtils.refreshRootAccessState(appContext);
-            if (!granted) {
-                AppPrefs.clearRootRuntimeState(appContext);
-            }
+            RootUtils.quickRefreshRootAccessState(appContext);
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed() || generation != rootStateRefreshGeneration) {
                     return;

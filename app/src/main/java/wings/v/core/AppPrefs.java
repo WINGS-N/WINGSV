@@ -126,6 +126,7 @@ public final class AppPrefs {
     public static final String KEY_XRAY_TPROXY_MODE = "pref_xray_tproxy_mode";
     public static final String KEY_ROOT_ACCESS_GRANTED = "pref_root_access_granted";
     public static final String KEY_ROOT_ACCESS_CHECKED_AT = "pref_root_access_checked_at";
+    public static final String KEY_ROOT_SU_PATH = "pref_root_su_path";
     public static final String KEY_ROOT_RUNTIME_ACTIVE = "pref_root_runtime_active";
     public static final String KEY_ROOT_RUNTIME_TUNNEL = "pref_root_runtime_tunnel";
     public static final String KEY_ROOT_RUNTIME_PROXY_PID = "pref_root_runtime_proxy_pid";
@@ -497,6 +498,14 @@ public final class AppPrefs {
 
     public static long getRootAccessCheckedAt(Context context) {
         return prefs(context).getLong(KEY_ROOT_ACCESS_CHECKED_AT, 0L);
+    }
+
+    public static String getRootSuPath(Context context) {
+        return trim(prefs(context).getString(KEY_ROOT_SU_PATH, ""));
+    }
+
+    public static void setRootSuPath(Context context, String path) {
+        prefs(context).edit().putString(KEY_ROOT_SU_PATH, trim(path)).apply();
     }
 
     public static boolean hasRootRuntimeState(Context context) {
