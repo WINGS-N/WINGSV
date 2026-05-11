@@ -85,6 +85,10 @@ public final class GuardianCommandHandler {
             imported.guardianClientToken = null;
             imported.guardianClientName = null;
             wings.v.core.AppPrefs.applyImportedConfig(ctx, imported);
+            long version = push.getConfig().getConfigVersion();
+            if (version > 0) {
+                wings.v.core.AppPrefs.setGuardianLastAppliedConfigVersion(ctx, version);
+            }
         } catch (Exception error) {
             Log.w(TAG, "config push apply failed: " + error.getMessage());
         }
