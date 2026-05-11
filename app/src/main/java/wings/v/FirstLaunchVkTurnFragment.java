@@ -3,6 +3,7 @@ package wings.v;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.text.Editable;
@@ -19,11 +20,14 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.appcompat.widget.AppCompatEditText;
 import androidx.fragment.app.Fragment;
+import dev.oneuiproject.oneui.qr.app.QrScanActivity;
 import java.net.IDN;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,6 +73,11 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     private boolean applyingValues;
     private boolean validationAttempted;
 
+    private final ActivityResultLauncher<Intent> qrScanLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> handleQrScanResult(result.getResultCode(), result.getData())
+    );
+
     public static FirstLaunchVkTurnFragment create() {
         return new FirstLaunchVkTurnFragment();
     }
@@ -90,13 +99,6 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         buildForm();
         bindButtons();
         loadSettings(AppPrefs.getSettings(requireContext()));
-        updateImportButtonStyle();
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        updateImportButtonStyle();
     }
 
     @Override
@@ -146,9 +148,13 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        binding.buttonImportWingsv.setOnClickListener(view -> {
+        binding.buttonFirstLaunchPasteClipboard.setOnClickListener(view -> {
             Haptics.softSelection(view);
-            importWingsvFromClipboard();
+            pasteFromClipboard();
+        });
+        binding.buttonFirstLaunchScanQr.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            launchQrScanner();
         });
         binding.buttonContinueVkTurn.setOnClickListener(view -> {
             Haptics.softConfirm(view);
@@ -156,41 +162,24 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         });
     }
 
-    private void updateImportButtonStyle() {
-        if (binding == null) {
-            return;
+    private void launchQrScanner() {
+        Intent intent = QrScanActivity.Companion.createIntent(requireContext(), getString(R.string.qr_scan_title));
+        try {
+            qrScanLauncher.launch(intent);
+        } catch (android.content.ActivityNotFoundException ignored) {
+            Toast.makeText(requireContext(), R.string.qr_scan_camera_unavailable, Toast.LENGTH_SHORT).show();
         }
-        boolean primaryStyle = shouldUsePrimaryImportButtonStyle();
-        binding.buttonImportWingsv.setBackgroundResource(
-            primaryStyle ? R.drawable.bg_first_launch_primary_button : R.drawable.bg_first_launch_inline_button
-        );
-        binding.buttonImportWingsv.setTextColor(primaryStyle ? 0xFF010102 : 0xFF0B2239);
     }
 
-    private boolean shouldUsePrimaryImportButtonStyle() {
-        try {
-            Context context = requireContext();
-            ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboardManager == null) {
-                return true;
-            }
-            if (!clipboardManager.hasPrimaryClip()) {
-                return false;
-            }
-            ClipData clipData = clipboardManager.getPrimaryClip();
-            if (clipData == null || clipData.getItemCount() == 0) {
-                return false;
-            }
-            for (int i = 0; i < clipData.getItemCount(); i++) {
-                CharSequence rawText = clipData.getItemAt(i).coerceToText(context);
-                if (rawText != null && rawText.toString().contains("wingsv://")) {
-                    return true;
-                }
-            }
-            return false;
-        } catch (SecurityException ignored) {
-            return true;
+    private void handleQrScanResult(int resultCode, @Nullable Intent data) {
+        if (resultCode != android.app.Activity.RESULT_OK || data == null) {
+            return;
         }
+        String scanned = data.getStringExtra(QrScanActivity.EXTRA_QR_SCANNER_RESULT);
+        if (TextUtils.isEmpty(scanned)) {
+            return;
+        }
+        applyImportedText(scanned.trim());
     }
 
     private InputField addInput(LinearLayout container, String key, int labelRes, boolean required, boolean multiline) {
@@ -383,7 +372,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void importWingsvFromClipboard() {
+    private void pasteFromClipboard() {
         Context context = requireContext();
         ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
@@ -396,22 +385,30 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             return;
         }
         CharSequence rawText = clipData.getItemAt(0).coerceToText(context);
-        String text = rawText != null ? rawText.toString() : "";
-        if (!text.contains("wingsv://")) {
-            Toast.makeText(context, R.string.first_launch_vk_turn_import_invalid, Toast.LENGTH_SHORT).show();
+        String text = rawText != null ? rawText.toString().trim() : "";
+        if (TextUtils.isEmpty(text)) {
+            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        applyImportedText(text);
+    }
+
+    private void applyImportedText(@NonNull String rawText) {
+        Context context = getContext();
+        if (context == null) {
             return;
         }
         try {
-            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
+            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(rawText);
             if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
-                pendingImportRawText = text;
+                pendingImportRawText = rawText;
                 pendingImport = importedConfig;
                 wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
                 return;
             }
-            applyParsedImport(text, importedConfig);
+            applyParsedImport(rawText, importedConfig);
         } catch (Exception ignored) {
-            Toast.makeText(context, R.string.first_launch_vk_turn_import_invalid, Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -450,7 +447,6 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         loadSettings(AppPrefs.getSettings(context));
         validationAttempted = true;
         validateSettings(collectSettings(), false);
-        updateImportButtonStyle();
         Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
         if (getActivity() instanceof Host) {
             ((Host) getActivity()).onVkTurnSettingsCompleted();

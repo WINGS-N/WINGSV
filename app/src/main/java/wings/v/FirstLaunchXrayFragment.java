@@ -3,9 +3,8 @@ package wings.v;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -15,20 +14,20 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.AppCompatCheckBox;
 import androidx.fragment.app.Fragment;
+import dev.oneuiproject.oneui.qr.app.QrScanActivity;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
-import wings.v.core.XraySubscriptionImportHelper;
 import wings.v.databinding.FragmentFirstLaunchXrayBinding;
 import wings.v.service.ProxyTunnelService;
 
@@ -59,13 +58,15 @@ public class FirstLaunchXrayFragment extends Fragment {
     @Nullable
     private FragmentFirstLaunchXrayBinding binding;
 
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final ExecutorService importExecutor = Executors.newSingleThreadExecutor();
-
     private AppCompatCheckBox allowLanCheckBox;
     private AppCompatCheckBox allowInsecureCheckBox;
     private AppCompatCheckBox ipv6CheckBox;
     private AppCompatCheckBox sniffingCheckBox;
+
+    private final ActivityResultLauncher<Intent> qrScanLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> handleQrScanResult(result.getResultCode(), result.getData())
+    );
 
     public static FirstLaunchXrayFragment create() {
         return new FirstLaunchXrayFragment();
@@ -116,22 +117,80 @@ public class FirstLaunchXrayFragment extends Fragment {
         if (binding == null) {
             return;
         }
-        binding.buttonImportWingsv.setOnClickListener(view -> {
+        binding.buttonFirstLaunchPasteClipboard.setOnClickListener(view -> {
             Haptics.softSelection(view);
-            importFromClipboard("wingsv://", R.string.first_launch_xray_import_wingsv_invalid);
+            pasteFromClipboard();
         });
-        binding.buttonImportVless.setOnClickListener(view -> {
+        binding.buttonFirstLaunchScanQr.setOnClickListener(view -> {
             Haptics.softSelection(view);
-            importFromClipboard("vless://", R.string.first_launch_xray_import_vless_invalid);
-        });
-        binding.buttonImportSubscription.setOnClickListener(view -> {
-            Haptics.softSelection(view);
-            importSubscriptionFromClipboard();
+            launchQrScanner();
         });
         binding.buttonContinueXray.setOnClickListener(view -> {
             Haptics.softConfirm(view);
             saveAndContinue();
         });
+    }
+
+    private void launchQrScanner() {
+        Intent intent = QrScanActivity.Companion.createIntent(requireContext(), getString(R.string.qr_scan_title));
+        try {
+            qrScanLauncher.launch(intent);
+        } catch (android.content.ActivityNotFoundException ignored) {
+            Toast.makeText(requireContext(), R.string.qr_scan_camera_unavailable, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void handleQrScanResult(int resultCode, @Nullable Intent data) {
+        if (resultCode != android.app.Activity.RESULT_OK || data == null) {
+            return;
+        }
+        String scanned = data.getStringExtra(QrScanActivity.EXTRA_QR_SCANNER_RESULT);
+        if (TextUtils.isEmpty(scanned)) {
+            return;
+        }
+        applyImportedText(scanned.trim());
+    }
+
+    private void pasteFromClipboard() {
+        Context context = requireContext();
+        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
+            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipData clipData = clipboardManager.getPrimaryClip();
+        if (clipData == null || clipData.getItemCount() == 0) {
+            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        CharSequence raw = clipData.getItemAt(0).coerceToText(context);
+        String text = raw != null ? raw.toString().trim() : "";
+        if (TextUtils.isEmpty(text)) {
+            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        applyImportedText(text);
+    }
+
+    private void applyImportedText(@NonNull String rawText) {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        WingsImportParser.ImportedConfig parsed;
+        try {
+            parsed = WingsImportParser.parseFromText(rawText);
+        } catch (Exception ignored) {
+            Toast.makeText(context, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (wings.v.core.GuardianImportGate.needsConfirmation(parsed)) {
+            pendingImportRawText = rawText;
+            pendingImport = parsed;
+            wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+            return;
+        }
+        applyParsedImport(rawText, parsed);
     }
 
     private AppCompatCheckBox addCheckBox(LinearLayout container, int labelRes) {
@@ -198,44 +257,9 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void importFromClipboard(String requiredScheme, int invalidMessageRes) {
-        Context context = requireContext();
-        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
-            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        ClipData clipData = clipboardManager.getPrimaryClip();
-        if (clipData == null || clipData.getItemCount() == 0) {
-            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        CharSequence rawText = clipData.getItemAt(0).coerceToText(context);
-        String text = rawText != null ? rawText.toString() : "";
-        if (!text.contains(requiredScheme)) {
-            Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        try {
-            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
-                pendingImportRawText = text;
-                pendingImport = importedConfig;
-                pendingImportInvalidMessageRes = invalidMessageRes;
-                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
-                return;
-            }
-            applyParsedImport(text, importedConfig);
-        } catch (Exception ignored) {
-            Toast.makeText(context, invalidMessageRes, Toast.LENGTH_SHORT).show();
-        }
-    }
-
     private static final int REQUEST_GUARDIAN_CONFIRM = 4302;
     private String pendingImportRawText;
     private WingsImportParser.ImportedConfig pendingImport;
-    private int pendingImportInvalidMessageRes;
 
     @Override
     public void onActivityResult(
@@ -269,83 +293,6 @@ public class FirstLaunchXrayFragment extends Fragment {
         Toast.makeText(context, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
         if (getActivity() instanceof Host) {
             ((Host) getActivity()).onXraySettingsCompleted();
-        }
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void importSubscriptionFromClipboard() {
-        Context context = requireContext();
-        ClipboardManager clipboardManager = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-        if (clipboardManager == null || !clipboardManager.hasPrimaryClip()) {
-            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        ClipData clipData = clipboardManager.getPrimaryClip();
-        if (clipData == null || clipData.getItemCount() == 0) {
-            Toast.makeText(context, R.string.clipboard_empty, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        CharSequence rawText = clipData.getItemAt(0).coerceToText(context);
-        String text = rawText != null ? rawText.toString() : "";
-        try {
-            WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(text);
-            if (!WingsImportParser.isSubscriptionOnlyXrayImport(importedConfig)) {
-                Toast.makeText(
-                    context,
-                    R.string.first_launch_xray_import_subscription_invalid,
-                    Toast.LENGTH_SHORT
-                ).show();
-                return;
-            }
-            if (binding != null) {
-                binding.buttonImportSubscription.setEnabled(false);
-            }
-            Toast.makeText(context, R.string.xray_subscriptions_import_started, Toast.LENGTH_SHORT).show();
-            Context appContext = context.getApplicationContext();
-            importExecutor.execute(() -> {
-                String toastMessage;
-                boolean importedSuccessfully = false;
-                try {
-                    XraySubscriptionImportHelper.ImportResult result = XraySubscriptionImportHelper.importAndRefresh(
-                        appContext,
-                        importedConfig
-                    );
-                    if (!result.hasProfiles) {
-                        toastMessage = appContext.getString(R.string.xray_subscriptions_import_no_profiles);
-                    } else if (TextUtils.isEmpty(result.refreshResult.error)) {
-                        toastMessage = appContext.getString(R.string.clipboard_import_success);
-                        importedSuccessfully = true;
-                    } else {
-                        toastMessage = appContext.getString(
-                            R.string.xray_subscriptions_refresh_partial,
-                            result.refreshResult.error
-                        );
-                        importedSuccessfully = true;
-                    }
-                } catch (Exception error) {
-                    toastMessage = appContext.getString(R.string.xray_subscriptions_refresh_failed, error.getMessage());
-                }
-                final boolean shouldComplete = importedSuccessfully;
-                final String resolvedToastMessage = toastMessage;
-                mainHandler.post(() -> {
-                    if (binding != null) {
-                        binding.buttonImportSubscription.setEnabled(true);
-                    }
-                    if (shouldComplete) {
-                        requestReconnectAfterImport(appContext, text);
-                        if (binding != null) {
-                            Haptics.softConfirm(binding.buttonImportSubscription);
-                        }
-                        loadSettings(XrayStore.getXraySettings(appContext));
-                        if (getActivity() instanceof Host) {
-                            ((Host) getActivity()).onXraySettingsCompleted();
-                        }
-                    }
-                    Toast.makeText(appContext, resolvedToastMessage, Toast.LENGTH_SHORT).show();
-                });
-            });
-        } catch (Exception ignored) {
-            Toast.makeText(context, R.string.first_launch_xray_import_subscription_invalid, Toast.LENGTH_SHORT).show();
         }
     }
 
