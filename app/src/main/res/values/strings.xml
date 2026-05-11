@@ -178,6 +178,9 @@
     <string name="proxy_logs_pending_updates">Есть новые строки</string>
     <string name="proxy_logs_apply_updates">Показать</string>
     <string name="proxy_logs_copy_title">Скопировать лог</string>
+    <string name="proxy_logs_clear_title">Очистить лог</string>
+    <string name="proxy_logs_clear_done">Лог очищен</string>
+    <string name="proxy_logs_clear_failed">Не удалось очистить лог</string>
     <string name="proxy_logs_copy_done">Лог скопирован в буфер</string>
     <string name="proxy_logs_copy_failed">Не удалось скопировать лог</string>
     <string name="xray_logs_title">Логи Xray</string>
