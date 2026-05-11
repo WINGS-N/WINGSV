@@ -4567,21 +4567,58 @@ public class ProxyTunnelService extends Service {
 
     private void stopTproxyXrayProcess() {
         Process process = tproxyXrayProcess;
-        if (process == null) {
-            return;
-        }
+        Context appContext = getApplicationContext();
+        // Always run the root-pkill sweep, even when the local Process handle is
+        // already gone: Process.destroy() only hits the top-level su, the real
+        // xray under app_process gets reparented to init and survives. The sweep
+        // by full cmdline is the only way to reliably take it down.
         tproxyXrayProcess = null;
         resetTproxyTrafficBaselines();
-        try {
-            process.destroy();
-        } catch (Exception ignored) {}
-        try {
-            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+        if (process != null) {
+            try {
+                process.destroy();
+            } catch (Exception ignored) {}
+            try {
+                if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                    process.destroyForcibly();
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
                 process.destroyForcibly();
             }
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            process.destroyForcibly();
+        }
+        killOrphanXrayTproxyRuntime(appContext);
+        // The TPROXY listener should be gone after kill; wait briefly so the
+        // next start does not race against a still-bound :12345 socket.
+        waitForTproxyListenerGone(2_000L);
+    }
+
+    private void killOrphanXrayTproxyRuntime(Context appContext) {
+        try {
+            RootUtils.runRootHelper(
+                appContext,
+                "shell",
+                "pkill -KILL -f 'wings.v.root.RootCommandMain xray-tproxy' 2>/dev/null; true"
+            );
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                "Kill orphan TPROXY Xray failed: " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+        }
+    }
+
+    private void waitForTproxyListenerGone(long timeoutMs) {
+        long deadline = SystemClock.elapsedRealtime() + Math.max(0L, timeoutMs);
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (!isLocalTcpPortReady("127.0.0.1", XRAY_TPROXY_PORT)) {
+                return;
+            }
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
@@ -4596,17 +4633,7 @@ public class ProxyTunnelService extends Service {
      * {@code app_process … wings.v.root.RootCommandMain xray-tproxy …}.
      */
     private void reapOrphanXrayTproxyRuntime(Context appContext) {
-        try {
-            RootUtils.runRootHelper(
-                appContext,
-                "shell",
-                "pkill -KILL -f 'wings.v.root.RootCommandMain xray-tproxy' 2>/dev/null; true"
-            );
-        } catch (Exception error) {
-            appendRuntimeLogLine(
-                "Reap orphan TPROXY Xray failed: " + firstNonEmpty(error.getMessage(), error.toString())
-            );
-        }
+        killOrphanXrayTproxyRuntime(appContext);
     }
 
     private void requestXrayTproxyReapplyIfNeeded(String reason) {
