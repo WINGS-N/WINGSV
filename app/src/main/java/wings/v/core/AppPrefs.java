@@ -74,6 +74,14 @@ public final class AppPrefs {
     public static final int MAX_WB_STREAM_ROOM_COUNT = 16;
     public static final String KEY_OPEN_WB_STREAM_SETTINGS = "pref_open_wb_stream_settings";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
+    /** UI-only top-level выбор backend'а; pref_backend_type вычисляется из него + sub-backend. */
+    public static final String KEY_BACKEND_TOP = "pref_backend_top";
+    /** Под-backend для top-level VK TURN: "wireguard" | "amneziawg". */
+    public static final String KEY_VK_TURN_TUNNEL_MODE = "pref_vk_turn_tunnel_mode";
+    /** Под-backend для top-level WB Stream: "wireguard" | "amneziawg". */
+    public static final String KEY_WB_STREAM_TUNNEL_MODE = "pref_wb_stream_tunnel_mode";
+    public static final String KEY_PREFS_SCHEMA_VERSION = "pref_prefs_schema_version";
+    public static final int CURRENT_PREFS_SCHEMA_VERSION = 1;
     public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
     public static final String KEY_OPEN_ROOT_INTERFACE_SETTINGS = "pref_open_root_interface_settings";
     public static final String KEY_ROOT_WIREGUARD_INTERFACE_NAME = "pref_root_wg_interface_name";
@@ -1654,6 +1662,67 @@ public final class AppPrefs {
 
     private static SharedPreferences prefs(Context context) {
         return defaultSharedPreferences(context);
+    }
+
+    public static TunnelMode getVkTurnTunnelMode(Context context) {
+        return TunnelMode.fromPrefValue(
+            prefs(context).getString(KEY_VK_TURN_TUNNEL_MODE, TunnelMode.WIREGUARD.prefValue)
+        );
+    }
+
+    public static void setVkTurnTunnelMode(Context context, TunnelMode mode) {
+        prefs(context)
+            .edit()
+            .putString(KEY_VK_TURN_TUNNEL_MODE, (mode == null ? TunnelMode.WIREGUARD : mode).prefValue)
+            .apply();
+    }
+
+    public static TunnelMode getWbStreamTunnelMode(Context context) {
+        return TunnelMode.fromPrefValue(
+            prefs(context).getString(KEY_WB_STREAM_TUNNEL_MODE, TunnelMode.WIREGUARD.prefValue)
+        );
+    }
+
+    public static void setWbStreamTunnelMode(Context context, TunnelMode mode) {
+        prefs(context)
+            .edit()
+            .putString(KEY_WB_STREAM_TUNNEL_MODE, (mode == null ? TunnelMode.WIREGUARD : mode).prefValue)
+            .apply();
+    }
+
+    /**
+     * Запускается из {@link wings.v.WingsApplication#onCreate()} один раз при старте.
+     * Идемпотентна — версия хранится в {@link #KEY_PREFS_SCHEMA_VERSION}, повторные
+     * вызовы no-op. Текущие миграции:
+     * <ul>
+     *   <li>v1: вывести {@link #KEY_VK_TURN_TUNNEL_MODE} и {@link #KEY_WB_STREAM_TUNNEL_MODE}
+     *       из существующего {@link #KEY_BACKEND_TYPE}, чтобы UI-дропдауны под-backend'а
+     *       показывали актуальное состояние у пользователей с предыдущей версии.</li>
+     * </ul>
+     */
+    public static void runMigrationsIfNeeded(Context context) {
+        SharedPreferences sharedPreferences = prefs(context);
+        int currentVersion = sharedPreferences.getInt(KEY_PREFS_SCHEMA_VERSION, 0);
+        if (currentVersion >= CURRENT_PREFS_SCHEMA_VERSION) {
+            return;
+        }
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        if (currentVersion < 1) {
+            applyMigrationV1(sharedPreferences, editor);
+        }
+        editor.putInt(KEY_PREFS_SCHEMA_VERSION, CURRENT_PREFS_SCHEMA_VERSION).apply();
+    }
+
+    private static void applyMigrationV1(SharedPreferences sharedPreferences, SharedPreferences.Editor editor) {
+        if (!sharedPreferences.contains(KEY_VK_TURN_TUNNEL_MODE)) {
+            String legacyBackend = sharedPreferences.getString(KEY_BACKEND_TYPE, "");
+            TunnelMode vkTurnMode = "amneziawg".equals(legacyBackend) ? TunnelMode.AMNEZIAWG : TunnelMode.WIREGUARD;
+            editor.putString(KEY_VK_TURN_TUNNEL_MODE, vkTurnMode.prefValue);
+        }
+        if (!sharedPreferences.contains(KEY_WB_STREAM_TUNNEL_MODE)) {
+            // До v1 у WB Stream был только WireGuard-туннель — сохраняем поведение.
+            editor.putString(KEY_WB_STREAM_TUNNEL_MODE, TunnelMode.WIREGUARD.prefValue);
+        }
     }
 
     public static List<String> getVkLinks(Context context) {

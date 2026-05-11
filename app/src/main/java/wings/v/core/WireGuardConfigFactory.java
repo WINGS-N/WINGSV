@@ -59,7 +59,7 @@ public final class WireGuardConfigFactory {
             builder.append("PresharedKey = ").append(settings.wgPresharedKey).append('\n');
         }
         String allowedIps = settings.wgAllowedIps;
-        if (settings.backendType == BackendType.WB_STREAM) {
+        if (settings.backendType != null && settings.backendType.isWbStreamBackend()) {
             allowedIps = applySplitRouteExclusions(allowedIps, WB_STREAM_EXCLUDED_CIDRS);
         }
         builder.append("AllowedIPs = ").append(allowedIps).append('\n');

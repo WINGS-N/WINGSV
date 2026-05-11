@@ -34,6 +34,7 @@ public class WingsApplication extends Application {
         if (!isMainProcess()) {
             return;
         }
+        wings.v.core.AppPrefs.runMigrationsIfNeeded(this);
         registerActivityLifecycleCallbacks(
             new ActivityLifecycleCallbacks() {
                 @Override
