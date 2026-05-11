@@ -23,11 +23,11 @@ public final class GuardianRunner {
 
     /**
      * @param activityForeground true когда хотя бы одна Activity приложения
-     * сейчас находится в started-состоянии. Влияет только на режим
-     * FOREGROUND_ONLY: пока юзер в приложении — держим живой WS через
-     * {@link GuardianForegroundClient}; как только активити уходит в onStop —
+     * сейчас находится в started-состоянии. Влияет на режимы FOREGROUND_ONLY и
+     * PERIODIC: пока юзер в приложении, держим живой WS через
+     * {@link GuardianForegroundClient}; как только активити уходит в onStop,
      * закрываем WS и ставим WorkManager periodic, чтобы фоновая синхронизация
-     * шла раз в N минут, а не молчала всё время до возврата в приложение.
+     * шла раз в N минут.
      */
     public static void applyMode(Context context, boolean activityForeground) {
         if (context == null) return;

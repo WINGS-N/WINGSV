@@ -43,7 +43,7 @@ public final class GuardianClient {
     private static final long WATCHDOG_INTERVAL_MS = 5_000L;
     private static final long WATCHDOG_SILENCE_LIMIT_MS = 75_000L;
     // Backoff резетим только после того как WS прожил подольше, чем стартовый
-    // backoff. Иначе сценарий «успешный ServerHello → мгновенный close» гасит
+    // backoff. Иначе сценарий "успешный ServerHello -> мгновенный close" гасит
     // backoff в 3с и крутит цикл reconnect каждые 3-3 секунды.
     private static final long BACKOFF_RESET_STABLE_MS = 30_000L;
 
@@ -283,9 +283,9 @@ public final class GuardianClient {
 
     /**
      * Гасит backoff только если WS прожил подольше {@link #BACKOFF_RESET_STABLE_MS}.
-     * Так не схлопываемся обратно в 3с интервал при коннект-успех → быстрый close
-     * → reconnect-success → close цикле (например, когда server-side close по
-     * ping-timeout, а после успешного hello клиент думает «всё ок, резет»).
+     * Так не схлопываемся обратно в 3с интервал при коннект-успех -> быстрый close
+     * -> reconnect-success -> close цикле (например, когда server-side close по
+     * ping-timeout, а после успешного hello клиент думает "всё ок, резет").
      */
     private void maybeResetBackoffOnStable() {
         if (connectedAtMs > 0 && System.currentTimeMillis() - connectedAtMs >= BACKOFF_RESET_STABLE_MS) {

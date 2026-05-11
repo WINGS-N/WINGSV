@@ -17,6 +17,25 @@
         android:entries="@array/backend_top_entries"
         android:entryValues="@array/backend_top_values" />
 
+    <!-- Sub-backend для VK TURN: видим только когда выбран top-level «VK TURN»;
+         управляется из SettingsFragment.configureSubBackendPreference(). -->
+    <androidx.preference.DropDownPreference
+        android:key="pref_vk_turn_tunnel_mode_top"
+        android:title="@string/sub_backend_title"
+        android:defaultValue="wireguard"
+        android:persistent="false"
+        android:entries="@array/tunnel_mode_entries"
+        android:entryValues="@array/tunnel_mode_values" />
+
+    <!-- Sub-backend для WB Stream: видим только когда выбран top-level «WB Stream». -->
+    <androidx.preference.DropDownPreference
+        android:key="pref_wb_stream_tunnel_mode_top"
+        android:title="@string/sub_backend_title"
+        android:defaultValue="wireguard"
+        android:persistent="false"
+        android:entries="@array/tunnel_mode_entries"
+        android:entryValues="@array/tunnel_mode_values" />
+
     <Preference
         android:key="pref_open_subscriptions"
         android:title="@string/drawer_subscriptions_title"

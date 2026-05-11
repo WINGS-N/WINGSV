@@ -6,13 +6,6 @@
         android:key="pref_category_wb_stream"
         android:title="@string/wb_stream_section" />
 
-    <androidx.preference.DropDownPreference
-        android:key="pref_wb_stream_tunnel_mode"
-        android:title="@string/sub_backend_title"
-        android:defaultValue="wireguard"
-        android:entries="@array/tunnel_mode_entries"
-        android:entryValues="@array/tunnel_mode_values" />
-
     <EditTextPreference
         android:key="pref_wb_stream_room_id"
         android:title="@string/wb_stream_room_id_title"

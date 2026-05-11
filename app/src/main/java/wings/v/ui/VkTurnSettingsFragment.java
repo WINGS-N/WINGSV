@@ -587,20 +587,6 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         setPreferenceVisible(AmneziaStore.KEY_PEER_ENDPOINT, plainAwgPeerEndpointVisible);
     }
 
-    private void applyVkTurnTunnelModeToBackend(SharedPreferences prefs) {
-        BackendType current = XrayStore.getBackendType(requireContext());
-        if (!"vk_turn".equals(current.topLevelGroup())) {
-            return;
-        }
-        wings.v.core.TunnelMode mode = wings.v.core.TunnelMode.fromPrefValue(
-            prefs.getString(AppPrefs.KEY_VK_TURN_TUNNEL_MODE, wings.v.core.TunnelMode.WIREGUARD.prefValue)
-        );
-        BackendType next = BackendType.fromTopLevelAndSub("vk_turn", mode);
-        if (next != current) {
-            XrayStore.setBackendType(requireContext(), next);
-        }
-    }
-
     private void registerPreferencesListener() {
         if (preferencesChangeListener != null) {
             return;
@@ -616,8 +602,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             if (TextUtils.equals(AppPrefs.KEY_VK_TURN_RUNTIME_MODE, key)) {
                 refreshBackendSections();
             }
-            if (TextUtils.equals(AppPrefs.KEY_VK_TURN_TUNNEL_MODE, key)) {
-                applyVkTurnTunnelModeToBackend(prefs);
+            if (TextUtils.equals(AppPrefs.KEY_BACKEND_TYPE, key)) {
                 refreshBackendSections();
             }
             boolean structuredPreference = AmneziaStore.isStructuredPreferenceKey(key);

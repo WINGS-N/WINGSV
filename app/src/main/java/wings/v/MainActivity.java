@@ -259,6 +259,7 @@ public class MainActivity extends AppCompatActivity {
         // Reapply руннер с activityForeground=false: в FOREGROUND_ONLY это
         // запустит WorkManager periodic, чтобы фоновая синхра шла раз в N
         // минут (раньше при уходе в фон сервер вообще не слышал клиента).
+        // PERIODIC ведёт себя так же.
         if (AppPrefs.isGuardianEnabled(this) && AppPrefs.isGuardianConfigured(this)) {
             wings.v.guardian.GuardianRunner.applyMode(getApplicationContext(), false);
         }
