@@ -12,9 +12,12 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
 import java.security.SecureRandom;
+import wings.v.AmneziaSettingsActivity;
 import wings.v.R;
 import wings.v.VkLinksActivity;
 import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
+import wings.v.core.XrayStore;
 
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AvoidUsingHardCodedIP" })
 public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
@@ -39,6 +42,22 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         "pref_category_wb_stream_vk_turn",
         "pref_inset_after_wb_stream_vk_turn",
     };
+
+    private static final String[] WIREGUARD_PREFERENCE_KEYS = {
+        "pref_category_wg_interface",
+        AppPrefs.KEY_WG_PRIVATE_KEY,
+        AppPrefs.KEY_WG_ADDRESSES,
+        AppPrefs.KEY_WG_DNS,
+        AppPrefs.KEY_WG_MTU,
+        "pref_inset_after_wg_interface",
+        "pref_category_wg_peer",
+        AppPrefs.KEY_WG_PUBLIC_KEY,
+        AppPrefs.KEY_WG_PRESHARED_KEY,
+        AppPrefs.KEY_WG_ALLOWED_IPS,
+        "pref_inset_after_wg_peer",
+    };
+
+    private static final String KEY_OPEN_AWG_SETTINGS = "pref_open_wb_stream_awg_settings";
 
     private SharedPreferences.OnSharedPreferenceChangeListener listener;
 
@@ -101,6 +120,14 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference openAwgSettings = findPreference(KEY_OPEN_AWG_SETTINGS);
+        if (openAwgSettings != null) {
+            openAwgSettings.setOnPreferenceClickListener(preference -> {
+                startActivity(AmneziaSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         applyVisibility();
 
         listener = (sharedPreferences, key) -> {
@@ -109,7 +136,8 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
             }
             if (
                 AppPrefs.KEY_WB_STREAM_EXCHANGE_VIA_VK_TURN.equals(key) ||
-                AppPrefs.KEY_WB_STREAM_E2E_ENABLED.equals(key)
+                AppPrefs.KEY_WB_STREAM_E2E_ENABLED.equals(key) ||
+                AppPrefs.KEY_BACKEND_TYPE.equals(key)
             ) {
                 applyVisibility();
             }
@@ -153,6 +181,18 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
             if (preference != null) {
                 preference.setVisible(exchangeViaVkTurn);
             }
+        }
+        BackendType backendType = XrayStore.getBackendType(requireContext());
+        boolean awgMode = backendType == BackendType.WB_STREAM_AMNEZIAWG;
+        for (String key : WIREGUARD_PREFERENCE_KEYS) {
+            Preference preference = findPreference(key);
+            if (preference != null) {
+                preference.setVisible(!awgMode);
+            }
+        }
+        Preference openAwgSettings = findPreference(KEY_OPEN_AWG_SETTINGS);
+        if (openAwgSettings != null) {
+            openAwgSettings.setVisible(awgMode);
         }
         SwitchPreferenceCompat e2eEnabled = findPreference(AppPrefs.KEY_WB_STREAM_E2E_ENABLED);
         EditTextPreference e2eSecret = findPreference(AppPrefs.KEY_WB_STREAM_E2E_SECRET);
