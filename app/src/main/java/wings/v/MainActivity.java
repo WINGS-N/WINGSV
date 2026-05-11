@@ -256,6 +256,12 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager.unregisterListener(updateStateListener);
         wings.v.guardian.GuardianStateBroadcast.unregister(guardianStateListener);
         wings.v.guardian.GuardianForegroundClient.stop();
+        // Reapply руннер с activityForeground=false: в FOREGROUND_ONLY это
+        // запустит WorkManager periodic, чтобы фоновая синхра шла раз в N
+        // минут (раньше при уходе в фон сервер вообще не слышал клиента).
+        if (AppPrefs.isGuardianEnabled(this) && AppPrefs.isGuardianConfigured(this)) {
+            wings.v.guardian.GuardianRunner.applyMode(getApplicationContext(), false);
+        }
         super.onStop();
     }
 
@@ -263,8 +269,12 @@ public class MainActivity extends AppCompatActivity {
         if (!AppPrefs.isGuardianEnabled(this) || !AppPrefs.isGuardianConfigured(this)) {
             return;
         }
-        wings.v.guardian.GuardianRunner.applyMode(getApplicationContext());
-        if (AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(AppPrefs.getGuardianSyncMode(this))) {
+        wings.v.guardian.GuardianRunner.applyMode(getApplicationContext(), true);
+        String syncMode = AppPrefs.getGuardianSyncMode(this);
+        if (
+            AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(syncMode) ||
+            AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC.equals(syncMode)
+        ) {
             wings.v.guardian.GuardianForegroundClient.start(getApplicationContext());
         }
     }

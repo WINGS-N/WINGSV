@@ -18,6 +18,18 @@ public final class GuardianRunner {
     private GuardianRunner() {}
 
     public static void applyMode(Context context) {
+        applyMode(context, false);
+    }
+
+    /**
+     * @param activityForeground true когда хотя бы одна Activity приложения
+     * сейчас находится в started-состоянии. Влияет только на режим
+     * FOREGROUND_ONLY: пока юзер в приложении — держим живой WS через
+     * {@link GuardianForegroundClient}; как только активити уходит в onStop —
+     * закрываем WS и ставим WorkManager periodic, чтобы фоновая синхронизация
+     * шла раз в N минут, а не молчала всё время до возврата в приложение.
+     */
+    public static void applyMode(Context context, boolean activityForeground) {
         if (context == null) return;
         Context app = context.getApplicationContext();
         if (!AppPrefs.isGuardianEnabled(app) || !AppPrefs.isGuardianConfigured(app)) {
@@ -27,12 +39,13 @@ public final class GuardianRunner {
         String mode = AppPrefs.getGuardianSyncMode(app);
         switch (mode) {
             case AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC:
-                stopForegroundService(app);
-                schedulePeriodic(app);
-                break;
             case AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY:
                 stopForegroundService(app);
-                cancelPeriodic(app);
+                if (activityForeground) {
+                    cancelPeriodic(app);
+                } else {
+                    schedulePeriodic(app);
+                }
                 break;
             case AppPrefs.GUARDIAN_SYNC_MODE_ALWAYS:
             default:
