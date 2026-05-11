@@ -285,11 +285,11 @@
 
                 <data
                     android:host="v.wingsnet.org"
-                    android:pathPrefix="/"
+                    android:pathPrefix="/open"
                     android:scheme="https" />
                 <data
                     android:host="v.wingsnet.org"
-                    android:pathPrefix="/"
+                    android:pathPrefix="/open"
                     android:scheme="http" />
             </intent-filter>
         </activity>
