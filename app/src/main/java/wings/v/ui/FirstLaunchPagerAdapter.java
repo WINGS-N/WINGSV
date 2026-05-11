@@ -44,22 +44,15 @@ public class FirstLaunchPagerAdapter extends FragmentStateAdapter {
             return FirstLaunchVkTurnFragment.create();
         }
         if (position == 4) {
-            return FirstLaunchIntroFragment.create(
-                R.string.first_launch_page_wb_stream_title,
-                R.string.first_launch_page_wb_stream_subtitle,
-                R.string.first_launch_next
-            );
-        }
-        if (position == 5) {
             return FirstLaunchXrayFragment.create();
         }
-        if (position == 6) {
+        if (position == 5) {
             return FirstLaunchAutoSearchSettingsFragment.create();
         }
-        if (position == 7) {
+        if (position == 6) {
             return FirstLaunchAutoSearchModeFragment.create();
         }
-        if (position == 8) {
+        if (position == 7) {
             return FirstLaunchAutoSearchRunFragment.create();
         }
         return FirstLaunchDoneFragment.create();
@@ -67,6 +60,6 @@ public class FirstLaunchPagerAdapter extends FragmentStateAdapter {
 
     @Override
     public int getItemCount() {
-        return permissionsOnlyMode ? 2 : 10;
+        return permissionsOnlyMode ? 2 : 9;
     }
 }

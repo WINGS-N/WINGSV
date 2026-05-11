@@ -71,40 +71,58 @@
                     android:paddingTop="4dp"
                     android:paddingBottom="12dp" />
 
-                <Button
-                    android:id="@+id/button_import_wingsv"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_first_launch_primary_button"
-                    android:fontFamily="@font/samsungsharpsans"
-                    android:text="@string/first_launch_xray_import_wingsv"
-                    android:textColor="#FF010102"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/button_import_vless"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_first_launch_primary_button"
-                    android:fontFamily="@font/samsungsharpsans"
-                    android:text="@string/first_launch_xray_import_vless"
-                    android:textColor="#FF010102"
-                    android:textStyle="bold" />
-
-                <Button
-                    android:id="@+id/button_import_subscription"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_first_launch_primary_button"
-                    android:fontFamily="@font/samsungsharpsans"
-                    android:text="@string/first_launch_xray_import_subscription"
-                    android:textColor="#FF010102"
-                    android:textStyle="bold" />
             </LinearLayout>
         </ScrollView>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:baselineAligned="false"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/button_first_launch_paste_clipboard"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_first_launch_inline_button"
+                android:drawableStart="@drawable/ic_clipboard_paste"
+                android:drawablePadding="10dp"
+                android:drawableTint="#FF010102"
+                android:fontFamily="@font/samsungone"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/first_launch_connection_paste_clipboard"
+                android:textColor="#FF010102"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Space
+                android:layout_width="10dp"
+                android:layout_height="match_parent" />
+
+            <Button
+                android:id="@+id/button_first_launch_scan_qr"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_first_launch_inline_button"
+                android:drawableStart="@drawable/ic_qr_scan"
+                android:drawablePadding="10dp"
+                android:drawableTint="#FF010102"
+                android:fontFamily="@font/samsungone"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/first_launch_connection_scan_qr"
+                android:textColor="#FF010102"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/button_continue_xray"
