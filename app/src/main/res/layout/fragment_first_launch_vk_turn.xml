@@ -82,7 +82,7 @@
             android:background="@drawable/bg_first_launch_inline_button"
             android:fontFamily="@font/samsungsharpsans"
             android:text="@string/first_launch_vk_turn_import"
-            android:textColor="#FF0B2239"
+            android:textColor="#FF010102"
             android:textStyle="bold" />
 
         <Button

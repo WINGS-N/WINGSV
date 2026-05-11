@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+Унифицируем «primary» кнопки first-launch экранов с дизайном кнопок выбора
+способа подключения (см. bg_first_launch_inline_button): та же 66%-белая
+заливка, тонкий 22%-белый бордер и более мягкий ripple. Чтобы не править
+десяток фрагментов точечно, меняем сам drawable — всё, что ссылалось на
+этот ресурс, автоматически подхватывает «прозрачный» стиль.
+-->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#24FFFFFF">
+    android:color="#20FFFFFF">
 
     <item android:id="@android:id/mask">
         <shape android:shape="rectangle">
@@ -12,10 +19,10 @@
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="28dp" />
-            <solid android:color="#CCFAFAFF" />
+            <solid android:color="#66FFFFFF" />
             <stroke
                 android:width="1dp"
-                android:color="#4DFFFFFF" />
+                android:color="#38FFFFFF" />
         </shape>
     </item>
 
