@@ -97,6 +97,7 @@ import wings.v.core.ByeDpiSettings;
 import wings.v.core.CaptchaPromptSource;
 import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
+import wings.v.core.RootMultiUserRouter;
 import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
 import wings.v.core.UiFormatter;
@@ -5070,6 +5071,29 @@ public class ProxyTunnelService extends Service {
         } catch (Exception error) {
             appendRuntimeLogLine("Root app tunnel routing failed: " + error.getMessage());
         }
+        applyKernelWgMultiUserRouting(tunnelTableLookup);
+    }
+
+    private void applyKernelWgMultiUserRouting(String tunnelTableLookup) {
+        Context appContext = getApplicationContext();
+        RootMultiUserRouter.Mode mode = AppPrefs.isAppRoutingBypassEnabled(appContext)
+            ? RootMultiUserRouter.Mode.BYPASS
+            : RootMultiUserRouter.Mode.ONLY_SELECTED;
+        Set<String> packages = AppPrefs.getAppRoutingPackages(appContext);
+        try {
+            RootMultiUserRouter.apply(appContext, tunnelTableLookup, mode, packages);
+            appendRuntimeLogLine(
+                "Kernel-WG multi-user routing applied (table=" +
+                    tunnelTableLookup +
+                    ", " +
+                    RootMultiUserRouter.describeFromPrefs(appContext) +
+                    ")"
+            );
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                "Kernel-WG multi-user routing failed: " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+        }
     }
 
     private void clearRootAppTunnelRouting() {
@@ -5082,6 +5106,7 @@ public class ProxyTunnelService extends Service {
             script.append("ip -6 rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
             runRootRoutingCommand(script.toString());
         } catch (Exception ignored) {}
+        RootMultiUserRouter.clearQuietly(getApplicationContext());
     }
 
     private VpnHotspotSharingConfig buildSharingConfig() {
