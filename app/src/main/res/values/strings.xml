@@ -551,7 +551,7 @@
     <string name="drawer_xray_settings_summary">DNS, IPv6, локальный прокси и сетевые параметры</string>
     <string name="drawer_xray_settings_inactive_summary">Inactive until backend is Xray</string>
     <string name="wb_stream_settings_title">Настройки WB Stream</string>
-    <string name="wb_stream_settings_summary">Туннель через LiveKit-комнату на инфраструктуре wb.ru</string>
+    <string name="wb_stream_settings_summary">LiveKit-комната, обмен через VK TURN, WireGuard/AmneziaWG параметры</string>
     <string name="wb_stream_section">WB Stream</string>
     <string name="wb_stream_room_id_title">ID комнаты</string>
     <string name="wb_stream_room_id_summary">Если пусто — клиент создаст новую и покажет ID</string>
