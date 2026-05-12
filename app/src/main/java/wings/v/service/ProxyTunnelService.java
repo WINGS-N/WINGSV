@@ -1607,7 +1607,7 @@ public class ProxyTunnelService extends Service {
 
         ByeDpiSettings byeDpiSettings = settings != null ? settings.byeDpiSettings : null;
         boolean launchByeDpiFrontProxy =
-            !activeXrayProxyOnly && !activeXrayTproxyMode && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
+            !activeXrayProxyOnly && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
         boolean xrayExternalRelayEnabled = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
         ParsedLocalEndpoint xrayTcpRelayEndpoint = null;
         if (xrayExternalRelayEnabled) {
