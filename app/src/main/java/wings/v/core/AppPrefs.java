@@ -1052,10 +1052,15 @@ public final class AppPrefs {
             }
             setAppRoutingPackages(context, new LinkedHashSet<>(importedConfig.appRoutingPackages));
         }
-        if (importedConfig.hasXposedSettings) {
+        // Root/xposed/sharing/kernel-wg/xray-tproxy фичи доступны только когда у
+        // нас реально есть рут. Раньше эти блоки писались в prefs безусловно,
+        // и импорт с рутованного устройства на не-рутованное оживлял Sharing
+        // и пытался поднять root-туннели, что вешало сервис.
+        boolean rootAvailable = RootUtils.isRootAccessGranted(context);
+        if (importedConfig.hasXposedSettings && rootAvailable) {
             applyImportedXposedSettings(context, importedConfig);
         }
-        if (importedConfig.hasRootSettings) {
+        if (importedConfig.hasRootSettings && rootAvailable) {
             applyImportedRootSettings(context, importedConfig);
         }
         if (importedConfig.hasAppPreferences) {
@@ -1067,8 +1072,14 @@ public final class AppPrefs {
         if (importedConfig.hasSubscriptionHwid) {
             applyImportedSubscriptionHwid(context, importedConfig);
         }
-        if (importedConfig.hasSharingSettings) {
+        if (importedConfig.hasSharingSettings && rootAvailable) {
             applyImportedSharingSettings(context, importedConfig);
+        }
+        if (!rootAvailable) {
+            // Если в импорте root-флаги были True но рута нет, форсируем их в
+            // False, иначе UI продолжает показывать Sharing-таб и Settings
+            // открывает root-секцию для несуществующего рута.
+            forceDisableRootDependentFlags(context);
         }
         if (importedConfig.hasByeDpiSettings) {
             applyImportedByeDpiSettings(context, importedConfig);
@@ -1195,6 +1206,15 @@ public final class AppPrefs {
             XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
         }
         XrayStore.setLastSubscriptionsError(context, "");
+    }
+
+    private static void forceDisableRootDependentFlags(Context context) {
+        prefs(context)
+            .edit()
+            .putBoolean(KEY_ROOT_MODE, false)
+            .putBoolean(KEY_KERNEL_WIREGUARD, false)
+            .putBoolean(KEY_XRAY_TPROXY_MODE, false)
+            .apply();
     }
 
     private static void applyImportedRootSettings(Context context, WingsImportParser.ImportedConfig importedConfig) {
