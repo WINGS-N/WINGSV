@@ -5081,10 +5081,12 @@ public class ProxyTunnelService extends Service {
             : RootMultiUserRouter.Mode.ONLY_SELECTED;
         Set<String> packages = AppPrefs.getAppRoutingPackages(appContext);
         try {
-            RootMultiUserRouter.apply(appContext, tunnelTableLookup, mode, packages);
+            RootMultiUserRouter.apply(appContext, tunnelTableLookup, activeTunnelName, mode, packages);
             appendRuntimeLogLine(
                 "Kernel-WG multi-user routing applied (table=" +
                     tunnelTableLookup +
+                    ", iface=" +
+                    activeTunnelName +
                     ", " +
                     RootMultiUserRouter.describeFromPrefs(appContext) +
                     ")"

@@ -62,9 +62,15 @@ public final class RootMultiUserRouter {
 
     private RootMultiUserRouter() {}
 
+    // Имя iptables-цепочки для нашего OUTPUT-фильтра. Своя цепочка нужна чтобы
+    // teardown был чистым: дропнуть chain - и всё, не выискивать конкретные
+    // правила, которые сами могли быть инжектированы netd'ом между нашими.
+    private static final String FILTER_CHAIN = "wingsv_tunblock_out";
+
     public static void apply(
         @NonNull Context context,
         @NonNull String tunnelTable,
+        @NonNull String tunnelIface,
         @NonNull Mode mode,
         @NonNull Set<String> selectedPackages
     ) throws Exception {
@@ -89,6 +95,9 @@ public final class RootMultiUserRouter {
                 appendAddRule(script, overridePriority, uid, uid, overrideTable);
             }
         }
+        if (!TextUtils.isEmpty(tunnelIface)) {
+            appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode);
+        }
         RootUtils.runRootHelper(context, "shell", script.toString());
     }
 
@@ -112,6 +121,91 @@ public final class RootMultiUserRouter {
         script.append("while ip rule del pref $p 2>/dev/null; do :; done; ");
         script.append("while ip -6 rule del pref $p 2>/dev/null; do :; done; ");
         script.append("done; ");
+        appendFilterTeardown(script);
+    }
+
+    private static void appendFilterTeardown(StringBuilder script) {
+        // Снимаем jump'ы из OUTPUT (могло быть несколько от прошлых попыток
+        // повторного apply), потом флашим и удаляем собственную цепочку.
+        for (String cmd : new String[] { "iptables", "ip6tables" }) {
+            script
+                .append("while ")
+                .append(cmd)
+                .append(" -D OUTPUT -j ")
+                .append(FILTER_CHAIN)
+                .append(" 2>/dev/null; do :; done; ");
+            script.append(cmd).append(" -F ").append(FILTER_CHAIN).append(" 2>/dev/null; ");
+            script.append(cmd).append(" -X ").append(FILTER_CHAIN).append(" 2>/dev/null; ");
+        }
+        script.append("true; ");
+    }
+
+    private static void appendFilterRules(
+        StringBuilder script,
+        String tunnelIface,
+        List<Integer> userIds,
+        Set<Integer> selectedAppIds,
+        Mode mode
+    ) {
+        // OUTPUT-фильтр на исключённые UID, целящиеся в tun-интерфейс. Закрывает
+        // случаи, когда приложение каким-то образом обошло ip-rule (например
+        // SO_BINDTODEVICE из системного контекста) - пакет всё равно отвергается
+        // REJECT'ом, и сокет-bind/connect получает EPERM/connection refused -
+        // то же поведение, что у других добротных VPN-клиентов.
+        String quotedIface = RootUtils.shellQuote(tunnelIface);
+        for (String cmd : new String[] { "iptables", "ip6tables" }) {
+            script.append(cmd).append(" -N ").append(FILTER_CHAIN).append(" 2>/dev/null; ");
+            if (mode == Mode.BYPASS) {
+                // Явно реджектим только selected (исключённые) UID каждого юзера.
+                for (int userId : userIds) {
+                    for (int appId : selectedAppIds) {
+                        int uid = userId * PER_USER_UID_STRIDE + appId;
+                        script
+                            .append(cmd)
+                            .append(" -A ")
+                            .append(FILTER_CHAIN)
+                            .append(" -m owner --uid-owner ")
+                            .append(uid)
+                            .append(" -j REJECT 2>/dev/null; ");
+                    }
+                }
+            } else {
+                // ONLY_SELECTED: пропускаем только выбранные UID, остальной
+                // user-range реджектим. RETURN раньше REJECT в правилах chain'a.
+                for (int userId : userIds) {
+                    for (int appId : selectedAppIds) {
+                        int uid = userId * PER_USER_UID_STRIDE + appId;
+                        script
+                            .append(cmd)
+                            .append(" -A ")
+                            .append(FILTER_CHAIN)
+                            .append(" -m owner --uid-owner ")
+                            .append(uid)
+                            .append(" -j RETURN 2>/dev/null; ");
+                    }
+                    int rangeMin = userId * PER_USER_UID_STRIDE + APP_UID_MIN_OFFSET;
+                    int rangeMax = userId * PER_USER_UID_STRIDE + APP_UID_MAX_OFFSET;
+                    script
+                        .append(cmd)
+                        .append(" -A ")
+                        .append(FILTER_CHAIN)
+                        .append(" -m owner --uid-owner ")
+                        .append(rangeMin)
+                        .append('-')
+                        .append(rangeMax)
+                        .append(" -j REJECT 2>/dev/null; ");
+                }
+            }
+            // Привязываем chain к OUTPUT только для пакетов на наш tun.
+            script
+                .append(cmd)
+                .append(" -A OUTPUT -o ")
+                .append(quotedIface)
+                .append(" -j ")
+                .append(FILTER_CHAIN)
+                .append(" 2>/dev/null; ");
+        }
+        script.append("true; ");
     }
 
     private static void appendAddRule(StringBuilder script, int pref, int uidMin, int uidMax, String table) {
