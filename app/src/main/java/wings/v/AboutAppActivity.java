@@ -77,6 +77,11 @@ public class AboutAppActivity extends AppCompatActivity {
     private ConnectivityManager.NetworkCallback networkCallback;
     private AppUpdateManager appUpdateManager;
     private String pendingInstallFilePath = "";
+    /** Путь к APK, для которого мы уже автоматом дёрнули install после
+     *  завершения download/patch. На повторных render'ах не перезапускаем,
+     *  чтобы юзер мог свернуть системный installer-диалог без повторного pop'а.
+     *  Кнопка-стрелка остаётся ручным fallback'ом и работает всегда. */
+    private String autoInstallTriggeredForFile = "";
     private int firstLaunchTriggerTapCount;
     private long firstLaunchTriggerStartedAtMs;
 
@@ -424,6 +429,7 @@ public class AboutAppActivity extends AppCompatActivity {
                     R.drawable.ic_arrow_down,
                     R.string.about_updates_install_downloaded
                 );
+                maybeAutoLaunchInstall(state);
             } else if (patching) {
                 binding.textUpdateProgressSpeed.setVisibility(View.VISIBLE);
                 binding.textUpdateProgressRemaining.setVisibility(View.GONE);
@@ -463,6 +469,18 @@ public class AboutAppActivity extends AppCompatActivity {
                 );
             }
         }
+    }
+
+    private void maybeAutoLaunchInstall(AppUpdateManager.UpdateState state) {
+        if (state == null || state.downloadedFile == null) {
+            return;
+        }
+        String path = state.downloadedFile.getAbsolutePath();
+        if (autoInstallTriggeredForFile.equals(path)) {
+            return;
+        }
+        autoInstallTriggeredForFile = path;
+        beginInstallFlow(state.downloadedFile);
     }
 
     private void beginInstallFlow(File downloadedFile) {
