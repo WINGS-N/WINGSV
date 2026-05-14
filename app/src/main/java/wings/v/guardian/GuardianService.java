@@ -473,6 +473,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         GuardianProto.RuntimeState runtime = GuardianProto.RuntimeState.newBuilder()
             .setTunnelActive(ProxyTunnelService.isActive())
             .setPhase(GuardianProto.TunnelPhase.TUNNEL_PHASE_UNSPECIFIED)
+            .setHasRootAccess(wings.v.core.RootUtils.isRootAccessGranted(getApplicationContext()))
             .build();
         GuardianProto.StateReport.Builder report = GuardianProto.StateReport.newBuilder().setRuntime(runtime);
         try {

@@ -62,6 +62,10 @@ message RuntimeState {
   TunnelPhase phase = 2;
   string active_backend = 3;
   string error_message = 4;
+  // Сигнал устройства: есть ли актуально подтверждённый root-доступ. Панель
+  // использует это чтобы прятать root/sharing/xposed/kernel-WG секции в UI и
+  // молча обнулять их при push'е конфига клиенту без рута.
+  bool has_root_access = 5;
 }
 
 enum TunnelPhase {
