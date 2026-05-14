@@ -630,5 +630,22 @@ public class AboutAppActivity extends AppCompatActivity {
     private void configureProgressActionButton(ImageButton button, int iconResId, int contentDescriptionResId) {
         button.setImageResource(iconResId);
         button.setContentDescription(getString(contentDescriptionResId));
+        // ic_close_circle - двухцветный вектор (красный фон + белый крест), tint
+        // схлопывает оба пути в один цвет и иконка сливается с фоном. У
+        // ic_arrow_down один чёрный path, ему нужен tint под тему чтобы он
+        // читался и на dark/light.
+        if (iconResId == R.drawable.ic_close_circle) {
+            androidx.core.widget.ImageViewCompat.setImageTintList(button, null);
+        } else {
+            int color = androidx.core.content.ContextCompat.getColor(this, android.R.color.darker_gray);
+            int[] colorAttrs = new int[] { android.R.attr.textColorSecondary };
+            android.content.res.TypedArray attrs = obtainStyledAttributes(colorAttrs);
+            color = attrs.getColor(0, color);
+            attrs.recycle();
+            androidx.core.widget.ImageViewCompat.setImageTintList(
+                button,
+                android.content.res.ColorStateList.valueOf(color)
+            );
+        }
     }
 }

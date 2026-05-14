@@ -157,8 +157,7 @@
                             android:background="?android:selectableItemBackgroundBorderless"
                             android:contentDescription="@string/about_updates_cancel_download"
                             android:padding="6dp"
-                            android:src="@drawable/sesl_ic_close"
-                            app:tint="?android:textColorSecondary" />
+                            android:src="@drawable/ic_close_circle" />
                     </LinearLayout>
 
                     <TextView
