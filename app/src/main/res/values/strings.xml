@@ -539,7 +539,6 @@
     <string name="awg_settings_clipboard_empty">В буфере обмена нет awg-quick config</string>
     <string name="awg_settings_clipboard_import_success">AWG config импортирован</string>
     <string name="awg_settings_clipboard_import_invalid">Не удалось разобрать awg-quick config из буфера</string>
-    <string name="main_toolbar_title_format">WINGS V | %1$s</string>
     <string name="sidebar_open_navigation">Открыть боковую панель</string>
     <string name="sidebar_backend_section_title">Backend</string>
     <string name="sidebar_backend_section_summary">Быстрое переключение активного backend</string>

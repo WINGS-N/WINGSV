@@ -382,39 +382,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateTitle(int tabId) {
-        String screenTitle;
-        if (tabId == R.id.menu_profiles) {
-            screenTitle = getString(R.string.xray_profiles_title);
-        } else if (tabId == R.id.menu_apps) {
-            screenTitle = getString(R.string.apps);
-        } else if (tabId == R.id.menu_sharing) {
-            screenTitle = getString(R.string.sharing);
-        } else if (tabId == R.id.menu_settings) {
-            screenTitle = getString(R.string.settings);
-        } else {
-            screenTitle = getString(R.string.home);
-        }
-        binding.toolbarLayout.setTitle(buildToolbarTitle(screenTitle));
+        // tabId сохранили в сигнатуре чтобы не трогать call sites; имя вкладки
+        // больше не отображается. Тулбар держит только бренд приложения.
+        binding.toolbarLayout.setTitle(buildToolbarTitle());
     }
 
-    private CharSequence buildToolbarTitle(@NonNull String screenTitle) {
+    private CharSequence buildToolbarTitle() {
         String appName = getString(R.string.app_name);
-        String title = getString(R.string.main_toolbar_title_format, screenTitle);
-        int appNameStart = title.indexOf(appName);
-        if (appNameStart < 0) {
-            return title;
-        }
         Typeface sharpSansBold = ResourcesCompat.getFont(this, R.font.samsungsharpsans_bold);
         if (sharpSansBold == null) {
-            return title;
+            return appName;
         }
-        SpannableString spannable = new SpannableString(title);
-        spannable.setSpan(
-            new ToolbarTitleTypefaceSpan(sharpSansBold),
-            appNameStart,
-            appNameStart + appName.length(),
-            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-        );
+        SpannableString spannable = new SpannableString(appName);
+        spannable.setSpan(new ToolbarTitleTypefaceSpan(sharpSansBold), 0, appName.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return spannable;
     }
 
