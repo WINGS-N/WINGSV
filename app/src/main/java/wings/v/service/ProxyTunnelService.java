@@ -102,6 +102,7 @@ import wings.v.core.RootUtils;
 import wings.v.core.TetherType;
 import wings.v.core.UiFormatter;
 import wings.v.core.WireGuardConfigFactory;
+import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTproxyRouter;
 import wings.v.core.XrayTransportMode;
@@ -5264,7 +5265,32 @@ public class ProxyTunnelService extends Service {
         if (!proxyUids.isEmpty()) {
             ports.addAll(findLoopbackListenPortsForUids(proxyUids));
         }
+        // Наши собственные Xray local SOCKS/HTTP inbound тоже должны быть
+        // недоступны bypass-приложениям: иначе исключённое приложение через
+        // 127.0.0.1:<our port> туннелирует трафик и его исходящий IP отличается
+        // от прямого underlying-исхода - это видимый split-tunnel сигнал.
+        // Наш собственный UID отпускается RETURN'ом ВЫШЕ этого блока, так что
+        // самим себе мы не режем.
+        collectXrayLocalProxyPorts(ports);
         return new java.util.ArrayList<>(ports);
+    }
+
+    private void collectXrayLocalProxyPorts(Set<Integer> ports) {
+        XraySettings settings;
+        try {
+            settings = XrayStore.getXraySettings(getApplicationContext());
+        } catch (Exception ignored) {
+            return;
+        }
+        if (settings == null) {
+            return;
+        }
+        if (settings.localProxyEnabled && settings.localProxyPort > 0 && settings.localProxyPort <= 65535) {
+            ports.add(settings.localProxyPort);
+        }
+        if (settings.httpProxyEnabled && settings.httpProxyPort > 0 && settings.httpProxyPort <= 65535) {
+            ports.add(settings.httpProxyPort);
+        }
     }
 
     private java.util.Set<Integer> resolveSystemProxyUids() {
