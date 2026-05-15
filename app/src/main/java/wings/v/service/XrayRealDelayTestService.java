@@ -59,6 +59,9 @@ public abstract class XrayRealDelayTestService extends Service {
     private static final String REQUEST_XRAY_IPV6 = "xray_ipv6";
     private static final String REQUEST_XRAY_SNIFFING = "xray_sniffing";
     private static final String REQUEST_XRAY_PROXY_QUIC = "xray_proxy_quic";
+    private static final String REQUEST_XRAY_LOCAL_PROXY_AUTH_ENABLED = "xray_local_proxy_auth_enabled";
+    private static final String REQUEST_XRAY_LOCAL_PROXY_USERNAME = "xray_local_proxy_username";
+    private static final String REQUEST_XRAY_LOCAL_PROXY_PASSWORD = "xray_local_proxy_password";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -122,6 +125,9 @@ public abstract class XrayRealDelayTestService extends Service {
             bundle.putBoolean(REQUEST_XRAY_IPV6, settings.ipv6);
             bundle.putBoolean(REQUEST_XRAY_SNIFFING, settings.sniffingEnabled);
             bundle.putBoolean(REQUEST_XRAY_PROXY_QUIC, settings.proxyQuicEnabled);
+            bundle.putBoolean(REQUEST_XRAY_LOCAL_PROXY_AUTH_ENABLED, settings.localProxyAuthEnabled);
+            bundle.putString(REQUEST_XRAY_LOCAL_PROXY_USERNAME, settings.localProxyUsername);
+            bundle.putString(REQUEST_XRAY_LOCAL_PROXY_PASSWORD, settings.localProxyPassword);
         }
         return bundle;
     }
@@ -195,7 +201,7 @@ public abstract class XrayRealDelayTestService extends Service {
                 configFile,
                 REAL_DELAY_TIMEOUT_SECONDS,
                 REAL_DELAY_TEST_URL,
-                "socks://127.0.0.1:" + localProxyPort
+                buildProbeSocksUrl(settings, localProxyPort)
             );
             if (delayMs <= 0L || delayMs > Integer.MAX_VALUE) {
                 return 0;
@@ -230,6 +236,9 @@ public abstract class XrayRealDelayTestService extends Service {
         settings.ipv6 = request.getBoolean(REQUEST_XRAY_IPV6, false);
         settings.sniffingEnabled = request.getBoolean(REQUEST_XRAY_SNIFFING, true);
         settings.proxyQuicEnabled = request.getBoolean(REQUEST_XRAY_PROXY_QUIC, false);
+        settings.localProxyAuthEnabled = request.getBoolean(REQUEST_XRAY_LOCAL_PROXY_AUTH_ENABLED, false);
+        settings.localProxyUsername = request.getString(REQUEST_XRAY_LOCAL_PROXY_USERNAME, "");
+        settings.localProxyPassword = request.getString(REQUEST_XRAY_LOCAL_PROXY_PASSWORD, "");
         return settings;
     }
 
@@ -237,11 +246,33 @@ public abstract class XrayRealDelayTestService extends Service {
         XraySettings settings = source.copy();
         settings.allowLan = false;
         settings.localProxyEnabled = true;
-        settings.localProxyAuthEnabled = false;
-        settings.localProxyUsername = "";
-        settings.localProxyPassword = "";
+        // Auth настройки (localProxyAuthEnabled/Username/Password) наследуем
+        // от source - чтобы транзиентный probe-сокет нельзя было использовать
+        // как открытый локальный SOCKS из чужого приложения.
         settings.localProxyPort = localProxyPort;
         return settings;
+    }
+
+    private String buildProbeSocksUrl(XraySettings settings, int localProxyPort) {
+        if (
+            settings != null &&
+            settings.localProxyAuthEnabled &&
+            !TextUtils.isEmpty(settings.localProxyUsername) &&
+            !TextUtils.isEmpty(settings.localProxyPassword)
+        ) {
+            String user = urlEncode(settings.localProxyUsername);
+            String pass = urlEncode(settings.localProxyPassword);
+            return "socks://" + user + ":" + pass + "@127.0.0.1:" + localProxyPort;
+        }
+        return "socks://127.0.0.1:" + localProxyPort;
+    }
+
+    private static String urlEncode(String value) {
+        try {
+            return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return value;
+        }
     }
 
     private int findAvailableTcpPort() throws IOException {
