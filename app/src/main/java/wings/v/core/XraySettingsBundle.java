@@ -21,6 +21,13 @@ final class XraySettingsBundle {
         bundle.putString(prefix + "local_proxy_username", settings.localProxyUsername);
         bundle.putString(prefix + "local_proxy_password", settings.localProxyPassword);
         bundle.putInt(prefix + "local_proxy_port", settings.localProxyPort);
+        bundle.putString(prefix + "local_proxy_listen_address", settings.localProxyListenAddress);
+        bundle.putBoolean(prefix + "http_proxy_enabled", settings.httpProxyEnabled);
+        bundle.putBoolean(prefix + "http_proxy_auth_enabled", settings.httpProxyAuthEnabled);
+        bundle.putString(prefix + "http_proxy_username", settings.httpProxyUsername);
+        bundle.putString(prefix + "http_proxy_password", settings.httpProxyPassword);
+        bundle.putInt(prefix + "http_proxy_port", settings.httpProxyPort);
+        bundle.putString(prefix + "http_proxy_listen_address", settings.httpProxyListenAddress);
         bundle.putString(prefix + "remote_dns", settings.remoteDns);
         bundle.putString(prefix + "direct_dns", settings.directDns);
         bundle.putBoolean(prefix + "ipv6", settings.ipv6);
@@ -47,6 +54,13 @@ final class XraySettingsBundle {
         settings.localProxyUsername = bundle.getString(prefix + "local_proxy_username");
         settings.localProxyPassword = bundle.getString(prefix + "local_proxy_password");
         settings.localProxyPort = bundle.getInt(prefix + "local_proxy_port", 0);
+        settings.localProxyListenAddress = bundle.getString(prefix + "local_proxy_listen_address");
+        settings.httpProxyEnabled = bundle.getBoolean(prefix + "http_proxy_enabled", false);
+        settings.httpProxyAuthEnabled = bundle.getBoolean(prefix + "http_proxy_auth_enabled", true);
+        settings.httpProxyUsername = bundle.getString(prefix + "http_proxy_username");
+        settings.httpProxyPassword = bundle.getString(prefix + "http_proxy_password");
+        settings.httpProxyPort = bundle.getInt(prefix + "http_proxy_port", 0);
+        settings.httpProxyListenAddress = bundle.getString(prefix + "http_proxy_listen_address");
         settings.remoteDns = bundle.getString(prefix + "remote_dns");
         settings.directDns = bundle.getString(prefix + "direct_dns");
         settings.ipv6 = bundle.getBoolean(prefix + "ipv6", false);

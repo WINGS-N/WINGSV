@@ -31,6 +31,8 @@ public final class XrayStore {
 
     private static final String RUNTIME_PREFS_NAME = "wingsv_xray_runtime";
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
+    private static final int DEFAULT_HTTP_PROXY_PORT = 10809;
+    private static final String DEFAULT_LOCAL_LISTEN_ADDRESS = "127.0.0.1";
     private static final String DEFAULT_SUBSCRIPTION_URL =
         "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt";
     private static final String DEFAULT_SUBSCRIPTION_TITLE = "Universal";
@@ -65,6 +67,11 @@ public final class XrayStore {
             AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME,
             AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD
         );
+        SocksAuthCredentials.Pair httpCredentials = SocksAuthCredentials.ensure(
+            prefs,
+            AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME,
+            AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD
+        );
         XraySettings settings = new XraySettings();
         settings.allowLan = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, false);
         settings.allowInsecure = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, false);
@@ -75,6 +82,20 @@ public final class XrayStore {
         settings.localProxyPort = parseInt(
             prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(DEFAULT_LOCAL_PROXY_PORT)),
             DEFAULT_LOCAL_PROXY_PORT
+        );
+        settings.localProxyListenAddress = trim(
+            prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, DEFAULT_LOCAL_LISTEN_ADDRESS)
+        );
+        settings.httpProxyEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED, false);
+        settings.httpProxyAuthEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED, true);
+        settings.httpProxyUsername = httpCredentials.username;
+        settings.httpProxyPassword = httpCredentials.password;
+        settings.httpProxyPort = parseInt(
+            prefs.getString(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT, String.valueOf(DEFAULT_HTTP_PROXY_PORT)),
+            DEFAULT_HTTP_PROXY_PORT
+        );
+        settings.httpProxyListenAddress = trim(
+            prefs.getString(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, DEFAULT_LOCAL_LISTEN_ADDRESS)
         );
         settings.remoteDns = trim(prefs.getString(AppPrefs.KEY_XRAY_REMOTE_DNS, DEFAULT_REMOTE_DNS));
         settings.directDns = trim(prefs.getString(AppPrefs.KEY_XRAY_DIRECT_DNS, DEFAULT_DIRECT_DNS));
@@ -104,6 +125,26 @@ public final class XrayStore {
             .putString(
                 AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT,
                 String.valueOf(value.localProxyPort > 0 ? value.localProxyPort : DEFAULT_LOCAL_PROXY_PORT)
+            )
+            .putString(
+                AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS,
+                TextUtils.isEmpty(trim(value.localProxyListenAddress))
+                    ? DEFAULT_LOCAL_LISTEN_ADDRESS
+                    : trim(value.localProxyListenAddress)
+            )
+            .putBoolean(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED, value.httpProxyEnabled)
+            .putBoolean(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED, value.httpProxyAuthEnabled)
+            .putString(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME, trim(value.httpProxyUsername))
+            .putString(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD, trim(value.httpProxyPassword))
+            .putString(
+                AppPrefs.KEY_XRAY_HTTP_PROXY_PORT,
+                String.valueOf(value.httpProxyPort > 0 ? value.httpProxyPort : DEFAULT_HTTP_PROXY_PORT)
+            )
+            .putString(
+                AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS,
+                TextUtils.isEmpty(trim(value.httpProxyListenAddress))
+                    ? DEFAULT_LOCAL_LISTEN_ADDRESS
+                    : trim(value.httpProxyListenAddress)
             )
             .putString(
                 AppPrefs.KEY_XRAY_REMOTE_DNS,

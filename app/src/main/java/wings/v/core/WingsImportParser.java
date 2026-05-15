@@ -2592,6 +2592,27 @@ public final class WingsImportParser {
         if (!TextUtils.isEmpty(value(settings.getLocalProxyPassword()))) {
             result.localProxyPassword = value(settings.getLocalProxyPassword());
         }
+        if (!TextUtils.isEmpty(value(settings.getLocalProxyListenAddress()))) {
+            result.localProxyListenAddress = value(settings.getLocalProxyListenAddress());
+        }
+        if (settings.hasHttpProxyEnabled()) {
+            result.httpProxyEnabled = settings.getHttpProxyEnabled();
+        }
+        if (settings.hasHttpProxyAuthEnabled()) {
+            result.httpProxyAuthEnabled = settings.getHttpProxyAuthEnabled();
+        }
+        if (!TextUtils.isEmpty(value(settings.getHttpProxyUsername()))) {
+            result.httpProxyUsername = value(settings.getHttpProxyUsername());
+        }
+        if (!TextUtils.isEmpty(value(settings.getHttpProxyPassword()))) {
+            result.httpProxyPassword = value(settings.getHttpProxyPassword());
+        }
+        if (settings.hasHttpProxyPort()) {
+            result.httpProxyPort = settings.getHttpProxyPort();
+        }
+        if (!TextUtils.isEmpty(value(settings.getHttpProxyListenAddress()))) {
+            result.httpProxyListenAddress = value(settings.getHttpProxyListenAddress());
+        }
         if (settings.hasRestartOnNetworkChange()) {
             result.restartOnNetworkChange = settings.getRestartOnNetworkChange();
         }
@@ -2649,6 +2670,27 @@ public final class WingsImportParser {
         if (includeDefaults || !TextUtils.isEmpty(value(settings.localProxyPassword))) {
             builder.setLocalProxyPassword(value(settings.localProxyPassword));
         }
+        if (includeDefaults || !TextUtils.isEmpty(value(settings.localProxyListenAddress))) {
+            builder.setLocalProxyListenAddress(value(settings.localProxyListenAddress));
+        }
+        if (includeDefaults || settings.httpProxyEnabled) {
+            builder.setHttpProxyEnabled(settings.httpProxyEnabled);
+        }
+        if (includeDefaults || !settings.httpProxyAuthEnabled) {
+            builder.setHttpProxyAuthEnabled(settings.httpProxyAuthEnabled);
+        }
+        if (includeDefaults || !TextUtils.isEmpty(value(settings.httpProxyUsername))) {
+            builder.setHttpProxyUsername(value(settings.httpProxyUsername));
+        }
+        if (includeDefaults || !TextUtils.isEmpty(value(settings.httpProxyPassword))) {
+            builder.setHttpProxyPassword(value(settings.httpProxyPassword));
+        }
+        if (settings.httpProxyPort > 0) {
+            builder.setHttpProxyPort(settings.httpProxyPort);
+        }
+        if (includeDefaults || !TextUtils.isEmpty(value(settings.httpProxyListenAddress))) {
+            builder.setHttpProxyListenAddress(value(settings.httpProxyListenAddress));
+        }
         if (includeDefaults || settings.restartOnNetworkChange) {
             builder.setRestartOnNetworkChange(settings.restartOnNetworkChange);
         }
@@ -2692,6 +2734,11 @@ public final class WingsImportParser {
         settings.allowLan = false;
         settings.allowInsecure = false;
         settings.localProxyPort = 10808;
+        settings.localProxyListenAddress = "127.0.0.1";
+        settings.httpProxyEnabled = false;
+        settings.httpProxyAuthEnabled = true;
+        settings.httpProxyPort = 10809;
+        settings.httpProxyListenAddress = "127.0.0.1";
         settings.remoteDns = "https://common.dot.dns.yandex.net/dns-query";
         settings.directDns = "https://common.dot.dns.yandex.net/dns-query";
         settings.ipv6 = true;

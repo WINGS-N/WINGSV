@@ -93,7 +93,14 @@
     <EditTextPreference
         android:key="pref_xray_local_proxy_port"
         android:title="@string/xray_settings_local_proxy_port_title"
-        android:defaultValue="10808" />
+        android:defaultValue="10808"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_local_proxy_listen_address"
+        android:title="@string/xray_settings_local_proxy_listen_address_title"
+        android:defaultValue="127.0.0.1"
+        app:useSimpleSummaryProvider="true" />
 
     <SwitchPreferenceCompat
         android:key="pref_xray_local_proxy_auth_enabled"
@@ -108,6 +115,45 @@
 
     <EditTextPreference
         android:key="pref_xray_local_proxy_password"
+        android:title="@string/socks_auth_password_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
+        android:title="@string/xray_settings_http_proxy_category" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_http_proxy_enabled"
+        android:title="@string/xray_settings_http_proxy_enabled_title"
+        android:summary="@string/xray_settings_http_proxy_enabled_summary"
+        android:defaultValue="false" />
+
+    <EditTextPreference
+        android:key="pref_xray_http_proxy_port"
+        android:title="@string/xray_settings_http_proxy_port_title"
+        android:defaultValue="10809"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_http_proxy_listen_address"
+        android:title="@string/xray_settings_http_proxy_listen_address_title"
+        android:defaultValue="127.0.0.1"
+        app:useSimpleSummaryProvider="true" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_xray_http_proxy_auth_enabled"
+        android:title="@string/xray_settings_http_proxy_auth_title"
+        android:summary="@string/xray_settings_http_proxy_auth_summary"
+        android:defaultValue="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_http_proxy_username"
+        android:title="@string/socks_auth_username_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_xray_http_proxy_password"
         android:title="@string/socks_auth_password_title"
         app:useSimpleSummaryProvider="true" />
 

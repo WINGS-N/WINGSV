@@ -43,6 +43,8 @@ public final class XrayConfigFactory {
     private static final String TUN_TAG = "tun-in";
     private static final String TPROXY_TAG = "tproxy-in";
     private static final String SOCKS_TAG = "socks-in";
+    private static final String HTTP_TAG = "http-in";
+    private static final String DEFAULT_LOOPBACK_LISTEN = "127.0.0.1";
     private static final String PROXY_TAG = "proxy";
     private static final String BYEDPI_FRONT_TAG = "byedpi-front";
     private static final String DNS_TAG = "dns-internal";
@@ -355,11 +357,21 @@ public final class XrayConfigFactory {
             JSONObject socksInbound = new JSONObject();
             socksInbound.put("tag", SOCKS_TAG);
             socksInbound.put("protocol", "socks");
-            socksInbound.put("listen", settings.allowLan ? "0.0.0.0" : "127.0.0.1");
+            socksInbound.put("listen", resolveSocksListenAddress(settings));
             socksInbound.put("port", settings.localProxyPort);
             socksInbound.put("settings", buildSocksInboundSettings(settings));
             socksInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(socksInbound);
+        }
+        if (isHttpProxyEnabled(settings)) {
+            JSONObject httpInbound = new JSONObject();
+            httpInbound.put("tag", HTTP_TAG);
+            httpInbound.put("protocol", "http");
+            httpInbound.put("listen", resolveHttpListenAddress(settings));
+            httpInbound.put("port", settings.httpProxyPort);
+            httpInbound.put("settings", buildHttpInboundSettings(settings));
+            httpInbound.put("sniffing", buildSniffing(settings));
+            inbounds.put(httpInbound);
         }
         return inbounds;
     }
@@ -495,6 +507,9 @@ public final class XrayConfigFactory {
         if (isLocalProxyEnabled(settings)) {
             inboundTags.put(SOCKS_TAG);
         }
+        if (isHttpProxyEnabled(settings)) {
+            inboundTags.put(HTTP_TAG);
+        }
         return inboundTags;
     }
 
@@ -614,6 +629,46 @@ public final class XrayConfigFactory {
 
     static boolean isLocalProxyEnabled(XraySettings settings) {
         return settings != null && settings.localProxyEnabled && settings.localProxyPort > 0;
+    }
+
+    static boolean isHttpProxyEnabled(XraySettings settings) {
+        return settings != null && settings.httpProxyEnabled && settings.httpProxyPort > 0;
+    }
+
+    static String resolveSocksListenAddress(XraySettings settings) {
+        String configured = settings == null ? null : trim(settings.localProxyListenAddress);
+        if (!TextUtils.isEmpty(configured)) {
+            return configured;
+        }
+        return settings != null && settings.allowLan ? "0.0.0.0" : DEFAULT_LOOPBACK_LISTEN;
+    }
+
+    static String resolveHttpListenAddress(XraySettings settings) {
+        String configured = settings == null ? null : trim(settings.httpProxyListenAddress);
+        if (!TextUtils.isEmpty(configured)) {
+            return configured;
+        }
+        return settings != null && settings.allowLan ? "0.0.0.0" : DEFAULT_LOOPBACK_LISTEN;
+    }
+
+    static JSONObject buildHttpInboundSettings(XraySettings settings) throws Exception {
+        JSONObject httpSettings = new JSONObject();
+        if (
+            settings != null &&
+            settings.httpProxyAuthEnabled &&
+            !TextUtils.isEmpty(trim(settings.httpProxyUsername)) &&
+            !TextUtils.isEmpty(trim(settings.httpProxyPassword))
+        ) {
+            httpSettings.put(
+                "accounts",
+                new JSONArray().put(
+                    new JSONObject()
+                        .put("user", trim(settings.httpProxyUsername))
+                        .put("pass", trim(settings.httpProxyPassword))
+                )
+            );
+        }
+        return httpSettings;
     }
 
     static JSONObject buildSocksInboundSettings(XraySettings settings) throws Exception {

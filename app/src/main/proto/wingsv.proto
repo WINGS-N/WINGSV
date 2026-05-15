@@ -259,6 +259,13 @@ message XraySettings {
   optional bool restart_on_network_change = 13;
   XrayTransportMode transport_mode = 14;
   ProxyRuntimeMode runtime_mode = 15;
+  string local_proxy_listen_address = 16;
+  optional bool http_proxy_enabled = 17;
+  optional bool http_proxy_auth_enabled = 18;
+  string http_proxy_username = 19;
+  string http_proxy_password = 20;
+  optional uint32 http_proxy_port = 21;
+  string http_proxy_listen_address = 22;
 }
 
 enum XrayTransportMode {

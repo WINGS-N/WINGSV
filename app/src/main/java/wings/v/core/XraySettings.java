@@ -11,6 +11,13 @@ public final class XraySettings {
     public String localProxyUsername;
     public String localProxyPassword;
     public int localProxyPort;
+    public String localProxyListenAddress;
+    public boolean httpProxyEnabled;
+    public boolean httpProxyAuthEnabled = true;
+    public String httpProxyUsername;
+    public String httpProxyPassword;
+    public int httpProxyPort;
+    public String httpProxyListenAddress;
     public String remoteDns;
     public String directDns;
     public boolean ipv6;
@@ -29,6 +36,13 @@ public final class XraySettings {
         copy.localProxyUsername = localProxyUsername;
         copy.localProxyPassword = localProxyPassword;
         copy.localProxyPort = localProxyPort;
+        copy.localProxyListenAddress = localProxyListenAddress;
+        copy.httpProxyEnabled = httpProxyEnabled;
+        copy.httpProxyAuthEnabled = httpProxyAuthEnabled;
+        copy.httpProxyUsername = httpProxyUsername;
+        copy.httpProxyPassword = httpProxyPassword;
+        copy.httpProxyPort = httpProxyPort;
+        copy.httpProxyListenAddress = httpProxyListenAddress;
         copy.remoteDns = remoteDns;
         copy.directDns = directDns;
         copy.ipv6 = ipv6;
@@ -55,6 +69,9 @@ public final class XraySettings {
             localProxyEnabled == that.localProxyEnabled &&
             localProxyAuthEnabled == that.localProxyAuthEnabled &&
             localProxyPort == that.localProxyPort &&
+            httpProxyEnabled == that.httpProxyEnabled &&
+            httpProxyAuthEnabled == that.httpProxyAuthEnabled &&
+            httpProxyPort == that.httpProxyPort &&
             ipv6 == that.ipv6 &&
             sniffingEnabled == that.sniffingEnabled &&
             proxyQuicEnabled == that.proxyQuicEnabled &&
@@ -63,6 +80,10 @@ public final class XraySettings {
             transportMode == that.transportMode &&
             Objects.equals(localProxyUsername, that.localProxyUsername) &&
             Objects.equals(localProxyPassword, that.localProxyPassword) &&
+            Objects.equals(localProxyListenAddress, that.localProxyListenAddress) &&
+            Objects.equals(httpProxyUsername, that.httpProxyUsername) &&
+            Objects.equals(httpProxyPassword, that.httpProxyPassword) &&
+            Objects.equals(httpProxyListenAddress, that.httpProxyListenAddress) &&
             Objects.equals(remoteDns, that.remoteDns) &&
             Objects.equals(directDns, that.directDns)
         );
@@ -78,6 +99,13 @@ public final class XraySettings {
             localProxyUsername,
             localProxyPassword,
             localProxyPort,
+            localProxyListenAddress,
+            httpProxyEnabled,
+            httpProxyAuthEnabled,
+            httpProxyUsername,
+            httpProxyPassword,
+            httpProxyPort,
+            httpProxyListenAddress,
             remoteDns,
             directDns,
             ipv6,
