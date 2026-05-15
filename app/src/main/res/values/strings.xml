@@ -306,6 +306,8 @@
     <string name="xray_tproxy_title">Xray через TPROXY</string>
     <string name="xray_tproxy_summary">Прозрачный перехват трафика для Xray через iptables вместо VpnService</string>
     <string name="xray_tproxy_unavailable">Xray TPROXY недоступен: %1$s</string>
+    <string name="root_split_tunnel_lockdown_title">Блокировка split-tunnel утечек</string>
+    <string name="root_split_tunnel_lockdown_summary">iptables REJECT для исключённых приложений: блокирует обход tun и доступ к системным loopback-прокси</string>
     <string name="root_interface_settings_title">Настройки интерфейсов</string>
     <string name="root_interface_settings_summary">Имя root WireGuard интерфейса</string>
     <string name="root_interface_category_title">Названия интерфейсов</string>

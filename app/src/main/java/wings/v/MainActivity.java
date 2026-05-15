@@ -394,7 +394,12 @@ public class MainActivity extends AppCompatActivity {
             return appName;
         }
         SpannableString spannable = new SpannableString(appName);
-        spannable.setSpan(new ToolbarTitleTypefaceSpan(sharpSansBold), 0, appName.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        spannable.setSpan(
+            new ToolbarTitleTypefaceSpan(sharpSansBold),
+            0,
+            appName.length(),
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
         return spannable;
     }
 

@@ -462,6 +462,13 @@ public class ProxyTunnelService extends Service {
     private volatile long lastProxyDtlsActivityAtElapsedMs;
     private final AtomicBoolean wakeFastPathCheckQueued = new AtomicBoolean();
     private final AtomicBoolean xrayTproxyReapplyQueued = new AtomicBoolean();
+
+    @Nullable
+    private volatile String lastSplitTunnelLockdownTunIface;
+
+    @Nullable
+    private volatile String lastSplitTunnelLockdownBackendLabel;
+
     private final ConnectivityManager.NetworkCallback physicalNetworkCallback =
         new ConnectivityManager.NetworkCallback() {
             @Override
@@ -1606,6 +1613,10 @@ public class ProxyTunnelService extends Service {
             VpnHotspotBridge.initializeRootServer(getApplicationContext());
         }
 
+        if (!activeXrayProxyOnly && !activeXrayTproxyMode) {
+            applySplitTunnelLockdown("Xray VPN", XrayVpnService.findActiveTunInterfaceName());
+        }
+
         ByeDpiSettings byeDpiSettings = settings != null ? settings.byeDpiSettings : null;
         boolean launchByeDpiFrontProxy =
             !activeXrayProxyOnly && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
@@ -1714,6 +1725,7 @@ public class ProxyTunnelService extends Service {
             appendRuntimeLogLine(
                 "Xray TPROXY routing applied (mode=" + tproxyAppMode + ", apps=" + routedUids.size() + ")"
             );
+            applySplitTunnelLockdown("Xray TPROXY", null);
         }
 
         if (rootModeActive && shouldInitializeRootSharing()) {
@@ -5080,13 +5092,31 @@ public class ProxyTunnelService extends Service {
             ? RootMultiUserRouter.Mode.BYPASS
             : RootMultiUserRouter.Mode.ONLY_SELECTED;
         Set<String> packages = AppPrefs.getAppRoutingPackages(appContext);
+        boolean lockdownEnabled = AppPrefs.isRootSplitTunnelLockdownEnabled(appContext);
+        java.util.List<Integer> systemProxyPorts = lockdownEnabled
+            ? discoverSystemProxyPorts()
+            : java.util.Collections.emptyList();
         try {
-            RootMultiUserRouter.apply(appContext, tunnelTableLookup, activeTunnelName, mode, packages);
+            RootMultiUserRouter.apply(
+                appContext,
+                tunnelTableLookup,
+                activeTunnelName,
+                mode,
+                packages,
+                lockdownEnabled,
+                systemProxyPorts
+            );
+            if (lockdownEnabled) {
+                lastSplitTunnelLockdownTunIface = activeTunnelName;
+                lastSplitTunnelLockdownBackendLabel = "Kernel-WG";
+            }
             appendRuntimeLogLine(
                 "Kernel-WG multi-user routing applied (table=" +
                     tunnelTableLookup +
                     ", iface=" +
                     activeTunnelName +
+                    ", system_proxy_ports=" +
+                    systemProxyPorts +
                     ", " +
                     RootMultiUserRouter.describeFromPrefs(appContext) +
                     ")"
@@ -5099,16 +5129,235 @@ public class ProxyTunnelService extends Service {
     }
 
     private void clearRootAppTunnelRouting() {
-        if (!kernelWireguardActive && rootShell == null) {
+        Context appContext = getApplicationContext();
+        if (kernelWireguardActive || rootShell != null) {
+            try {
+                StringBuilder script = new StringBuilder();
+                script.append("ip rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
+                script.append("ip -6 rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
+                runRootRoutingCommand(script.toString());
+            } catch (Exception ignored) {}
+        }
+        // Чистка iptables-фильтра идёт независимо от kernel-WG: для Xray-
+        // VpnService / Xray-TPROXY режимов с root'ом chain ставился через
+        // applyFilterOnly и ему тоже нужен teardown.
+        if (RootUtils.isRootAccessGranted(appContext)) {
+            RootMultiUserRouter.clearQuietly(appContext);
+        }
+        lastSplitTunnelLockdownTunIface = null;
+        lastSplitTunnelLockdownBackendLabel = null;
+    }
+
+    /**
+     * Натягивает iptables OUTPUT-фильтр для backend'ов, где ip-rule routing мы
+     * не трогаем (его делает Android). Закрывает split-tunnel-утечки:
+     *   - excluded-приложения, биндящиеся к tun (если tunIface есть),
+     *   - tunneled-приложения, биндящиеся к underlying network,
+     *   - excluded-приложения, идущие к системному loopback-прокси
+     *     (com.android.proxyhandler/PAC и т.п.), который дальше передаёт трафик
+     *     из своего UID и тот ловится TPROXY/VPN-маршрутизацией -> утечка IP.
+     * No-op без root или с выключенным lockdown-переключателем.
+     */
+    private void applySplitTunnelLockdown(String backendLabel, @Nullable String tunIface) {
+        Context appContext = getApplicationContext();
+        if (!RootUtils.isRootAccessGranted(appContext)) {
             return;
         }
+        if (!AppPrefs.isRootSplitTunnelLockdownEnabled(appContext)) {
+            RootMultiUserRouter.clearQuietly(appContext);
+            lastSplitTunnelLockdownTunIface = null;
+            lastSplitTunnelLockdownBackendLabel = null;
+            return;
+        }
+        java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
+        boolean hasTun = !TextUtils.isEmpty(tunIface);
+        if (!hasTun && systemProxyPorts.isEmpty()) {
+            // Ни tun-имени, ни локальных system-proxy портов - резать нечего.
+            RootMultiUserRouter.clearQuietly(appContext);
+            lastSplitTunnelLockdownTunIface = null;
+            lastSplitTunnelLockdownBackendLabel = backendLabel;
+            return;
+        }
+        RootMultiUserRouter.Mode mode = AppPrefs.isAppRoutingBypassEnabled(appContext)
+            ? RootMultiUserRouter.Mode.BYPASS
+            : RootMultiUserRouter.Mode.ONLY_SELECTED;
+        Set<String> packages = AppPrefs.getAppRoutingPackages(appContext);
         try {
-            StringBuilder script = new StringBuilder();
-            script.append("ip rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
-            script.append("ip -6 rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
-            runRootRoutingCommand(script.toString());
+            RootMultiUserRouter.applyFilterOnly(appContext, tunIface, mode, packages, systemProxyPorts);
+            lastSplitTunnelLockdownTunIface = hasTun ? tunIface : "";
+            lastSplitTunnelLockdownBackendLabel = backendLabel;
+            appendRuntimeLogLine(
+                backendLabel +
+                    " split-tunnel lockdown applied (iface=" +
+                    (hasTun ? tunIface : "-") +
+                    ", system_proxy_ports=" +
+                    systemProxyPorts +
+                    ", " +
+                    RootMultiUserRouter.describeFromPrefs(appContext) +
+                    ")"
+            );
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                backendLabel + " split-tunnel lockdown failed: " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+        }
+    }
+
+    /**
+     * Перенакатывает фильтр после изменения сетевого состояния (например,
+     * Android запустил/убил PAC-обработчик при переключении Wi-Fi). Использует
+     * последний tunIface, с которым lockdown накатывался; если ничего не было
+     * применено - no-op.
+     */
+    private void reapplySplitTunnelLockdownOnNetworkChange() {
+        if (lastSplitTunnelLockdownBackendLabel == null) {
+            return;
+        }
+        if (!RootUtils.isRootAccessGranted(getApplicationContext())) {
+            return;
+        }
+        if (!AppPrefs.isRootSplitTunnelLockdownEnabled(getApplicationContext())) {
+            return;
+        }
+        String iface = lastSplitTunnelLockdownTunIface;
+        if (iface != null && iface.isEmpty()) {
+            iface = null;
+        }
+        applySplitTunnelLockdown(lastSplitTunnelLockdownBackendLabel, iface);
+    }
+
+    // Системные пакеты, которые поднимают локальные proxy-listener'ы и через
+    // которые трафик может уйти в туннель из чужого UID. Через них bypass-
+    // приложение видит чужой IP и обходит per-app исключение. UID этих пакетов
+    // решается в рантайме через PackageManager - он отличается по устройствам.
+    private static final String[] SYSTEM_PROXY_PACKAGES = { "com.android.proxyhandler" };
+
+    private java.util.List<Integer> discoverSystemProxyPorts() {
+        java.util.LinkedHashSet<Integer> ports = new java.util.LinkedHashSet<>();
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        if (connectivityManager != null) {
+            try {
+                collectLoopbackProxyPort(connectivityManager.getDefaultProxy(), ports);
+            } catch (Exception ignored) {}
+            try {
+                android.net.Network[] networks = connectivityManager.getAllNetworks();
+                if (networks != null) {
+                    for (android.net.Network network : networks) {
+                        if (network == null) {
+                            continue;
+                        }
+                        try {
+                            LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
+                            if (linkProperties != null) {
+                                collectLoopbackProxyPort(linkProperties.getHttpProxy(), ports);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        // Запасной путь - часть OEM не отдаёт PAC через ConnectivityManager,
+        // но соответствующий процесс висит listener'ом всё равно. Резолвим
+        // UID-ы известных system-proxy пакетов и читаем /proc/net/tcp[6] под
+        // root, чтобы вытащить их LISTEN-порты.
+        java.util.Set<Integer> proxyUids = resolveSystemProxyUids();
+        if (!proxyUids.isEmpty()) {
+            ports.addAll(findLoopbackListenPortsForUids(proxyUids));
+        }
+        return new java.util.ArrayList<>(ports);
+    }
+
+    private java.util.Set<Integer> resolveSystemProxyUids() {
+        java.util.Set<Integer> uids = new java.util.HashSet<>();
+        android.content.pm.PackageManager packageManager = getPackageManager();
+        if (packageManager == null) {
+            return uids;
+        }
+        for (String pkg : SYSTEM_PROXY_PACKAGES) {
+            try {
+                int uid = packageManager.getApplicationInfo(pkg, 0).uid;
+                if (uid > 0) {
+                    uids.add(uid);
+                }
+            } catch (Exception ignored) {}
+        }
+        return uids;
+    }
+
+    private java.util.List<Integer> findLoopbackListenPortsForUids(java.util.Set<Integer> uids) {
+        if (uids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        if (!RootUtils.isRootAccessGranted(getApplicationContext())) {
+            return java.util.Collections.emptyList();
+        }
+        java.util.LinkedHashSet<Integer> ports = new java.util.LinkedHashSet<>();
+        try {
+            String output = RootUtils.runRootHelper(
+                getApplicationContext(),
+                "shell",
+                "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null"
+            );
+            if (TextUtils.isEmpty(output)) {
+                return new java.util.ArrayList<>(ports);
+            }
+            for (String line : output.split("\n")) {
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                String[] parts = trimmed.split("\\s+");
+                if (parts.length < 8) {
+                    continue;
+                }
+                if (!"0A".equalsIgnoreCase(parts[3])) {
+                    // 0A == TCP_LISTEN, остальное нас не интересует.
+                    continue;
+                }
+                int colonIndex = parts[1].lastIndexOf(':');
+                if (colonIndex <= 0 || colonIndex >= parts[1].length() - 1) {
+                    continue;
+                }
+                int port;
+                int uid;
+                try {
+                    port = Integer.parseInt(parts[1].substring(colonIndex + 1), 16);
+                    uid = Integer.parseInt(parts[7]);
+                } catch (NumberFormatException ignored) {
+                    continue;
+                }
+                if (port <= 0 || port > 65535) {
+                    continue;
+                }
+                if (uids.contains(uid)) {
+                    ports.add(port);
+                }
+            }
         } catch (Exception ignored) {}
-        RootMultiUserRouter.clearQuietly(getApplicationContext());
+        return new java.util.ArrayList<>(ports);
+    }
+
+    private static void collectLoopbackProxyPort(@Nullable android.net.ProxyInfo proxyInfo, Set<Integer> ports) {
+        if (proxyInfo == null) {
+            return;
+        }
+        int port = proxyInfo.getPort();
+        if (port <= 0 || port > 65535) {
+            return;
+        }
+        String host = proxyInfo.getHost();
+        if (TextUtils.isEmpty(host)) {
+            return;
+        }
+        String lower = host.trim().toLowerCase(java.util.Locale.ROOT);
+        if (
+            "localhost".equals(lower) ||
+            "ip6-localhost".equals(lower) ||
+            "::1".equals(lower) ||
+            lower.startsWith("127.")
+        ) {
+            ports.add(port);
+        }
     }
 
     private VpnHotspotSharingConfig buildSharingConfig() {
@@ -7583,7 +7832,15 @@ public class ProxyTunnelService extends Service {
 
     private void handleUnderlyingNetworkEvent(@Nullable String event, @Nullable Network network) {
         String safeEvent = firstNonEmpty(event, "changed");
-        workExecutor.execute(() -> processUnderlyingNetworkEvent(safeEvent, network));
+        workExecutor.execute(() -> {
+            processUnderlyingNetworkEvent(safeEvent, network);
+            // Android может поднять/убить системные loopback-прокси (PAC handler
+            // и пр.) при смене активной сети, и набор портов в системном
+            // ProxyInfo меняется. Триггерим перенакат фильтра.
+            if ("link".equals(safeEvent)) {
+                reapplySplitTunnelLockdownOnNetworkChange();
+            }
+        });
     }
 
     private void processUnderlyingNetworkEvent(@Nullable String event, @Nullable Network network) {

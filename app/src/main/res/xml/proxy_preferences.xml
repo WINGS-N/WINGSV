@@ -96,6 +96,12 @@
         android:summary="@string/xray_tproxy_summary"
         android:defaultValue="false" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_root_split_tunnel_lockdown"
+        android:title="@string/root_split_tunnel_lockdown_title"
+        android:summary="@string/root_split_tunnel_lockdown_summary"
+        android:defaultValue="true" />
+
     <Preference
         android:key="pref_open_root_interface_settings"
         android:title="@string/root_interface_settings_title"
