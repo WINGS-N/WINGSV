@@ -18,6 +18,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -261,7 +262,8 @@ public final class AppUpdateManager {
     }
 
     private HttpURLConnection openConnection(String urlString) throws Exception {
-        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, new URL(urlString), true);
+        URL url = URI.create(urlString).toURL();
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, url, true);
         connection.setInstanceFollowRedirects(true);
         connection.setUseCaches(false);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
