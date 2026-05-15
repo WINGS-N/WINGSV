@@ -39,6 +39,13 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_REMOTE_DNS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_DIRECT_DNS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_IPV6_ENABLED);
@@ -73,6 +80,8 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE);
         bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED);
+        bindSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED);
+        bindSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
@@ -85,6 +94,11 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME);
         bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD);
         bindNumeric(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT);
+        bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS);
+        bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME);
+        bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD);
+        bindNumeric(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT);
+        bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS);
         syncFromStore();
     }
 
@@ -116,7 +130,9 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             }
             if (
                 TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED) ||
-                TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED)
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED) ||
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED) ||
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED)
             ) {
                 requireView().post(this::syncFromStore);
             }
@@ -173,10 +189,17 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(settings.localProxyPort));
         syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, settings.localProxyUsername);
         syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, settings.localProxyPassword);
+        syncEditText(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, settings.localProxyListenAddress);
+        syncEditText(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT, String.valueOf(settings.httpProxyPort));
+        syncEditText(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME, settings.httpProxyUsername);
+        syncEditText(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD, settings.httpProxyPassword);
+        syncEditText(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, settings.httpProxyListenAddress);
         syncSwitch(AppPrefs.KEY_XRAY_ALLOW_LAN, settings.allowLan);
         syncSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE, settings.allowInsecure);
         syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, settings.localProxyEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, settings.localProxyAuthEnabled);
+        syncSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED, settings.httpProxyEnabled);
+        syncSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED, settings.httpProxyAuthEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED, settings.ipv6);
         syncSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, settings.sniffingEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, settings.proxyQuicEnabled);
@@ -234,9 +257,17 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         boolean proxyEnabled = settings.localProxyEnabled;
         boolean authEnabled = proxyEnabled && settings.localProxyAuthEnabled;
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, proxyEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, proxyEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, proxyEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, authEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, authEnabled);
+        boolean httpEnabled = settings.httpProxyEnabled;
+        boolean httpAuthEnabled = httpEnabled && settings.httpProxyAuthEnabled;
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT, httpEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, httpEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED, httpEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME, httpAuthEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD, httpAuthEnabled);
     }
 
     private void setPreferenceEnabled(String key, boolean enabled) {

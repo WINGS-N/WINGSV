@@ -95,6 +95,13 @@ public final class AppPrefs {
     public static final String KEY_XRAY_LOCAL_PROXY_USERNAME = "pref_xray_local_proxy_username";
     public static final String KEY_XRAY_LOCAL_PROXY_PASSWORD = "pref_xray_local_proxy_password";
     public static final String KEY_XRAY_LOCAL_PROXY_PORT = "pref_xray_local_proxy_port";
+    public static final String KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS = "pref_xray_local_proxy_listen_address";
+    public static final String KEY_XRAY_HTTP_PROXY_ENABLED = "pref_xray_http_proxy_enabled";
+    public static final String KEY_XRAY_HTTP_PROXY_AUTH_ENABLED = "pref_xray_http_proxy_auth_enabled";
+    public static final String KEY_XRAY_HTTP_PROXY_USERNAME = "pref_xray_http_proxy_username";
+    public static final String KEY_XRAY_HTTP_PROXY_PASSWORD = "pref_xray_http_proxy_password";
+    public static final String KEY_XRAY_HTTP_PROXY_PORT = "pref_xray_http_proxy_port";
+    public static final String KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS = "pref_xray_http_proxy_listen_address";
     public static final String KEY_XRAY_REMOTE_DNS = "pref_xray_remote_dns";
     public static final String KEY_XRAY_DIRECT_DNS = "pref_xray_direct_dns";
     public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
