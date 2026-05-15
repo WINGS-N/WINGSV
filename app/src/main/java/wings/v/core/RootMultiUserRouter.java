@@ -5,6 +5,7 @@ import android.content.pm.PackageManager;
 import android.text.TextUtils;
 import android.util.Log;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -62,6 +63,12 @@ public final class RootMultiUserRouter {
 
     private RootMultiUserRouter() {}
 
+    // Сериализуем все apply/applyFilterOnly/clearQuietly: stop'ы могут запускать
+    // teardown в фоновом потоке через runFastStopCleanupStep с timeout'ом, и без
+    // этого монитора новый apply из startXrayRuntime/applyKernelWg... успевает
+    // отработать, после чего отстающая фоновая чистка сносит свежий chain.
+    private static final Object SCRIPT_LOCK = new Object();
+
     // Имя iptables-цепочки для нашего OUTPUT-фильтра. Своя цепочка нужна чтобы
     // teardown был чистым: дропнуть chain - и всё, не выискивать конкретные
     // правила, которые сами могли быть инжектированы netd'ом между нашими.
@@ -72,13 +79,16 @@ public final class RootMultiUserRouter {
         @NonNull String tunnelTable,
         @NonNull String tunnelIface,
         @NonNull Mode mode,
-        @NonNull Set<String> selectedPackages
+        @NonNull Set<String> selectedPackages,
+        boolean enforceSplitTunnelLockdown,
+        @NonNull List<Integer> systemProxyPorts
     ) throws Exception {
         if (TextUtils.isEmpty(tunnelTable)) {
             throw new IllegalArgumentException("tunnelTable required");
         }
         List<Integer> userIds = listAndroidUserIds(context);
         Set<Integer> selectedAppIds = resolveAppIds(context, selectedPackages);
+        int ownUid = context.getApplicationInfo().uid;
         StringBuilder script = new StringBuilder();
         appendClear(script);
         for (int i = 0; i < userIds.size(); i++) {
@@ -95,18 +105,51 @@ public final class RootMultiUserRouter {
                 appendAddRule(script, overridePriority, uid, uid, overrideTable);
             }
         }
-        if (!TextUtils.isEmpty(tunnelIface)) {
-            appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode);
+        if (enforceSplitTunnelLockdown && (!TextUtils.isEmpty(tunnelIface) || !systemProxyPorts.isEmpty())) {
+            appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode, ownUid, systemProxyPorts);
         }
-        RootUtils.runRootHelper(context, "shell", script.toString());
+        synchronized (SCRIPT_LOCK) {
+            RootUtils.runRootHelper(context, "shell", script.toString());
+        }
     }
 
     public static void clearQuietly(@NonNull Context context) {
         try {
             StringBuilder script = new StringBuilder();
             appendClear(script);
-            RootUtils.runRootHelper(context, "shell", script.toString());
+            synchronized (SCRIPT_LOCK) {
+                RootUtils.runRootHelper(context, "shell", script.toString());
+            }
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * Применяет только iptables OUTPUT-фильтр (без ip-rule per-user routing).
+     * Используется для backend'ов, где маршрутизацию делает Android (Xray-
+     * VpnService, AmneziaWG-go), а нам нужно только закрыть split-tunnel дыру:
+     * tunneled UID не должен биндиться к underlying network, excluded UID не
+     * должен достучаться до tun.
+     */
+    public static void applyFilterOnly(
+        @NonNull Context context,
+        @Nullable String tunnelIface,
+        @NonNull Mode mode,
+        @NonNull Set<String> selectedPackages,
+        @NonNull List<Integer> systemProxyPorts
+    ) throws Exception {
+        if (TextUtils.isEmpty(tunnelIface) && systemProxyPorts.isEmpty()) {
+            // Без tun-имени и без локальных system-proxy портов резать нечего.
+            return;
+        }
+        List<Integer> userIds = listAndroidUserIds(context);
+        Set<Integer> selectedAppIds = resolveAppIds(context, selectedPackages);
+        int ownUid = context.getApplicationInfo().uid;
+        StringBuilder script = new StringBuilder();
+        appendFilterTeardown(script);
+        appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode, ownUid, systemProxyPorts);
+        synchronized (SCRIPT_LOCK) {
+            RootUtils.runRootHelper(context, "shell", script.toString());
+        }
     }
 
     private static void appendClear(StringBuilder script) {
@@ -142,21 +185,174 @@ public final class RootMultiUserRouter {
 
     private static void appendFilterRules(
         StringBuilder script,
-        String tunnelIface,
+        @Nullable String tunnelIface,
         List<Integer> userIds,
         Set<Integer> selectedAppIds,
-        Mode mode
+        Mode mode,
+        int ownUid,
+        List<Integer> systemProxyPorts
     ) {
-        // OUTPUT-фильтр на исключённые UID, целящиеся в tun-интерфейс. Закрывает
-        // случаи, когда приложение каким-то образом обошло ip-rule (например
-        // SO_BINDTODEVICE из системного контекста) - пакет всё равно отвергается
-        // REJECT'ом, и сокет-bind/connect получает EPERM/connection refused -
-        // то же поведение, что у других добротных VPN-клиентов.
-        String quotedIface = RootUtils.shellQuote(tunnelIface);
+        // Многонаправленный OUTPUT-фильтр:
+        //   - исключённые UID, пробующие достучаться до tun -> REJECT
+        //   - tunneled UID, пробующие выйти НЕ через tun (например через
+        //     Network.bindSocket(underlying)) -> REJECT
+        //   - excluded UID, пробующие достучаться до системного PAC/HTTP прокси
+        //     на 127.0.0.1:port (com.android.proxyhandler и подобные) -> REJECT.
+        //     Через системный прокси трафик отдаётся от UID 10103, которого
+        //     наши bypass-правила не касаются - и пакет в итоге уходит через
+        //     туннель, выдавая несовпадение IP с прямым исходом приложения.
+        // bindSocket остаётся успешным (это лишь mark на сокете), а на
+        // connect/send пакет ловит REJECT и приложение получает ECONNREFUSED
+        // через underlying.
+        boolean hasTun = !TextUtils.isEmpty(tunnelIface);
+        String quotedIface = hasTun ? RootUtils.shellQuote(tunnelIface) : "";
         for (String cmd : new String[] { "iptables", "ip6tables" }) {
+            String loopbackAddr = "iptables".equals(cmd) ? "127.0.0.0/8" : "::1";
             script.append(cmd).append(" -N ").append(FILTER_CHAIN).append(" 2>/dev/null; ");
+
+            // Свой собственный UID всегда RETURN ПЕРЕД loopback-пропуском - иначе
+            // proxy-port REJECT блоки ниже срубят наши же подключения к PAC.
+            // Системные UID (<10000) и так не попадают под --uid-owner блоки
+            // ниже, потому что они вне APP_UID_MIN_OFFSET..APP_UID_MAX_OFFSET.
+            if (ownUid > 0) {
+                script
+                    .append(cmd)
+                    .append(" -A ")
+                    .append(FILTER_CHAIN)
+                    .append(" -m owner --uid-owner ")
+                    .append(ownUid)
+                    .append(" -j RETURN 2>/dev/null; ");
+            }
+
+            // Блок 0: system-proxy порты на loopback'е (PAC handler и др.).
+            // Идёт ДО общего lo RETURN, иначе loopback-allow проглатывает.
+            if (!systemProxyPorts.isEmpty()) {
+                appendSystemProxyRejects(script, cmd, loopbackAddr, userIds, selectedAppIds, mode, systemProxyPorts);
+            }
+
+            // Loopback всегда пропускаем (после system-proxy блока). Без этого
+            // ломаются local proxy, системные daemon'ы и любая IPC.
+            script.append(cmd).append(" -A ").append(FILTER_CHAIN).append(" -o lo -j RETURN 2>/dev/null; ");
+
+            // Блок 1: пакеты, идущие через tun. REJECT для тех, кто не должен
+            // туда ходить, RETURN для остальных - чтобы блок 2 их уже не трогал.
+            if (hasTun) {
+                if (mode == Mode.BYPASS) {
+                    for (int userId : userIds) {
+                        for (int appId : selectedAppIds) {
+                            int uid = userId * PER_USER_UID_STRIDE + appId;
+                            script
+                                .append(cmd)
+                                .append(" -A ")
+                                .append(FILTER_CHAIN)
+                                .append(" -o ")
+                                .append(quotedIface)
+                                .append(" -m owner --uid-owner ")
+                                .append(uid)
+                                .append(" -j REJECT 2>/dev/null; ");
+                        }
+                    }
+                } else {
+                    for (int userId : userIds) {
+                        for (int appId : selectedAppIds) {
+                            int uid = userId * PER_USER_UID_STRIDE + appId;
+                            script
+                                .append(cmd)
+                                .append(" -A ")
+                                .append(FILTER_CHAIN)
+                                .append(" -o ")
+                                .append(quotedIface)
+                                .append(" -m owner --uid-owner ")
+                                .append(uid)
+                                .append(" -j RETURN 2>/dev/null; ");
+                        }
+                        int rangeMin = userId * PER_USER_UID_STRIDE + APP_UID_MIN_OFFSET;
+                        int rangeMax = userId * PER_USER_UID_STRIDE + APP_UID_MAX_OFFSET;
+                        script
+                            .append(cmd)
+                            .append(" -A ")
+                            .append(FILTER_CHAIN)
+                            .append(" -o ")
+                            .append(quotedIface)
+                            .append(" -m owner --uid-owner ")
+                            .append(rangeMin)
+                            .append('-')
+                            .append(rangeMax)
+                            .append(" -j REJECT 2>/dev/null; ");
+                    }
+                }
+                script
+                    .append(cmd)
+                    .append(" -A ")
+                    .append(FILTER_CHAIN)
+                    .append(" -o ")
+                    .append(quotedIface)
+                    .append(" -j RETURN 2>/dev/null; ");
+
+                // Блок 2: пакеты, идущие НЕ через tun и НЕ через lo. Здесь режем
+                // tunneled UIDs, чтобы Network.bindSocket(underlying) обламывался.
+                if (mode == Mode.BYPASS) {
+                    for (int userId : userIds) {
+                        for (int appId : selectedAppIds) {
+                            int uid = userId * PER_USER_UID_STRIDE + appId;
+                            script
+                                .append(cmd)
+                                .append(" -A ")
+                                .append(FILTER_CHAIN)
+                                .append(" -m owner --uid-owner ")
+                                .append(uid)
+                                .append(" -j RETURN 2>/dev/null; ");
+                        }
+                        int rangeMin = userId * PER_USER_UID_STRIDE + APP_UID_MIN_OFFSET;
+                        int rangeMax = userId * PER_USER_UID_STRIDE + APP_UID_MAX_OFFSET;
+                        script
+                            .append(cmd)
+                            .append(" -A ")
+                            .append(FILTER_CHAIN)
+                            .append(" -m owner --uid-owner ")
+                            .append(rangeMin)
+                            .append('-')
+                            .append(rangeMax)
+                            .append(" -j REJECT 2>/dev/null; ");
+                    }
+                } else {
+                    for (int userId : userIds) {
+                        for (int appId : selectedAppIds) {
+                            int uid = userId * PER_USER_UID_STRIDE + appId;
+                            script
+                                .append(cmd)
+                                .append(" -A ")
+                                .append(FILTER_CHAIN)
+                                .append(" -m owner --uid-owner ")
+                                .append(uid)
+                                .append(" -j REJECT 2>/dev/null; ");
+                        }
+                    }
+                }
+            }
+
+            // Хук безусловный - chain сам разруливает направление через -o.
+            script.append(cmd).append(" -A OUTPUT -j ").append(FILTER_CHAIN).append(" 2>/dev/null; ");
+        }
+        script.append("true; ");
+    }
+
+    private static void appendSystemProxyRejects(
+        StringBuilder script,
+        String cmd,
+        String loopbackAddr,
+        List<Integer> userIds,
+        Set<Integer> selectedAppIds,
+        Mode mode,
+        List<Integer> systemProxyPorts
+    ) {
+        for (Integer port : systemProxyPorts) {
+            if (port == null || port <= 0 || port > 65535) {
+                continue;
+            }
             if (mode == Mode.BYPASS) {
-                // Явно реджектим только selected (исключённые) UID каждого юзера.
+                // Excluded UIDs не должны ходить в системный proxy: трафик
+                // через него уйдёт в туннель и выдаст другой IP.
                 for (int userId : userIds) {
                     for (int appId : selectedAppIds) {
                         int uid = userId * PER_USER_UID_STRIDE + appId;
@@ -164,14 +360,17 @@ public final class RootMultiUserRouter {
                             .append(cmd)
                             .append(" -A ")
                             .append(FILTER_CHAIN)
+                            .append(" -d ")
+                            .append(loopbackAddr)
+                            .append(" -p tcp --dport ")
+                            .append(port)
                             .append(" -m owner --uid-owner ")
                             .append(uid)
                             .append(" -j REJECT 2>/dev/null; ");
                     }
                 }
             } else {
-                // ONLY_SELECTED: пропускаем только выбранные UID, остальной
-                // user-range реджектим. RETURN раньше REJECT в правилах chain'a.
+                // ONLY_SELECTED: всё что НЕ в selected (== bypassed) -> REJECT.
                 for (int userId : userIds) {
                     for (int appId : selectedAppIds) {
                         int uid = userId * PER_USER_UID_STRIDE + appId;
@@ -179,6 +378,10 @@ public final class RootMultiUserRouter {
                             .append(cmd)
                             .append(" -A ")
                             .append(FILTER_CHAIN)
+                            .append(" -d ")
+                            .append(loopbackAddr)
+                            .append(" -p tcp --dport ")
+                            .append(port)
                             .append(" -m owner --uid-owner ")
                             .append(uid)
                             .append(" -j RETURN 2>/dev/null; ");
@@ -189,6 +392,10 @@ public final class RootMultiUserRouter {
                         .append(cmd)
                         .append(" -A ")
                         .append(FILTER_CHAIN)
+                        .append(" -d ")
+                        .append(loopbackAddr)
+                        .append(" -p tcp --dport ")
+                        .append(port)
                         .append(" -m owner --uid-owner ")
                         .append(rangeMin)
                         .append('-')
@@ -196,16 +403,7 @@ public final class RootMultiUserRouter {
                         .append(" -j REJECT 2>/dev/null; ");
                 }
             }
-            // Привязываем chain к OUTPUT только для пакетов на наш tun.
-            script
-                .append(cmd)
-                .append(" -A OUTPUT -o ")
-                .append(quotedIface)
-                .append(" -j ")
-                .append(FILTER_CHAIN)
-                .append(" 2>/dev/null; ");
         }
-        script.append("true; ");
     }
 
     private static void appendAddRule(StringBuilder script, int pref, int uidMin, int uidMax, String table) {

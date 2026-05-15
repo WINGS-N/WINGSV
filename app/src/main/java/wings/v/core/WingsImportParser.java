@@ -949,6 +949,10 @@ public final class WingsImportParser {
         if (!TextUtils.isEmpty(wgIfaceTemplate) && (includeDefaults || !defaultTemplate.equals(wgIfaceTemplate))) {
             builder.setWgInterfaceName(wgIfaceTemplate);
         }
+        boolean lockdown = AppPrefs.isRootSplitTunnelLockdownEnabled(context);
+        if (includeDefaults || !lockdown) {
+            builder.setSplitTunnelLockdown(lockdown);
+        }
         return builder.build();
     }
 
@@ -962,6 +966,9 @@ public final class WingsImportParser {
         }
         if (root.hasXrayTproxyMode()) {
             importedConfig.xrayTproxyModeEnabled = root.getXrayTproxyMode();
+        }
+        if (root.hasSplitTunnelLockdown()) {
+            importedConfig.rootSplitTunnelLockdownEnabled = root.getSplitTunnelLockdown();
         }
         String iface = value(root.getWgInterfaceName());
         if (!TextUtils.isEmpty(iface)) {
@@ -2808,6 +2815,7 @@ public final class WingsImportParser {
         public Boolean rootModeEnabled;
         public Boolean kernelWireguardEnabled;
         public Boolean xrayTproxyModeEnabled;
+        public Boolean rootSplitTunnelLockdownEnabled;
         public String rootWireguardInterfaceName;
         public boolean hasAppPreferences;
         public String themeMode;

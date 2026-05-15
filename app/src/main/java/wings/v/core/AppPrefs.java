@@ -135,6 +135,7 @@ public final class AppPrefs {
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
     public static final String KEY_XRAY_TPROXY_MODE = "pref_xray_tproxy_mode";
+    public static final String KEY_ROOT_SPLIT_TUNNEL_LOCKDOWN = "pref_root_split_tunnel_lockdown";
     public static final String KEY_ROOT_ACCESS_GRANTED = "pref_root_access_granted";
     public static final String KEY_ROOT_ACCESS_CHECKED_AT = "pref_root_access_checked_at";
     public static final String KEY_ROOT_SU_PATH = "pref_root_su_path";
@@ -287,6 +288,14 @@ public final class AppPrefs {
 
     public static void setXrayTproxyModeEnabled(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_XRAY_TPROXY_MODE, enabled).commit();
+    }
+
+    public static boolean isRootSplitTunnelLockdownEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_ROOT_SPLIT_TUNNEL_LOCKDOWN, true);
+    }
+
+    public static void setRootSplitTunnelLockdownEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_ROOT_SPLIT_TUNNEL_LOCKDOWN, enabled).commit();
     }
 
     public static void setKernelWireGuardEnabled(Context context, boolean enabled) {
@@ -1227,6 +1236,9 @@ public final class AppPrefs {
         }
         if (importedConfig.xrayTproxyModeEnabled != null) {
             editor.putBoolean(KEY_XRAY_TPROXY_MODE, importedConfig.xrayTproxyModeEnabled);
+        }
+        if (importedConfig.rootSplitTunnelLockdownEnabled != null) {
+            editor.putBoolean(KEY_ROOT_SPLIT_TUNNEL_LOCKDOWN, importedConfig.rootSplitTunnelLockdownEnabled);
         }
         if (!TextUtils.isEmpty(importedConfig.rootWireguardInterfaceName)) {
             String normalized = normalizeRootWireGuardInterfaceNameTemplate(importedConfig.rootWireguardInterfaceName);

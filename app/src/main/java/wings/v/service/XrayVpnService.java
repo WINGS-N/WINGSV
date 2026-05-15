@@ -8,6 +8,11 @@ import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import androidx.annotation.Nullable;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -108,6 +113,36 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     public static boolean hasActiveTunnel() {
         return tunnelActive;
+    }
+
+    /**
+     * Ищет имя активного tun-интерфейса, на котором подвешен наш VPN_ADDRESS_V4.
+     * Android даёт VpnService.Builder.establish() безымянный fd; реальное
+     * имя tunN восстанавливается перебором NetworkInterface'ов.
+     */
+    @Nullable
+    public static String findActiveTunInterfaceName() {
+        try {
+            Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            if (ifaces == null) {
+                return null;
+            }
+            for (NetworkInterface iface : Collections.list(ifaces)) {
+                if (iface == null || !iface.isUp()) {
+                    continue;
+                }
+                Enumeration<InetAddress> addrs = iface.getInetAddresses();
+                if (addrs == null) {
+                    continue;
+                }
+                for (InetAddress addr : Collections.list(addrs)) {
+                    if (addr instanceof Inet4Address && VPN_ADDRESS_V4.equals(addr.getHostAddress())) {
+                        return iface.getName();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     public static boolean isServiceAlive() {
