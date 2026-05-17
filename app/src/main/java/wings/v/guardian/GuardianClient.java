@@ -417,6 +417,10 @@ public final class GuardianClient {
 
         @Override
         public void onClosed(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
+            if (isStaleSocket(webSocket)) {
+                Log.d(TAG, "ws closed on stale socket, ignoring");
+                return;
+            }
             Log.i(TAG, "ws closed " + code + " " + reason);
             ProxyTunnelService.writeRuntimeLogLine(
                 "[guardian] ws closed " + code + " " + reason + " " + lifetimeAndIdleSummary()
@@ -426,6 +430,10 @@ public final class GuardianClient {
 
         @Override
         public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, @Nullable Response response) {
+            if (isStaleSocket(webSocket)) {
+                Log.d(TAG, "ws failure on stale socket, ignoring (" + t.getMessage() + ")");
+                return;
+            }
             String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
             int code = response == null ? 0 : response.code();
             Log.w(TAG, "ws failure: " + msg + " (http=" + code + ")");
@@ -441,6 +449,16 @@ public final class GuardianClient {
             );
             handleDisconnected();
         }
+    }
+
+    /**
+     * onFailure/onClosed может прийти от уже-замещённого WebSocket'а, если мы
+     * успели открыть новый раньше, чем OkHttp дослал callback старого.
+     * Без этой проверки handleDisconnected() стирает ссылку на свежий socket и
+     * порождает повторный reconnect-loop с дубль-сокетами и lifetime ~30-50s.
+     */
+    private boolean isStaleSocket(WebSocket webSocket) {
+        return socket != null && webSocket != socket;
     }
 
     private String lifetimeAndIdleSummary() {
