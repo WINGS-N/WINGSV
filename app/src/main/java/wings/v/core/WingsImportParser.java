@@ -2622,6 +2622,11 @@ public final class WingsImportParser {
         if (settings.getRuntimeMode() != WingsvProto.ProxyRuntimeMode.PROXY_RUNTIME_MODE_UNSPECIFIED) {
             result.runtimeMode = fromProtoRuntimeMode(settings.getRuntimeMode());
         }
+        if (settings.getWakeProbeMode() == WingsvProto.WakeProbeMode.WAKE_PROBE_MODE_HTTP_PROBE) {
+            result.wakeProbeMode = XraySettings.WakeProbeMode.HTTP_PROBE;
+        } else if (settings.getWakeProbeMode() == WingsvProto.WakeProbeMode.WAKE_PROBE_MODE_PROCESS) {
+            result.wakeProbeMode = XraySettings.WakeProbeMode.PROCESS;
+        }
         return result;
     }
 
@@ -2700,6 +2705,16 @@ public final class WingsImportParser {
         if (settings.runtimeMode != null && (includeDefaults || settings.runtimeMode != ProxyRuntimeMode.VPN)) {
             builder.setRuntimeMode(toProtoRuntimeMode(settings.runtimeMode));
         }
+        if (
+            includeDefaults ||
+            (settings.wakeProbeMode != null && !XraySettings.WakeProbeMode.PROCESS.equals(settings.wakeProbeMode))
+        ) {
+            builder.setWakeProbeMode(
+                XraySettings.WakeProbeMode.HTTP_PROBE.equals(settings.wakeProbeMode)
+                    ? WingsvProto.WakeProbeMode.WAKE_PROBE_MODE_HTTP_PROBE
+                    : WingsvProto.WakeProbeMode.WAKE_PROBE_MODE_PROCESS
+            );
+        }
         return builder.build();
     }
 
@@ -2746,6 +2761,7 @@ public final class WingsImportParser {
         settings.proxyQuicEnabled = false;
         settings.restartOnNetworkChange = false;
         settings.transportMode = XrayTransportMode.DIRECT;
+        settings.wakeProbeMode = XraySettings.WakeProbeMode.PROCESS;
         return settings;
     }
 

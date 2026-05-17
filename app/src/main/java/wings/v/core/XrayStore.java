@@ -109,6 +109,9 @@ public final class XrayStore {
         settings.transportMode = XrayTransportMode.fromPrefValue(
             prefs.getString(AppPrefs.KEY_XRAY_TRANSPORT_MODE, XrayTransportMode.DIRECT.prefValue)
         );
+        settings.wakeProbeMode = XraySettings.WakeProbeMode.normalize(
+            prefs.getString(AppPrefs.KEY_XRAY_WAKE_PROBE_MODE, XraySettings.WakeProbeMode.PROCESS)
+        );
         return settings;
     }
 
@@ -166,6 +169,7 @@ public final class XrayStore {
                 AppPrefs.KEY_XRAY_TRANSPORT_MODE,
                 value.transportMode == null ? XrayTransportMode.DIRECT.prefValue : value.transportMode.prefValue
             )
+            .putString(AppPrefs.KEY_XRAY_WAKE_PROBE_MODE, XraySettings.WakeProbeMode.normalize(value.wakeProbeMode))
             .commit();
     }
 

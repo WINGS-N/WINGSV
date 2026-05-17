@@ -64,6 +64,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -220,7 +221,14 @@ public class ProxyTunnelService extends Service {
     private static final double STATS_SPEED_FALL_ALPHA = 0.18d;
     private static final long STATS_SPEED_IDLE_DECAY_HOLD_MS = 900L;
     private static final long UNDERLYING_NETWORK_RECONNECT_DELAY_MS = 750L;
-    private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 7_500L;
+    private static final long XRAY_HEARTBEAT_TIMEOUT_MS = 60_000L;
+    // Heartbeat-watchdog ловит узкий failure mode (tunnelLock-deadlock в Java-
+    // слое), при этом elapsedRealtime() пересекает Doze и даёт ложные reconnect
+    // после длительного idle. Остальные сигналы (hasActiveTunnel, isRunning,
+    // isServiceAlive) покрывают практические отказы инстантно. Оставил флагом
+    // на случай повторного включения, сам heartbeat-loop в XrayVpnService тоже
+    // не стартует пока флаг false.
+    private static final boolean XRAY_HEARTBEAT_CHECK_ENABLED = false;
     private static final long XRAY_VPN_STOP_WAIT_MS = 2_500L;
     private static final long ACTIVE_PROBING_FAST_STOP_WAIT_MS = 650L;
     private static final long ACTIVE_PROBING_PROCESS_RESTART_DELAY_MS = 350L;
@@ -422,6 +430,16 @@ public class ProxyTunnelService extends Service {
     private int byeDpiDialPort = 1080;
     private String activeTunnelName = ROOT_TUNNEL_NAME;
     private String appliedTetherUpstreamName;
+
+    @Nullable
+    private Set<String> lastTetherSyncInterfaces;
+
+    @Nullable
+    private String lastTetherSyncUpstream;
+
+    @Nullable
+    private VpnHotspotSharingConfig lastTetherSyncConfig;
+
     private volatile PublicIpFetcher.Request publicIpRequest;
     private volatile int publicIpRequestGeneration;
     private volatile boolean stopping;
@@ -2161,6 +2179,9 @@ public class ProxyTunnelService extends Service {
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
+        lastTetherSyncInterfaces = null;
+        lastTetherSyncUpstream = null;
+        lastTetherSyncConfig = null;
         pendingSharingRestoreOnBoot = false;
 
         closeProtectBridge();
@@ -2308,6 +2329,9 @@ public class ProxyTunnelService extends Service {
         activeVkTurnProxyOnly = false;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
+        lastTetherSyncInterfaces = null;
+        lastTetherSyncUpstream = null;
+        lastTetherSyncConfig = null;
         pendingSharingRestoreOnBoot = false;
 
         runFastStopCleanupStep("Protect bridge close", ACTIVE_PROBING_FAST_STOP_WAIT_MS, this::closeProtectBridge);
@@ -2444,6 +2468,9 @@ public class ProxyTunnelService extends Service {
         activeVkTurnProxyOnly = false;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
+        lastTetherSyncInterfaces = null;
+        lastTetherSyncUpstream = null;
+        lastTetherSyncConfig = null;
         pendingSharingRestoreOnBoot = false;
 
         runReconnectCleanupStep("Protect bridge close", this::closeProtectBridge);
@@ -2587,6 +2614,9 @@ public class ProxyTunnelService extends Service {
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
+        lastTetherSyncInterfaces = null;
+        lastTetherSyncUpstream = null;
+        lastTetherSyncConfig = null;
         pendingSharingRestoreOnBoot = false;
         closeProtectBridge();
         GoBackendVpnAccess.stopService(getApplicationContext());
@@ -4456,10 +4486,27 @@ public class ProxyTunnelService extends Service {
             }
             configuredInterfaces.add(tetherInterface);
         }
+        VpnHotspotSharingConfig sharingConfig = buildSharingConfig();
+        // Skip-no-op: при пустом наборе tether-интерфейсов и неизменных upstream/
+        // конфиге дальше идёт runBlocking{ Routing.clean() } внутри
+        // VpnHotspotSharingRuntime, который форкает su+iptables. Это срабатывало
+        // каждые 3 секунды и составляло основной wakeup-shape в idle - кешируем
+        // последнее применённое состояние и пропускаем sync если ничего не
+        // менялось.
+        if (
+            configuredInterfaces.equals(lastTetherSyncInterfaces) &&
+            Objects.equals(upstreamNameForLog, lastTetherSyncUpstream) &&
+            Objects.equals(sharingConfig, lastTetherSyncConfig)
+        ) {
+            return;
+        }
         try {
-            VpnHotspotBridge.syncSharing(getApplicationContext(), configuredInterfaces, buildSharingConfig());
+            VpnHotspotBridge.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             appliedTetherUpstreamName = upstreamNameForLog;
+            lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
+            lastTetherSyncUpstream = upstreamNameForLog;
+            lastTetherSyncConfig = sharingConfig;
             String syncMessage =
                 "Root tether routing synced: " + configuredInterfaces + " upstream=" + upstreamNameForLog;
             appendRuntimeLogLine(syncMessage);
@@ -4483,6 +4530,9 @@ public class ProxyTunnelService extends Service {
     private void clearRootTetherRouting() {
         VpnHotspotBridge.stopSharing(getApplicationContext());
         appliedTetherUpstreamName = null;
+        lastTetherSyncInterfaces = null;
+        lastTetherSyncUpstream = null;
+        lastTetherSyncConfig = null;
         releaseSharingWifiLocks();
     }
 
@@ -6975,6 +7025,13 @@ public class ProxyTunnelService extends Service {
         if (activeRuntimeUsesTurnProxy()) {
             return;
         }
+        if (!shouldUseHttpProbeForActiveBackend()) {
+            // Process-mode wake-probe: ни на wake'е, ни в периодическом цикле
+            // не нужен HTTP-roundtrip к CONNECTIVITY_PROBE_URL. Inherent
+            // liveness ловится supervisor'ом (isRunning / hasActiveTunnel /
+            // backend-handle alive). Экономит 1 HTTP-request каждые 20s.
+            return;
+        }
         if (!force && hasRecentConnectivityProbeSuccess()) {
             return;
         }
@@ -7105,7 +7162,7 @@ public class ProxyTunnelService extends Service {
                 scheduleRuntimeReconnect("Xray VPN service lost active tunnel", RUNTIME_RECONNECT_DELAY_MS);
                 return;
             }
-            if (!XrayVpnService.isHeartbeatFresh(XRAY_HEARTBEAT_TIMEOUT_MS)) {
+            if (XRAY_HEARTBEAT_CHECK_ENABLED && !XrayVpnService.isHeartbeatFresh(XRAY_HEARTBEAT_TIMEOUT_MS)) {
                 scheduleRuntimeReconnect("Xray VPN heartbeat timed out", RUNTIME_RECONNECT_DELAY_MS);
             }
             return;
@@ -7785,7 +7842,10 @@ public class ProxyTunnelService extends Service {
 
     private boolean runWakeFastPathProbeNow(String trigger) {
         if (!activeRuntimeUsesTurnProxy()) {
-            return runConnectivityProbeNow(WAKE_FAST_PATH_PROBE_TIMEOUT_MS);
+            if (shouldUseHttpProbeForActiveBackend()) {
+                return runConnectivityProbeNow(WAKE_FAST_PATH_PROBE_TIMEOUT_MS);
+            }
+            return runWakeFastPathProcessCheck(trigger);
         }
         if (activeVkTurnProxyOnly) {
             boolean proxyAlive = proxyProcess != null && proxyProcess.isAlive();
@@ -7808,6 +7868,53 @@ public class ProxyTunnelService extends Service {
             "Wake fast-path DTLS evidence stale after " + trigger + ": last activity " + describeProxyDtlsActivityAge()
         );
         return false;
+    }
+
+    /**
+     * Дешёвая проверка живости без сетевого запроса: смотрим состояние
+     * native-Xray (если активен) и наличие tunnel-fd. Для остальных backend'ов
+     * (top-level WG / AmneziaWG, без VK TURN proxy) на wake'е достаточно
+     * довериться supervisor'у - возвращаем true, дальнейшие реальные сбои
+     * ловятся обычным polling'ом.
+     */
+    private boolean runWakeFastPathProcessCheck(String trigger) {
+        if (usesXrayBackend(activeBackendType) && !activeXrayProxyOnly && !activeXrayTproxyMode) {
+            boolean xrayOk = XrayBridge.isRunning();
+            boolean tunOk = XrayVpnService.hasActiveTunnel();
+            if (!xrayOk || !tunOk) {
+                appendRuntimeLogLine(
+                    "Wake fast-path process probe failed after " + trigger + ": xray=" + xrayOk + " tun=" + tunOk
+                );
+                return false;
+            }
+            return true;
+        }
+        return true;
+    }
+
+    /**
+     * Проверяет, надо ли вообще делать HTTP-probe (1.1.1.1) для активного
+     * backend'a. По умолчанию process-check, HTTP только при явном выборе в
+     * настройках Xray (для других backend'ов опции пока нет, всегда process).
+     */
+    private boolean shouldUseHttpProbeForActiveBackend() {
+        if (!usesXrayBackend(activeBackendType)) {
+            return false;
+        }
+        if (activeXrayTproxyMode || activeXrayProxyOnly) {
+            return false;
+        }
+        try {
+            XraySettings settings = XrayStore.getXraySettings(getApplicationContext());
+            return (
+                settings != null &&
+                XraySettings.WakeProbeMode.HTTP_PROBE.equals(
+                    XraySettings.WakeProbeMode.normalize(settings.wakeProbeMode)
+                )
+            );
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private void recordWakeFastPathProbeSuccess() {

@@ -26,6 +26,22 @@ public final class XraySettings {
     public boolean restartOnNetworkChange;
     public ProxyRuntimeMode runtimeMode = ProxyRuntimeMode.VPN;
     public XrayTransportMode transportMode = XrayTransportMode.DIRECT;
+    public String wakeProbeMode = WakeProbeMode.PROCESS;
+
+    public static final class WakeProbeMode {
+
+        public static final String PROCESS = "process";
+        public static final String HTTP_PROBE = "http_probe";
+
+        private WakeProbeMode() {}
+
+        public static String normalize(String value) {
+            if (HTTP_PROBE.equals(value)) {
+                return HTTP_PROBE;
+            }
+            return PROCESS;
+        }
+    }
 
     public XraySettings copy() {
         XraySettings copy = new XraySettings();
@@ -51,6 +67,7 @@ public final class XraySettings {
         copy.restartOnNetworkChange = restartOnNetworkChange;
         copy.runtimeMode = runtimeMode;
         copy.transportMode = transportMode;
+        copy.wakeProbeMode = wakeProbeMode;
         return copy;
     }
 
@@ -78,6 +95,7 @@ public final class XraySettings {
             restartOnNetworkChange == that.restartOnNetworkChange &&
             runtimeMode == that.runtimeMode &&
             transportMode == that.transportMode &&
+            Objects.equals(wakeProbeMode, that.wakeProbeMode) &&
             Objects.equals(localProxyUsername, that.localProxyUsername) &&
             Objects.equals(localProxyPassword, that.localProxyPassword) &&
             Objects.equals(localProxyListenAddress, that.localProxyListenAddress) &&
@@ -113,7 +131,8 @@ public final class XraySettings {
             proxyQuicEnabled,
             restartOnNetworkChange,
             runtimeMode,
-            transportMode
+            transportMode,
+            wakeProbeMode
         );
     }
 }
