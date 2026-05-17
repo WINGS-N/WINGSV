@@ -143,6 +143,28 @@ message Turn {
   // Какой туннель пускать поверх VK TURN userspace-прокси: WG или AWG.
   // UNSPECIFIED трактуется как WIREGUARD (поведение до введения поля).
   TunnelMode tunnel_mode = 18;
+  // Режим WRAP per-packet obfuscation. UNSPECIFIED ≡ PREFERRED.
+  WrapMode wrap_mode = 19;
+  // Pre-shared ключ для WRAP (32 байта для AES-256-CTR/ChaCha20-XOR).
+  // Пустое поле = клиент сгенерирует случайный ключ при первом запуске.
+  bytes wrap_key = 20;
+  // Список разрешённых шифров в порядке предпочтения (первый — наиболее
+  // желательный). Пустой ≡ [AES_256_CTR].
+  repeated WrapCipher wrap_ciphers = 21;
+}
+
+enum WrapMode {
+  WRAP_MODE_UNSPECIFIED = 0;
+  WRAP_MODE_OFF = 1;
+  WRAP_MODE_PREFERRED = 2;
+  WRAP_MODE_REQUIRED = 3;
+}
+
+enum WrapCipher {
+  WRAP_CIPHER_UNSPECIFIED = 0;
+  WRAP_CIPHER_NONE = 1;
+  WRAP_CIPHER_AES_256_CTR = 2;
+  WRAP_CIPHER_CHACHA20_XOR = 3;
 }
 
 enum TurnSessionMode {
