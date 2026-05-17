@@ -2901,6 +2901,18 @@ public class ProxyTunnelService extends Service {
             command.add("-protect-sock");
             command.add(protectSocketName);
         }
+        String wrapMode = AppPrefs.normalizeWrapMode(settings.vkTurnWrapMode);
+        if (!"off".equals(wrapMode)) {
+            command.add("-wrap-mode");
+            command.add(wrapMode);
+            command.add("-wrap-cipher");
+            command.add(AppPrefs.normalizeWrapCipher(settings.vkTurnWrapCipher));
+            String wrapKey = settings.vkTurnWrapKeyHex == null ? "" : settings.vkTurnWrapKeyHex.trim();
+            if (!TextUtils.isEmpty(wrapKey)) {
+                command.add("-wrap-key");
+                command.add(wrapKey);
+            }
+        }
         String wgPublicKeyFingerprint = computeWireGuardPublicKeyFingerprint(settings.wgPublicKey);
         if (!TextUtils.isEmpty(wgPublicKeyFingerprint)) {
             command.add("-proto-fp");

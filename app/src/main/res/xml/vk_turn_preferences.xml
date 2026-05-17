@@ -106,6 +106,40 @@
         android:dialogMessage="@string/vk_turn_user_dns_dialog_message" />
 
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_before_wrap" />
+
+    <PreferenceCategory
+        android:key="pref_category_vk_turn_wrap"
+        android:title="@string/vk_turn_wrap_category_title" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_vk_turn_wrap_mode"
+        android:title="@string/vk_turn_wrap_mode_title"
+        android:summary="%s"
+        android:defaultValue="preferred"
+        android:entries="@array/vk_turn_wrap_mode_entries"
+        android:entryValues="@array/vk_turn_wrap_mode_values" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_vk_turn_wrap_cipher"
+        android:title="@string/vk_turn_wrap_cipher_title"
+        android:summary="%s"
+        android:defaultValue="aes-ctr"
+        android:entries="@array/vk_turn_wrap_cipher_entries"
+        android:entryValues="@array/vk_turn_wrap_cipher_values" />
+
+    <EditTextPreference
+        android:key="pref_vk_turn_wrap_key_hex"
+        android:title="@string/vk_turn_wrap_key_title"
+        android:dialogTitle="@string/vk_turn_wrap_key_title"
+        android:dialogMessage="@string/vk_turn_wrap_key_dialog_message" />
+
+    <Preference
+        android:key="pref_vk_turn_wrap_generate"
+        android:title="@string/vk_turn_wrap_generate_title"
+        android:summary="@string/vk_turn_wrap_generate_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
         android:key="pref_inset_after_vk_proxy" />
 
     <PreferenceCategory

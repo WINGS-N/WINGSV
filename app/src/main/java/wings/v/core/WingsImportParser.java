@@ -1783,6 +1783,18 @@ public final class WingsImportParser {
         if (includeDefaults || vkTurnMode != TunnelMode.WIREGUARD) {
             builder.setTunnelMode(vkTurnMode.toProto());
         }
+        String wrapMode = AppPrefs.normalizeWrapMode(settings.vkTurnWrapMode);
+        if (includeDefaults || !"preferred".equals(wrapMode)) {
+            builder.setWrapMode(wrapModeFromPref(wrapMode));
+        }
+        String wrapCipher = AppPrefs.normalizeWrapCipher(settings.vkTurnWrapCipher);
+        if (includeDefaults || !"aes-ctr".equals(wrapCipher)) {
+            builder.addWrapCiphers(wrapCipherFromPref(wrapCipher));
+        }
+        byte[] wrapKey = hexToBytes(settings.vkTurnWrapKeyHex);
+        if (wrapKey.length > 0) {
+            builder.setWrapKey(com.google.protobuf.ByteString.copyFrom(wrapKey));
+        }
         return builder.build();
     }
 
@@ -2144,6 +2156,88 @@ public final class WingsImportParser {
             }
             importedConfig.vkTurnUserDns = joined.toString();
         }
+        if (turn.getWrapMode() != WingsvProto.WrapMode.WRAP_MODE_UNSPECIFIED) {
+            importedConfig.vkTurnWrapMode = wrapModeToPref(turn.getWrapMode());
+        }
+        if (turn.getWrapCiphersCount() > 0) {
+            importedConfig.vkTurnWrapCipher = wrapCipherToPref(turn.getWrapCiphers(0));
+        }
+        if (!turn.getWrapKey().isEmpty()) {
+            importedConfig.vkTurnWrapKeyHex = bytesToHex(turn.getWrapKey().toByteArray());
+        }
+    }
+
+    private static String wrapModeToPref(WingsvProto.WrapMode mode) {
+        switch (mode) {
+            case WRAP_MODE_OFF:
+                return "off";
+            case WRAP_MODE_REQUIRED:
+                return "required";
+            case WRAP_MODE_PREFERRED:
+            default:
+                return "preferred";
+        }
+    }
+
+    private static String wrapCipherToPref(WingsvProto.WrapCipher cipher) {
+        if (cipher == WingsvProto.WrapCipher.WRAP_CIPHER_CHACHA20_XOR) {
+            return "chacha20-xor";
+        }
+        return "aes-ctr";
+    }
+
+    private static WingsvProto.WrapMode wrapModeFromPref(String value) {
+        if (value == null) {
+            return WingsvProto.WrapMode.WRAP_MODE_UNSPECIFIED;
+        }
+        switch (value) {
+            case "off":
+                return WingsvProto.WrapMode.WRAP_MODE_OFF;
+            case "required":
+                return WingsvProto.WrapMode.WRAP_MODE_REQUIRED;
+            case "preferred":
+                return WingsvProto.WrapMode.WRAP_MODE_PREFERRED;
+            default:
+                return WingsvProto.WrapMode.WRAP_MODE_UNSPECIFIED;
+        }
+    }
+
+    private static WingsvProto.WrapCipher wrapCipherFromPref(String value) {
+        if ("chacha20-xor".equals(value)) {
+            return WingsvProto.WrapCipher.WRAP_CIPHER_CHACHA20_XOR;
+        }
+        return WingsvProto.WrapCipher.WRAP_CIPHER_AES_256_CTR;
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b & 0xff));
+        }
+        return sb.toString();
+    }
+
+    private static byte[] hexToBytes(String hex) {
+        if (hex == null || hex.isEmpty()) {
+            return new byte[0];
+        }
+        String clean = hex.trim();
+        if ((clean.length() & 1) != 0) {
+            return new byte[0];
+        }
+        byte[] out = new byte[clean.length() / 2];
+        for (int i = 0; i < out.length; i++) {
+            int hi = Character.digit(clean.charAt(i * 2), 16);
+            int lo = Character.digit(clean.charAt(i * 2 + 1), 16);
+            if (hi < 0 || lo < 0) {
+                return new byte[0];
+            }
+            out[i] = (byte) ((hi << 4) | lo);
+        }
+        return out;
     }
 
     private static void parseWireGuard(WingsvProto.WireGuard wg, ImportedConfig importedConfig) throws Exception {
@@ -2838,6 +2932,9 @@ public final class WingsImportParser {
         public Boolean vkTurnRestartOnNetworkChange;
         public ProxyRuntimeMode vkTurnRuntimeMode;
         public String vkTurnUserDns;
+        public String vkTurnWrapMode;
+        public String vkTurnWrapCipher;
+        public String vkTurnWrapKeyHex;
         public ProxyRuntimeMode xrayRuntimeMode;
         public String turnSessionMode;
         public String localEndpoint;

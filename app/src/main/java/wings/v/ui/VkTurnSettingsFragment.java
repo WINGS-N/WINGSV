@@ -210,6 +210,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
         bindListPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
         bindListPreference(AppPrefs.KEY_DNS_MODE);
+        bindListPreference(AppPrefs.KEY_VK_TURN_WRAP_MODE);
+        bindListPreference(AppPrefs.KEY_VK_TURN_WRAP_CIPHER);
+        bindWrapKeyPreference();
+        bindWrapGenerateKeyPreference();
         bindRawConfigPreference();
         bindImportFromClipboardPreference();
 
@@ -394,6 +398,70 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             startActivity(wings.v.VkLinksActivity.createIntent(requireContext()));
             return true;
         });
+    }
+
+    private void bindWrapKeyPreference() {
+        EditTextPreference preference = findPreference(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnBindEditTextListener(editText ->
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+        );
+        preference.setSummaryProvider(p -> {
+            String value = ((EditTextPreference) p).getText();
+            if (TextUtils.isEmpty(value)) {
+                return getString(R.string.vk_turn_wrap_key_summary_empty);
+            }
+            String preview = value.length() >= 8 ? value.substring(0, 8) : value;
+            return getString(R.string.vk_turn_wrap_key_summary_set, preview);
+        });
+        preference.setOnPreferenceChangeListener((p, newValue) -> {
+            String candidate = newValue == null ? "" : newValue.toString().trim();
+            if (!candidate.isEmpty() && !isValidWrapKeyHex(candidate)) {
+                Toast.makeText(requireContext(), R.string.vk_turn_wrap_key_invalid, Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            return true;
+        });
+    }
+
+    private void bindWrapGenerateKeyPreference() {
+        Preference preference = findPreference(AppPrefs.KEY_VK_TURN_WRAP_GENERATE);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceClickListener(p -> {
+            byte[] key = new byte[32];
+            new java.security.SecureRandom().nextBytes(key);
+            StringBuilder hex = new StringBuilder(64);
+            for (byte b : key) {
+                hex.append(String.format("%02x", b & 0xff));
+            }
+            String hexKey = hex.toString();
+            PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .edit()
+                .putString(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX, hexKey)
+                .apply();
+            EditTextPreference editPref = findPreference(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX);
+            if (editPref != null) {
+                editPref.setText(hexKey);
+            }
+            Toast.makeText(requireContext(), R.string.vk_turn_wrap_key_generated, Toast.LENGTH_SHORT).show();
+            return true;
+        });
+    }
+
+    private static boolean isValidWrapKeyHex(String value) {
+        if (value.length() != 64) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.digit(value.charAt(i), 16) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void updateOpenVkLinksSummary(int count) {
