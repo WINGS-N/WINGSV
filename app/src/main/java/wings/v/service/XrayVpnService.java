@@ -54,7 +54,15 @@ public class XrayVpnService extends VpnService implements DialerController {
     private static final long SERVICE_WAIT_POLL_MS = 250L;
     private static final int SERVICE_START_ATTEMPTS = 3;
     private static final long SERVICE_RETRY_DELAY_MS = 350L;
-    private static final long HEARTBEAT_INTERVAL_MS = 1_000L;
+    // Liveness watchdog для ProxyTunnelService: ловит узкий failure mode
+    // (tunnelLock-deadlock в Java-слое). Большинство реальных отказов
+    // отлавливается hasActiveTunnel/isRunning/isServiceAlive инстантно, а
+    // elapsedRealtime() пересекает Doze и даёт false-positive после длинного
+    // idle. Сейчас выключено через HEARTBEAT_LOOP_ENABLED; чтобы вернуть -
+    // поставить true и снять флаг XRAY_HEARTBEAT_CHECK_ENABLED в
+    // ProxyTunnelService.
+    private static final boolean HEARTBEAT_LOOP_ENABLED = false;
+    private static final long HEARTBEAT_INTERVAL_MS = 50_000L;
     private static final String VPN_ADDRESS_V4 = "172.19.0.1";
     private static final int VPN_PREFIX_V4 = 30;
     private static final String VPN_ADDRESS_V6 = "fd19:19::1";
@@ -476,6 +484,9 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     private void ensureHeartbeatLoopLocked() {
+        if (!HEARTBEAT_LOOP_ENABLED) {
+            return;
+        }
         if (heartbeatExecutor != null) {
             return;
         }

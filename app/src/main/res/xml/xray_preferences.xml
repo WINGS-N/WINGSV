@@ -62,6 +62,14 @@
         android:title="@string/xray_settings_routing_title"
         android:summary="@string/xray_settings_routing_summary" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_xray_wake_probe_mode"
+        android:title="@string/xray_settings_wake_probe_mode_title"
+        android:summary="@string/xray_settings_wake_probe_mode_summary"
+        android:defaultValue="process"
+        android:entries="@array/xray_wake_probe_mode_entries"
+        android:entryValues="@array/xray_wake_probe_mode_values" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
 
     <PreferenceCategory

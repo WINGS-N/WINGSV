@@ -266,6 +266,17 @@ message XraySettings {
   string http_proxy_password = 20;
   optional uint32 http_proxy_port = 21;
   string http_proxy_listen_address = 22;
+  // Способ wake-fast-path проверки после ACTION_SCREEN_ON/USER_PRESENT.
+  // PROCESS - дешёвая проверка XrayBridge.isRunning() + tunFd alive без сети,
+  // дефолт. HTTP_PROBE - старое поведение, GET к 1.1.1.1 через VPN с таймаутом
+  // 7.5s; полезно если нужна сетевая валидация end-to-end. UNSPECIFIED ≡ PROCESS.
+  WakeProbeMode wake_probe_mode = 23;
+}
+
+enum WakeProbeMode {
+  WAKE_PROBE_MODE_UNSPECIFIED = 0;
+  WAKE_PROBE_MODE_PROCESS = 1;
+  WAKE_PROBE_MODE_HTTP_PROBE = 2;
 }
 
 enum XrayTransportMode {

@@ -1,5 +1,6 @@
 package wings.v.ui;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -46,6 +47,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_WAKE_PROBE_MODE);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_REMOTE_DNS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_DIRECT_DNS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_IPV6_ENABLED);
@@ -88,6 +90,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE);
         bindRuntimeMode(AppPrefs.KEY_XRAY_RUNTIME_MODE);
         bindTransportMode(AppPrefs.KEY_XRAY_TRANSPORT_MODE);
+        bindWakeProbeMode(AppPrefs.KEY_XRAY_WAKE_PROBE_MODE);
         bindRoutingEntry();
         bindSummary(AppPrefs.KEY_XRAY_REMOTE_DNS);
         bindSummary(AppPrefs.KEY_XRAY_DIRECT_DNS);
@@ -213,8 +216,20 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             AppPrefs.KEY_XRAY_TRANSPORT_MODE,
             settings.transportMode == null ? XrayTransportMode.DIRECT.prefValue : settings.transportMode.prefValue
         );
+        syncDropDown(AppPrefs.KEY_XRAY_WAKE_PROBE_MODE, XraySettings.WakeProbeMode.normalize(settings.wakeProbeMode));
+        refreshWakeProbeVisibility();
         syncRoutingSummary();
         refreshLocalProxyVisibility(settings);
+    }
+
+    private void refreshWakeProbeVisibility() {
+        Preference preference = findPreference(AppPrefs.KEY_XRAY_WAKE_PROBE_MODE);
+        if (preference == null) {
+            return;
+        }
+        Context context = getContext();
+        boolean hideForTproxy = context != null && AppPrefs.isXrayTproxyModeEnabled(context);
+        preference.setVisible(!hideForTproxy);
     }
 
     private void refreshTransportModeVisibility() {
@@ -302,6 +317,22 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         preference.setSummaryProvider(pref -> {
             CharSequence entry = ((DropDownPreference) pref).getEntry();
             return TextUtils.isEmpty(entry) ? getString(R.string.xray_settings_transport_mode_summary) : entry;
+        });
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            Haptics.softSelection(getListView() != null ? getListView() : requireView());
+            requestRuntimeReconnectAfterPersist(key);
+            return true;
+        });
+    }
+
+    private void bindWakeProbeMode(String key) {
+        DropDownPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setSummaryProvider(pref -> {
+            CharSequence entry = ((DropDownPreference) pref).getEntry();
+            return TextUtils.isEmpty(entry) ? getString(R.string.xray_settings_wake_probe_mode_summary) : entry;
         });
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSelection(getListView() != null ? getListView() : requireView());

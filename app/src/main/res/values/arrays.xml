@@ -54,19 +54,19 @@
          и pref_wb_stream_tunnel_mode. UI-листенер пересчитывает
          pref_backend_type в SettingsFragment. -->
     <string-array name="backend_top_entries">
+        <item>@string/backend_xray_title</item>
         <item>@string/backend_top_vk_turn_title</item>
         <item>@string/backend_top_wb_stream_title</item>
         <item>@string/backend_top_wireguard_title</item>
         <item>@string/backend_top_amneziawg_title</item>
-        <item>@string/backend_xray_title</item>
     </string-array>
 
     <string-array name="backend_top_values">
+        <item>xray</item>
         <item>vk_turn</item>
         <item>wb_stream</item>
         <item>wireguard</item>
         <item>amneziawg</item>
-        <item>xray</item>
     </string-array>
 
     <string-array name="tunnel_mode_entries">
@@ -105,6 +105,16 @@
         <item>@string/theme_mode_system</item>
         <item>@string/theme_mode_dark</item>
         <item>@string/theme_mode_light</item>
+    </string-array>
+
+    <string-array name="xray_wake_probe_mode_entries">
+        <item>@string/xray_wake_probe_mode_process</item>
+        <item>@string/xray_wake_probe_mode_http_probe</item>
+    </string-array>
+
+    <string-array name="xray_wake_probe_mode_values">
+        <item>process</item>
+        <item>http_probe</item>
     </string-array>
 
     <string-array name="theme_mode_values">

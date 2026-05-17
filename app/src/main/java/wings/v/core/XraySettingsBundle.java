@@ -39,6 +39,7 @@ final class XraySettingsBundle {
             prefix + "transport_mode",
             settings.transportMode != null ? settings.transportMode.name() : null
         );
+        bundle.putString(prefix + "wake_probe_mode", settings.wakeProbeMode);
     }
 
     @Nullable
@@ -79,6 +80,7 @@ final class XraySettingsBundle {
                 settings.transportMode = XrayTransportMode.valueOf(transport);
             } catch (IllegalArgumentException ignored) {}
         }
+        settings.wakeProbeMode = XraySettings.WakeProbeMode.normalize(bundle.getString(prefix + "wake_probe_mode"));
         return settings;
     }
 }
