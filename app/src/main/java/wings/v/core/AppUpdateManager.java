@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.github.luben.zstd.ZstdInputStream;
@@ -29,6 +30,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.json.JSONArray;
@@ -53,6 +55,7 @@ import org.json.JSONObject;
 )
 public final class AppUpdateManager {
 
+    private static final String TAG = "AppUpdateManager";
     private static final int TIRAMISU_API = 33;
     private static final String CACHE_PREFS_NAME = "app_update_cache";
     private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases?per_page=4";
@@ -262,8 +265,16 @@ public final class AppUpdateManager {
     }
 
     private HttpURLConnection openConnection(String urlString) throws Exception {
+        return openConnectionInternal(urlString, true);
+    }
+
+    private HttpURLConnection openDirectConnection(String urlString) throws Exception {
+        return openConnectionInternal(urlString, false);
+    }
+
+    private HttpURLConnection openConnectionInternal(String urlString, boolean useTunnelWhenActive) throws Exception {
         URL url = URI.create(urlString).toURL();
-        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, url, true);
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(appContext, url, useTunnelWhenActive);
         connection.setInstanceFollowRedirects(true);
         connection.setUseCaches(false);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -272,6 +283,67 @@ public final class AppUpdateManager {
         connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
         connection.setRequestProperty("User-Agent", "WINGSV/" + resolveCurrentVersionName());
         return connection;
+    }
+
+    /**
+     * Открывает соединение через VPN (если активен) и подключает его. Если
+     * connect() обламывается на EPERM-классе ошибок (например VPN-binding
+     * запрещён для нашего UID кernel-уровневыми ограничениями), повторяет
+     * запрос напрямую через физический интерфейс. {@code extraConfig}
+     * переприменяется на новом connection'е, {@code activeConnection} обновляется.
+     */
+    private HttpURLConnection openAndConnect(
+        String urlString,
+        boolean trackActive,
+        @Nullable Consumer<HttpURLConnection> extraConfig
+    ) throws Exception {
+        HttpURLConnection connection = openConnection(urlString);
+        if (extraConfig != null) {
+            extraConfig.accept(connection);
+        }
+        if (trackActive) {
+            activeConnection.set(connection);
+        }
+        try {
+            connection.connect();
+            return connection;
+        } catch (IOException error) {
+            if (!isVpnBindRefusalError(error)) {
+                throw error;
+            }
+            Log.w(TAG, "VPN-routed update fetch failed (" + error.getMessage() + "); falling back to direct network");
+            if (trackActive) {
+                activeConnection.compareAndSet(connection, null);
+            }
+            try {
+                connection.disconnect();
+            } catch (Exception ignored) {}
+            HttpURLConnection fallback = openDirectConnection(urlString);
+            if (extraConfig != null) {
+                extraConfig.accept(fallback);
+            }
+            if (trackActive) {
+                activeConnection.set(fallback);
+            }
+            fallback.connect();
+            return fallback;
+        }
+    }
+
+    private static boolean isVpnBindRefusalError(IOException error) {
+        String message = error.getMessage();
+        if (TextUtils.isEmpty(message)) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return (
+            normalized.contains("eperm") ||
+            normalized.contains("operation not permitted") ||
+            normalized.contains("permission denied") ||
+            normalized.contains("enetunreach") ||
+            normalized.contains("network is unreachable") ||
+            normalized.contains("binding socket to network")
+        );
     }
 
     @NonNull
@@ -321,16 +393,13 @@ public final class AppUpdateManager {
 
     @Nullable
     private List<ReleaseInfo> fetchRecentReleases(boolean trackActiveConnection) throws Exception {
-        HttpURLConnection connection = openConnection(resolveReleasesUrl());
         String cachedEtag = cachePreferences.getString(KEY_LAST_RELEASE_ETAG, "");
-        if (!TextUtils.isEmpty(cachedEtag)) {
-            connection.setRequestProperty("If-None-Match", cachedEtag);
-        }
-        if (trackActiveConnection) {
-            activeConnection.set(connection);
-        }
+        HttpURLConnection connection = openAndConnect(resolveReleasesUrl(), trackActiveConnection, c -> {
+            if (!TextUtils.isEmpty(cachedEtag)) {
+                c.setRequestProperty("If-None-Match", cachedEtag);
+            }
+        });
         try {
-            connection.connect();
             int responseCode = connection.getResponseCode();
             String body = readResponseBody(connection);
             if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
@@ -745,10 +814,8 @@ public final class AppUpdateManager {
 
     @NonNull
     private String fetchChecksumValue(@NonNull ChecksumInfo checksumInfo) throws Exception {
-        HttpURLConnection connection = openConnection(checksumInfo.url);
-        activeConnection.set(connection);
+        HttpURLConnection connection = openAndConnect(checksumInfo.url, true, null);
         try {
-            connection.connect();
             int responseCode = connection.getResponseCode();
             if (responseCode < 200 || responseCode >= 400) {
                 throw new IllegalStateException("GitHub checksum asset HTTP " + responseCode);
@@ -792,10 +859,8 @@ public final class AppUpdateManager {
         long downloadedOffset,
         long startedAt
     ) throws Exception {
-        HttpURLConnection connection = openConnection(assetUrl);
-        activeConnection.set(connection);
+        HttpURLConnection connection = openAndConnect(assetUrl, true, null);
         try {
-            connection.connect();
             int responseCode = connection.getResponseCode();
             if (responseCode < 200 || responseCode >= 400) {
                 throw new IllegalStateException("GitHub release asset HTTP " + responseCode);
