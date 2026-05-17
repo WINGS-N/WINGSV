@@ -51,6 +51,10 @@ public final class AppPrefs {
     public static final String KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE = "pref_vk_turn_restart_on_network_change";
     public static final String KEY_VK_TURN_RUNTIME_MODE = "pref_vk_turn_runtime_mode";
     public static final String KEY_VK_TURN_USER_DNS = "pref_vk_turn_user_dns";
+    public static final String KEY_VK_TURN_WRAP_MODE = "pref_vk_turn_wrap_mode";
+    public static final String KEY_VK_TURN_WRAP_CIPHER = "pref_vk_turn_wrap_cipher";
+    public static final String KEY_VK_TURN_WRAP_KEY_HEX = "pref_vk_turn_wrap_key_hex";
+    public static final String KEY_VK_TURN_WRAP_GENERATE = "pref_vk_turn_wrap_generate";
     public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
@@ -975,6 +979,9 @@ public final class AppPrefs {
             prefs.getString(KEY_VK_TURN_RUNTIME_MODE, ProxyRuntimeMode.VPN.prefValue)
         );
         settings.vkTurnUserDns = trim(prefs.getString(KEY_VK_TURN_USER_DNS, ""));
+        settings.vkTurnWrapMode = normalizeWrapMode(prefs.getString(KEY_VK_TURN_WRAP_MODE, "preferred"));
+        settings.vkTurnWrapCipher = normalizeWrapCipher(prefs.getString(KEY_VK_TURN_WRAP_CIPHER, "aes-ctr"));
+        settings.vkTurnWrapKeyHex = trim(prefs.getString(KEY_VK_TURN_WRAP_KEY_HEX, ""));
         settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
@@ -1161,6 +1168,15 @@ public final class AppPrefs {
         }
         if (importedConfig.vkTurnUserDns != null) {
             editor.putString(KEY_VK_TURN_USER_DNS, trim(importedConfig.vkTurnUserDns));
+        }
+        if (importedConfig.vkTurnWrapMode != null) {
+            editor.putString(KEY_VK_TURN_WRAP_MODE, normalizeWrapMode(importedConfig.vkTurnWrapMode));
+        }
+        if (importedConfig.vkTurnWrapCipher != null) {
+            editor.putString(KEY_VK_TURN_WRAP_CIPHER, normalizeWrapCipher(importedConfig.vkTurnWrapCipher));
+        }
+        if (importedConfig.vkTurnWrapKeyHex != null) {
+            editor.putString(KEY_VK_TURN_WRAP_KEY_HEX, trim(importedConfig.vkTurnWrapKeyHex));
         }
         editor.putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(importedConfig.turnSessionMode));
         editor.putString(
@@ -1510,6 +1526,9 @@ public final class AppPrefs {
                     : settings.vkTurnRuntimeMode.prefValue
             )
             .putString(KEY_VK_TURN_USER_DNS, trim(settings.vkTurnUserDns))
+            .putString(KEY_VK_TURN_WRAP_MODE, normalizeWrapMode(settings.vkTurnWrapMode))
+            .putString(KEY_VK_TURN_WRAP_CIPHER, normalizeWrapCipher(settings.vkTurnWrapCipher))
+            .putString(KEY_VK_TURN_WRAP_KEY_HEX, trim(settings.vkTurnWrapKeyHex))
             .putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(settings.turnSessionMode))
             .putString(
                 KEY_LOCAL_ENDPOINT,
@@ -1948,5 +1967,25 @@ public final class AppPrefs {
             return normalized;
         }
         return CAPTCHA_AUTO_SOLVER_DEFAULT;
+    }
+
+    public static String normalizeWrapMode(String value) {
+        String normalized = trim(value).toLowerCase(java.util.Locale.ROOT);
+        switch (normalized) {
+            case "off":
+            case "preferred":
+            case "required":
+                return normalized;
+            default:
+                return "preferred";
+        }
+    }
+
+    public static String normalizeWrapCipher(String value) {
+        String normalized = trim(value).toLowerCase(java.util.Locale.ROOT);
+        if ("chacha20-xor".equals(normalized)) {
+            return "chacha20-xor";
+        }
+        return "aes-ctr";
     }
 }

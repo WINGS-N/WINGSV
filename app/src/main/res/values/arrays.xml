@@ -101,6 +101,28 @@
         <item>doh</item>
     </string-array>
 
+    <string-array name="vk_turn_wrap_mode_entries">
+        <item>@string/vk_turn_wrap_mode_off</item>
+        <item>@string/vk_turn_wrap_mode_preferred</item>
+        <item>@string/vk_turn_wrap_mode_required</item>
+    </string-array>
+
+    <string-array name="vk_turn_wrap_mode_values">
+        <item>off</item>
+        <item>preferred</item>
+        <item>required</item>
+    </string-array>
+
+    <string-array name="vk_turn_wrap_cipher_entries">
+        <item>@string/vk_turn_wrap_cipher_aes_ctr</item>
+        <item>@string/vk_turn_wrap_cipher_chacha20_xor</item>
+    </string-array>
+
+    <string-array name="vk_turn_wrap_cipher_values">
+        <item>aes-ctr</item>
+        <item>chacha20-xor</item>
+    </string-array>
+
     <string-array name="theme_mode_entries">
         <item>@string/theme_mode_system</item>
         <item>@string/theme_mode_dark</item>

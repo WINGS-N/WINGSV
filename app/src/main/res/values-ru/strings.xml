@@ -112,6 +112,25 @@
     <string name="vk_turn_user_dns_title">Свои DNS-резолверы</string>
     <string name="vk_turn_user_dns_summary">Добавить пользовательские DNS перед встроенным списком (Yandex → Google → Cloudflare). По одному на строку.</string>
     <string name="vk_turn_user_dns_dialog_message">Форматы:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — обычный UDP\n• 77.88.8.8 — то же, plain UDP/53\nЗаписи без отклика на bootstrap отбрасываются; встроенный список остаётся как fallback.</string>
+    <string name="vk_turn_wrap_category_title">Обфускация / WRAP</string>
+    <string name="vk_turn_wrap_mode_title">Режим WRAP</string>
+    <string name="vk_turn_wrap_mode_summary">Обфускация каждого пакета DTLS внутри TURN ChannelData. Off — прозрачно, Preferred/Required — каждый датаграмм оборачивается.</string>
+    <string name="vk_turn_wrap_mode_off">Выключено</string>
+    <string name="vk_turn_wrap_mode_preferred">Предпочтительно</string>
+    <string name="vk_turn_wrap_mode_required">Обязательно</string>
+    <string name="vk_turn_wrap_cipher_title">Шифр WRAP</string>
+    <string name="vk_turn_wrap_cipher_summary">AES-256-CTR использует аппаратное AES-NI на ARM; ChaCha20-XOR — программная альтернатива.</string>
+    <string name="vk_turn_wrap_cipher_aes_ctr">AES-256-CTR (ARM AES-NI)</string>
+    <string name="vk_turn_wrap_cipher_chacha20_xor">ChaCha20-XOR (программный)</string>
+    <string name="vk_turn_wrap_key_summary_empty">Не задан</string>
+    <string name="vk_turn_wrap_key_summary_set">%1$s… (ключ 32 байта)</string>
+    <string name="vk_turn_wrap_key_title">Ключ WRAP (hex)</string>
+    <string name="vk_turn_wrap_key_summary">Общий секрет (32 байта = 64 hex-символа). Должен совпадать с сервером.</string>
+    <string name="vk_turn_wrap_key_dialog_message">Вставьте 64-символьную hex-строку (32 байта). Кнопка ниже сгенерирует новый ключ.</string>
+    <string name="vk_turn_wrap_generate_title">Сгенерировать новый ключ</string>
+    <string name="vk_turn_wrap_generate_summary">Заменяет текущий WRAP-ключ свежим случайным значением (32 байта).</string>
+    <string name="vk_turn_wrap_key_invalid">Невалидный hex — ожидается 64 символа (32 байта).</string>
+    <string name="vk_turn_wrap_key_generated">WRAP-ключ перегенерирован</string>
     <string name="qr_scan_title">Сканировать QR</string>
     <string name="qr_scan_camera_unavailable">Камера недоступна на этом устройстве</string>
     <string name="import_confirm_title">Импортировать конфигурацию?</string>

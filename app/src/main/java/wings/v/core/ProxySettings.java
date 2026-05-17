@@ -39,6 +39,12 @@ public class ProxySettings {
     public String captchaAutoSolver = "v2";
     public boolean vkTurnRestartOnNetworkChange = true;
     public ProxyRuntimeMode vkTurnRuntimeMode = ProxyRuntimeMode.VPN;
+    /** WRAP per-packet obfuscation mode: "off" / "preferred" / "required". */
+    public String vkTurnWrapMode = "preferred";
+    /** Selected WRAP cipher: "aes-ctr" (default) or "chacha20-xor". */
+    public String vkTurnWrapCipher = "aes-ctr";
+    /** Hex-encoded 32-byte WRAP shared key (64 chars). Empty = auto-generate. */
+    public String vkTurnWrapKeyHex = "";
     public String turnSessionMode;
     public String localEndpoint;
     public String turnHost;

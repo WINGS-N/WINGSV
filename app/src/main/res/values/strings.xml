@@ -112,6 +112,25 @@
     <string name="vk_turn_user_dns_title">Custom DNS resolvers</string>
     <string name="vk_turn_user_dns_summary">Add custom DNS in front of the built-in list (Yandex → Google → Cloudflare). One per line.</string>
     <string name="vk_turn_user_dns_dialog_message">Formats:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — plain UDP\n• 77.88.8.8 — same, plain UDP/53\nEntries that don\'t respond on bootstrap are dropped; the built-in list remains as fallback.</string>
+    <string name="vk_turn_wrap_category_title">Obfuscation / WRAP</string>
+    <string name="vk_turn_wrap_mode_title">WRAP mode</string>
+    <string name="vk_turn_wrap_mode_summary">Per-packet obfuscation of DTLS bytes inside TURN ChannelData. Off = transparent, Preferred/Required wrap every datagram.</string>
+    <string name="vk_turn_wrap_mode_off">Off</string>
+    <string name="vk_turn_wrap_mode_preferred">Preferred</string>
+    <string name="vk_turn_wrap_mode_required">Required</string>
+    <string name="vk_turn_wrap_cipher_title">WRAP cipher</string>
+    <string name="vk_turn_wrap_cipher_summary">AES-256-CTR uses ARM AES-NI hardware acceleration; ChaCha20-XOR is the software-friendly alternative.</string>
+    <string name="vk_turn_wrap_cipher_aes_ctr">AES-256-CTR (ARM AES-NI)</string>
+    <string name="vk_turn_wrap_cipher_chacha20_xor">ChaCha20-XOR (software)</string>
+    <string name="vk_turn_wrap_key_summary_empty">Not set</string>
+    <string name="vk_turn_wrap_key_summary_set">%1$s… (32-byte key)</string>
+    <string name="vk_turn_wrap_key_title">WRAP key (hex)</string>
+    <string name="vk_turn_wrap_key_summary">Shared secret (32 bytes = 64 hex chars). Must match the server.</string>
+    <string name="vk_turn_wrap_key_dialog_message">Paste a 64-character hex string (32 bytes). Use the button below to generate a fresh key.</string>
+    <string name="vk_turn_wrap_generate_title">Generate new key</string>
+    <string name="vk_turn_wrap_generate_summary">Replaces the current WRAP key with a fresh random 32-byte value.</string>
+    <string name="vk_turn_wrap_key_invalid">Invalid hex — expected 64 characters (32 bytes).</string>
+    <string name="vk_turn_wrap_key_generated">WRAP key regenerated</string>
     <string name="qr_scan_title">Scan QR</string>
     <string name="qr_scan_camera_unavailable">Camera is not available on this device</string>
     <string name="import_confirm_title">Import configuration?</string>
