@@ -163,8 +163,12 @@ enum WrapMode {
 enum WrapCipher {
   WRAP_CIPHER_UNSPECIFIED = 0;
   WRAP_CIPHER_NONE = 1;
-  WRAP_CIPHER_AES_256_CTR = 2;
-  WRAP_CIPHER_CHACHA20_XOR = 3;
+  // SRTP-mimicry AEAD wire format
+  // ([12B RTP header | 12B nonce | AEAD ciphertext | 16B tag]).
+  // VK TURN forwards SRTP-shaped ChannelData on its fast path; plain
+  // stream-cipher wraps are dropped by the content filter.
+  WRAP_CIPHER_SRTP_AES_256_GCM = 2;
+  WRAP_CIPHER_SRTP_CHACHA20_POLY1305 = 3;
 }
 
 enum TurnSessionMode {

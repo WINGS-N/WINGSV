@@ -119,8 +119,8 @@
     </string-array>
 
     <string-array name="vk_turn_wrap_cipher_values">
-        <item>aes-ctr</item>
-        <item>chacha20-xor</item>
+        <item>srtp-aes-gcm</item>
+        <item>srtp-chacha20-poly1305</item>
     </string-array>
 
     <string-array name="theme_mode_entries">

@@ -41,8 +41,8 @@ public class ProxySettings {
     public ProxyRuntimeMode vkTurnRuntimeMode = ProxyRuntimeMode.VPN;
     /** WRAP per-packet obfuscation mode: "off" / "preferred" / "required". */
     public String vkTurnWrapMode = "preferred";
-    /** Selected WRAP cipher: "aes-ctr" (default) or "chacha20-xor". */
-    public String vkTurnWrapCipher = "aes-ctr";
+    /** WRAP SRTP-mimicry AEAD: "srtp-aes-gcm" (default) or "srtp-chacha20-poly1305". */
+    public String vkTurnWrapCipher = "srtp-aes-gcm";
     /** Hex-encoded 32-byte WRAP shared key (64 chars). Empty = auto-generate. */
     public String vkTurnWrapKeyHex = "";
     public String turnSessionMode;

@@ -980,7 +980,7 @@ public final class AppPrefs {
         );
         settings.vkTurnUserDns = trim(prefs.getString(KEY_VK_TURN_USER_DNS, ""));
         settings.vkTurnWrapMode = normalizeWrapMode(prefs.getString(KEY_VK_TURN_WRAP_MODE, "preferred"));
-        settings.vkTurnWrapCipher = normalizeWrapCipher(prefs.getString(KEY_VK_TURN_WRAP_CIPHER, "aes-ctr"));
+        settings.vkTurnWrapCipher = normalizeWrapCipher(prefs.getString(KEY_VK_TURN_WRAP_CIPHER, "srtp-aes-gcm"));
         settings.vkTurnWrapKeyHex = trim(prefs.getString(KEY_VK_TURN_WRAP_KEY_HEX, ""));
         settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
@@ -1983,9 +1983,9 @@ public final class AppPrefs {
 
     public static String normalizeWrapCipher(String value) {
         String normalized = trim(value).toLowerCase(java.util.Locale.ROOT);
-        if ("chacha20-xor".equals(normalized)) {
-            return "chacha20-xor";
+        if ("srtp-chacha20-poly1305".equals(normalized)) {
+            return "srtp-chacha20-poly1305";
         }
-        return "aes-ctr";
+        return "srtp-aes-gcm";
     }
 }

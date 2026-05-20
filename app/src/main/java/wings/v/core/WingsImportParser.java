@@ -1788,7 +1788,7 @@ public final class WingsImportParser {
             builder.setWrapMode(wrapModeFromPref(wrapMode));
         }
         String wrapCipher = AppPrefs.normalizeWrapCipher(settings.vkTurnWrapCipher);
-        if (includeDefaults || !"aes-ctr".equals(wrapCipher)) {
+        if (includeDefaults || !"srtp-aes-gcm".equals(wrapCipher)) {
             builder.addWrapCiphers(wrapCipherFromPref(wrapCipher));
         }
         byte[] wrapKey = hexToBytes(settings.vkTurnWrapKeyHex);
@@ -2180,10 +2180,10 @@ public final class WingsImportParser {
     }
 
     private static String wrapCipherToPref(WingsvProto.WrapCipher cipher) {
-        if (cipher == WingsvProto.WrapCipher.WRAP_CIPHER_CHACHA20_XOR) {
-            return "chacha20-xor";
+        if (cipher == WingsvProto.WrapCipher.WRAP_CIPHER_SRTP_CHACHA20_POLY1305) {
+            return "srtp-chacha20-poly1305";
         }
-        return "aes-ctr";
+        return "srtp-aes-gcm";
     }
 
     private static WingsvProto.WrapMode wrapModeFromPref(String value) {
@@ -2203,10 +2203,10 @@ public final class WingsImportParser {
     }
 
     private static WingsvProto.WrapCipher wrapCipherFromPref(String value) {
-        if ("chacha20-xor".equals(value)) {
-            return WingsvProto.WrapCipher.WRAP_CIPHER_CHACHA20_XOR;
+        if ("srtp-chacha20-poly1305".equals(value)) {
+            return WingsvProto.WrapCipher.WRAP_CIPHER_SRTP_CHACHA20_POLY1305;
         }
-        return WingsvProto.WrapCipher.WRAP_CIPHER_AES_256_CTR;
+        return WingsvProto.WrapCipher.WRAP_CIPHER_SRTP_AES_256_GCM;
     }
 
     private static String bytesToHex(byte[] bytes) {
