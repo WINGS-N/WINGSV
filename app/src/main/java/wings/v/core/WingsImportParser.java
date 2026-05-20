@@ -1795,6 +1795,14 @@ public final class WingsImportParser {
         if (wrapKey.length > 0) {
             builder.setWrapKey(com.google.protobuf.ByteString.copyFrom(wrapKey));
         }
+        // Only serialize when it differs from default (in-band ON).
+        if (includeDefaults || !settings.vkTurnWrapSendKey) {
+            builder.setWrapKeyDelivery(
+                settings.vkTurnWrapSendKey
+                    ? WingsvProto.WrapKeyDelivery.WRAP_KEY_DELIVERY_IN_BAND
+                    : WingsvProto.WrapKeyDelivery.WRAP_KEY_DELIVERY_OFF
+            );
+        }
         return builder.build();
     }
 
@@ -2164,6 +2172,10 @@ public final class WingsImportParser {
         }
         if (!turn.getWrapKey().isEmpty()) {
             importedConfig.vkTurnWrapKeyHex = bytesToHex(turn.getWrapKey().toByteArray());
+        }
+        if (turn.getWrapKeyDelivery() != WingsvProto.WrapKeyDelivery.WRAP_KEY_DELIVERY_UNSPECIFIED) {
+            importedConfig.vkTurnWrapSendKey =
+                turn.getWrapKeyDelivery() == WingsvProto.WrapKeyDelivery.WRAP_KEY_DELIVERY_IN_BAND;
         }
     }
 
@@ -2935,6 +2947,7 @@ public final class WingsImportParser {
         public String vkTurnWrapMode;
         public String vkTurnWrapCipher;
         public String vkTurnWrapKeyHex;
+        public Boolean vkTurnWrapSendKey;
         public ProxyRuntimeMode xrayRuntimeMode;
         public String turnSessionMode;
         public String localEndpoint;

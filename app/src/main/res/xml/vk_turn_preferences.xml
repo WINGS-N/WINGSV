@@ -139,6 +139,12 @@
         android:title="@string/vk_turn_wrap_generate_title"
         android:summary="@string/vk_turn_wrap_generate_summary" />
 
+    <SwitchPreferenceCompat
+        android:key="pref_vk_turn_wrap_send_key"
+        android:title="@string/vk_turn_wrap_send_key_title"
+        android:summary="@string/vk_turn_wrap_send_key_summary"
+        android:defaultValue="true" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
         android:key="pref_inset_after_vk_proxy" />
 

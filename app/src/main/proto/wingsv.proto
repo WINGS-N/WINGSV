@@ -151,6 +151,16 @@ message Turn {
   // Список разрешённых шифров в порядке предпочтения (первый — наиболее
   // желательный). Пустой ≡ [AES_256_CTR].
   repeated WrapCipher wrap_ciphers = 21;
+  // Передавать wrap_key in-band через mu/v1 SessionHello.
+  // По умолчанию (UNSPECIFIED) — true. ON_FALSE отключает передачу
+  // (сервер обязан иметь preset).
+  WrapKeyDelivery wrap_key_delivery = 22;
+}
+
+enum WrapKeyDelivery {
+  WRAP_KEY_DELIVERY_UNSPECIFIED = 0;  // default = IN_BAND
+  WRAP_KEY_DELIVERY_IN_BAND = 1;      // send wrap_key_proposal in SessionHello
+  WRAP_KEY_DELIVERY_OFF = 2;          // never send; server must have preset
 }
 
 enum WrapMode {

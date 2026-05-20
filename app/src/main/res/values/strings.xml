@@ -131,6 +131,8 @@
     <string name="vk_turn_wrap_generate_summary">Replaces the current WRAP key with a fresh random 32-byte value.</string>
     <string name="vk_turn_wrap_key_invalid">Invalid hex — expected 64 characters (32 bytes).</string>
     <string name="vk_turn_wrap_key_generated">WRAP key regenerated</string>
+    <string name="vk_turn_wrap_send_key_title">Send key in-band</string>
+    <string name="vk_turn_wrap_send_key_summary">Send the WRAP key to the server inside the session handshake. Disable if the server already has a fixed key.</string>
     <string name="qr_scan_title">Scan QR</string>
     <string name="qr_scan_camera_unavailable">Camera is not available on this device</string>
     <string name="import_confirm_title">Import configuration?</string>

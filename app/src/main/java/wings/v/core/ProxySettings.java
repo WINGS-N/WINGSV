@@ -45,6 +45,8 @@ public class ProxySettings {
     public String vkTurnWrapCipher = "srtp-aes-gcm";
     /** Hex-encoded 32-byte WRAP shared key (64 chars). Empty = auto-generate. */
     public String vkTurnWrapKeyHex = "";
+    /** Transmit wrap key in-band via mu/v1 SessionHello (default true). */
+    public boolean vkTurnWrapSendKey = true;
     public String turnSessionMode;
     public String localEndpoint;
     public String turnHost;
