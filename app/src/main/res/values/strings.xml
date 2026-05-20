@@ -114,14 +114,14 @@
     <string name="vk_turn_user_dns_dialog_message">Formats:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — plain UDP\n• 77.88.8.8 — same, plain UDP/53\nEntries that don\'t respond on bootstrap are dropped; the built-in list remains as fallback.</string>
     <string name="vk_turn_wrap_category_title">Obfuscation / WRAP</string>
     <string name="vk_turn_wrap_mode_title">WRAP mode</string>
-    <string name="vk_turn_wrap_mode_summary">Per-packet obfuscation of DTLS bytes inside TURN ChannelData. Off = transparent, Preferred/Required wrap every datagram.</string>
+    <string name="vk_turn_wrap_mode_summary">SRTP-mimicry obfuscation of DTLS bytes inside TURN ChannelData (bypasses VK TURN content filter). Off = transparent, Preferred/Required wrap every datagram.</string>
     <string name="vk_turn_wrap_mode_off">Off</string>
     <string name="vk_turn_wrap_mode_preferred">Preferred</string>
     <string name="vk_turn_wrap_mode_required">Required</string>
     <string name="vk_turn_wrap_cipher_title">WRAP cipher</string>
-    <string name="vk_turn_wrap_cipher_summary">AES-256-CTR uses ARM AES-NI hardware acceleration; ChaCha20-XOR is the software-friendly alternative.</string>
-    <string name="vk_turn_wrap_cipher_aes_ctr">AES-256-CTR (ARM AES-NI)</string>
-    <string name="vk_turn_wrap_cipher_chacha20_xor">ChaCha20-XOR (software)</string>
+    <string name="vk_turn_wrap_cipher_summary">SRTP-mimicry AEAD. AES-256-GCM uses ARM AES-NI hardware acceleration; ChaCha20-Poly1305 is the software-friendly alternative.</string>
+    <string name="vk_turn_wrap_cipher_aes_ctr">SRTP / AES-256-GCM (ARM AES-NI)</string>
+    <string name="vk_turn_wrap_cipher_chacha20_xor">SRTP / ChaCha20-Poly1305 (software)</string>
     <string name="vk_turn_wrap_key_summary_empty">Not set</string>
     <string name="vk_turn_wrap_key_summary_set">%1$s… (32-byte key)</string>
     <string name="vk_turn_wrap_key_title">WRAP key (hex)</string>
