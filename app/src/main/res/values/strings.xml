@@ -278,6 +278,8 @@
     <string name="about_special_amnezia_summary">AmneziaWG Android backend</string>
     <string name="about_special_moroka8_title">Moroka8</string>
     <string name="about_special_moroka8_summary">ideas and work on VK captcha bypass for vk-turn-proxy</string>
+    <string name="about_special_samosvalishe_title">samosvalishe</string>
+    <string name="about_special_samosvalishe_summary">VK traffic-filter bypass via SRTP mimicry</string>
     <string name="about_browser_missing">No app found to open the link</string>
     <!-- LICENSE -->
     <string name="licenses_title">Open-source licenses</string>

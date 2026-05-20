@@ -67,6 +67,7 @@ public class AboutAppActivity extends AppCompatActivity {
     private static final String GITHUB_XTLS = "XTLS";
     private static final String GITHUB_AMNEZIA_VPN = "amnezia-vpn";
     private static final String GITHUB_MOROKA8 = "Moroka8";
+    private static final String GITHUB_SAMOSVALISHE = "samosvalishe";
     private static final String SAMSUNG_URL = "https://www.samsung.com/";
     private static final int FIRST_LAUNCH_TRIGGER_TAPS = 5;
     private static final long FIRST_LAUNCH_TRIGGER_WINDOW_MS = 2_000L;
@@ -274,6 +275,13 @@ public class AboutAppActivity extends AppCompatActivity {
             "M8",
             Color.parseColor("#8E5A2B"),
             "https://github.com/Moroka8"
+        );
+        configureGithubCard(
+            binding.cardSpecialSamosvalishe,
+            GITHUB_SAMOSVALISHE,
+            "SV",
+            Color.parseColor("#7B3F8F"),
+            "https://github.com/samosvalishe"
         );
 
         binding.cardSourceCode.setOnClickListener(view -> {
@@ -576,6 +584,7 @@ public class AboutAppActivity extends AppCompatActivity {
         refreshGithubAvatar(binding.cardSpecialXtls, GITHUB_XTLS);
         refreshGithubAvatar(binding.cardSpecialAmnezia, GITHUB_AMNEZIA_VPN);
         refreshGithubAvatar(binding.cardSpecialMoroka8, GITHUB_MOROKA8);
+        refreshGithubAvatar(binding.cardSpecialSamosvalishe, GITHUB_SAMOSVALISHE);
     }
 
     private void refreshGithubAvatar(CardItemView cardItemView, String username) {
