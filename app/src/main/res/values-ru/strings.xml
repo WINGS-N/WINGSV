@@ -131,6 +131,8 @@
     <string name="vk_turn_wrap_generate_summary">Заменяет текущий WRAP-ключ свежим случайным значением (32 байта).</string>
     <string name="vk_turn_wrap_key_invalid">Невалидный hex — ожидается 64 символа (32 байта).</string>
     <string name="vk_turn_wrap_key_generated">WRAP-ключ перегенерирован</string>
+    <string name="vk_turn_wrap_send_key_title">Передавать ключ in-band</string>
+    <string name="vk_turn_wrap_send_key_summary">Передавать WRAP-ключ серверу внутри handshake сессии. Отключите, если на сервере задан фиксированный ключ.</string>
     <string name="qr_scan_title">Сканировать QR</string>
     <string name="qr_scan_camera_unavailable">Камера недоступна на этом устройстве</string>
     <string name="import_confirm_title">Импортировать конфигурацию?</string>

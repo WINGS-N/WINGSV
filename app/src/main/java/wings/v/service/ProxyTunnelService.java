@@ -2912,6 +2912,7 @@ public class ProxyTunnelService extends Service {
                 command.add("-wrap-key");
                 command.add(wrapKey);
             }
+            command.add("-wrap-send-key=" + (settings.vkTurnWrapSendKey ? "true" : "false"));
         }
         String wgPublicKeyFingerprint = computeWireGuardPublicKeyFingerprint(settings.wgPublicKey);
         if (!TextUtils.isEmpty(wgPublicKeyFingerprint)) {

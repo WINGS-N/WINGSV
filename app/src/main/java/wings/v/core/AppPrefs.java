@@ -55,6 +55,7 @@ public final class AppPrefs {
     public static final String KEY_VK_TURN_WRAP_CIPHER = "pref_vk_turn_wrap_cipher";
     public static final String KEY_VK_TURN_WRAP_KEY_HEX = "pref_vk_turn_wrap_key_hex";
     public static final String KEY_VK_TURN_WRAP_GENERATE = "pref_vk_turn_wrap_generate";
+    public static final String KEY_VK_TURN_WRAP_SEND_KEY = "pref_vk_turn_wrap_send_key";
     public static final String KEY_TURN_SESSION_MODE = "pref_turn_session_mode";
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
@@ -982,6 +983,7 @@ public final class AppPrefs {
         settings.vkTurnWrapMode = normalizeWrapMode(prefs.getString(KEY_VK_TURN_WRAP_MODE, "preferred"));
         settings.vkTurnWrapCipher = normalizeWrapCipher(prefs.getString(KEY_VK_TURN_WRAP_CIPHER, "srtp-aes-gcm"));
         settings.vkTurnWrapKeyHex = trim(prefs.getString(KEY_VK_TURN_WRAP_KEY_HEX, ""));
+        settings.vkTurnWrapSendKey = prefs.getBoolean(KEY_VK_TURN_WRAP_SEND_KEY, true);
         settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
@@ -1177,6 +1179,9 @@ public final class AppPrefs {
         }
         if (importedConfig.vkTurnWrapKeyHex != null) {
             editor.putString(KEY_VK_TURN_WRAP_KEY_HEX, trim(importedConfig.vkTurnWrapKeyHex));
+        }
+        if (importedConfig.vkTurnWrapSendKey != null) {
+            editor.putBoolean(KEY_VK_TURN_WRAP_SEND_KEY, importedConfig.vkTurnWrapSendKey);
         }
         editor.putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(importedConfig.turnSessionMode));
         editor.putString(
@@ -1529,6 +1534,7 @@ public final class AppPrefs {
             .putString(KEY_VK_TURN_WRAP_MODE, normalizeWrapMode(settings.vkTurnWrapMode))
             .putString(KEY_VK_TURN_WRAP_CIPHER, normalizeWrapCipher(settings.vkTurnWrapCipher))
             .putString(KEY_VK_TURN_WRAP_KEY_HEX, trim(settings.vkTurnWrapKeyHex))
+            .putBoolean(KEY_VK_TURN_WRAP_SEND_KEY, settings.vkTurnWrapSendKey)
             .putString(KEY_TURN_SESSION_MODE, normalizeTurnSessionMode(settings.turnSessionMode))
             .putString(
                 KEY_LOCAL_ENDPOINT,
