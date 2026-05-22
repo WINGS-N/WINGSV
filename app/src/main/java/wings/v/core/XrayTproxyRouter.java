@@ -95,23 +95,37 @@ public final class XrayTproxyRouter {
 
         // IPv4 chains
         appendChainSetup(s, IPT4, CHAIN_PRE, CHAIN_OUT);
+        // DNS capture in PREROUTING must precede the RFC1918 dest-bypass: in
+        // TPROXY mode there is no VpnService.addDnsServer fallback, so netd
+        // queries the underlying network's DHCP DNS (typically 192.168.x.x /
+        // 10.x.x.x / 100.64.x.x), all inside the bypass list. Without this
+        // rule those queries leak out in plaintext on wlan0/rmnet. Loopback
+        // (127/8) DNS stays bypassed in the rule that follows, so on-device
+        // resolvers keep working.
+        appendDnsCapture(s, IPT4, CHAIN_PRE, tproxyPort, false);
         appendDestBypassV4(s, IPT4, CHAIN_PRE);
         appendTproxyRules(s, IPT4, CHAIN_PRE, tproxyPort);
-        appendDestBypassV4(s, IPT4, CHAIN_OUT);
-        // Xray runtime is forked under `su` (UID 0); excluding it here breaks the
-        // outbound→TPROXY→Xray→outbound loop. Crucially we do NOT exclude
-        // wings.v's own UID — the WINGSV process should see the proxied IP/country
-        // when probing public IP endpoints, just like every other routed app.
+        // OUTPUT chain: owner exclusion for UID 0 (xray) MUST run before the
+        // DNS capture rule, otherwise xray's own bootstrap UDP/53 query to
+        // 1.1.1.1 (used to resolve the DoH endpoint host) gets marked, looped
+        // back via loopback, TPROXYed back into xray, and we end up in an
+        // infinite resolution loop that breaks DoH entirely. We also do NOT
+        // exclude wings.v's own UID, so app traffic stays routed via the
+        // proxy when probing public IP endpoints.
         appendOwnerExclusion(s, IPT4, CHAIN_OUT, 0);
+        appendDnsCapture(s, IPT4, CHAIN_OUT, tproxyPort, true);
+        appendDestBypassV4(s, IPT4, CHAIN_OUT);
         appendAppRouting(s, IPT4, CHAIN_OUT, effectiveMode, uids);
         appendChainHooks(s, IPT4, CHAIN_PRE, CHAIN_OUT);
 
         // IPv6 chains
         appendChainSetup(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
+        appendDnsCapture(s, IPT6, CHAIN_PRE6, tproxyPort, false);
         appendDestBypassV6(s, IPT6, CHAIN_PRE6);
         appendTproxyRules(s, IPT6, CHAIN_PRE6, tproxyPort);
-        appendDestBypassV6(s, IPT6, CHAIN_OUT6);
         appendOwnerExclusion(s, IPT6, CHAIN_OUT6, 0);
+        appendDnsCapture(s, IPT6, CHAIN_OUT6, tproxyPort, true);
+        appendDestBypassV6(s, IPT6, CHAIN_OUT6);
         appendAppRouting(s, IPT6, CHAIN_OUT6, effectiveMode, uids);
         appendChainHooks(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
 
@@ -339,6 +353,47 @@ public final class XrayTproxyRouter {
                 appendOutputMarkAll(s, tool, chain);
                 break;
         }
+    }
+
+    private static void appendDnsCapture(
+        StringBuilder s,
+        String tool,
+        String chain,
+        int tproxyPort,
+        boolean outputChain
+    ) {
+        // 127/8 and ::1 stay bypassed (on-device resolvers keep working) by
+        // skipping loopback dests here; the RFC1918 bypass that follows can
+        // safely RETURN private addresses without leaking DNS, since we already
+        // captured port 53 on its way down the chain.
+        String exclusion;
+        if (tool.startsWith("ip6tables")) {
+            exclusion = " ! -d ::1/128";
+        } else {
+            exclusion = " ! -d 127.0.0.0/8";
+        }
+        String action;
+        if (outputChain) {
+            action = " -j MARK --set-mark " + FWMARK;
+        } else {
+            action = " -j TPROXY --on-port " + tproxyPort + " --tproxy-mark " + FWMARK;
+        }
+        s
+            .append(tool)
+            .append(" -t mangle -A ")
+            .append(chain)
+            .append(" -p udp --dport 53")
+            .append(exclusion)
+            .append(action)
+            .append("; ");
+        s
+            .append(tool)
+            .append(" -t mangle -A ")
+            .append(chain)
+            .append(" -p tcp --dport 53")
+            .append(exclusion)
+            .append(action)
+            .append("; ");
     }
 
     private static void appendTproxyRules(StringBuilder s, String tool, String chain, int tproxyPort) {
