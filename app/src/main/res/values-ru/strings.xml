@@ -804,6 +804,8 @@
     <string name="xray_wake_probe_mode_http_probe">HTTP проверка через VPN</string>
     <string name="socks_auth_username_title">SOCKS логин</string>
     <string name="socks_auth_password_title">SOCKS пароль</string>
+    <string name="http_auth_username_title">HTTP логин</string>
+    <string name="http_auth_password_title">HTTP пароль</string>
     <string name="warning_confirm_title">Предупреждение</string>
     <string name="warning_confirm_question">Вы уверены, что хотите продолжить?</string>
     <string name="warning_confirm_timer_seconds">Продолжить можно через %1$d с</string>
@@ -811,6 +813,8 @@
     <string name="warning_confirm_continue">Продолжить</string>
     <string name="warning_socks_auth_disable">Вы отключаете аутентификацию SOCKS сервера. Это снизит безопасность вашего соединения</string>
     <string name="warning_socks_password_weak">Задан слишком простой пароль SOCKS сервера. Это снизит безопасность вашего соединения</string>
+    <string name="warning_http_auth_disable">Вы отключаете аутентификацию HTTP прокси. Это снизит безопасность вашего соединения</string>
+    <string name="warning_http_password_weak">Задан слишком простой пароль HTTP прокси. Это снизит безопасность вашего соединения</string>
     <string name="xray_routing_settings_title">Маршрутизация Xray</string>
     <string name="xray_routing_geo_files_title">Geo-файлы</string>
     <string name="xray_routing_geo_files_summary">Эти файлы используются для geoip/geosite routing правил</string>

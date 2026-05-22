@@ -118,7 +118,8 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         }
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
-            if (shouldWarnBeforeDisablingSocksAuth(key, preference, newValue)) {
+            String authDisableWarning = warningForAuthDisable(key, preference, newValue);
+            if (authDisableWarning != null) {
                 showWarningBeforeApplying(
                     () -> {
                         androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
@@ -127,7 +128,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                             .commit();
                         requestRuntimeReconnectIfActive(key);
                     },
-                    getString(R.string.warning_socks_auth_disable)
+                    authDisableWarning
                 );
                 return false;
             }
@@ -150,7 +151,8 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
-            if (shouldWarnBeforeAcceptingWeakPassword(key, newValue)) {
+            String weakWarning = warningForWeakPassword(key, newValue);
+            if (weakWarning != null) {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 showWarningBeforeApplying(
                     () -> {
@@ -160,7 +162,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                             .commit();
                         requestRuntimeReconnectIfActive(key);
                     },
-                    getString(R.string.warning_socks_password_weak)
+                    weakWarning
                 );
                 return false;
             }
@@ -364,24 +366,47 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
-    private boolean shouldWarnBeforeDisablingSocksAuth(String key, SwitchPreferenceCompat preference, Object newValue) {
-        return (
-            TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED) &&
-            preference.isChecked() &&
-            Boolean.FALSE.equals(newValue)
-        );
+    private String warningForAuthDisable(String key, SwitchPreferenceCompat preference, Object newValue) {
+        if (!preference.isChecked() || !Boolean.FALSE.equals(newValue)) {
+            return null;
+        }
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED)) {
+            return getString(R.string.warning_socks_auth_disable);
+        }
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED)) {
+            return getString(R.string.warning_http_auth_disable);
+        }
+        return null;
     }
 
-    private boolean shouldWarnBeforeAcceptingWeakPassword(String key, Object newValue) {
-        if (!TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD)) {
-            return false;
+    private String warningForWeakPassword(String key, Object newValue) {
+        // An empty value is the user asking for auto-generation; SocksAuthCredentials.ensure
+        // mints a fresh random token on next read. Don't gate that path behind a "too simple"
+        // warning, it would block the regeneration UX.
+        String candidate = newValue == null ? "" : String.valueOf(newValue);
+        if (TextUtils.isEmpty(candidate)) {
+            return null;
         }
         XraySettings settings = XrayStore.getXraySettings(requireContext());
-        if (!settings.localProxyEnabled || !settings.localProxyAuthEnabled) {
-            return false;
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD)) {
+            if (!settings.localProxyEnabled || !settings.localProxyAuthEnabled) {
+                return null;
+            }
+            if (SocksAuthSecurity.isPasswordTooSimple(settings.localProxyUsername, candidate)) {
+                return getString(R.string.warning_socks_password_weak);
+            }
+            return null;
         }
-        String candidatePassword = newValue == null ? "" : String.valueOf(newValue);
-        return SocksAuthSecurity.isPasswordTooSimple(settings.localProxyUsername, candidatePassword);
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD)) {
+            if (!settings.httpProxyEnabled || !settings.httpProxyAuthEnabled) {
+                return null;
+            }
+            if (SocksAuthSecurity.isPasswordTooSimple(settings.httpProxyUsername, candidate)) {
+                return getString(R.string.warning_http_password_weak);
+            }
+            return null;
+        }
+        return null;
     }
 
     private void showWarningBeforeApplying(Runnable action, String warningText) {

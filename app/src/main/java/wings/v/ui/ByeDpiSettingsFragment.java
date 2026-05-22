@@ -562,11 +562,16 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         if (!TextUtils.equals(key, ByeDpiStore.KEY_PROXY_PASSWORD)) {
             return false;
         }
+        String candidatePassword = newValue == null ? "" : String.valueOf(newValue);
+        // Empty value triggers auto-regeneration on the next read; don't gate it
+        // behind a "too simple" warning.
+        if (TextUtils.isEmpty(candidatePassword)) {
+            return false;
+        }
         ByeDpiSettings settings = ByeDpiStore.getSettings(requireContext());
         if (!settings.proxyAuthEnabled) {
             return false;
         }
-        String candidatePassword = newValue == null ? "" : String.valueOf(newValue);
         return SocksAuthSecurity.isPasswordTooSimple(settings.proxyUsername, candidatePassword);
     }
 
