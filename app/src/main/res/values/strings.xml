@@ -511,7 +511,8 @@
     <string name="backend_wb_stream_with_room">WB Stream · %1$s</string>
     <!-- Top-level labels (without sub-backend — it is rendered in a separate dropdown). -->
     <string name="backend_top_vk_turn_title">VK TURN</string>
-    <string name="backend_top_wb_stream_title">WB Stream</string>
+    <string name="backend_top_wb_stream_title">WB Stream (unavailable)</string>
+    <string name="backend_top_wb_stream_unavailable_toast">WB Stream backend is temporarily unavailable</string>
     <string name="backend_top_wireguard_title">WireGuard</string>
     <string name="backend_top_amneziawg_title">AmneziaWG</string>
     <string name="sub_backend_title">Sub-backend</string>
