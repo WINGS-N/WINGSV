@@ -862,6 +862,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 }
                 Context preferenceContext = changedPreference.getContext();
                 String topLevel = newValue == null ? "vk_turn" : String.valueOf(newValue);
+                if ("wb_stream".equals(topLevel)) {
+                    Toast.makeText(
+                        preferenceContext,
+                        R.string.backend_top_wb_stream_unavailable_toast,
+                        Toast.LENGTH_SHORT
+                    ).show();
+                    return false;
+                }
                 // Под-backend читаем из соответствующего отдельного prefа.
                 TunnelMode subMode = TunnelMode.WIREGUARD;
                 if ("vk_turn".equals(topLevel)) {
