@@ -30,14 +30,15 @@
 ## Панель 3x-ui с встроенным vk-turn-proxy
 В качестве сервера, вы можете использовать эту [панель 3x-ui](https://github.com/WINGS-N/3x-ui), в которой уже вшит vk-turn-proxy как inbound
 
+## WINGS V VKTP (форк vk-turn-proxy)
+Для наилучшего результата на серверной стороне используйте форк [WINGS V VKTP](https://github.com/WINGS-N/vk-turn-proxy). В нём есть WRAP SRTP-mimicry обфускация и in-band доставка ключа, которые клиент WINGS V включает по умолчанию для обхода content-фильтрации VK. Панель 3x-ui выше собирается с этим же форком.
+
 ## `wingsv://` ссылки
-- Основной формат: `wingsv://{base64(deflate(protobuf_data))}`
-- Основной импорт работает через protobuf+deflate
+- Формат: `wingsv://{base64(deflate(protobuf_data))}`
 - Внутри могут храниться:
   - `VK TURN + WireGuard` настройки
   - `Xray` профили и подписки
   - `VK TURN + AmneziaWG` конфиг
-- Старый JSON вариант - legacy
 
 ## Что используется
 
