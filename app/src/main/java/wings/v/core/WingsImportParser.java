@@ -18,7 +18,6 @@ import java.util.regex.Pattern;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 import org.amnezia.awg.config.Config;
-import org.json.JSONObject;
 import wings.v.proto.WingsvProto;
 
 @SuppressWarnings(
@@ -405,9 +404,6 @@ public final class WingsImportParser {
         if (decodedPayload[0] == FORMAT_PROTOBUF_DEFLATE) {
             byte[] protobufPayload = inflate(slice(decodedPayload, 1, decodedPayload.length));
             return parseProtoConfig(WingsvProto.Config.parseFrom(protobufPayload));
-        }
-        if (isLikelyJsonPayload(decodedPayload)) {
-            return parseJsonPayload(decodedPayload);
         }
         throw new IllegalArgumentException("Неподдерживаемый формат WINGSV ссылки");
     }
@@ -2373,82 +2369,6 @@ public final class WingsImportParser {
         }
     }
 
-    private static ImportedConfig parseJsonPayload(byte[] decodedPayload) throws Exception {
-        JSONObject root = new JSONObject(new String(decodedPayload, StandardCharsets.UTF_8));
-        int version = root.optInt("ver", -1);
-        if (version <= 0) {
-            throw new IllegalArgumentException("Отсутствует или некорректен ver");
-        }
-        String type = root.optString("type");
-        if (!"vk".equalsIgnoreCase(type)) {
-            throw new IllegalArgumentException("Поддерживается только type=vk");
-        }
-
-        JSONObject turn = root.optJSONObject("turn");
-        if (turn == null) {
-            throw new IllegalArgumentException("Отсутствует turn объект");
-        }
-
-        ImportedConfig importedConfig = new ImportedConfig();
-        importedConfig.backendType = BackendType.VK_TURN_WIREGUARD;
-        importedConfig.hasTurnSettings = true;
-        importedConfig.endpoint = turn.optString("endpoint");
-        importedConfig.link = turn.optString("link");
-        importedConfig.links = new java.util.ArrayList<>();
-        org.json.JSONArray linksArray = turn.optJSONArray("links");
-        if (linksArray != null) {
-            for (int i = 0; i < linksArray.length(); i++) {
-                String entry = linksArray.optString(i, "");
-                if (!TextUtils.isEmpty(entry)) {
-                    importedConfig.links.add(entry);
-                }
-            }
-        }
-        if (importedConfig.links.isEmpty() && !TextUtils.isEmpty(importedConfig.link)) {
-            importedConfig.links.add(importedConfig.link);
-        }
-        importedConfig.linkSecondary = turn.optString("link_secondary", "");
-        if (turn.has("creds_group_size")) {
-            importedConfig.credsGroupSize = turn.optInt("creds_group_size");
-        }
-        if (turn.has("threads")) {
-            importedConfig.threads = turn.optInt("threads");
-        }
-        if (turn.has("use_udp")) {
-            importedConfig.useUdp = turn.optBoolean("use_udp");
-        }
-        if (turn.has("no_obfuscation")) {
-            importedConfig.noObfuscation = turn.optBoolean("no_obfuscation");
-        }
-        importedConfig.turnSessionMode = turn.optString("session_mode");
-        importedConfig.localEndpoint = turn.optString("local_endpoint");
-        importedConfig.turnHost = turn.optString("host");
-        importedConfig.turnPort = turn.optString("port");
-
-        JSONObject wg = root.optJSONObject("wg");
-        if (wg != null) {
-            importedConfig.hasWireGuardSettings = true;
-            JSONObject iface = wg.optJSONObject("if");
-            if (iface != null) {
-                importedConfig.wgPrivateKey = iface.optString("private_key");
-                importedConfig.wgAddresses = iface.optString("addrs");
-                importedConfig.wgDns = iface.optString("dns");
-                if (iface.has("mtu")) {
-                    importedConfig.wgMtu = iface.optInt("mtu");
-                }
-            }
-
-            JSONObject peer = wg.optJSONObject("peer");
-            if (peer != null) {
-                importedConfig.wgPublicKey = peer.optString("public_key");
-                importedConfig.wgPresharedKey = peer.optString("preshared_key");
-                importedConfig.wgAllowedIps = peer.optString("allowed_ips");
-            }
-        }
-
-        return importedConfig;
-    }
-
     private static WingsvProto.Endpoint parseEndpoint(String endpoint) throws Exception {
         if (TextUtils.isEmpty(endpoint) || !endpoint.contains(":")) {
             return null;
@@ -2511,17 +2431,6 @@ public final class WingsImportParser {
         } catch (Exception ignored) {
             return Base64.decode(normalizePadding(payload), Base64.DEFAULT);
         }
-    }
-
-    private static boolean isLikelyJsonPayload(byte[] payload) {
-        for (byte value : payload) {
-            char c = (char) value;
-            if (Character.isWhitespace(c)) {
-                continue;
-            }
-            return c == '{';
-        }
-        return false;
     }
 
     private static byte[] deflate(byte[] input) {
