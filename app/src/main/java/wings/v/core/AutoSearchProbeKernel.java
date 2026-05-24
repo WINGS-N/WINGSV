@@ -101,7 +101,7 @@ public final class AutoSearchProbeKernel {
 
     @NonNull
     public static AutoSearchProbeResult run(@NonNull Context context, @NonNull AutoSearchProbeRequest request) {
-        return run(context, request, null);
+        return run(context, request, null, null);
     }
 
     @NonNull
@@ -109,6 +109,16 @@ public final class AutoSearchProbeKernel {
         @NonNull Context context,
         @NonNull AutoSearchProbeRequest request,
         @Nullable ProgressCallback progress
+    ) {
+        return run(context, request, progress, null);
+    }
+
+    @NonNull
+    public static AutoSearchProbeResult run(
+        @NonNull Context context,
+        @NonNull AutoSearchProbeRequest request,
+        @Nullable ProgressCallback progress,
+        @Nullable java.util.function.BooleanSupplier cancelSignal
     ) {
         AutoSearchProbeResult result = new AutoSearchProbeResult();
         if (request.profile == null || TextUtils.isEmpty(request.profile.rawLink)) {
@@ -176,6 +186,9 @@ public final class AutoSearchProbeKernel {
             int downloadAttempts = Math.max(1, request.downloadAttempts);
             long stableBytes = Math.max(1L, request.stableBytes);
             for (int attempt = 1; attempt <= downloadAttempts; attempt++) {
+                if (isCancelled(cancelSignal)) {
+                    break;
+                }
                 emitStage(progress, request, STAGE_DOWNLOAD, attempt, downloadAttempts);
                 int currentAttempt = attempt;
                 DownloadResult dr = downloadThroughProxy(
@@ -184,7 +197,8 @@ public final class AutoSearchProbeKernel {
                     localPort,
                     progress,
                     currentAttempt,
-                    downloadAttempts
+                    downloadAttempts,
+                    cancelSignal
                 );
                 result.downloadedBytes = Math.max(result.downloadedBytes, dr.bytesRead);
                 result.successfulAttempts += dr.success ? 1 : 0;
@@ -196,14 +210,35 @@ public final class AutoSearchProbeKernel {
                 if (meetsDownloadTarget(dr.bytesRead, stableBytes) && dr.success) {
                     result.stableRuns++;
                 }
-                if (attempt < downloadAttempts) {
-                    SystemClock.sleep(INTER_ATTEMPT_DELAY_MS);
+                if (attempt < downloadAttempts && interruptibleSleep(INTER_ATTEMPT_DELAY_MS, cancelSignal)) {
+                    break;
                 }
             }
             result.stable = result.stableRuns >= downloadAttempts;
             return result;
         } finally {
             stopXrayQuietly();
+        }
+    }
+
+    private static boolean isCancelled(@Nullable java.util.function.BooleanSupplier signal) {
+        return signal != null && signal.getAsBoolean();
+    }
+
+    private static boolean interruptibleSleep(
+        long durationMs,
+        @Nullable java.util.function.BooleanSupplier cancelSignal
+    ) {
+        long deadline = SystemClock.elapsedRealtime() + durationMs;
+        while (true) {
+            if (isCancelled(cancelSignal)) {
+                return true;
+            }
+            long remaining = deadline - SystemClock.elapsedRealtime();
+            if (remaining <= 0L) {
+                return false;
+            }
+            SystemClock.sleep(Math.min(100L, remaining));
         }
     }
 
@@ -332,7 +367,8 @@ public final class AutoSearchProbeKernel {
         int localPort,
         @Nullable ProgressCallback progress,
         int attempt,
-        int attemptCount
+        int attemptCount,
+        @Nullable java.util.function.BooleanSupplier cancelSignal
     ) {
         final long startedAtMs = SystemClock.elapsedRealtime();
         final long singleSuccessBytes = Math.max(1L, request.downloadSizeBytes);
@@ -342,6 +378,9 @@ public final class AutoSearchProbeKernel {
         long attemptBytesRead = 0L;
         boolean success = false;
         while (attemptBytesRead < readLimitBytes) {
+            if (isCancelled(cancelSignal)) {
+                break;
+            }
             long nowMs = SystemClock.elapsedRealtime();
             long remainingTimeMs = deadlineMs - nowMs;
             if (remainingTimeMs <= 0L) {
