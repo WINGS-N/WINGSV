@@ -816,6 +816,7 @@
     <string name="warning_socks_password_weak">The SOCKS server password is too simple. This reduces the security of your connection</string>
     <string name="warning_http_auth_disable">You are disabling HTTP proxy authentication. This reduces the security of your connection</string>
     <string name="warning_http_password_weak">The HTTP proxy password is too simple. This reduces the security of your connection</string>
+    <string name="warning_xray_allow_insecure_enable">You are disabling TLS certificate verification for Xray outbounds. This makes the connection vulnerable to MITM attacks</string>
     <string name="xray_routing_settings_title">Xray routing</string>
     <string name="xray_routing_geo_files_title">Geo files</string>
     <string name="xray_routing_geo_files_summary">These files are used for geoip/geosite routing rules</string>

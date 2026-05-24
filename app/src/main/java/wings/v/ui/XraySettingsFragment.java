@@ -132,11 +132,26 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                 );
                 return false;
             }
+            String enableWarning = warningForEnable(key, preference, newValue);
+            if (enableWarning != null) {
+                showWarningBeforeApplying(
+                    () -> {
+                        androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
+                            .edit()
+                            .putBoolean(key, true)
+                            .commit();
+                        requestRuntimeReconnectIfActive(key);
+                    },
+                    enableWarning
+                );
+                return false;
+            }
             if (
                 TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED) ||
                 TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED) ||
                 TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED) ||
-                TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED)
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED) ||
+                TextUtils.equals(key, AppPrefs.KEY_XRAY_ALLOW_LAN)
             ) {
                 requireView().post(this::syncFromStore);
             }
@@ -273,15 +288,20 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
     private void refreshLocalProxyVisibility(XraySettings settings) {
         boolean proxyEnabled = settings.localProxyEnabled;
         boolean authEnabled = proxyEnabled && settings.localProxyAuthEnabled;
+        // Listen address is overridden by the LAN switch (resolveSocksListenAddress /
+        // resolveHttpListenAddress fall back to 0.0.0.0 when allowLan == true), so
+        // disable the explicit field while the switch is on to avoid the silent
+        // conflict where the user types 127.0.0.1 but the proxy still binds 0.0.0.0.
+        boolean listenEditable = !settings.allowLan;
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, proxyEnabled);
-        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, proxyEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, proxyEnabled && listenEditable);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, proxyEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, authEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD, authEnabled);
         boolean httpEnabled = settings.httpProxyEnabled;
         boolean httpAuthEnabled = httpEnabled && settings.httpProxyAuthEnabled;
         setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT, httpEnabled);
-        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, httpEnabled);
+        setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, httpEnabled && listenEditable);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED, httpEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME, httpAuthEnabled);
         setPreferenceEnabled(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD, httpAuthEnabled);
@@ -375,6 +395,16 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         }
         if (TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED)) {
             return getString(R.string.warning_http_auth_disable);
+        }
+        return null;
+    }
+
+    private String warningForEnable(String key, SwitchPreferenceCompat preference, Object newValue) {
+        if (preference.isChecked() || !Boolean.TRUE.equals(newValue)) {
+            return null;
+        }
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_ALLOW_INSECURE)) {
+            return getString(R.string.warning_xray_allow_insecure_enable);
         }
         return null;
     }
