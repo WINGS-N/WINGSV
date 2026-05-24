@@ -857,7 +857,7 @@ public final class AutoSearchManager {
                 if (successful.size() >= targetCount) {
                     stop.set(true);
                     for (int idx = 0; idx < parallelism; idx++) {
-                        wings.v.service.XrayAutoSearchProbeService.stopProbe(appContext, idx);
+                        wings.v.service.XrayAutoSearchProbeService.cancelProbe(appContext, idx);
                     }
                     break;
                 }
@@ -865,7 +865,7 @@ public final class AutoSearchManager {
         } finally {
             dispatchPool.shutdownNow();
             for (int idx = 0; idx < parallelism; idx++) {
-                wings.v.service.XrayAutoSearchProbeService.stopProbe(appContext, idx);
+                wings.v.service.XrayAutoSearchProbeService.cancelProbe(appContext, idx);
             }
         }
 

@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import wings.v.core.AutoSearchProbeKernel;
 import wings.v.core.AutoSearchProbeRequest;
 import wings.v.core.AutoSearchProbeResult;
@@ -21,10 +22,15 @@ public abstract class XrayAutoSearchProbeService extends Service {
     public static final int RESULT_PROGRESS = 2;
     private static final int WORKER_COUNT = 6;
     private static final String ACTION_PROBE = "wings.v.intent.action.AUTO_SEARCH_PROBE";
+    private static final String ACTION_CANCEL = "wings.v.intent.action.AUTO_SEARCH_PROBE_CANCEL";
     private static final String EXTRA_REQUEST = "request";
     private static final String EXTRA_RECEIVER = "receiver";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    // Per-process cancel flag. Each worker runs in its own process (see manifest:
+    // android:process=":autosearch_probe_N"), so this is naturally scoped to the
+    // currently active probe in this worker.
+    private static final AtomicBoolean CANCEL = new AtomicBoolean(false);
 
     public static int workerCount() {
         return WORKER_COUNT;
@@ -46,10 +52,10 @@ public abstract class XrayAutoSearchProbeService extends Service {
         }
     }
 
-    public static void stopProbe(@NonNull Context context, int workerIndex) {
-        Intent intent = new Intent(context, workerClass(workerIndex));
+    public static void cancelProbe(@NonNull Context context, int workerIndex) {
+        Intent intent = new Intent(context, workerClass(workerIndex)).setAction(ACTION_CANCEL);
         try {
-            context.stopService(intent);
+            context.startService(intent);
         } catch (RuntimeException ignored) {}
     }
 
@@ -73,6 +79,11 @@ public abstract class XrayAutoSearchProbeService extends Service {
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_CANCEL.equals(intent.getAction())) {
+            CANCEL.set(true);
+            stopSelfResult(startId);
+            return START_NOT_STICKY;
+        }
         if (intent == null || !ACTION_PROBE.equals(intent.getAction())) {
             stopSelfResult(startId);
             return START_NOT_STICKY;
@@ -83,15 +94,21 @@ public abstract class XrayAutoSearchProbeService extends Service {
             stopSelfResult(startId);
             return START_NOT_STICKY;
         }
+        CANCEL.set(false);
         AutoSearchProbeRequest request = AutoSearchProbeRequest.fromBundle(requestBundle);
         executor.execute(() -> {
             AutoSearchProbeResult result;
             try {
-                result = AutoSearchProbeKernel.run(getApplicationContext(), request, progressBundle -> {
-                    try {
-                        receiver.send(RESULT_PROGRESS, progressBundle);
-                    } catch (RuntimeException ignored) {}
-                });
+                result = AutoSearchProbeKernel.run(
+                    getApplicationContext(),
+                    request,
+                    progressBundle -> {
+                        try {
+                            receiver.send(RESULT_PROGRESS, progressBundle);
+                        } catch (RuntimeException ignored) {}
+                    },
+                    CANCEL::get
+                );
             } catch (Throwable error) {
                 result = AutoSearchProbeResult.failure("kernel crash: " + error.getMessage());
             }
