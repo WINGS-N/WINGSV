@@ -837,6 +837,53 @@ public final class AppPrefs {
         return packages;
     }
 
+    /**
+     * Returns the bypass/allowlist set every routing backend should actually
+     * enforce. Differs from {@link #getAppRoutingPackages(Context)} when the
+     * Xposed "hide VPN status" feature is enabled: apps that are lied to
+     * about the VPN being absent must also be physically kept out of the
+     * tunnel, otherwise the app sees "no VPN" yet its packets still go via
+     * the tunnel and outbound connections silently fail.
+     *
+     * In bypass mode (the default) the hidden-VPN list is merged into the
+     * user-managed bypass set. In allowlist mode the hidden-VPN packages are
+     * subtracted from the allowlist so they are excluded from the tunnel.
+     * The user's own package is always removed from the result.
+     */
+    public static Set<String> getEffectiveAppRoutingPackages(Context context) {
+        LinkedHashSet<String> packages = new LinkedHashSet<>(getAppRoutingPackages(context));
+        Set<String> hiddenVpnPackages = effectiveHiddenVpnPackages(context);
+        if (!hiddenVpnPackages.isEmpty()) {
+            if (isAppRoutingBypassEnabled(context)) {
+                packages.addAll(hiddenVpnPackages);
+            } else {
+                packages.removeAll(hiddenVpnPackages);
+            }
+        }
+        packages.remove(context.getPackageName());
+        return packages;
+    }
+
+    private static Set<String> effectiveHiddenVpnPackages(Context context) {
+        SharedPreferences xposedPrefs = XposedModulePrefs.prefs(context);
+        boolean moduleEnabled = xposedPrefs.getBoolean(
+            XposedModulePrefs.KEY_ENABLED,
+            XposedModulePrefs.DEFAULT_ENABLED
+        );
+        boolean hideEnabled = xposedPrefs.getBoolean(
+            XposedModulePrefs.KEY_HIDE_VPN_APPS,
+            XposedModulePrefs.DEFAULT_HIDE_VPN_APPS
+        );
+        if (!moduleEnabled || !hideEnabled) {
+            return java.util.Collections.emptySet();
+        }
+        Set<String> hidden = XposedModulePrefs.getHiddenVpnPackages(context);
+        if (hidden == null || hidden.isEmpty()) {
+            return java.util.Collections.emptySet();
+        }
+        return hidden;
+    }
+
     public static void setAppRoutingPackageEnabled(Context context, String packageName, boolean enabled) {
         if (TextUtils.isEmpty(packageName)) {
             return;

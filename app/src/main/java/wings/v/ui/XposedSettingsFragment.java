@@ -28,6 +28,7 @@ import wings.v.core.XposedAttackStatsStore;
 import wings.v.core.XposedModulePrefs;
 import wings.v.core.XposedSecurityScore;
 import wings.v.receiver.XposedStatsReceiver;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings("PMD.NullAssignment")
 public class XposedSettingsFragment extends PreferenceFragmentCompat {
@@ -266,6 +267,19 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
             updatePreferenceEnabledState();
             scheduleOverviewRefresh();
             XposedModulePrefs.export(requireContext());
+            // The effective bypass set (see AppPrefs.getEffectiveAppRoutingPackages)
+            // depends on these toggles, so a live VPN session needs a reconnect
+            // to pick up the changes.
+            if (
+                XposedModulePrefs.KEY_ENABLED.equals(key) ||
+                XposedModulePrefs.KEY_HIDE_VPN_APPS.equals(key) ||
+                XposedModulePrefs.KEY_HIDDEN_VPN_PACKAGES.equals(key)
+            ) {
+                ProxyTunnelService.requestReconnect(
+                    requireContext().getApplicationContext(),
+                    "Xposed VPN-hide setting changed"
+                );
+            }
         };
         preferences.registerOnSharedPreferenceChangeListener(preferencesChangeListener);
     }

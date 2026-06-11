@@ -641,7 +641,7 @@ public final class XrayConfigFactory {
         if (context == null) {
             return;
         }
-        Set<String> packages = AppPrefs.getAppRoutingPackages(context);
+        Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(context);
         if (packages == null || packages.isEmpty()) {
             return;
         }

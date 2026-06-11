@@ -41,6 +41,7 @@ import wings.v.core.Haptics;
 import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.core.XposedModulePrefs;
 import wings.v.databinding.FragmentAppsBinding;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -265,6 +266,14 @@ public class XposedAppsFragment extends Fragment {
         updateSearchResults();
         updateEmptyStates();
         Haptics.softSliderStep(sourceView);
+        // The hidden-VPN list participates in AppPrefs.getEffectiveAppRoutingPackages,
+        // so a live tunnel must reconcile the bypass set after each toggle.
+        if (XposedAppsActivity.MODE_HIDDEN_VPN_APPS.equals(mode)) {
+            ProxyTunnelService.requestReconnect(
+                context.getApplicationContext(),
+                "Xposed VPN-hide package list changed"
+            );
+        }
     }
 
     private void loadApplications() {

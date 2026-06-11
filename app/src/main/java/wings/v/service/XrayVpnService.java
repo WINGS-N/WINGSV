@@ -389,7 +389,7 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     private void applyAppRouting(Builder builder) {
-        Set<String> packages = AppPrefs.getAppRoutingPackages(this);
+        Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(this);
         if (packages.isEmpty()) {
             return;
         }
@@ -444,7 +444,7 @@ public class XrayVpnService extends VpnService implements DialerController {
             .append(xraySettings != null && xraySettings.ipv6)
             .append('|')
             .append(AppPrefs.isAppRoutingBypassEnabled(this));
-        for (String packageName : AppPrefs.getAppRoutingPackages(this)) {
+        for (String packageName : AppPrefs.getEffectiveAppRoutingPackages(this)) {
             builder.append('|').append(packageName);
         }
         builder
