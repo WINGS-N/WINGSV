@@ -777,13 +777,6 @@ public final class WingsImportParser {
         if (includeDefaults || nativeHook != XposedModulePrefs.DEFAULT_NATIVE_HOOK_ENABLED) {
             builder.setNativeHookEnabled(nativeHook);
         }
-        boolean inlineHooks = prefs.getBoolean(
-            XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED,
-            XposedModulePrefs.DEFAULT_INLINE_HOOKS_ENABLED
-        );
-        if (includeDefaults || inlineHooks != XposedModulePrefs.DEFAULT_INLINE_HOOKS_ENABLED) {
-            builder.setInlineHooksEnabled(inlineHooks);
-        }
         boolean hideVpnApps = prefs.getBoolean(
             XposedModulePrefs.KEY_HIDE_VPN_APPS,
             XposedModulePrefs.DEFAULT_HIDE_VPN_APPS
@@ -887,9 +880,8 @@ public final class WingsImportParser {
         if (xposed.hasNativeHookEnabled()) {
             importedConfig.xposedNativeHookEnabled = xposed.getNativeHookEnabled();
         }
-        if (xposed.hasInlineHooksEnabled()) {
-            importedConfig.xposedInlineHooksEnabled = xposed.getInlineHooksEnabled();
-        }
+        // inline_hooks_enabled (proto field 4) is now reserved: shadowhook
+        // backend was removed and the toggle no longer maps to runtime state.
         if (xposed.hasHideVpnApps()) {
             importedConfig.xposedHideVpnApps = xposed.getHideVpnApps();
         }
@@ -2886,7 +2878,6 @@ public final class WingsImportParser {
         public Boolean xposedEnabled;
         public Boolean xposedAllApps;
         public Boolean xposedNativeHookEnabled;
-        public Boolean xposedInlineHooksEnabled;
         public Boolean xposedHideVpnApps;
         public Boolean xposedHideFromDumpsys;
         public String xposedProcfsHookMode;
