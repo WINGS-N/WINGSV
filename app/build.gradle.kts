@@ -37,6 +37,7 @@ val vkTurnGeneratedProtoGo: File = vkTurnRepoDir.resolve("sessionproto/session.p
 val generatedVkTurnJniLibsDir: Provider<Directory> = layout.buildDirectory.dir("generated/jni/libs")
 val generatedVkTurnBinary: Provider<File> = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
 val libXrayRepoDir: File = rootProject.file("external/libXray")
+val xrayCoreRepoDir: File = rootProject.file("external/Xray-core")
 val libXrayGoModCacheDir: File = rootProject.file(".gradle/libxray/go-mod-cache")
 val libXrayGoCacheDir: File = rootProject.file(".gradle/libxray/go-cache")
 val libXrayGoPathDir: File = rootProject.file(".gradle/libxray/go-path")
@@ -325,12 +326,18 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         exclude("**/*.aar")
         exclude("**/*-sources.jar")
     })
+    inputs.files(fileTree(xrayCoreRepoDir) {
+        exclude(".git/**")
+    })
     inputs.property("xrayGoToolchain", "go1.26.0")
     outputs.file(generatedLibXrayAar)
 
     doFirst {
         check(libXrayRepoDir.isDirectory) {
             "libXray submodule not found at ${libXrayRepoDir.absolutePath}. Run git submodule update --init --recursive."
+        }
+        check(xrayCoreRepoDir.isDirectory) {
+            "Xray-core submodule not found at ${xrayCoreRepoDir.absolutePath}. Run git submodule update --init --recursive."
         }
         val outputDir: File = generatedLibXrayDir.get().asFile
         val workDir: File = generatedLibXrayWorkDir.get()
@@ -346,6 +353,15 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
             exclude(".git/**")
             exclude("**/*.aar")
             exclude("**/*-sources.jar")
+        }
+        // libXray's go.mod has `replace github.com/xtls/xray-core => ../Xray-core`,
+        // so we mirror the source tree as a sibling of the work dir.
+        val xrayCoreWorkDir: File = File(workDir.parentFile, "Xray-core")
+        delete(xrayCoreWorkDir)
+        copy {
+            from(xrayCoreRepoDir)
+            into(xrayCoreWorkDir)
+            exclude(".git/**")
         }
         workingDir = workDir
         environment(
