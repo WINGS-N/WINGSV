@@ -42,7 +42,7 @@ public final class WireGuardConfigFactory {
         }
         if (includeAppRouting) {
             Set<String> routedPackages =
-                context != null ? new TreeSet<>(AppPrefs.getAppRoutingPackages(context)) : new TreeSet<>();
+                context != null ? new TreeSet<>(AppPrefs.getEffectiveAppRoutingPackages(context)) : new TreeSet<>();
             if (!routedPackages.isEmpty()) {
                 String joinedPackages = String.join(", ", routedPackages);
                 if (AppPrefs.isAppRoutingBypassEnabled(context)) {

@@ -1728,7 +1728,7 @@ public class ProxyTunnelService extends Service {
 
         if (activeXrayTproxyMode) {
             XrayTproxyRouter.AppRoutingMode tproxyAppMode;
-            java.util.Set<String> routedPackages = AppPrefs.getAppRoutingPackages(getApplicationContext());
+            java.util.Set<String> routedPackages = AppPrefs.getEffectiveAppRoutingPackages(getApplicationContext());
             if (routedPackages == null || routedPackages.isEmpty()) {
                 tproxyAppMode = XrayTproxyRouter.AppRoutingMode.NONE;
             } else if (AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
@@ -4730,7 +4730,7 @@ public class ProxyTunnelService extends Service {
                 }
                 appendRuntimeLogLine("Xray TPROXY routing missing after " + reason + ", reapplying");
                 XrayTproxyRouter.AppRoutingMode mode;
-                java.util.Set<String> packages = AppPrefs.getAppRoutingPackages(getApplicationContext());
+                java.util.Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(getApplicationContext());
                 if (packages == null || packages.isEmpty()) {
                     mode = XrayTproxyRouter.AppRoutingMode.NONE;
                 } else if (AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
@@ -4985,7 +4985,7 @@ public class ProxyTunnelService extends Service {
             return new LinkedHashSet<>();
         }
         Set<Integer> result = new LinkedHashSet<>();
-        Set<String> packages = AppPrefs.getAppRoutingPackages(getApplicationContext());
+        Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(getApplicationContext());
         for (String packageName : packages) {
             try {
                 result.add(getPackageManager().getApplicationInfo(packageName, 0).uid);
@@ -5155,7 +5155,7 @@ public class ProxyTunnelService extends Service {
         RootMultiUserRouter.Mode mode = AppPrefs.isAppRoutingBypassEnabled(appContext)
             ? RootMultiUserRouter.Mode.BYPASS
             : RootMultiUserRouter.Mode.ONLY_SELECTED;
-        Set<String> packages = AppPrefs.getAppRoutingPackages(appContext);
+        Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
         boolean lockdownEnabled = AppPrefs.isRootSplitTunnelLockdownEnabled(appContext);
         java.util.List<Integer> systemProxyPorts = lockdownEnabled
             ? discoverSystemProxyPorts()
@@ -5245,7 +5245,7 @@ public class ProxyTunnelService extends Service {
         RootMultiUserRouter.Mode mode = AppPrefs.isAppRoutingBypassEnabled(appContext)
             ? RootMultiUserRouter.Mode.BYPASS
             : RootMultiUserRouter.Mode.ONLY_SELECTED;
-        Set<String> packages = AppPrefs.getAppRoutingPackages(appContext);
+        Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
         try {
             RootMultiUserRouter.applyFilterOnly(appContext, tunIface, mode, packages, systemProxyPorts);
             lastSplitTunnelLockdownTunIface = hasTun ? tunIface : "";
