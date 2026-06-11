@@ -32,12 +32,6 @@
         android:summary="@string/xposed_settings_native_hook_summary"
         android:defaultValue="false" />
 
-    <SwitchPreferenceCompat
-        android:key="pref_xposed_inline_hooks_enabled"
-        android:title="@string/xposed_settings_inline_hooks_title"
-        android:summary="@string/xposed_settings_inline_hooks_summary"
-        android:defaultValue="false" />
-
     <androidx.preference.DropDownPreference
         android:key="pref_xposed_procfs_hook_mode"
         android:title="@string/xposed_settings_procfs_hook_mode_title"

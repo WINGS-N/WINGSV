@@ -1517,9 +1517,6 @@ public final class AppPrefs {
         if (importedConfig.xposedNativeHookEnabled != null) {
             editor.putBoolean(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED, importedConfig.xposedNativeHookEnabled);
         }
-        if (importedConfig.xposedInlineHooksEnabled != null) {
-            editor.putBoolean(XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED, importedConfig.xposedInlineHooksEnabled);
-        }
         if (importedConfig.xposedHideVpnApps != null) {
             editor.putBoolean(XposedModulePrefs.KEY_HIDE_VPN_APPS, importedConfig.xposedHideVpnApps);
         }

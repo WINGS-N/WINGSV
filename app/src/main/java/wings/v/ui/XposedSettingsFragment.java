@@ -84,7 +84,6 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(XposedModulePrefs.KEY_ENABLED);
         bindSwitchHaptics(XposedModulePrefs.KEY_ALL_APPS);
         bindSwitchHaptics(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED);
-        bindSwitchHaptics(XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED);
         bindSwitchHaptics(XposedModulePrefs.KEY_HIDE_VPN_APPS);
         bindDropDownPreference(XposedModulePrefs.KEY_PROCFS_HOOK_MODE);
         bindDropDownPreference(XposedModulePrefs.KEY_ICMP_SPOOFING_MODE);
@@ -164,7 +163,6 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
         setPreferenceEnabled(XposedModulePrefs.KEY_ALL_APPS, moduleEnabled);
         setPreferenceEnabled(XposedModulePrefs.KEY_TARGET_PACKAGES, moduleEnabled);
         setPreferenceEnabled(XposedModulePrefs.KEY_NATIVE_HOOK_ENABLED, moduleEnabled);
-        setPreferenceEnabled(XposedModulePrefs.KEY_INLINE_HOOKS_ENABLED, moduleEnabled && nativeHookEnabled);
         applyProcfsHookModeVisibility(procfsHookModeVisible);
         setPreferenceEnabled(XposedModulePrefs.KEY_PROCFS_HOOK_MODE, procfsHookModeVisible);
         setPreferenceEnabled(XposedModulePrefs.KEY_ICMP_SPOOFING_MODE, moduleEnabled);

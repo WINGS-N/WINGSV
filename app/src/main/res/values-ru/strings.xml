@@ -347,8 +347,6 @@
     <string name="xposed_settings_packages_summary">Открыть список приложений с поиском</string>
     <string name="xposed_settings_native_hook_title">Native хук</string>
     <string name="xposed_settings_native_hook_summary">Скрывает tunnel интерфейсы в native getifaddrs() и if_nametoindex()</string>
-    <string name="xposed_settings_inline_hooks_title">Inline хуки (экспериментально)</string>
-    <string name="xposed_settings_inline_hooks_summary">Патчит libc напрямую через shadowhook — ловит детекторы в библиотеках, подгруженных после инициализации модуля. Может быть нестабильным на некоторых прошивках, по умолчанию выключено</string>
     <string name="xposed_settings_procfs_hook_mode_title">Native /proc хук</string>
     <string name="xposed_settings_procfs_hook_mode_summary">Что возвращать при доступе к /proc/net через native fopen/open. Режим «Фильтр» (рекомендуется) прячет только строки туннельных интерфейсов и не ломает легитимных читателей сетевых таблиц</string>
     <string name="xposed_procfs_hook_mode_file_not_found">File not found</string>

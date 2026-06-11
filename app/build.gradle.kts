@@ -698,7 +698,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
-    implementation(libs.shadowhook)
     implementation(libs.mpandroidchart)
     implementation(libs.androidx.work.runtime)
     implementation(libs.zstd.jni)

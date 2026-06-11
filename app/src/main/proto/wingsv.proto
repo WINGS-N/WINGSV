@@ -325,7 +325,9 @@ message Xposed {
   optional bool enabled = 1;
   optional bool all_apps = 2;
   optional bool native_hook_enabled = 3;
-  optional bool inline_hooks_enabled = 4;
+  // Tag 4 (inline_hooks_enabled) is reserved: shadowhook backend was removed.
+  reserved 4;
+  reserved "inline_hooks_enabled";
   optional bool hide_vpn_apps = 5;
   optional bool hide_from_dumpsys = 6;
   XposedProcfsHookMode procfs_hook_mode = 7;

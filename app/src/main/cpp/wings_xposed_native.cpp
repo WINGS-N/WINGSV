@@ -32,9 +32,6 @@
 #include <vector>
 
 #include "xhook.h"
-#ifdef WINGS_HAS_SHADOWHOOK
-#include "shadowhook.h"
-#endif
 
 #define LOG_TAG "WINGS-XposedNative"
 #define FALLBACK_IFACE "wlan0"
@@ -115,7 +112,6 @@ static bool g_installed = false;
 
 static constexpr const char *kHookedLibrariesPattern = ".*\\.so$";
 static constexpr const char *kProcfsHookModeProp = "persist.wingsv.xposed.procfs_hook_mode";
-static constexpr const char *kInlineHooksProp = "persist.wingsv.xposed.inline_hooks";
 static constexpr const char *kSysClassNetPrefix = "/sys/class/net/";
 static constexpr const char *kSysClassNetDir = "/sys/class/net";
 static constexpr const char *kProcNetPrefix = "/proc/net/";
@@ -1485,58 +1481,6 @@ static void register_hook(const char *symbol, void *proxy, void **orig, bool cri
     }
 }
 
-static bool g_shadowhook_ok = false;
-
-static bool inline_hook_libc(const char *symbol, void *proxy, void **orig) {
-#ifdef WINGS_HAS_SHADOWHOOK
-    if (!g_shadowhook_ok) return false;
-    void *stub = shadowhook_hook_sym_name("libc.so", symbol, proxy, orig);
-    if (stub != nullptr) return true;
-    __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
-                        "shadowhook_hook_sym_name(libc.so, %s) failed errno=%d (%s)",
-                        symbol, shadowhook_get_errno(),
-                        shadowhook_to_errmsg(shadowhook_get_errno()));
-    return false;
-#else
-    (void) symbol; (void) proxy; (void) orig;
-    return false;
-#endif
-}
-
-static void register_hook_prefer_inline(
-        const char *symbol, void *proxy, void **orig, bool critical, int &critical_failures) {
-    if (inline_hook_libc(symbol, proxy, orig)) {
-        return;
-    }
-    int result = xhook_register(kHookedLibrariesPattern, symbol, proxy, orig);
-    if (result != 0) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
-                            "hook(%s) failed inline+plt critical=%d", symbol, critical ? 1 : 0);
-        if (critical) critical_failures++;
-    }
-}
-
-static bool user_enabled_inline_hooks() {
-    char value[PROP_VALUE_MAX] = {0};
-    int length = __system_property_get(kInlineHooksProp, value);
-    if (length <= 0) return false;
-    return strcmp(value, "1") == 0;
-}
-
-static void init_shadowhook() {
-#ifdef WINGS_HAS_SHADOWHOOK
-    if (!user_enabled_inline_hooks()) {
-        __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "inline hooks disabled by user, skipping shadowhook init");
-        return;
-    }
-    int rc = shadowhook_init(SHADOWHOOK_MODE_SHARED, false);
-    g_shadowhook_ok = (rc == SHADOWHOOK_ERRNO_OK);
-    __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
-                        "shadowhook_init rc=%d ok=%d version=%s",
-                        rc, g_shadowhook_ok ? 1 : 0, shadowhook_get_version());
-#endif
-}
-
 extern "C"
 JNIEXPORT jint JNICALL
 JNI_OnLoad(JavaVM *vm, void *) {
@@ -1574,8 +1518,6 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *env, jclass) {
     xhook_enable_debug(0);
     xhook_enable_sigsegv_protection(1);
 
-    init_shadowhook();
-
     static const char *const kIgnoredLibraryPatterns[] = {
             "libwingsxposednative\\.so$",
             ".*/vulkan\\..*\\.so$",
@@ -1595,15 +1537,15 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *env, jclass) {
 
     int critical_failures = 0;
 
-    register_hook_prefer_inline("getifaddrs", reinterpret_cast<void *>(proxy_getifaddrs),
+    register_hook("getifaddrs", reinterpret_cast<void *>(proxy_getifaddrs),
                   reinterpret_cast<void **>(&orig_getifaddrs), true, critical_failures);
-    register_hook_prefer_inline("freeifaddrs", reinterpret_cast<void *>(proxy_freeifaddrs),
+    register_hook("freeifaddrs", reinterpret_cast<void *>(proxy_freeifaddrs),
                   reinterpret_cast<void **>(&orig_freeifaddrs), true, critical_failures);
-    register_hook_prefer_inline("if_nametoindex", reinterpret_cast<void *>(proxy_if_nametoindex),
+    register_hook("if_nametoindex", reinterpret_cast<void *>(proxy_if_nametoindex),
                   reinterpret_cast<void **>(&orig_if_nametoindex), true, critical_failures);
-    register_hook_prefer_inline("if_indextoname", reinterpret_cast<void *>(proxy_if_indextoname),
+    register_hook("if_indextoname", reinterpret_cast<void *>(proxy_if_indextoname),
                   reinterpret_cast<void **>(&orig_if_indextoname), true, critical_failures);
-    register_hook_prefer_inline("ioctl", reinterpret_cast<void *>(proxy_ioctl),
+    register_hook("ioctl", reinterpret_cast<void *>(proxy_ioctl),
                   reinterpret_cast<void **>(&orig_ioctl), true, critical_failures);
 
     register_hook("open", reinterpret_cast<void *>(proxy_open),
@@ -1617,7 +1559,7 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *env, jclass) {
     register_hook("socket", reinterpret_cast<void *>(proxy_socket),
                   reinterpret_cast<void **>(&orig_socket), true, critical_failures);
 
-    register_hook_prefer_inline("if_nameindex", reinterpret_cast<void *>(proxy_if_nameindex),
+    register_hook("if_nameindex", reinterpret_cast<void *>(proxy_if_nameindex),
                   reinterpret_cast<void **>(&orig_if_nameindex), false, critical_failures);
     register_hook("fopen", reinterpret_cast<void *>(proxy_fopen),
                   reinterpret_cast<void **>(&orig_fopen), false, critical_failures);
@@ -1635,25 +1577,25 @@ Java_wings_v_xposed_NativeVpnDetectionHook_nativeInstall(JNIEnv *env, jclass) {
                   reinterpret_cast<void **>(&orig_recvmsg), false, critical_failures);
     register_hook("recvmmsg", reinterpret_cast<void *>(proxy_recvmmsg),
                   reinterpret_cast<void **>(&orig_recvmmsg), false, critical_failures);
-    register_hook_prefer_inline("opendir", reinterpret_cast<void *>(proxy_opendir),
+    register_hook("opendir", reinterpret_cast<void *>(proxy_opendir),
                   reinterpret_cast<void **>(&orig_opendir), false, critical_failures);
-    register_hook_prefer_inline("closedir", reinterpret_cast<void *>(proxy_closedir),
+    register_hook("closedir", reinterpret_cast<void *>(proxy_closedir),
                   reinterpret_cast<void **>(&orig_closedir), false, critical_failures);
-    register_hook_prefer_inline("readdir", reinterpret_cast<void *>(proxy_readdir),
+    register_hook("readdir", reinterpret_cast<void *>(proxy_readdir),
                   reinterpret_cast<void **>(&orig_readdir), false, critical_failures);
-    register_hook_prefer_inline("readdir64", reinterpret_cast<void *>(proxy_readdir64),
+    register_hook("readdir64", reinterpret_cast<void *>(proxy_readdir64),
                   reinterpret_cast<void **>(&orig_readdir64), false, critical_failures);
-    register_hook_prefer_inline("access", reinterpret_cast<void *>(proxy_access),
+    register_hook("access", reinterpret_cast<void *>(proxy_access),
                   reinterpret_cast<void **>(&orig_access), false, critical_failures);
-    register_hook_prefer_inline("faccessat", reinterpret_cast<void *>(proxy_faccessat),
+    register_hook("faccessat", reinterpret_cast<void *>(proxy_faccessat),
                   reinterpret_cast<void **>(&orig_faccessat), false, critical_failures);
-    register_hook_prefer_inline("stat", reinterpret_cast<void *>(proxy_stat),
+    register_hook("stat", reinterpret_cast<void *>(proxy_stat),
                   reinterpret_cast<void **>(&orig_stat), false, critical_failures);
-    register_hook_prefer_inline("lstat", reinterpret_cast<void *>(proxy_lstat),
+    register_hook("lstat", reinterpret_cast<void *>(proxy_lstat),
                   reinterpret_cast<void **>(&orig_lstat), false, critical_failures);
-    register_hook_prefer_inline("fstatat", reinterpret_cast<void *>(proxy_fstatat),
+    register_hook("fstatat", reinterpret_cast<void *>(proxy_fstatat),
                   reinterpret_cast<void **>(&orig_fstatat), false, critical_failures);
-    register_hook_prefer_inline("statfs", reinterpret_cast<void *>(proxy_statfs),
+    register_hook("statfs", reinterpret_cast<void *>(proxy_statfs),
                   reinterpret_cast<void **>(&orig_statfs), false, critical_failures);
 
     int refresh_result = refresh_hooks();

@@ -34,7 +34,6 @@ public final class XposedModulePrefs {
     public static final String PROP_NATIVE_HOOK_ENABLED = "persist.wingsv.xposed.native_hook";
     public static final String PROP_PROCFS_HOOK_MODE = "persist.wingsv.xposed.procfs_hook_mode";
     public static final String PROP_ICMP_SPOOFING_MODE = "persist.wingsv.xposed.icmp_spoofing";
-    public static final String PROP_INLINE_HOOKS_ENABLED = "persist.wingsv.xposed.inline_hooks";
     public static final String KEY_OPEN_SETTINGS = "pref_open_xposed_settings";
     public static final String KEY_ENABLED = "pref_xposed_enabled";
     public static final String KEY_ALL_APPS = "pref_xposed_all_apps";
@@ -42,7 +41,6 @@ public final class XposedModulePrefs {
     public static final String KEY_TARGET_PACKAGES_RECOMMENDED_DISMISSED =
         "pref_xposed_target_packages_recommended_dismissed";
     public static final String KEY_NATIVE_HOOK_ENABLED = "pref_xposed_native_hook_enabled";
-    public static final String KEY_INLINE_HOOKS_ENABLED = "pref_xposed_inline_hooks_enabled";
     public static final String KEY_PROCFS_HOOK_MODE = "pref_xposed_procfs_hook_mode";
     public static final String KEY_ICMP_SPOOFING_MODE = "pref_xposed_icmp_spoofing_mode";
     public static final String KEY_HIDE_VPN_APPS = "pref_xposed_hide_vpn_apps";
@@ -54,7 +52,6 @@ public final class XposedModulePrefs {
     public static final boolean DEFAULT_ENABLED = true;
     public static final boolean DEFAULT_ALL_APPS = true;
     public static final boolean DEFAULT_NATIVE_HOOK_ENABLED = false;
-    public static final boolean DEFAULT_INLINE_HOOKS_ENABLED = false;
     public static final String PROCFS_HOOK_MODE_DISABLED = "disabled";
     public static final String PROCFS_HOOK_MODE_FILTER = "filter";
     public static final String PROCFS_HOOK_MODE_NO_ACCESS = "no_access";
@@ -402,8 +399,6 @@ public final class XposedModulePrefs {
         String icmpSpoofingMode = normalizeIcmpSpoofingMode(
             preferences.getString(KEY_ICMP_SPOOFING_MODE, DEFAULT_ICMP_SPOOFING_MODE)
         );
-        boolean inlineHooksEnabled = preferences.getBoolean(KEY_INLINE_HOOKS_ENABLED, DEFAULT_INLINE_HOOKS_ENABLED);
-        String inlineHooksValue = inlineHooksEnabled ? "1" : "0";
         try {
             Process process = new ProcessBuilder(
                 "su",
@@ -419,11 +414,7 @@ public final class XposedModulePrefs {
                     " && setprop " +
                     shellQuote(PROP_ICMP_SPOOFING_MODE) +
                     " " +
-                    shellQuote(icmpSpoofingMode) +
-                    " && setprop " +
-                    shellQuote(PROP_INLINE_HOOKS_ENABLED) +
-                    " " +
-                    shellQuote(inlineHooksValue)
+                    shellQuote(icmpSpoofingMode)
             )
                 .redirectErrorStream(true)
                 .start();

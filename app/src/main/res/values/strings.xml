@@ -347,8 +347,6 @@
     <string name="xposed_settings_packages_summary">Open the apps list with search</string>
     <string name="xposed_settings_native_hook_title">Native hook</string>
     <string name="xposed_settings_native_hook_summary">Hides tunnel interfaces in native getifaddrs() and if_nametoindex()</string>
-    <string name="xposed_settings_inline_hooks_title">Inline hooks (experimental)</string>
-    <string name="xposed_settings_inline_hooks_summary">Patches libc directly via shadowhook and catches detectors in libraries loaded after the module is initialized. May be and will be unstable on some firmware, disabled by default</string>
     <string name="xposed_settings_procfs_hook_mode_title">Native /proc hook</string>
     <string name="xposed_settings_procfs_hook_mode_summary">What to return when /proc/net is accessed via native fopen/open. "Filter" mode (recommended) only hides tunnel interface lines and does not break legitimate readers of network tables</string>
     <string name="xposed_procfs_hook_mode_file_not_found">File not found</string>
