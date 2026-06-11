@@ -854,19 +854,20 @@ public final class AutoSearchManager {
                         pair.candidate.latencyMs
                     )
                 );
-                if (successful.size() >= targetCount) {
+                if (successful.size() >= targetCount && !stop.get()) {
+                    // Soft cancel: queued tasks bail at lambda entry via stop.get(),
+                    // in-flight probes see CANCEL via the kernel cancelSignal at the
+                    // next safe checkpoint. We do NOT break the while loop or shut
+                    // down the dispatch pool early: those introduced a race with the
+                    // probe services that froze the UI on low target counts.
                     stop.set(true);
                     for (int idx = 0; idx < parallelism; idx++) {
                         wings.v.service.XrayAutoSearchProbeService.cancelProbe(appContext, idx);
                     }
-                    break;
                 }
             }
         } finally {
             dispatchPool.shutdownNow();
-            for (int idx = 0; idx < parallelism; idx++) {
-                wings.v.service.XrayAutoSearchProbeService.cancelProbe(appContext, idx);
-            }
         }
 
         List<CandidateResult> result = new ArrayList<>();
