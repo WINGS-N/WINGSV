@@ -8,8 +8,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import wings.v.core.AppPrefs;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
@@ -329,6 +331,7 @@ public final class XrayConfigFactory {
             JSONObject tunSettings = new JSONObject();
             tunSettings.put("MTU", DEFAULT_MTU);
             tunSettings.put("user_level", 0);
+            applyTunUidFilter(context, tunSettings);
             tunInbound.put("settings", tunSettings);
             tunInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(tunInbound);
@@ -625,6 +628,43 @@ public final class XrayConfigFactory {
         sniffing.put("enabled", settings.sniffingEnabled);
         sniffing.put("destOverride", new JSONArray().put("http").put("tls").put("quic"));
         return sniffing;
+    }
+
+    // Mirrors Android's per-app VPN routing into xray's TUN inbound as a
+    // secondary gVisor-level filter. Android's addDisallowedApplication does
+    // not reliably stop excluded apps from binding to the tun interface
+    // directly, so we look up the UID of every new TCP/UDP connection inside
+    // xray and drop it when it does not match. See
+    // external/Xray-core/proxy/tun/uid_lookup_linux.go for the lookup, and
+    // proxy/tun/stack_gvisor.go for the enforcement point.
+    private static void applyTunUidFilter(Context context, JSONObject tunSettings) throws Exception {
+        if (context == null) {
+            return;
+        }
+        Set<String> packages = AppPrefs.getAppRoutingPackages(context);
+        if (packages == null || packages.isEmpty()) {
+            return;
+        }
+        List<Integer> uids = wings.v.core.XrayTproxyRouter.resolveRoutedUids(context, packages);
+        if (uids.isEmpty()) {
+            return;
+        }
+        JSONArray uidArray = new JSONArray();
+        for (Integer uid : uids) {
+            if (uid != null && uid > 0) {
+                uidArray.put(uid.longValue());
+            }
+        }
+        if (uidArray.length() == 0) {
+            return;
+        }
+        if (AppPrefs.isAppRoutingBypassEnabled(context)) {
+            // Bypass mode: listed packages must NOT use the tunnel.
+            tunSettings.put("excludedUids", uidArray);
+        } else {
+            // Allowlist mode: only listed packages are tunneled, drop everyone else.
+            tunSettings.put("allowedUids", uidArray);
+        }
     }
 
     static boolean isLocalProxyEnabled(XraySettings settings) {
