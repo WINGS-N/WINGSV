@@ -83,7 +83,8 @@ final class RootXrayCommands {
         );
 
         String resolvedDataDir = TextUtils.isEmpty(dataDir) ? "" : dataDir;
-        String request = LibXray.newXrayRunFromJSONRequest(resolvedDataDir, "", configJson, 0);
+        LibXray.setTunFd(0);
+        String request = LibXray.newXrayRunFromJSONRequest(resolvedDataDir, configJson);
         String response = LibXray.runXrayFromJSON(request);
         decodeResponse(response);
 
