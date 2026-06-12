@@ -329,7 +329,7 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
     inputs.files(fileTree(xrayCoreRepoDir) {
         exclude(".git/**")
     })
-    inputs.property("xrayGoToolchain", "go1.26.0")
+    inputs.property("xrayGoToolchain", "go1.26.3")
     outputs.file(generatedLibXrayAar)
 
     doFirst {
@@ -354,8 +354,9 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
             exclude("**/*.aar")
             exclude("**/*-sources.jar")
         }
-        // libXray's go.mod has `replace github.com/xtls/xray-core => ../Xray-core`,
-        // so we mirror the source tree as a sibling of the work dir.
+        // libXray's `build/main.py android local` runs `go mod edit
+        // -replace=github.com/xtls/xray-core=../Xray-core`, so we mirror the
+        // source tree as a sibling of the work dir for that edit to resolve.
         val xrayCoreWorkDir: File = File(workDir.parentFile, "Xray-core")
         delete(xrayCoreWorkDir)
         copy {
@@ -366,7 +367,7 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         workingDir = workDir
         environment(
             mapOf(
-                "GOTOOLCHAIN" to "go1.26.0",
+                "GOTOOLCHAIN" to "go1.26.3",
                 "ANDROID_SDK_ROOT" to resolveAndroidSdkDir().absolutePath,
                 "ANDROID_HOME" to resolveAndroidSdkDir().absolutePath,
                 "GOMODCACHE" to libXrayGoModCacheDir.absolutePath,
@@ -405,7 +406,7 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
             }
             export GOPROXY=https://proxy.golang.org,direct
             rm -f libXray.aar libXray-sources.jar
-            retry python3 build/main.py android
+            retry python3 build/main.py android local
             test -f libXray.aar
             cp libXray.aar "${generatedLibXrayAar.get().absolutePath}"
             """.trimIndent()
