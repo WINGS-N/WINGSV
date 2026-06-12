@@ -427,7 +427,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
         SwitchPreferenceCompat xrayTproxyPreference = findPreference(AppPrefs.KEY_XRAY_TPROXY_MODE);
-        SwitchPreferenceCompat splitTunnelLockdownPreference = findPreference(AppPrefs.KEY_ROOT_SPLIT_TUNNEL_LOCKDOWN);
         Preference rootInterfaceSettingsPreference = findPreference(AppPrefs.KEY_OPEN_ROOT_INTERFACE_SETTINGS);
         Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
         boolean rootGranted = AppPrefs.isRootAccessGranted(context);
@@ -442,9 +441,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             kernelWireGuardPreference.setVisible(false);
             if (xrayTproxyPreference != null) {
                 xrayTproxyPreference.setVisible(false);
-            }
-            if (splitTunnelLockdownPreference != null) {
-                splitTunnelLockdownPreference.setVisible(false);
             }
             if (rootInterfaceSettingsPreference != null) {
                 rootInterfaceSettingsPreference.setVisible(false);
@@ -473,11 +469,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             } else {
                 xrayTproxyPreference.setSummary(getString(R.string.xray_tproxy_summary));
             }
-        }
-        if (splitTunnelLockdownPreference != null) {
-            splitTunnelLockdownPreference.setVisible(rootModeEnabled);
-            splitTunnelLockdownPreference.setEnabled(rootModeEnabled);
-            splitTunnelLockdownPreference.setSummary(getString(R.string.root_split_tunnel_lockdown_summary));
         }
         if (rootInterfaceSettingsPreference != null) {
             rootInterfaceSettingsPreference.setVisible(rootModeEnabled);
