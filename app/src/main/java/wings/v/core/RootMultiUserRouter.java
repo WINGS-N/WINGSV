@@ -80,7 +80,6 @@ public final class RootMultiUserRouter {
         @NonNull String tunnelIface,
         @NonNull Mode mode,
         @NonNull Set<String> selectedPackages,
-        boolean enforceSplitTunnelLockdown,
         @NonNull List<Integer> systemProxyPorts
     ) throws Exception {
         if (TextUtils.isEmpty(tunnelTable)) {
@@ -105,7 +104,7 @@ public final class RootMultiUserRouter {
                 appendAddRule(script, overridePriority, uid, uid, overrideTable);
             }
         }
-        if (enforceSplitTunnelLockdown && (!TextUtils.isEmpty(tunnelIface) || !systemProxyPorts.isEmpty())) {
+        if (!TextUtils.isEmpty(tunnelIface) || !systemProxyPorts.isEmpty()) {
             appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode, ownUid, systemProxyPorts);
         }
         synchronized (SCRIPT_LOCK) {

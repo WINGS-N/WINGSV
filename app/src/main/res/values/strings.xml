@@ -327,8 +327,6 @@
     <string name="xray_tproxy_title">Xray via TPROXY</string>
     <string name="xray_tproxy_summary">Transparent traffic interception for Xray via iptables instead of VpnService</string>
     <string name="xray_tproxy_unavailable">Xray TPROXY unavailable: %1$s</string>
-    <string name="root_split_tunnel_lockdown_title">Block split-tunnel leaks</string>
-    <string name="root_split_tunnel_lockdown_summary">iptables REJECT for excluded apps: blocks bypassing tun and access to system loopback proxies</string>
     <string name="root_interface_settings_title">Interface settings</string>
     <string name="root_interface_settings_summary">Root WireGuard interface name</string>
     <string name="root_interface_category_title">Interface names</string>

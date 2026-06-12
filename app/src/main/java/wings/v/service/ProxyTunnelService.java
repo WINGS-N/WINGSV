@@ -5156,10 +5156,7 @@ public class ProxyTunnelService extends Service {
             ? RootMultiUserRouter.Mode.BYPASS
             : RootMultiUserRouter.Mode.ONLY_SELECTED;
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
-        boolean lockdownEnabled = AppPrefs.isRootSplitTunnelLockdownEnabled(appContext);
-        java.util.List<Integer> systemProxyPorts = lockdownEnabled
-            ? discoverSystemProxyPorts()
-            : java.util.Collections.emptyList();
+        java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
         try {
             RootMultiUserRouter.apply(
                 appContext,
@@ -5167,13 +5164,10 @@ public class ProxyTunnelService extends Service {
                 activeTunnelName,
                 mode,
                 packages,
-                lockdownEnabled,
                 systemProxyPorts
             );
-            if (lockdownEnabled) {
-                lastSplitTunnelLockdownTunIface = activeTunnelName;
-                lastSplitTunnelLockdownBackendLabel = "Kernel-WG";
-            }
+            lastSplitTunnelLockdownTunIface = activeTunnelName;
+            lastSplitTunnelLockdownBackendLabel = "Kernel-WG";
             appendRuntimeLogLine(
                 "Kernel-WG multi-user routing applied (table=" +
                     tunnelTableLookup +
@@ -5227,12 +5221,6 @@ public class ProxyTunnelService extends Service {
         if (!RootUtils.isRootAccessGranted(appContext)) {
             return;
         }
-        if (!AppPrefs.isRootSplitTunnelLockdownEnabled(appContext)) {
-            RootMultiUserRouter.clearQuietly(appContext);
-            lastSplitTunnelLockdownTunIface = null;
-            lastSplitTunnelLockdownBackendLabel = null;
-            return;
-        }
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
         boolean hasTun = !TextUtils.isEmpty(tunIface);
         if (!hasTun && systemProxyPorts.isEmpty()) {
@@ -5278,9 +5266,6 @@ public class ProxyTunnelService extends Service {
             return;
         }
         if (!RootUtils.isRootAccessGranted(getApplicationContext())) {
-            return;
-        }
-        if (!AppPrefs.isRootSplitTunnelLockdownEnabled(getApplicationContext())) {
             return;
         }
         String iface = lastSplitTunnelLockdownTunIface;

@@ -356,9 +356,9 @@ message RootSettings {
   optional bool kernel_wireguard = 2;
   optional bool xray_tproxy_mode = 3;
   string wg_interface_name = 4;
-  // Включает iptables OUTPUT REJECT для исключённых из туннеля приложений,
-  // пытающихся достучаться до tun-интерфейса. На клиенте по умолчанию on.
-  optional bool split_tunnel_lockdown = 5;
+  // Tag 5 (split_tunnel_lockdown) is reserved: lockdown is unconditional now.
+  reserved 5;
+  reserved "split_tunnel_lockdown";
 }
 
 message AppPreferences {
