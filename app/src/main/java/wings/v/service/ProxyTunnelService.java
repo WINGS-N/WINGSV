@@ -417,8 +417,18 @@ public class ProxyTunnelService extends Service {
     private boolean activeXrayProxyOnly;
     private boolean activeXrayTproxyMode;
     private Process tproxyXrayProcess;
+    // Signalled by the proxy output reader when xray-core logs that its TPROXY
+    // TCP listener bound. We watch the stdout marker instead of probing the
+    // port with a TCP connect: the connect path triggers xray's loopback check
+    // (since conn.LocalAddr() of a transparent socket equals listener ip:port,
+    // and IsLocal returns true for 127.0.0.1) which closes the probe and makes
+    // us time out into process.destroy() and SIGKILL the helper (exit 137).
+    private final AtomicBoolean tproxyListenerReady = new AtomicBoolean(false);
+    private Thread tproxyErrorLogTailer;
+    private volatile boolean tproxyErrorLogTailerStop;
     private static final int XRAY_TPROXY_PORT = 12345;
     private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
+    private static final String XRAY_TPROXY_LISTENER_LOG_MARKER = "listening TCP on";
     private static final long TPROXY_MARK_REFRESH_INTERVAL_MS = 1_000L;
     private long tproxyLoBaselineTxBytes = -1L;
     private long tproxyMarkAbsoluteBytes;
@@ -3685,6 +3695,7 @@ public class ProxyTunnelService extends Service {
                     while (line != null) {
                         appendProxyLogLine(line);
                         handleProxyEventLine(line);
+                        handleXrayTproxyListenerLine(line);
                         if (isProxyCaptchaRecoveryLine(line) && isIgnorableCaptchaError(sLastError)) {
                             clearLastError();
                         }
@@ -3704,6 +3715,62 @@ public class ProxyTunnelService extends Service {
         );
         outputReader.setDaemon(true);
         outputReader.start();
+    }
+
+    private void handleXrayTproxyListenerLine(String line) {
+        if (!activeXrayTproxyMode || tproxyListenerReady.get() || TextUtils.isEmpty(line)) {
+            return;
+        }
+        // Two paths fire readiness:
+        //
+        //  (a) xray-core's own log line from transport/internet/tcp/hub.go:
+        //        [Info] transport/internet/tcp: listening TCP on 0.0.0.0:12345
+        //      We pick it up by tailing the configured "error" log file (see
+        //      startXrayTproxyErrorLogTailer) because gomobile redirects the
+        //      Go runtime's stdout to logcat, which means the helper's stdout
+        //      pipe never sees this line.
+        //
+        //  (b) Our Java helper (RootXrayCommands.handle) prints PROXY_STATUS:ok
+        //      via System.out.println AFTER LibXray.runXrayFromJSON returns,
+        //      which only happens once xray-core is fully started and its
+        //      inbound listeners are bound. JVM stdout goes through the pipe
+        //      normally, so this acts as a primary signal.
+        if (matchesXrayTproxyListenerLogLine(line) || matchesRootHelperReadyMarker(line)) {
+            if (tproxyListenerReady.compareAndSet(false, true)) {
+                synchronized (tproxyListenerReady) {
+                    tproxyListenerReady.notifyAll();
+                }
+            }
+        }
+    }
+
+    private static boolean matchesXrayTproxyListenerLogLine(String line) {
+        int markerIdx = line.indexOf(XRAY_TPROXY_LISTENER_LOG_MARKER);
+        if (markerIdx < 0) {
+            return false;
+        }
+        String portTail = ":" + XRAY_TPROXY_PORT;
+        int portIdx = line.indexOf(portTail, markerIdx);
+        if (portIdx < 0) {
+            return false;
+        }
+        int after = portIdx + portTail.length();
+        if (after < line.length()) {
+            char next = line.charAt(after);
+            if (Character.isDigit(next)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean matchesRootHelperReadyMarker(String line) {
+        int markerIdx = line.indexOf("PROXY_STATUS:");
+        if (markerIdx < 0) {
+            return false;
+        }
+        String tail = line.substring(markerIdx + "PROXY_STATUS:".length()).trim().toLowerCase(Locale.US);
+        return tail.equals(PROXY_STATUS_OK);
     }
 
     private void handleProxyEventLine(String line) {
@@ -4596,6 +4663,8 @@ public class ProxyTunnelService extends Service {
         }
         resetTproxyTrafficBaselines();
         reapOrphanXrayTproxyRuntime(appContext);
+        tproxyListenerReady.set(false);
+        startXrayTproxyErrorLogTailer(appContext);
         Process process = RootUtils.spawnRootHelperProcess(
             appContext,
             "xray-tproxy",
@@ -4608,7 +4677,8 @@ public class ProxyTunnelService extends Service {
         );
         tproxyXrayProcess = process;
         startProxyOutputReader(process, new AtomicReference<>());
-        if (!waitForLocalListenerOnPort(XRAY_TPROXY_PORT, XRAY_TPROXY_LISTEN_TIMEOUT_MS, generation)) {
+        if (!waitForXrayTproxyListenerSignal(XRAY_TPROXY_LISTEN_TIMEOUT_MS, generation)) {
+            stopXrayTproxyErrorLogTailer();
             try {
                 process.destroy();
             } catch (Exception ignored) {}
@@ -4617,34 +4687,99 @@ public class ProxyTunnelService extends Service {
                 "Xray TPROXY listener не открылся на 0.0.0.0:" + XRAY_TPROXY_PORT + " за отведённое время"
             );
         }
+        stopXrayTproxyErrorLogTailer();
         appendRuntimeLogLine("Xray TPROXY runtime запущен под root, listener на :" + XRAY_TPROXY_PORT);
     }
 
-    private boolean waitForLocalListenerOnPort(int port, long timeoutMs, int generation) {
+    private boolean waitForXrayTproxyListenerSignal(long timeoutMs, int generation) {
         long deadline = SystemClock.elapsedRealtime() + Math.max(500L, timeoutMs);
-        while (SystemClock.elapsedRealtime() < deadline) {
-            try {
-                ensureRuntimeStillWanted(generation);
-            } catch (Exception interrupted) {
-                return false;
-            }
-            try (java.net.Socket socket = new java.net.Socket()) {
-                socket.connect(new InetSocketAddress("127.0.0.1", port), 250);
-                return true;
-            } catch (Exception ignored) {}
-            try {
-                Thread.sleep(150L);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return false;
+        synchronized (tproxyListenerReady) {
+            while (!tproxyListenerReady.get()) {
+                long remaining = deadline - SystemClock.elapsedRealtime();
+                if (remaining <= 0L) {
+                    return false;
+                }
+                try {
+                    ensureRuntimeStillWanted(generation);
+                } catch (Exception interrupted) {
+                    return false;
+                }
+                try {
+                    // Cap the wait so generation/cancellation can be re-checked
+                    // periodically even when xray is taking its time to log.
+                    tproxyListenerReady.wait(Math.min(remaining, 150L));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
             }
         }
-        return false;
+        return true;
+    }
+
+    // xray-core is spawned via gomobile's LibXray binding in our root helper;
+    // gomobile rewires the Go runtime's os.Stdout/os.Stderr to logcat, so the
+    // "listening TCP on 0.0.0.0:12345" line from transport/internet/tcp/hub.go
+    // never reaches the helper's stdout pipe that startProxyOutputReader is
+    // reading. xray-core does still honour its config "error" file path, so
+    // we tail that file and feed each line into handleXrayTproxyListenerLine.
+    // This also serves as a backstop in case the helper's own PROXY_STATUS:ok
+    // marker (printed via JVM System.out after LibXray.runXrayFromJSON returns)
+    // races with whatever else is consuming stdout.
+    private void startXrayTproxyErrorLogTailer(Context appContext) {
+        stopXrayTproxyErrorLogTailer();
+        tproxyErrorLogTailerStop = false;
+        File errorLog = new File(appContext.getFilesDir(), "xray/log/error.log");
+        Thread tailer = new Thread(
+            () -> {
+                long deadline = SystemClock.elapsedRealtime() + XRAY_TPROXY_LISTEN_TIMEOUT_MS + 5_000L;
+                long position = 0L;
+                while (!tproxyErrorLogTailerStop && SystemClock.elapsedRealtime() < deadline) {
+                    if (tproxyListenerReady.get()) {
+                        return;
+                    }
+                    try {
+                        if (errorLog.exists() && errorLog.length() > position) {
+                            try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(errorLog, "r")) {
+                                raf.seek(position);
+                                String line;
+                                while ((line = raf.readLine()) != null) {
+                                    handleXrayTproxyListenerLine(line);
+                                    if (tproxyListenerReady.get()) {
+                                        return;
+                                    }
+                                }
+                                position = raf.getFilePointer();
+                            }
+                        }
+                        Thread.sleep(100L);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Exception ignored) {
+                    }
+                }
+            },
+            "wingsv-xray-tproxy-log-tailer"
+        );
+        tailer.setDaemon(true);
+        tproxyErrorLogTailer = tailer;
+        tailer.start();
+    }
+
+    private void stopXrayTproxyErrorLogTailer() {
+        tproxyErrorLogTailerStop = true;
+        Thread tailer = tproxyErrorLogTailer;
+        tproxyErrorLogTailer = null;
+        if (tailer != null) {
+            tailer.interrupt();
+        }
     }
 
     private void stopTproxyXrayProcess() {
         Process process = tproxyXrayProcess;
         Context appContext = getApplicationContext();
+        stopXrayTproxyErrorLogTailer();
         // Always run the root-pkill sweep, even when the local Process handle is
         // already gone: Process.destroy() only hits the top-level su, the real
         // xray under app_process gets reparented to init and survives. The sweep
@@ -4672,10 +4807,26 @@ public class ProxyTunnelService extends Service {
 
     private void killOrphanXrayTproxyRuntime(Context appContext) {
         try {
+            // pkill -f matches against the FULL cmdline, including the pattern
+            // arg of any process running pkill (or its ancestor shell). If we
+            // pass the pattern literally, su/sh/app_process/RootCommandMain
+            // running this helper all carry the substring "RootCommandMain
+            // xray-tproxy" in their own argv, pkill matches them and SIGKILLs
+            // the chain. Java's runRootHelper sees su die with signal 9 and
+            // reports exit code 137. The orphan we actually wanted to kill
+            // also dies, but so does the helper that was supposed to report
+            // success, and the caller treats it as a failed cleanup.
+            //
+            // Workaround: build the pattern string at runtime via printf with
+            // an octal-escaped space (\040). The literal substring "wings.v.
+            // root.RootCommandMain xray-tproxy" never appears in any cmdline
+            // we control; the orphan's argv has it because it was launched
+            // with that argument vector directly, so it still matches.
             RootUtils.runRootHelper(
                 appContext,
                 "shell",
-                "pkill -KILL -f 'wings.v.root.RootCommandMain xray-tproxy' 2>/dev/null; true"
+                "P=$(printf 'wings.v.root.RootCommandMain\\040xray-tproxy'); " +
+                    "pkill -KILL -f \"$P\" 2>/dev/null; true"
             );
         } catch (Exception error) {
             appendRuntimeLogLine(
@@ -4703,8 +4854,8 @@ public class ProxyTunnelService extends Service {
      * Kills any leftover Xray TPROXY runtime spawned by a previous WINGSV process
      * that was force-killed before it could call {@link #stopTproxyXrayProcess()}.
      * The orphan keeps {@code :12345} bound, so a fresh spawn would silently lose
-     * the bind race while {@link #waitForLocalListenerOnPort(int, long, int)}
-     * still saw the old listener and reported a phantom success.
+     * the bind race while {@link #waitForXrayTproxyListenerSignal(long, int)} still
+     * matched the old listener's log marker and reported a phantom success.
      *
      * Match key is the cmdline emitted by {@link wings.v.core.RootUtils#buildRootHelperShellCommand}:
      * {@code app_process … wings.v.root.RootCommandMain xray-tproxy …}.
