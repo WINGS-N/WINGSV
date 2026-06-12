@@ -145,7 +145,8 @@ public final class XrayBridge {
         synchronized (JNI_LOCK) {
             RUNTIME_STARTED.set(false);
             File datDir = ensureDatDir(context);
-            String request = LibXray.newXrayRunFromJSONRequest(datDir.getAbsolutePath(), "", configJson, tunFd);
+            LibXray.setTunFd(tunFd);
+            String request = LibXray.newXrayRunFromJSONRequest(datDir.getAbsolutePath(), configJson);
             decodeResponse(LibXray.runXrayFromJSON(request));
             RUNTIME_STARTED.set(true);
         }
