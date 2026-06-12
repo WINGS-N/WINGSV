@@ -5,7 +5,13 @@ import android.text.TextUtils;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +36,15 @@ public final class XrayTproxyRouter {
     private static final String TAG = "XrayTproxyRouter";
     public static final int FWMARK = 0x1;
     public static final int ROUTE_TABLE = 100;
+    // Routing rule priority. Must beat Android per-network and per-UID rules,
+    // which live at 10000-22000 (per-network around 14000, secure VPN 12000,
+    // tethering 18000). Without an explicit pref, our rule slots wherever
+    // iproute2 sees fit and per-UID rules end up steering our marked DNS
+    // packets through the underlying wlan0/rmnet anyway. 13999 sits just
+    // before the per-UID fleet (14000+) and after secure-VPN (12000-13000),
+    // and unlike sub-10000 values the Knox/SELinux audit on some Samsung ROMs
+    // does not SIGKILL the helper for touching it.
+    private static final int RULE_PRIORITY = 13999;
     private static final String CHAIN_PRE = "WINGS_XRAY_TP_PRE";
     private static final String CHAIN_OUT = "WINGS_XRAY_TP_OUT";
     private static final String CHAIN_PRE6 = "WINGS_XRAY_TP_PRE6";
@@ -90,11 +105,26 @@ public final class XrayTproxyRouter {
             effectiveMode = AppRoutingMode.NONE;
         }
 
+        List<String> localV4 = enumerateLocalAddresses(4);
+        List<String> localV6 = enumerateLocalAddresses(6);
+
         StringBuilder s = new StringBuilder("set -e; ");
+        appendStageMarker(s, "route");
         appendRouteSetup(s);
 
         // IPv4 chains
+        appendStageMarker(s, "v4_chains");
         appendChainSetup(s, IPT4, CHAIN_PRE, CHAIN_OUT);
+        // PREROUTING: drop reply traffic whose destination is one of this
+        // device's own addresses BEFORE any TPROXY/DNS rule. Without this,
+        // responses from the proxy server arriving on wlan0/rmnet (dst =
+        // our public IP) get TPROXYed back into xray, which sees them as a
+        // fresh inbound connection looping to itself and logs "loopback
+        // connection detected". The xray runtime then leaks sockets/memory
+        // until the helper hits OOM and dies with SIGKILL (exit 137).
+        appendStageMarker(s, "v4_pre_localbypass");
+        appendLocalAddrBypass(s, IPT4, CHAIN_PRE, localV4);
+        appendStageMarker(s, "v4_pre_dns");
         // DNS capture in PREROUTING must precede the RFC1918 dest-bypass: in
         // TPROXY mode there is no VpnService.addDnsServer fallback, so netd
         // queries the underlying network's DHCP DNS (typically 192.168.x.x /
@@ -103,8 +133,11 @@ public final class XrayTproxyRouter {
         // (127/8) DNS stays bypassed in the rule that follows, so on-device
         // resolvers keep working.
         appendDnsCapture(s, IPT4, CHAIN_PRE, tproxyPort, false);
+        appendStageMarker(s, "v4_pre_destbypass");
         appendDestBypassV4(s, IPT4, CHAIN_PRE);
+        appendStageMarker(s, "v4_pre_tproxy");
         appendTproxyRules(s, IPT4, CHAIN_PRE, tproxyPort);
+        appendStageMarker(s, "v4_out_owner");
         // OUTPUT chain: owner exclusion for UID 0 (xray) MUST run before the
         // DNS capture rule, otherwise xray's own bootstrap UDP/53 query to
         // 1.1.1.1 (used to resolve the DoH endpoint host) gets marked, looped
@@ -113,21 +146,44 @@ public final class XrayTproxyRouter {
         // exclude wings.v's own UID, so app traffic stays routed via the
         // proxy when probing public IP endpoints.
         appendOwnerExclusion(s, IPT4, CHAIN_OUT, 0);
+        appendStageMarker(s, "v4_out_localbypass");
+        // Same local-address bypass on OUTPUT: locally generated traffic to
+        // our own IPs (e.g. localhost services, mdns, link-local) must not
+        // be marked and rerouted via lo into the TPROXY listener.
+        appendLocalAddrBypass(s, IPT4, CHAIN_OUT, localV4);
+        appendStageMarker(s, "v4_out_dns");
         appendDnsCapture(s, IPT4, CHAIN_OUT, tproxyPort, true);
+        appendStageMarker(s, "v4_out_destbypass");
         appendDestBypassV4(s, IPT4, CHAIN_OUT);
+        appendStageMarker(s, "v4_out_app");
         appendAppRouting(s, IPT4, CHAIN_OUT, effectiveMode, uids);
+        appendStageMarker(s, "v4_hooks");
         appendChainHooks(s, IPT4, CHAIN_PRE, CHAIN_OUT);
 
         // IPv6 chains
+        appendStageMarker(s, "v6_chains");
         appendChainSetup(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
+        appendStageMarker(s, "v6_pre_localbypass");
+        appendLocalAddrBypass(s, IPT6, CHAIN_PRE6, localV6);
+        appendStageMarker(s, "v6_pre_dns");
         appendDnsCapture(s, IPT6, CHAIN_PRE6, tproxyPort, false);
+        appendStageMarker(s, "v6_pre_destbypass");
         appendDestBypassV6(s, IPT6, CHAIN_PRE6);
+        appendStageMarker(s, "v6_pre_tproxy");
         appendTproxyRules(s, IPT6, CHAIN_PRE6, tproxyPort);
+        appendStageMarker(s, "v6_out_owner");
         appendOwnerExclusion(s, IPT6, CHAIN_OUT6, 0);
+        appendStageMarker(s, "v6_out_localbypass");
+        appendLocalAddrBypass(s, IPT6, CHAIN_OUT6, localV6);
+        appendStageMarker(s, "v6_out_dns");
         appendDnsCapture(s, IPT6, CHAIN_OUT6, tproxyPort, true);
+        appendStageMarker(s, "v6_out_destbypass");
         appendDestBypassV6(s, IPT6, CHAIN_OUT6);
+        appendStageMarker(s, "v6_out_app");
         appendAppRouting(s, IPT6, CHAIN_OUT6, effectiveMode, uids);
+        appendStageMarker(s, "v6_hooks");
         appendChainHooks(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
+        appendStageMarker(s, "done");
 
         RootShellCommand.exec(context, s.toString());
     }
@@ -136,14 +192,22 @@ public final class XrayTproxyRouter {
         StringBuilder s = new StringBuilder();
         appendChainTeardown(s, IPT4, CHAIN_PRE, CHAIN_OUT);
         appendChainTeardown(s, IPT6, CHAIN_PRE6, CHAIN_OUT6);
-        s.append("ip rule del fwmark ").append(FWMARK).append(" lookup ").append(ROUTE_TABLE).append(" 2>/dev/null; ");
-        s.append("ip route del local default dev lo table ").append(ROUTE_TABLE).append(" 2>/dev/null; ");
+        // Selector-based del (looped to wipe duplicates from previous sessions).
+        // Avoids `ip rule del pref <N>` which the Knox audit hook treats as a
+        // policy-routing manipulation worth SIGKILLing the helper shell over.
         s
-            .append("ip -6 rule del fwmark ")
+            .append("while ip rule del fwmark ")
             .append(FWMARK)
             .append(" lookup ")
             .append(ROUTE_TABLE)
-            .append(" 2>/dev/null; ");
+            .append(" 2>/dev/null; do :; done; true; ");
+        s.append("ip route del local default dev lo table ").append(ROUTE_TABLE).append(" 2>/dev/null; ");
+        s
+            .append("while ip -6 rule del fwmark ")
+            .append(FWMARK)
+            .append(" lookup ")
+            .append(ROUTE_TABLE)
+            .append(" 2>/dev/null; do :; done; true; ");
         s.append("ip -6 route del local default dev lo table ").append(ROUTE_TABLE).append(" 2>/dev/null; ");
         s.append("true;");
         RootShellCommand.exec(context, s.toString());
@@ -243,19 +307,46 @@ public final class XrayTproxyRouter {
     }
 
     private static void appendRouteSetup(StringBuilder s) {
+        // Drop the rule by its selector (fwmark + lookup) rather than by pref:
+        // on some Samsung ROMs the audit hook SIGKILLs the helper shell when
+        // it sees `ip rule del pref <N>`, regardless of the value. Looping
+        // del-by-selector also collapses any duplicates the previous session
+        // might have left behind.
+        appendStageMarker(s, "route.v4_rule_del");
         s
-            .append("ip rule add fwmark ")
+            .append("while ip rule del fwmark ")
+            .append(FWMARK)
+            .append(" lookup ")
+            .append(ROUTE_TABLE)
+            .append(" 2>/dev/null; do :; done; true; ");
+        appendStageMarker(s, "route.v6_rule_del");
+        s
+            .append("while ip -6 rule del fwmark ")
+            .append(FWMARK)
+            .append(" lookup ")
+            .append(ROUTE_TABLE)
+            .append(" 2>/dev/null; do :; done; true; ");
+        appendStageMarker(s, "route.v4_rule_add");
+        s
+            .append("ip rule add pref ")
+            .append(RULE_PRIORITY)
+            .append(" fwmark ")
             .append(FWMARK)
             .append(" lookup ")
             .append(ROUTE_TABLE)
             .append(" 2>/dev/null || true; ");
+        appendStageMarker(s, "route.v4_route_add");
         s.append("ip route add local default dev lo table ").append(ROUTE_TABLE).append(" 2>/dev/null || true; ");
+        appendStageMarker(s, "route.v6_rule_add");
         s
-            .append("ip -6 rule add fwmark ")
+            .append("ip -6 rule add pref ")
+            .append(RULE_PRIORITY)
+            .append(" fwmark ")
             .append(FWMARK)
             .append(" lookup ")
             .append(ROUTE_TABLE)
             .append(" 2>/dev/null || true; ");
+        appendStageMarker(s, "route.v6_route_add");
         s.append("ip -6 route add local default dev lo table ").append(ROUTE_TABLE).append(" 2>/dev/null || true; ");
     }
 
@@ -287,6 +378,88 @@ public final class XrayTproxyRouter {
         s.append(tool).append(" -t mangle -F ").append(out).append(" 2>/dev/null; ");
         s.append(tool).append(" -t mangle -X ").append(pre).append(" 2>/dev/null; ");
         s.append(tool).append(" -t mangle -X ").append(out).append(" 2>/dev/null; ");
+    }
+
+    // Inserts RETURN rules for every address currently assigned to a local
+    // interface (wlan/rmnet/lo/...). This is the static equivalent of
+    // -m addrtype --dst-type LOCAL: we cannot use xt_addrtype here because
+    // on some ROMs (notably Samsung One UI) the SELinux policy kills the
+    // helper shell with SIGKILL (exit 137) when iptables tries to load the
+    // addrtype match from app_process/su. Network-change reapply is wired
+    // through requestXrayTproxyReapplyIfNeeded, so the rule set is refreshed
+    // when wlan/rmnet IPs rotate.
+    private static void appendLocalAddrBypass(StringBuilder s, String tool, String chain, List<String> addrs) {
+        if (addrs == null || addrs.isEmpty()) {
+            return;
+        }
+        for (String addr : addrs) {
+            if (TextUtils.isEmpty(addr)) {
+                continue;
+            }
+            s.append(tool).append(" -t mangle -A ").append(chain).append(" -d ").append(addr).append(" -j RETURN; ");
+        }
+    }
+
+    // Emits a trace breadcrumb into the script's stdout. runRootHelper folds
+    // the captured stdout into the IllegalStateException message when exit
+    // code is non-zero, so when the helper is SIGKILLed mid-apply we get the
+    // name of the last reached stage in the runtime log.
+    private static void appendStageMarker(StringBuilder s, String stage) {
+        s.append("echo 'TPROXY_APPLY:").append(stage).append("'; ");
+    }
+
+    private static List<String> enumerateLocalAddresses(int family) {
+        List<String> addrs = new ArrayList<>();
+        try {
+            Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            if (ifaces == null) {
+                return addrs;
+            }
+            while (ifaces.hasMoreElements()) {
+                NetworkInterface iface = ifaces.nextElement();
+                if (iface == null) {
+                    continue;
+                }
+                List<InterfaceAddress> ifAddrs;
+                try {
+                    ifAddrs = iface.getInterfaceAddresses();
+                } catch (Exception ignored) {
+                    continue;
+                }
+                if (ifAddrs == null) {
+                    continue;
+                }
+                for (InterfaceAddress ifAddr : ifAddrs) {
+                    if (ifAddr == null) {
+                        continue;
+                    }
+                    InetAddress addr = ifAddr.getAddress();
+                    if (addr == null) {
+                        continue;
+                    }
+                    String host;
+                    if (family == 4 && addr instanceof Inet4Address) {
+                        host = addr.getHostAddress();
+                    } else if (family == 6 && addr instanceof Inet6Address) {
+                        host = addr.getHostAddress();
+                        if (host != null) {
+                            int pct = host.indexOf('%');
+                            if (pct >= 0) {
+                                host = host.substring(0, pct);
+                            }
+                        }
+                    } else {
+                        continue;
+                    }
+                    if (!TextUtils.isEmpty(host) && !addrs.contains(host)) {
+                        addrs.add(host);
+                    }
+                }
+            }
+        } catch (Exception error) {
+            Log.w(TAG, "enumerateLocalAddresses(family=" + family + ") failed", error);
+        }
+        return addrs;
     }
 
     private static void appendDestBypassV4(StringBuilder s, String tool, String chain) {
