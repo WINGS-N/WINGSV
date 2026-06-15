@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import wings.v.vk.VkCallStore;
 import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1002,6 +1003,7 @@ public final class AppPrefs {
         settings.vkLink = trim(prefs.getString(KEY_VK_LINK, ""));
         settings.vkLinks = readVkLinks(prefs, settings.vkLink);
         settings.vkLinkSecondary = trim(prefs.getString(KEY_VK_LINK_SECONDARY, ""));
+        settings.autoCreateVkCall = VkCallStore.isAutoCreateEnabled(context);
         if (!settings.vkLinks.isEmpty()) {
             settings.vkLink = settings.vkLinks.get(0);
         }

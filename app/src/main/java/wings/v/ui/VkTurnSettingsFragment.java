@@ -11,6 +11,7 @@ import android.text.InputType;
 import android.text.TextUtils;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -31,11 +32,18 @@ import wings.v.core.UiFormatter;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTransportMode;
 import wings.v.service.ProxyTunnelService;
+import wings.v.vk.VkCallStore;
+import wings.v.vk.VkIdManager;
 
 public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
     private static final String[] TURN_PROXY_PREFERENCE_KEYS = {
+        "pref_category_vk_calls",
+        VkCallStore.KEY_ACCOUNT,
+        VkCallStore.KEY_AUTO_CREATE,
+        VkCallStore.KEY_LAST_LINK,
+        "pref_inset_after_vk_calls",
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINKS_JSON,
@@ -55,6 +63,11 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_VK_TURN_USER_DNS,
     };
     private static final String[] VK_TURN_RELAY_PREFERENCE_KEYS = {
+        "pref_category_vk_calls",
+        VkCallStore.KEY_ACCOUNT,
+        VkCallStore.KEY_AUTO_CREATE,
+        VkCallStore.KEY_LAST_LINK,
+        "pref_inset_after_vk_calls",
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
         AppPrefs.KEY_VK_LINKS_JSON,
@@ -170,6 +183,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.remove("pref_category_awg_peer");
         RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_awg_peer");
         RUNTIME_AFFECTING_KEYS.remove(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE);
+        RUNTIME_AFFECTING_KEYS.remove("pref_category_vk_calls");
+        RUNTIME_AFFECTING_KEYS.remove(VkCallStore.KEY_ACCOUNT);
+        RUNTIME_AFFECTING_KEYS.remove(VkCallStore.KEY_LAST_LINK);
+        RUNTIME_AFFECTING_KEYS.remove("pref_inset_after_vk_calls");
     }
 
     private static void addPreferenceKeys(Set<String> target, String[] keys) {
@@ -216,6 +233,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindWrapGenerateKeyPreference();
         bindRawConfigPreference();
         bindImportFromClipboardPreference();
+        bindVkCallsPreferences();
 
         bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
         bindOpenVkLinksPreference();
@@ -255,6 +273,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(AppPrefs.KEY_NO_OBFUSCATION);
         bindSwitchHaptics(AppPrefs.KEY_MANUAL_CAPTCHA);
         bindSwitchHaptics(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE);
+        bindSwitchHaptics(VkCallStore.KEY_AUTO_CREATE);
 
         bindSecretPreference(AppPrefs.KEY_WG_PRIVATE_KEY);
         bindSecretPreference(AppPrefs.KEY_WG_PUBLIC_KEY);
@@ -398,6 +417,92 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             startActivity(wings.v.VkLinksActivity.createIntent(requireContext()));
             return true;
         });
+    }
+
+    private void bindVkCallsPreferences() {
+        Preference accountPreference = findPreference(VkCallStore.KEY_ACCOUNT);
+        if (accountPreference != null) {
+            accountPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                if (!VkIdManager.isConfigured()) {
+                    Toast.makeText(requireContext(), R.string.vk_calls_account_not_configured, Toast.LENGTH_LONG).show();
+                    return true;
+                }
+                if (VkIdManager.isAuthorized()) {
+                    new AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.vk_calls_logout_title)
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.vk_calls_logout_action, (dialog, which) ->
+                            VkIdManager.logout(requireContext(), vkIdCallback())
+                        )
+                        .show();
+                } else {
+                    VkIdManager.authorize(requireContext(), vkIdCallback());
+                }
+                return true;
+            });
+        }
+        Preference lastLinkPreference = findPreference(VkCallStore.KEY_LAST_LINK);
+        if (lastLinkPreference != null) {
+            lastLinkPreference.setOnPreferenceClickListener(preference -> {
+                String link = VkCallStore.getLastLink(requireContext());
+                if (TextUtils.isEmpty(link)) {
+                    return true;
+                }
+                ClipboardManager clipboard = (ClipboardManager) requireContext()
+                    .getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("VK Calls", link));
+                    Toast.makeText(requireContext(), R.string.vk_calls_last_link_copied, Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            });
+        }
+        updateVkCallsSummaries();
+    }
+
+    private VkIdManager.Callback vkIdCallback() {
+        return new VkIdManager.Callback() {
+            @Override
+            public void onSuccess(String summary) {
+                updateVkCallsSummaries();
+                Toast.makeText(requireContext(), R.string.vk_calls_auth_success, Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onError(String message) {
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.vk_calls_auth_failed, message),
+                    Toast.LENGTH_LONG
+                ).show();
+            }
+        };
+    }
+
+    private void updateVkCallsSummaries() {
+        Preference accountPreference = findPreference(VkCallStore.KEY_ACCOUNT);
+        if (accountPreference != null) {
+            if (!VkIdManager.isConfigured()) {
+                accountPreference.setSummary(R.string.vk_calls_account_not_configured);
+            } else if (!VkIdManager.isAuthorized()) {
+                accountPreference.setSummary(R.string.vk_calls_account_signed_out);
+            } else {
+                String summary = VkIdManager.accountSummary();
+                accountPreference.setSummary(
+                    getString(R.string.vk_calls_account_signed_in, TextUtils.isEmpty(summary) ? "VK ID" : summary)
+                );
+            }
+        }
+        Preference lastLinkPreference = findPreference(VkCallStore.KEY_LAST_LINK);
+        if (lastLinkPreference != null) {
+            String link = VkCallStore.getLastLink(requireContext());
+            lastLinkPreference.setSummary(
+                TextUtils.isEmpty(link)
+                    ? getString(R.string.vk_calls_last_link_empty)
+                    : getString(R.string.vk_calls_last_link_copy, link)
+            );
+        }
     }
 
     private void bindWrapKeyPreference() {
@@ -588,6 +693,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         try {
             ProxySettings settings = AppPrefs.getSettings(requireContext());
 
+            syncSwitchPreference(VkCallStore.KEY_AUTO_CREATE, settings.autoCreateVkCall);
+            updateVkCallsSummaries();
             syncEditTextPreference(AppPrefs.KEY_ENDPOINT, settings.endpoint);
             updateOpenVkLinksSummary(settings.vkLinks == null ? 0 : settings.vkLinks.size());
             syncEditTextPreference(AppPrefs.KEY_THREADS, String.valueOf(settings.threads));

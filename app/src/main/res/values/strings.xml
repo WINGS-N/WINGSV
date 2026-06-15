@@ -112,6 +112,23 @@
     <string name="vk_turn_user_dns_title">Custom DNS resolvers</string>
     <string name="vk_turn_user_dns_summary">Add custom DNS in front of the built-in list (Yandex → Google → Cloudflare). One per line.</string>
     <string name="vk_turn_user_dns_dialog_message">Formats:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — plain UDP\n• 77.88.8.8 — same, plain UDP/53\nEntries that don\'t respond on bootstrap are dropped; the built-in list remains as fallback.</string>
+    <string name="vk_calls_category_title">VK Calls</string>
+    <string name="vk_calls_account_title">VK ID account</string>
+    <string name="vk_calls_account_signed_out">Not signed in. Tap to authorize.</string>
+    <string name="vk_calls_account_not_configured">VK ID is not configured in this build</string>
+    <string name="vk_calls_account_signed_in">Signed in as %1$s. Tap to sign out.</string>
+    <string name="vk_calls_auth_success">VK ID authorization completed</string>
+    <string name="vk_calls_auth_failed">VK ID error: %1$s</string>
+    <string name="vk_calls_logout_title">Sign out of VK ID?</string>
+    <string name="vk_calls_logout_action">Sign out</string>
+    <string name="vk_calls_auto_create_title">Create a VK call automatically</string>
+    <string name="vk_calls_auto_create_summary">Before each vk-turn-proxy launch, create a call through calls.start and use its join link</string>
+    <string name="vk_calls_last_link_title">Last created call link</string>
+    <string name="vk_calls_last_link_empty">A link will appear after VK TURN starts</string>
+    <string name="vk_calls_last_link_copy">Tap to copy: %1$s</string>
+    <string name="vk_calls_last_link_copied">VK call link copied</string>
+    <string name="vk_oauth_title">VK authorization</string>
+    <string name="cancel">Cancel</string>
     <string name="vk_turn_wrap_category_title">Obfuscation / WRAP</string>
     <string name="vk_turn_wrap_mode_title">WRAP mode</string>
     <string name="vk_turn_wrap_mode_summary">SRTP-mimicry obfuscation of DTLS bytes inside TURN ChannelData (bypasses VK TURN content filter). Off = transparent, Preferred/Required wrap every datagram.</string>

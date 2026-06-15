@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/vk_oauth_title">
+
+    <LinearLayout
+        android:id="@+id/oauth_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="12dp">
+
+        <ProgressBar
+            android:id="@+id/progress_oauth"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:indeterminate="true" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:layout_weight="1"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <FrameLayout
+                android:id="@+id/webview_oauth_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_surface_card"
+                android:clipChildren="true"
+                android:clipToPadding="true" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+    </LinearLayout>
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

@@ -84,6 +84,29 @@ git submodule update --init --recursive
 - `go`
 - `gomobile`
 
+## VK ID и автоматическое создание звонков
+
+Чтобы WINGS V мог авторизовать пользователя через публичный OAuth flow VK и
+вызывать `calls.start` перед запуском `vk-turn-proxy`, используется WebView
+с URL вида:
+
+```text
+https://oauth.vk.com/authorize?client_id=2685278&scope=1073737727&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1
+```
+
+По умолчанию сборка использует публичный `client_id=2685278`. Если нужно
+собрать приложение со своим VK OAuth app id, добавьте только `client_id` в
+пользовательский `~/.gradle/gradle.properties`:
+
+```properties
+vkid.clientId=12345678
+```
+
+В настройках VK TURN войдите в VK ID и включите
+«Автоматически создавать VK звонок». Полученная `join_link` автоматически
+передаётся в `vk-turn-proxy` через `-vk-link`; последнюю ссылку можно
+посмотреть и скопировать на том же экране.
+
 ## Release
 
 GitHub Actions собирают:

@@ -17,6 +17,7 @@ import wings.v.core.ThemeModeController;
 import wings.v.core.XraySubscriptionBackgroundScheduler;
 import wings.v.service.ProxyTunnelService;
 import wings.v.service.RuntimeStateStore;
+import wings.v.vk.VkIdManager;
 
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AtLeastOneConstructor" })
 public class WingsApplication extends Application {
@@ -34,6 +35,7 @@ public class WingsApplication extends Application {
         if (!isMainProcess()) {
             return;
         }
+        VkIdManager.initialize(this);
         wings.v.core.AppPrefs.runMigrationsIfNeeded(this);
         registerActivityLifecycleCallbacks(
             new ActivityLifecycleCallbacks() {

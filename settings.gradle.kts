@@ -1,3 +1,5 @@
+import java.util.Properties
+
 pluginManagement {
     repositories {
         google {
@@ -9,6 +11,8 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven("https://artifactory-external.vkpartner.ru/artifactory/vkid-sdk-android/")
+        maven("https://artifactory-external.vkpartner.ru/artifactory/maven/")
     }
 }
 
@@ -22,9 +26,20 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven("https://jitpack.io")
+        maven("https://artifactory-external.vkpartner.ru/artifactory/vkid-sdk-android/")
+        maven("https://artifactory-external.vkpartner.ru/artifactory/maven/")
+        maven("https://artifactory-external.vkpartner.ru/artifactory/vk-id-captcha/android/")
 
+        val localProperties = Properties().apply {
+            val file = rootDir.resolve("local.properties")
+            if (file.isFile) {
+                file.inputStream().use(::load)
+            }
+        }
         val seslUser = providers.gradleProperty("seslUser").orNull
+            ?: localProperties.getProperty("seslUser")
         val seslToken = providers.gradleProperty("seslToken").orNull
+            ?: localProperties.getProperty("seslToken")
 
         if (!seslUser.isNullOrBlank() && !seslToken.isNullOrBlank()) {
             maven {

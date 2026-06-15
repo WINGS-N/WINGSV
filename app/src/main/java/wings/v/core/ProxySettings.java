@@ -24,6 +24,7 @@ public class ProxySettings {
     public String endpoint;
     public String vkLink;
     public java.util.List<String> vkLinks = new java.util.ArrayList<>();
+    public boolean autoCreateVkCall = true;
 
     public String vkLinkSecondary = "";
     /** Многострочный список user-defined DNS-резолверов для vk-turn-proxy.
@@ -76,7 +77,7 @@ public class ProxySettings {
                 if (TextUtils.isEmpty(endpoint)) {
                     return "Endpoint не заполнен";
                 }
-                if (TextUtils.isEmpty(vkLink)) {
+                if (!autoCreateVkCall && TextUtils.isEmpty(vkLink)) {
                     return "VK Link не заполнен";
                 }
                 if (TextUtils.isEmpty(localEndpoint)) {
@@ -95,7 +96,7 @@ public class ProxySettings {
                 if (TextUtils.isEmpty(endpoint)) {
                     return "Endpoint не заполнен";
                 }
-                if (TextUtils.isEmpty(vkLink)) {
+                if (!autoCreateVkCall && TextUtils.isEmpty(vkLink)) {
                     return "VK Link не заполнен";
                 }
                 if (TextUtils.isEmpty(localEndpoint)) {
@@ -119,7 +120,7 @@ public class ProxySettings {
             return "Endpoint не заполнен";
         }
         if (backendType != null && backendType.usesTurnProxy()) {
-            if (TextUtils.isEmpty(vkLink)) {
+            if (!autoCreateVkCall && TextUtils.isEmpty(vkLink)) {
                 return "VK Link не заполнен";
             }
             if (TextUtils.isEmpty(localEndpoint)) {

@@ -3,12 +3,14 @@ package wings.v.service;
 import android.content.Context;
 import android.os.SystemClock;
 import android.text.TextUtils;
-import android.util.AtomicFile;
 import androidx.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
@@ -21,6 +23,7 @@ public final class RuntimeStateStore {
     static final String STATE_RUNNING = "RUNNING";
 
     private static final String STATE_FILE_NAME = "wingsv_runtime_state.properties";
+    private static final String STATE_LOCK_FILE_NAME = "wingsv_runtime_state.lock";
     private static final String RUNTIME_LOG_FILE_NAME = "wingsv_runtime.log";
     private static final String PROXY_LOG_FILE_NAME = "wingsv_proxy.log";
     private static final long MAX_LOG_BYTES = 256L * 1024L;
@@ -288,38 +291,55 @@ public final class RuntimeStateStore {
         if (appContext == null || editor == null) {
             return;
         }
-        Properties properties = readProperties();
-        editor.edit(properties);
-        writeProperties(properties);
+        File lockFile = stateLockFile();
+        if (lockFile == null) {
+            return;
+        }
+        try (
+            RandomAccessFile randomAccessFile = new RandomAccessFile(lockFile, "rw");
+            FileChannel channel = randomAccessFile.getChannel();
+            FileLock ignored = channel.lock()
+        ) {
+            Properties properties = readProperties();
+            editor.edit(properties);
+            writeProperties(properties);
+        } catch (Exception ignored) {}
     }
 
     private static Properties readProperties() {
         Properties properties = new Properties();
-        AtomicFile atomicFile = stateAtomicFile();
-        if (atomicFile == null) {
+        File file = stateFile();
+        if (file == null || !file.isFile()) {
             return properties;
         }
-        try (FileInputStream input = atomicFile.openRead()) {
+        try (FileInputStream input = new FileInputStream(file)) {
             properties.load(input);
         } catch (Exception ignored) {}
         return properties;
     }
 
     private static void writeProperties(Properties properties) {
-        AtomicFile atomicFile = stateAtomicFile();
-        if (atomicFile == null) {
+        File file = stateFile();
+        if (file == null) {
             return;
         }
-        FileOutputStream output = null;
-        try {
-            output = atomicFile.startWrite();
+        File tempFile = new File(file.getParentFile(), STATE_FILE_NAME + ".tmp");
+        try (FileOutputStream output = new FileOutputStream(tempFile, false)) {
             properties.store(output, null);
-            atomicFile.finishWrite(output);
+            output.getFD().sync();
+            if (file.isFile() && !file.delete()) {
+                return;
+            }
+            if (!tempFile.renameTo(file)) {
+                return;
+            }
             cachedSnapshot = null;
             cachedSnapshotAtElapsedMs = 0L;
         } catch (Exception ignored) {
-            if (output != null) {
-                atomicFile.failWrite(output);
+            // Runtime state is ephemeral; the next update will recreate it.
+        } finally {
+            if (tempFile.isFile()) {
+                tempFile.delete();
             }
         }
     }
@@ -328,9 +348,8 @@ public final class RuntimeStateStore {
         return appContext != null ? new File(appContext.getFilesDir(), STATE_FILE_NAME) : null;
     }
 
-    private static AtomicFile stateAtomicFile() {
-        File file = stateFile();
-        return file != null ? new AtomicFile(file) : null;
+    private static File stateLockFile() {
+        return appContext != null ? new File(appContext.getFilesDir(), STATE_LOCK_FILE_NAME) : null;
     }
 
     private static File runtimeLogFile() {

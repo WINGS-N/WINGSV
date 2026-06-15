@@ -120,7 +120,13 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         inputFields.clear();
 
         addInput(container, AppPrefs.KEY_ENDPOINT, R.string.first_launch_vk_turn_endpoint, true, false);
-        addInput(container, AppPrefs.KEY_VK_LINK, R.string.first_launch_vk_turn_vk_link, true, true);
+        addInput(
+            container,
+            AppPrefs.KEY_VK_LINK,
+            R.string.first_launch_vk_turn_vk_link,
+            !wings.v.vk.VkCallStore.isAutoCreateEnabled(requireContext()),
+            true
+        );
         addInput(container, AppPrefs.KEY_THREADS, R.string.first_launch_vk_turn_threads, true, false);
 
         useUdpCheckBox = addCheckBox(container, R.string.first_launch_vk_turn_use_udp);
@@ -474,6 +480,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             settings.vkLinks.add(settings.vkLink);
         }
         settings.vkLinkSecondary = AppPrefs.getVkLinkSecondary(requireContext());
+        settings.autoCreateVkCall = wings.v.vk.VkCallStore.isAutoCreateEnabled(requireContext());
         settings.threads = parsePositiveInt(text(AppPrefs.KEY_THREADS), 24);
         settings.useUdp = useUdpCheckBox == null || useUdpCheckBox.isChecked();
         settings.noObfuscation = noObfuscationCheckBox != null && noObfuscationCheckBox.isChecked();

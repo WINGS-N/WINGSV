@@ -111,6 +111,7 @@ import wings.v.qs.QuickSettingsTiles;
 import wings.v.root.server.RootProcessResult;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
 import wings.v.vpnhotspot.bridge.sharing.VpnHotspotSharingConfig;
+import wings.v.vk.VkCallsApi;
 import wings.v.xray.XrayBridge;
 import wings.v.xray.XrayConfigFactory;
 
@@ -2771,11 +2772,12 @@ public class ProxyTunnelService extends Service {
 
     private long startProxyProcess(ProxySettings settings, int generation) throws Exception {
         String launchError = null;
+        String launchVkLink = resolveVkLinkForLaunch(settings);
         for (int attempt = 1; attempt <= PROXY_START_MAX_ATTEMPTS; attempt++) {
             ensureRuntimeStillWanted(generation);
             AtomicReference<String> launchOutputError = new AtomicReference<>();
             resetProxyWarmupState();
-            Process launchedProcess = buildProxyProcess(settings);
+            Process launchedProcess = buildProxyProcess(settings, launchVkLink);
             long launchedAt = SystemClock.elapsedRealtime();
             lastProxyStartedAtElapsedMs = launchedAt;
             startProxyOutputReader(launchedProcess, launchOutputError);
@@ -2799,6 +2801,16 @@ public class ProxyTunnelService extends Service {
         }
 
         throw new IllegalStateException(firstNonEmpty(launchError, "Не удалось запустить proxy"));
+    }
+
+    private String resolveVkLinkForLaunch(ProxySettings settings) throws Exception {
+        if (settings == null || !settings.autoCreateVkCall) {
+            return joinVkLinks(settings);
+        }
+        appendRuntimeLogLine("Creating VK Calls room");
+        String joinLink = VkCallsApi.createAndStoreJoinLink(getApplicationContext());
+        appendRuntimeLogLine("VK Calls room created: " + joinLink);
+        return joinLink;
     }
 
     /** Передаём собственные DNS-резолверы юзера в vk-turn-proxy через
@@ -2839,7 +2851,7 @@ public class ProxyTunnelService extends Service {
         return settings.vkLink == null ? "" : settings.vkLink.trim();
     }
 
-    private Process buildProxyProcess(ProxySettings settings) throws Exception {
+    private Process buildProxyProcess(ProxySettings settings, String launchVkLink) throws Exception {
         File executable = new File(getApplicationInfo().nativeLibraryDir, "libvkturn.so");
         if (!executable.isFile()) {
             throw new IllegalStateException("VK TURN binary not found: " + executable.getAbsolutePath());
@@ -2857,7 +2869,7 @@ public class ProxyTunnelService extends Service {
         command.add("-peer");
         command.add(settings.endpoint);
         command.add("-vk-link");
-        command.add(joinVkLinks(settings));
+        command.add(launchVkLink);
         command.add("-listen");
         command.add(settings.localEndpoint);
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {

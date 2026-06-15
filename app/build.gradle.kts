@@ -28,6 +28,12 @@ val localPropertiesFile: File = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use(localProperties::load)
 }
+val defaultVkOauthClientId = "2685278"
+val vkidClientId: String = (
+    providers.gradleProperty("vkid.clientId").orNull
+        ?: localProperties.getProperty("vkid.clientId")
+)?.trim().orEmpty().ifEmpty { defaultVkOauthClientId }
+val vkidConfigured: Boolean = vkidClientId.matches(Regex("""\d+"""))
 val hasReleaseSigning: Boolean = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all {
     !keystoreProperties.getProperty(it).isNullOrBlank()
 }
@@ -133,10 +139,24 @@ fun resolveAndroidNdkDir(): File {
         ?: error("Android NDK not found. Install it under the Android SDK or set ANDROID_NDK_HOME.")
 }
 
+fun resolveAndroidNdkPrebuiltBinDir(): File {
+    val prebuiltRoot: File = resolveAndroidNdkDir().resolve("toolchains/llvm/prebuilt")
+    val osName: String = System.getProperty("os.name").lowercase()
+    val preferredNames: List<String> = when {
+        osName.contains("mac") -> listOf("darwin-x86_64", "darwin-aarch64")
+        osName.contains("win") -> listOf("windows-x86_64")
+        else -> listOf("linux-x86_64")
+    }
+    val prebuiltDir: File? = preferredNames
+        .map(prebuiltRoot::resolve)
+        .firstOrNull { it.isDirectory }
+        ?: prebuiltRoot.listFiles()?.firstOrNull { it.isDirectory }
+    return prebuiltDir?.resolve("bin")
+        ?: error("Android NDK prebuilt toolchain not found under ${prebuiltRoot.absolutePath}")
+}
+
 fun resolveVkTurnAndroidClang(): File {
-    val ndkDir: File = resolveAndroidNdkDir()
-    val prebuilt: File = ndkDir.resolve("toolchains/llvm/prebuilt/linux-x86_64/bin")
-    val clang: File = prebuilt.resolve("aarch64-linux-android21-clang")
+    val clang: File = resolveAndroidNdkPrebuiltBinDir().resolve("aarch64-linux-android21-clang")
     return clang.takeIf { it.isFile }
         ?: error("Android clang not found at ${clang.absolutePath}")
 }
@@ -379,7 +399,7 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
                     append(File.pathSeparator)
                     append(File(resolveAndroidSdkDir(), "tools/bin").absolutePath)
                     append(File.pathSeparator)
-                    append(File(resolveAndroidNdkDir(), "toolchains/llvm/prebuilt/linux-x86_64/bin").absolutePath)
+                    append(resolveAndroidNdkPrebuiltBinDir().absolutePath)
                     append(File.pathSeparator)
                     append(libXrayGoBinDir.absolutePath)
                     append(File.pathSeparator)
@@ -588,6 +608,8 @@ android {
 
         val telegramUrl = (project.findProperty("wingsv.telegramUrl") as String?)?.trim().orEmpty()
         buildConfigField("String", "TELEGRAM_URL", "\"${telegramUrl}\"")
+        buildConfigField("boolean", "VK_ID_CONFIGURED", vkidConfigured.toString())
+        buildConfigField("String", "VK_CLIENT_ID", "\"${vkidClientId}\"")
     }
 
     signingConfigs {

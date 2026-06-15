@@ -127,6 +127,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".vk.VkOAuthActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".SubscriptionHwidSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

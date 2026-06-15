@@ -3,6 +3,27 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
+        android:key="pref_category_vk_calls"
+        android:title="@string/vk_calls_category_title" />
+
+    <Preference
+        android:key="pref_vk_calls_account"
+        android:title="@string/vk_calls_account_title" />
+
+    <SwitchPreferenceCompat
+        android:key="pref_vk_calls_auto_create"
+        android:title="@string/vk_calls_auto_create_title"
+        android:summary="@string/vk_calls_auto_create_summary"
+        android:defaultValue="false" />
+
+    <Preference
+        android:key="pref_vk_calls_last_link"
+        android:title="@string/vk_calls_last_link_title" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_vk_calls" />
+
+    <PreferenceCategory
         android:key="pref_category_vk_proxy"
         android:title="Proxy" />
 
