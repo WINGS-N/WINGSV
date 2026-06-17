@@ -741,6 +741,10 @@ public class MainActivity extends AppCompatActivity {
     private WingsImportParser.ImportedConfig pendingImport;
 
     private void promptToImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
+        if (parsed.hasGuardian && !TextUtils.isEmpty(parsed.guardianAdminUsername)) {
+            promptToImportGuardian(rawData, parsed);
+            return;
+        }
         String summary = ImportConfigSummary.forUser(this, parsed);
         new AlertDialog.Builder(this)
             .setTitle(R.string.import_confirm_title)
@@ -751,6 +755,126 @@ public class MainActivity extends AppCompatActivity {
             )
             .show();
     }
+
+    private void promptToImportGuardian(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
+        android.view.View view = android.view.LayoutInflater.from(this).inflate(
+            R.layout.dialog_guardian_import_confirm,
+            null
+        );
+        android.widget.TextView usernameView = view.findViewById(R.id.guardian_import_username);
+        android.widget.TextView descriptionView = view.findViewById(R.id.guardian_import_description);
+        android.widget.ImageView avatarView = view.findViewById(R.id.guardian_import_avatar_image);
+        android.widget.ProgressBar loaderView = view.findViewById(R.id.guardian_import_avatar_loader);
+        avatarView.setClipToOutline(true);
+        avatarView.setOutlineProvider(
+            new android.view.ViewOutlineProvider() {
+                @Override
+                public void getOutline(android.view.View v, android.graphics.Outline outline) {
+                    outline.setOval(0, 0, v.getWidth(), v.getHeight());
+                }
+            }
+        );
+        usernameView.setText(parsed.guardianAdminUsername);
+        descriptionView.setText(getString(R.string.guardian_import_description, parsed.guardianAdminUsername));
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.import_confirm_title)
+            .setView(view)
+            .setPositiveButton(R.string.import_confirm_apply, (d, which) -> beginApplyImport(rawData, parsed))
+            .setNegativeButton(android.R.string.cancel, (d, which) ->
+                Toast.makeText(this, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show()
+            )
+            .create();
+        prefetchGuardianAdminAvatar(parsed, dialog, loaderView, avatarView);
+        dialog.show();
+    }
+
+    private void prefetchGuardianAdminAvatar(
+        @NonNull WingsImportParser.ImportedConfig parsed,
+        @NonNull androidx.appcompat.app.AlertDialog hostDialog,
+        @NonNull android.widget.ProgressBar loaderView,
+        @NonNull android.widget.ImageView avatarView
+    ) {
+        // Always try a fetch when an admin id is present: a missing /
+        // outdated avatar_version (panel build that did not yet wire that
+        // field, or a default placeholder admin) is no reason to hide the
+        // spinner before we even hit the network. The server responds 404
+        // for admins without a custom upload and we then fall back to the
+        // placeholder background.
+        if (parsed.guardianAdminId <= 0) {
+            loaderView.setVisibility(View.GONE);
+            return;
+        }
+        String url = buildGuardianAdminAvatarUrl(parsed);
+        if (TextUtils.isEmpty(url)) {
+            loaderView.setVisibility(View.GONE);
+            return;
+        }
+        loaderView.setVisibility(View.VISIBLE);
+        java.util.concurrent.atomic.AtomicBoolean cancelled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        hostDialog.setOnDismissListener(d -> cancelled.set(true));
+        Handler mainHandler = new Handler(Looper.getMainLooper());
+        importExecutor.execute(() -> {
+            android.graphics.Bitmap bitmap = downloadGuardianAvatar(url);
+            if (cancelled.get()) {
+                return;
+            }
+            mainHandler.post(() -> {
+                if (cancelled.get()) {
+                    return;
+                }
+                loaderView.setVisibility(View.GONE);
+                if (bitmap != null) {
+                    avatarView.setImageBitmap(bitmap);
+                }
+                // On miss (server returned 404 or network failed) keep the
+                // shipped default avatar that the layout already loaded.
+            });
+        });
+    }
+
+    @Nullable
+    private String buildGuardianAdminAvatarUrl(@NonNull WingsImportParser.ImportedConfig parsed) {
+        String wsUrl = parsed.guardianWsUrl;
+        if (TextUtils.isEmpty(wsUrl)) {
+            return null;
+        }
+        String httpBase;
+        if (wsUrl.startsWith("wss://")) {
+            httpBase = "https://" + wsUrl.substring("wss://".length());
+        } else if (wsUrl.startsWith("ws://")) {
+            httpBase = "http://" + wsUrl.substring("ws://".length());
+        } else {
+            httpBase = wsUrl;
+        }
+        int pathStart = httpBase.indexOf('/', httpBase.indexOf("://") + 3);
+        String origin = pathStart < 0 ? httpBase : httpBase.substring(0, pathStart);
+        return origin + "/api/admin/avatars/" + parsed.guardianAdminId + ".png?v=" + parsed.guardianAdminAvatarVersion;
+    }
+
+    @Nullable
+    private android.graphics.Bitmap downloadGuardianAvatar(@NonNull String url) {
+        java.net.HttpURLConnection conn = null;
+        try {
+            conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            conn.setConnectTimeout(5_000);
+            conn.setReadTimeout(5_000);
+            int code = conn.getResponseCode();
+            if (code < 200 || code >= 300) {
+                return null;
+            }
+            try (java.io.InputStream in = conn.getInputStream()) {
+                return android.graphics.BitmapFactory.decodeStream(in);
+            }
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    private final ExecutorService importExecutor = Executors.newSingleThreadExecutor();
 
     private void beginApplyImport(@NonNull String rawData, @NonNull WingsImportParser.ImportedConfig parsed) {
         if (GuardianImportGate.needsConfirmation(parsed)) {

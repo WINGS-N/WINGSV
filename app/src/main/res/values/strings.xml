@@ -138,6 +138,8 @@
     <string name="import_confirm_title">Import configuration?</string>
     <string name="import_confirm_apply">Import</string>
     <string name="import_confirm_cancelled">Import cancelled</string>
+    <string name="guardian_import_avatar_content_description">Administrator avatar</string>
+    <string name="guardian_import_description">%1$s wants to connect your client to the WINGS V management panel</string>
     <string name="clipboard_copy_success">Configuration copied to clipboard</string>
     <string name="clipboard_copy_failed">Failed to build configuration</string>
     <string name="action_delete">Delete</string>
