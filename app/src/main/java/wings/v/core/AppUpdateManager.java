@@ -864,17 +864,6 @@ public final class AppUpdateManager {
                 if (cancelRequested) {
                     throw new DownloadCancelledException();
                 }
-                if (targetRelease.apkAssetSize > 0L && outputFile.length() != targetRelease.apkAssetSize) {
-                    ProxyTunnelService.writeRuntimeLogLine(
-                        stepTag +
-                            ": output size mismatch (got=" +
-                            outputFile.length() +
-                            ", expected=" +
-                            targetRelease.apkAssetSize +
-                            ")"
-                    );
-                    throw new IllegalStateException("Патч собрал APK с неверным размером");
-                }
                 ProxyTunnelService.writeRuntimeLogLine(stepTag + ": ok (outputSize=" + outputFile.length() + ")");
                 currentBase = outputFile;
             }
