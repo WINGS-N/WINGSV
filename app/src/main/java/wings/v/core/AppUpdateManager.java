@@ -35,6 +35,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -199,6 +200,13 @@ public final class AppUpdateManager {
                 updateState(UpdateState.updateAvailable(releaseInfo, "Загрузка отменена"));
             } catch (Exception error) {
                 if (currentPlan.hasPatchChain()) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "App update patch chain failed: " +
+                            describeThrowable(error) +
+                            " (" +
+                            error.getClass().getSimpleName() +
+                            "); falling back to full APK download"
+                    );
                     try {
                         updateState(
                             UpdateState.downloading(
@@ -215,9 +223,23 @@ public final class AppUpdateManager {
                     } catch (DownloadCancelledException ignored) {
                         updateState(UpdateState.updateAvailable(releaseInfo, "Загрузка отменена"));
                     } catch (Exception fallbackError) {
+                        ProxyTunnelService.writeRuntimeLogLine(
+                            "App update full APK fallback also failed: " +
+                                describeThrowable(fallbackError) +
+                                " (" +
+                                fallbackError.getClass().getSimpleName() +
+                                ")"
+                        );
                         updateState(UpdateState.error(describeThrowable(fallbackError), releaseInfo));
                     }
                 } else {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "App update full download failed: " +
+                            describeThrowable(error) +
+                            " (" +
+                            error.getClass().getSimpleName() +
+                            ")"
+                    );
                     updateState(UpdateState.error(describeThrowable(error), releaseInfo));
                 }
             } finally {
@@ -749,11 +771,23 @@ public final class AppUpdateManager {
         long totalBytes = Math.max(MIN_CONTENT_LENGTH_BYTES, updatePlan.totalPatchBytes());
         long startedAt = System.currentTimeMillis();
         long downloadedBytes = 0L;
+        ProxyTunnelService.writeRuntimeLogLine(
+            "App update patch chain start: latest=" +
+                latestRelease.tagName +
+                " steps=" +
+                updatePlan.patchSteps.size() +
+                " base=" +
+                installedApk.getName() +
+                " baseSize=" +
+                installedApk.length()
+        );
         try {
             if (targetFile.getParentFile() != null) {
                 targetFile.getParentFile().mkdirs();
             }
+            int stepIndex = 0;
             for (PatchStep patchStep : updatePlan.patchSteps) {
+                stepIndex++;
                 ReleaseInfo targetRelease = patchStep.targetRelease;
                 File patchFile = buildTempPatchFile(targetRelease);
                 File outputFile = buildTempPatchedApkFile(targetRelease);
@@ -761,30 +795,87 @@ public final class AppUpdateManager {
                 deleteQuietly(outputFile);
                 temporaryFiles.add(patchFile);
                 temporaryFiles.add(outputFile);
-                downloadedBytes = downloadAssetToFile(
-                    latestRelease,
-                    targetRelease.patchAssetUrl,
-                    targetRelease.patchAssetSize,
-                    patchFile,
-                    totalBytes,
-                    downloadedBytes,
-                    startedAt
+                String stepTag =
+                    "App update patch step " +
+                    stepIndex +
+                    "/" +
+                    updatePlan.patchSteps.size() +
+                    " " +
+                    targetRelease.tagName;
+                ProxyTunnelService.writeRuntimeLogLine(
+                    stepTag + ": downloading patch (expectedSize=" + targetRelease.patchAssetSize + ")"
                 );
-                verifyDownloadedFile(
-                    patchFile,
-                    new ChecksumInfo(targetRelease.patchChecksumAlgorithm, targetRelease.patchChecksumUrl)
-                );
-                applyPatchFile(latestRelease, currentBase, patchFile, outputFile, targetRelease.apkAssetSize);
-                verifyDownloadedFile(
-                    outputFile,
-                    new ChecksumInfo(targetRelease.apkChecksumAlgorithm, targetRelease.apkChecksumUrl)
-                );
+                try {
+                    downloadedBytes = downloadAssetToFile(
+                        latestRelease,
+                        targetRelease.patchAssetUrl,
+                        targetRelease.patchAssetSize,
+                        patchFile,
+                        totalBytes,
+                        downloadedBytes,
+                        startedAt
+                    );
+                } catch (Exception error) {
+                    ProxyTunnelService.writeRuntimeLogLine(stepTag + ": download failed: " + describeThrowable(error));
+                    throw error;
+                }
+                try {
+                    verifyDownloadedFile(
+                        patchFile,
+                        new ChecksumInfo(targetRelease.patchChecksumAlgorithm, targetRelease.patchChecksumUrl)
+                    );
+                } catch (Exception error) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        stepTag + ": patch checksum mismatch: " + describeThrowable(error)
+                    );
+                    throw error;
+                }
+                try {
+                    applyPatchFile(latestRelease, currentBase, patchFile, outputFile, targetRelease.apkAssetSize);
+                } catch (Exception error) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        stepTag +
+                            ": zstd apply failed (baseSize=" +
+                            currentBase.length() +
+                            ", patchSize=" +
+                            patchFile.length() +
+                            "): " +
+                            describeThrowable(error)
+                    );
+                    throw error;
+                }
+                try {
+                    verifyDownloadedFile(
+                        outputFile,
+                        new ChecksumInfo(targetRelease.apkChecksumAlgorithm, targetRelease.apkChecksumUrl)
+                    );
+                } catch (Exception error) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        stepTag +
+                            ": output APK checksum mismatch (outputSize=" +
+                            outputFile.length() +
+                            ", expectedSize=" +
+                            targetRelease.apkAssetSize +
+                            "): " +
+                            describeThrowable(error)
+                    );
+                    throw error;
+                }
                 if (cancelRequested) {
                     throw new DownloadCancelledException();
                 }
                 if (targetRelease.apkAssetSize > 0L && outputFile.length() != targetRelease.apkAssetSize) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        stepTag +
+                            ": output size mismatch (got=" +
+                            outputFile.length() +
+                            ", expected=" +
+                            targetRelease.apkAssetSize +
+                            ")"
+                    );
                     throw new IllegalStateException("Патч собрал APK с неверным размером");
                 }
+                ProxyTunnelService.writeRuntimeLogLine(stepTag + ": ok (outputSize=" + outputFile.length() + ")");
                 currentBase = outputFile;
             }
             replaceWithTarget(currentBase, targetFile);
