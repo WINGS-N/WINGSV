@@ -1936,15 +1936,23 @@ public class ProxyTunnelService extends Service {
         if (settings == null || !settings.launchOnXrayStart) {
             return;
         }
-        if (TextUtils.isEmpty(protectSocketName)) {
+        // TUN-backed VPN runtime requires the protect-socket bridge: ByeDPI's
+        // upstream dials would otherwise loop back through the TUN under the
+        // VpnService's catch-all default route and never reach the network.
+        // TPROXY runtime has no TUN and the helper bypasses our mangle rules
+        // via the UID 0 owner exclusion, so protect(fd) is neither needed nor
+        // available.
+        boolean requireProtect = !activeXrayTproxyMode;
+        if (requireProtect && TextUtils.isEmpty(protectSocketName)) {
             throw new IllegalStateException("ByeDPI protect socket не инициализирован");
         }
         byeDpiNative = new ByeDpiNative();
         byeDpiFrontProxyActive = true;
         byeDpiDialHost = settings.resolveRuntimeDialHost();
         byeDpiDialPort = settings.resolveRuntimeListenPort();
-        List<String> arguments = settings.buildRuntimeArguments(protectSocketName);
-        if (!containsProtectPathArgument(arguments)) {
+        String byeDpiProtectPath = requireProtect ? protectSocketName : null;
+        List<String> arguments = settings.buildRuntimeArguments(byeDpiProtectPath);
+        if (requireProtect && !containsProtectPathArgument(arguments)) {
             throw new IllegalStateException("ByeDPI должен стартовать только с protect(fd)");
         }
         appendRuntimeLogLine("Starting ByeDPI front proxy on " + byeDpiDialHost + ":" + byeDpiDialPort);

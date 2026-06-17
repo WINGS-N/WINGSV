@@ -32,6 +32,8 @@ public final class XrayStore {
     private static final String RUNTIME_PREFS_NAME = "wingsv_xray_runtime";
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
     private static final int DEFAULT_HTTP_PROXY_PORT = 10809;
+    private static final int DEFAULT_TUN_UID_LOOKUP_TIMEOUT_MS = 50;
+    private static final int MAX_TUN_UID_LOOKUP_TIMEOUT_MS = 1000;
     private static final String DEFAULT_LOCAL_LISTEN_ADDRESS = "127.0.0.1";
     private static final String DEFAULT_SUBSCRIPTION_URL =
         "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt";
@@ -101,6 +103,15 @@ public final class XrayStore {
         settings.directDns = trim(prefs.getString(AppPrefs.KEY_XRAY_DIRECT_DNS, DEFAULT_DIRECT_DNS));
         settings.ipv6 = prefs.getBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, true);
         settings.sniffingEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, true);
+        settings.tunUidLookupTimeoutMs = clampTunUidLookupTimeoutMs(
+            parseInt(
+                prefs.getString(
+                    AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS,
+                    String.valueOf(DEFAULT_TUN_UID_LOOKUP_TIMEOUT_MS)
+                ),
+                DEFAULT_TUN_UID_LOOKUP_TIMEOUT_MS
+            )
+        );
         settings.proxyQuicEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, false);
         settings.restartOnNetworkChange = prefs.getBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, false);
         settings.runtimeMode = ProxyRuntimeMode.fromPrefValue(
@@ -159,6 +170,10 @@ public final class XrayStore {
             )
             .putBoolean(AppPrefs.KEY_XRAY_IPV6_ENABLED, value.ipv6)
             .putBoolean(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, value.sniffingEnabled)
+            .putString(
+                AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS,
+                String.valueOf(clampTunUidLookupTimeoutMs(value.tunUidLookupTimeoutMs))
+            )
             .putBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, value.proxyQuicEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
             .putString(
@@ -673,6 +688,16 @@ public final class XrayStore {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    private static int clampTunUidLookupTimeoutMs(int value) {
+        if (value < 0) {
+            return 0;
+        }
+        if (value > MAX_TUN_UID_LOOKUP_TIMEOUT_MS) {
+            return MAX_TUN_UID_LOOKUP_TIMEOUT_MS;
+        }
+        return value;
     }
 
     private static boolean hasSubscriptionWithUrl(List<XraySubscription> subscriptions, String url) {
