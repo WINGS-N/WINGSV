@@ -331,7 +331,7 @@ public final class XrayConfigFactory {
             JSONObject tunSettings = new JSONObject();
             tunSettings.put("MTU", DEFAULT_MTU);
             tunSettings.put("user_level", 0);
-            applyTunUidFilter(context, tunSettings);
+            applyTunUidFilter(context, tunSettings, settings);
             tunInbound.put("settings", tunSettings);
             tunInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(tunInbound);
@@ -637,7 +637,8 @@ public final class XrayConfigFactory {
     // xray and drop it when it does not match. See
     // external/Xray-core/proxy/tun/uid_lookup_linux.go for the lookup, and
     // proxy/tun/stack_gvisor.go for the enforcement point.
-    private static void applyTunUidFilter(Context context, JSONObject tunSettings) throws Exception {
+    private static void applyTunUidFilter(Context context, JSONObject tunSettings, XraySettings xraySettings)
+        throws Exception {
         if (context == null) {
             return;
         }
@@ -664,6 +665,16 @@ public final class XrayConfigFactory {
         } else {
             // Allowlist mode: only listed packages are tunneled, drop everyone else.
             tunSettings.put("allowedUids", uidArray);
+        }
+        // Unresolved /proc/net UID is now always treated as a filter failure
+        // and the connection is dropped, closing the SO_BINDTODEVICE escape
+        // route. To absorb the race between an app opening sockets in rapid
+        // succession (Tor pulling 6+ guards at once, SSH multiplexing) and
+        // the kernel publishing those sockets in /proc/net/tcp*, gVisor will
+        // retry the lookup every ~5 ms for up to uidLookupTimeoutMs before
+        // dropping. 0 disables retries entirely.
+        if (xraySettings != null && xraySettings.tunUidLookupTimeoutMs > 0) {
+            tunSettings.put("uidLookupTimeoutMs", xraySettings.tunUidLookupTimeoutMs);
         }
     }
 

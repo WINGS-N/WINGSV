@@ -52,6 +52,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_DIRECT_DNS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_RUNTIME_MODE);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TRANSPORT_MODE);
@@ -86,6 +87,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
+        bindNumeric(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
         bindSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE);
         bindRuntimeMode(AppPrefs.KEY_XRAY_RUNTIME_MODE);
@@ -222,6 +224,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         syncSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED, settings.httpProxyAuthEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED, settings.ipv6);
         syncSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED, settings.sniffingEnabled);
+        syncEditText(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS, String.valueOf(settings.tunUidLookupTimeoutMs));
         syncSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, settings.proxyQuicEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, settings.restartOnNetworkChange);
         syncDropDown(

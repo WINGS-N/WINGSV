@@ -112,6 +112,7 @@ public final class AppPrefs {
     public static final String KEY_XRAY_DIRECT_DNS = "pref_xray_direct_dns";
     public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
+    public static final String KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS = "pref_xray_tun_uid_lookup_timeout_ms";
     public static final String KEY_XRAY_PROXY_QUIC_ENABLED = "pref_xray_proxy_quic_enabled";
     public static final String KEY_XRAY_RESTART_ON_NETWORK_CHANGE = "pref_xray_restart_on_network_change";
     public static final String KEY_XRAY_RUNTIME_MODE = "pref_xray_runtime_mode";

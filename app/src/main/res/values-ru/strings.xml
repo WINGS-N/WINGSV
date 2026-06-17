@@ -770,6 +770,8 @@
     <string name="xray_settings_ipv6_summary">Использовать IPv6 в Xray runtime</string>
     <string name="xray_settings_sniffing_title">Sniffing</string>
     <string name="xray_settings_sniffing_summary">Определение destination по traffic sniffing для прозрачного режима</string>
+    <string name="xray_settings_tun_uid_lookup_timeout_title">Таймаут UID lookup (мс)</string>
+    <string name="xray_settings_tun_uid_lookup_timeout_summary">Время ожидания публикации UID нового TCP/UDP соединения в /proc/net, прежде чем фильтр по приложениям его дропнет. Помогает Tor/SSH, открывающим много сокетов за секунду — даёт ядру время их зарегистрировать. 0 отключает retry. Рекомендуется: 50</string>
     <string name="xray_settings_proxy_quic_title">Проксировать QUIC-трафик</string>
     <string name="xray_settings_proxy_quic_summary">Разрешить отправку UDP/443 через Xray. Если выключено, QUIC блокируется и приложения откатываются на TCP</string>
     <string name="xray_settings_restart_on_network_change_title">Перезапускать Xray при смене сетевого интерфейса</string>
