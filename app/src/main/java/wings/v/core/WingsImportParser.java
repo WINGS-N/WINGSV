@@ -1001,6 +1001,9 @@ public final class WingsImportParser {
         importedConfig.guardianClientName = g.getClientName() == null ? "" : g.getClientName();
         importedConfig.guardianSyncMode = fromProtoSyncMode(g.getSyncMode());
         importedConfig.guardianPeriodicIntervalMinutes = g.getPeriodicIntervalMinutes();
+        importedConfig.guardianAdminUsername = g.getAdminUsername() == null ? "" : g.getAdminUsername();
+        importedConfig.guardianAdminId = g.getAdminId();
+        importedConfig.guardianAdminAvatarVersion = g.getAdminAvatarVersion();
     }
 
     private static String fromProtoSyncMode(WingsvProto.GuardianSyncMode mode) {
@@ -2895,6 +2898,9 @@ public final class WingsImportParser {
         public String guardianClientName;
         public String guardianSyncMode;
         public int guardianPeriodicIntervalMinutes;
+        public String guardianAdminUsername;
+        public long guardianAdminId;
+        public long guardianAdminAvatarVersion;
         public boolean hasSubscriptionHwid;
         public Boolean subscriptionHwidEnabled;
         public Boolean subscriptionHwidManualEnabled;

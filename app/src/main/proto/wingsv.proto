@@ -52,6 +52,13 @@ message Guardian {
   string client_name = 4;
   GuardianSyncMode sync_mode = 5;
   uint32 periodic_interval_minutes = 6;
+  // Admin (panel operator) who issued this config push. WINGS V renders the
+  // import confirmation card with the admin's identity: admin_username is
+  // shown verbatim; the client derives the avatar URL as
+  // {ws_url base}/api/admin/avatars/{admin_id}.png?v={admin_avatar_version}.
+  string admin_username = 7;
+  int64 admin_id = 8;
+  int64 admin_avatar_version = 9;
 }
 
 enum GuardianSyncMode {
