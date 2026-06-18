@@ -591,10 +591,15 @@ android {
 
         // VK OAuth client_id for the autolink generator. Configured per-build via
         // -Pvkid.clientId=... or local.properties (vkid.clientId=...). When unset
-        // the autolink UI surfaces "VK API не настроен" and falls back to manual entry.
-        val vkidClientId: String =
+        // we fall back to the public "VK Stickers" client_id (2685278) so the
+        // autolink button stays usable until we register our own Standalone app
+        // via the legacy vk.com/editapp?act=create form. Override locally to
+        // your own id once registration goes through.
+        val fallbackVkidClientId = "2685278"
+        val vkidClientId: String = (
             ((project.findProperty("vkid.clientId") as String?)
                 ?: localProperties.getProperty("vkid.clientId"))?.trim().orEmpty()
+        ).ifEmpty { fallbackVkidClientId }
         val vkidConfigured = vkidClientId.matches(Regex("""\d+"""))
         buildConfigField("String", "VK_OAUTH_CLIENT_ID", "\"${vkidClientId}\"")
         buildConfigField("boolean", "VK_OAUTH_CONFIGURED", vkidConfigured.toString())
