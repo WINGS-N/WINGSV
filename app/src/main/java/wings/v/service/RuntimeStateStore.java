@@ -314,6 +314,12 @@ public final class RuntimeStateStore {
         try {
             output = atomicFile.startWrite();
             properties.store(output, null);
+            // fsync the staged data before letting AtomicFile do its rename
+            // dance. Without it, a system kill / power cut between rename and
+            // page-cache flush can leave the rotated file pointing at zero
+            // bytes — the previous .bak is gone too, so the next read starts
+            // from a blank state. One fsync per state mutation is cheap.
+            output.getFD().sync();
             atomicFile.finishWrite(output);
             cachedSnapshot = null;
             cachedSnapshotAtElapsedMs = 0L;
