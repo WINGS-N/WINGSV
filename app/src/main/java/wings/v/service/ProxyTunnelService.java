@@ -110,6 +110,7 @@ import wings.v.core.XrayTransportMode;
 import wings.v.qs.QuickSettingsTiles;
 import wings.v.root.server.RootProcessResult;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
+import wings.v.vpnhotspot.bridge.VpnHotspotSharingBridge;
 import wings.v.vpnhotspot.bridge.sharing.VpnHotspotSharingConfig;
 import wings.v.xray.XrayBridge;
 import wings.v.xray.XrayConfigFactory;
@@ -4589,7 +4590,7 @@ public class ProxyTunnelService extends Service {
             return;
         }
         try {
-            VpnHotspotBridge.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
+            VpnHotspotSharingBridge.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
@@ -4616,7 +4617,7 @@ public class ProxyTunnelService extends Service {
     }
 
     private void clearRootTetherRouting() {
-        VpnHotspotBridge.stopSharing(getApplicationContext());
+        VpnHotspotSharingBridge.stopSharing(getApplicationContext());
         appliedTetherUpstreamName = null;
         lastTetherSyncInterfaces = null;
         lastTetherSyncUpstream = null;

@@ -30,7 +30,7 @@ import wings.v.core.Haptics;
 import wings.v.core.XrayStore;
 import wings.v.databinding.ActivitySharingTargetSettingsBinding;
 import wings.v.service.ProxyTunnelService;
-import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
+import wings.v.vpnhotspot.bridge.VpnHotspotSharingBridge;
 
 @SuppressWarnings(
     {
@@ -339,7 +339,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         updateSwitch(binding.itemDhcpWorkaround, AppPrefs.isSharingDhcpWorkaroundEnabled(this));
         updateSwitch(binding.itemRepeaterSafeMode, AppPrefs.isSharingRepeaterSafeModeEnabled(this));
         updateSwitch(binding.itemTempHotspotUseSystem, AppPrefs.isSharingTempHotspotUseSystemEnabled(this));
-        updateSwitch(binding.rowTetherOffload, VpnHotspotBridge.isTetherOffloadEnabled(this));
+        updateSwitch(binding.rowTetherOffload, VpnHotspotSharingBridge.isTetherOffloadEnabled(this));
         binding.rowTetherOffload.setEnabled(!tetherOffloadOperationInFlight);
     }
 
@@ -380,7 +380,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         workExecutor.execute(() -> {
             String error = null;
             try {
-                VpnHotspotBridge.setTetherOffloadEnabled(appContext, enabled);
+                VpnHotspotSharingBridge.setTetherOffloadEnabled(appContext, enabled);
                 if (ProxyTunnelService.isActive()) {
                     appContext.startService(ProxyTunnelService.createReapplySharingIntent(appContext));
                 }
