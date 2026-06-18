@@ -82,44 +82,37 @@
                 <dev.oneuiproject.oneui.widget.CardItemView
                     android:id="@+id/row_masquerade_mode"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:drawableEnd="@drawable/ic_selected_apps_disclosure" />
+                    android:layout_height="wrap_content" />
 
                 <dev.oneuiproject.oneui.widget.CardItemView
                     android:id="@+id/row_wifi_lock"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:drawableEnd="@drawable/ic_selected_apps_disclosure" />
+                    android:layout_height="wrap_content" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
                     android:id="@+id/row_tether_offload"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:separateSwitch="true" />
+                    android:layout_height="wrap_content" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
                     android:id="@+id/item_disable_ipv6"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:separateSwitch="true" />
+                    android:layout_height="wrap_content" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
                     android:id="@+id/item_dhcp_workaround"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:separateSwitch="true" />
+                    android:layout_height="wrap_content" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
                     android:id="@+id/item_repeater_safe_mode"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:separateSwitch="true" />
+                    android:layout_height="wrap_content" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
                     android:id="@+id/item_temp_hotspot_use_system"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:separateSwitch="true"
                     app:showBottomDivider="false" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
         </LinearLayout>

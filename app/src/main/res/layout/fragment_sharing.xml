@@ -175,7 +175,6 @@
                 android:id="@+id/row_masquerade_mode"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:drawableEnd="@drawable/ic_selected_apps_disclosure"
                 app:showBottomDivider="false" />
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
@@ -215,7 +214,8 @@
                 android:id="@+id/item_auto_start_services"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:showBottomDivider="false" />
+                app:showBottomDivider="false"
+                app:showTopDivider="false" />
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
     </LinearLayout>
