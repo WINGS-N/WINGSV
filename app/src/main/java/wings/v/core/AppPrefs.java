@@ -209,6 +209,7 @@ public final class AppPrefs {
     public static final String KEY_GUARDIAN_LOG_XRAY_ALLOWED = "pref_guardian_log_xray_allowed";
     public static final String KEY_GUARDIAN_SYNC_MODE = "pref_guardian_sync_mode";
     public static final String KEY_GUARDIAN_PERIODIC_MINUTES = "pref_guardian_periodic_minutes";
+    public static final String KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS = "pref_guardian_tunnel_fallback_until_ms";
 
     public static final String GUARDIAN_SYNC_MODE_ALWAYS = "always";
     public static final String GUARDIAN_SYNC_MODE_PERIODIC = "periodic";
@@ -451,6 +452,14 @@ public final class AppPrefs {
             .putBoolean(KEY_GUARDIAN_LOG_PROXY_ALLOWED, proxy)
             .putBoolean(KEY_GUARDIAN_LOG_XRAY_ALLOWED, xray)
             .apply();
+    }
+
+    public static long getGuardianTunnelFallbackUntilMs(Context context) {
+        return prefs(context).getLong(KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS, 0L);
+    }
+
+    public static void setGuardianTunnelFallbackUntilMs(Context context, long untilMs) {
+        prefs(context).edit().putLong(KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS, Math.max(0L, untilMs)).apply();
     }
 
     public static String getRootWireGuardInterfaceNameTemplate(Context context) {

@@ -46,6 +46,18 @@ public final class GuardianClient {
     // backoff. Иначе сценарий "успешный ServerHello -> мгновенный close" гасит
     // backoff в 3с и крутит цикл reconnect каждые 3-3 секунды.
     private static final long BACKOFF_RESET_STABLE_MS = 30_000L;
+    // Сколько подряд phy-привязанных попыток должны не достичь onOpen, прежде
+    // чем перейти на default (туннельный) клиент. С VK TURN + WireGuard phy
+    // bind иногда вешает соединение в кор-фильтр оператора, и единственная
+    // рабочая сеть остаётся через сам туннель. Перепробуем phy на следующем
+    // network-event либо после окончания tunnel-fallback TTL.
+    private static final int PHY_FAILURES_BEFORE_TUNNEL_FALLBACK = 2;
+    // Как долго после "phy не работает" мы стартуем все будущие попытки сразу
+    // через туннель, не тратя бюджет на новые phy-таймауты. 6 часов покрывает
+    // обычный VK TURN сеанс и не залипает на сутки, если оператор уже
+    // отпустил блок. Пересматривается на каждом network-change и при первом
+    // же успешном sub-30-секундном WS на phy.
+    private static final long TUNNEL_FALLBACK_TTL_MS = 6L * 60L * 60L * 1000L;
 
     private final Context appContext;
     private final Handler mainHandler;
@@ -56,6 +68,8 @@ public final class GuardianClient {
     private OkHttpClient currentClient;
     private WebSocket socket;
     private boolean phyBindActive;
+    private int phyFailureStreak;
+    private boolean tunnelFallbackActive;
     private long backoffMs = INITIAL_BACKOFF_MS;
     private boolean stopped;
     private Runnable scheduledConnect;
@@ -96,9 +110,39 @@ public final class GuardianClient {
     public void start() {
         mainHandler.post(() -> {
             stopped = false;
+            // Persisted tunnel-fallback hint survives process death / WorkManager
+            // re-spawn so the periodic 30s sync does not burn its whole budget
+            // on phy timeouts when we already know phy bind is broken. The
+            // hint is only meaningful while a VPN is actually active: with no
+            // VPN the default route is phy itself, so explicit phy bind is
+            // fine to try and skipping it would be a pointless regression.
+            long until = AppPrefs.getGuardianTunnelFallbackUntilMs(appContext);
+            boolean hintFresh = until > 0L && System.currentTimeMillis() < until;
+            if (hintFresh && isDefaultRouteVpn()) {
+                tunnelFallbackActive = true;
+            } else if (until > 0L) {
+                AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
+            }
             attemptConnect(0L);
             registerNetworkCallback();
         });
+    }
+
+    private boolean isDefaultRouteVpn() {
+        ConnectivityManager cm = appContext.getSystemService(ConnectivityManager.class);
+        if (cm == null) {
+            return false;
+        }
+        try {
+            Network active = cm.getActiveNetwork();
+            if (active == null) {
+                return false;
+            }
+            android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(active);
+            return caps != null && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     public void stop() {
@@ -172,13 +216,15 @@ public final class GuardianClient {
     }
 
     private OkHttpClient buildClientForAttempt() {
-        Network phy = DirectNetworkConnection.findUsablePhysicalNetwork(appContext);
-        if (phy != null) {
-            try {
-                phyBindActive = true;
-                return defaultClient.newBuilder().socketFactory(phy.getSocketFactory()).build();
-            } catch (Exception ignored) {
-                phyBindActive = false;
+        if (!tunnelFallbackActive) {
+            Network phy = DirectNetworkConnection.findUsablePhysicalNetwork(appContext);
+            if (phy != null) {
+                try {
+                    phyBindActive = true;
+                    return defaultClient.newBuilder().socketFactory(phy.getSocketFactory()).build();
+                } catch (Exception ignored) {
+                    phyBindActive = false;
+                }
             }
         }
         phyBindActive = false;
@@ -230,6 +276,16 @@ public final class GuardianClient {
         }
         Network phy = DirectNetworkConnection.findUsablePhysicalNetwork(appContext);
         boolean phyAvailable = phy != null;
+        // A real network change is a fresh chance for phy: reset the fallback
+        // memory so the next buildClientForAttempt() tries phy bind again.
+        // Persisted hint is also wiped so the next periodic worker tries phy.
+        if (tunnelFallbackActive || phyFailureStreak > 0) {
+            tunnelFallbackActive = false;
+            phyFailureStreak = 0;
+            if (AppPrefs.getGuardianTunnelFallbackUntilMs(appContext) > 0L) {
+                AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
+            }
+        }
         boolean shouldReconnect = false;
         if (socket == null) {
             // Not connected; let the regular schedule run.
@@ -290,6 +346,16 @@ public final class GuardianClient {
     private void maybeResetBackoffOnStable() {
         if (connectedAtMs > 0 && System.currentTimeMillis() - connectedAtMs >= BACKOFF_RESET_STABLE_MS) {
             backoffMs = INITIAL_BACKOFF_MS;
+            // Connection survived long enough to count as healthy on whatever
+            // route it is using right now; clear the phy-fallback memory so
+            // the next disconnect starts fresh.
+            phyFailureStreak = 0;
+            // A stable connection on phy means phy bind is working again. Wipe
+            // the persisted tunnel-fallback hint so periodic worker spawns
+            // also try phy first.
+            if (!tunnelFallbackActive && AppPrefs.getGuardianTunnelFallbackUntilMs(appContext) > 0L) {
+                AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
+            }
         }
     }
 
@@ -530,6 +596,24 @@ public final class GuardianClient {
     private void handleDisconnected() {
         cancelHeartbeat();
         cancelWatchdog();
+        // Transport never reached onOpen, consider it a phy failure if we
+        // were riding through phy. After PHY_FAILURES_BEFORE_TUNNEL_FALLBACK
+        // back-to-back misses we drop the phy preference and try the default
+        // route (which carries us through the active tunnel). Reset on the
+        // next network-event so a recovered phy is tried again.
+        if (connectedAtMs == 0L && phyBindActive && !tunnelFallbackActive) {
+            phyFailureStreak++;
+            if (phyFailureStreak >= PHY_FAILURES_BEFORE_TUNNEL_FALLBACK) {
+                tunnelFallbackActive = true;
+                AppPrefs.setGuardianTunnelFallbackUntilMs(
+                    appContext,
+                    System.currentTimeMillis() + TUNNEL_FALLBACK_TTL_MS
+                );
+                ProxyTunnelService.writeRuntimeLogLine(
+                    "[guardian] phy bind failed " + phyFailureStreak + " times in a row, falling back to tunnel route"
+                );
+            }
+        }
         socket = null;
         mainHandler.post(listener::onDisconnected);
         if (!stopped) {
