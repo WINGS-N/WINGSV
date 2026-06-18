@@ -40,6 +40,10 @@ public final class AppPrefs {
     public static final String KEY_VK_LINK = "pref_vk_link";
     public static final String KEY_VK_LINKS_JSON = "pref_vk_links_json";
     public static final String KEY_VK_LINK_SECONDARY = "pref_vk_link_secondary";
+    public static final String KEY_VK_OAUTH_ACCESS_TOKEN = "pref_vk_oauth_access_token";
+    public static final String KEY_VK_OAUTH_EXPIRES_AT_SECONDS = "pref_vk_oauth_expires_at_seconds";
+    public static final String KEY_VK_OAUTH_USER_ID = "pref_vk_oauth_user_id";
+    public static final String KEY_VK_OAUTH_PENDING_STATE = "pref_vk_oauth_pending_state";
     public static final String KEY_OPEN_VK_LINKS = "pref_open_vk_links";
     public static final String KEY_THREADS = "pref_threads";
     public static final String KEY_CREDS_GROUP_SIZE = "pref_creds_group_size";

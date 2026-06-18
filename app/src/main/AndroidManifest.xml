@@ -97,6 +97,12 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".VkOAuthActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".WarningConfirmActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

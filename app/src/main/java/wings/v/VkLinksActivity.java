@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -14,6 +16,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -30,10 +34,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.databinding.ActivityVkLinksBinding;
 import wings.v.service.ProxyTunnelService;
+import wings.v.vk.VkCallsApi;
+import wings.v.vk.VkOAuthAuth;
 
 @SuppressWarnings(
     {
@@ -60,6 +68,21 @@ public class VkLinksActivity extends AppCompatActivity {
     private final ArrayList<String> links = new ArrayList<>();
     private LinkAdapter adapter;
     private ItemTouchHelper itemTouchHelper;
+    private final ExecutorService autolinkExecutor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean autolinkInFlight;
+    private boolean autoPromptShown;
+
+    private final ActivityResultLauncher<Intent> oauthLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (result.getResultCode() == VkOAuthActivity.RESULT_AUTHORIZED) {
+                runJoinLinkGeneration();
+            } else {
+                autolinkInFlight = false;
+            }
+        }
+    );
 
     public static Intent createIntent(Context context) {
         return new Intent(context, VkLinksActivity.class);
@@ -79,6 +102,10 @@ public class VkLinksActivity extends AppCompatActivity {
             Haptics.softSelection(view);
             showAddDialog();
         });
+        binding.rowAutolinkVk.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            startAutolinkFlow();
+        });
         binding.rowVkLinkSecondary.setOnClickListener(view -> {
             Haptics.softSelection(view);
             showSecondaryDialog();
@@ -93,12 +120,104 @@ public class VkLinksActivity extends AppCompatActivity {
 
         loadLinks();
         renderSecondary();
+        maybeOfferAutolinkOnEmpty();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        autolinkExecutor.shutdownNow();
         binding = null;
+    }
+
+    private void maybeOfferAutolinkOnEmpty() {
+        if (autoPromptShown || !links.isEmpty() || !VkOAuthAuth.isClientConfigured()) {
+            return;
+        }
+        autoPromptShown = true;
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.vk_links_autolink_prompt_title)
+            .setMessage(R.string.vk_links_autolink_prompt_message)
+            .setPositiveButton(R.string.vk_links_autolink_prompt_yes, (dialog, which) -> startAutolinkFlow())
+            .setNegativeButton(R.string.vk_links_autolink_prompt_no, null)
+            .show();
+    }
+
+    private void startAutolinkFlow() {
+        if (autolinkInFlight) {
+            return;
+        }
+        if (!VkOAuthAuth.isClientConfigured()) {
+            Toast.makeText(this, R.string.vk_links_autolink_unconfigured, Toast.LENGTH_LONG).show();
+            return;
+        }
+        autolinkInFlight = true;
+        if (VkOAuthAuth.isAuthorized(getApplicationContext())) {
+            runJoinLinkGeneration();
+            return;
+        }
+        oauthLauncher.launch(VkOAuthActivity.createIntent(this));
+    }
+
+    private void runJoinLinkGeneration() {
+        showAutolinkLoader();
+        autolinkExecutor.execute(() -> {
+            String error = null;
+            String joinLink = null;
+            try {
+                joinLink = VkCallsApi.generateJoinLink(getApplicationContext());
+            } catch (Exception failure) {
+                error = failure.getMessage();
+            }
+            final String finalLink = joinLink;
+            final String finalError = error;
+            mainHandler.post(() -> finishAutolink(finalLink, finalError));
+        });
+    }
+
+    private void finishAutolink(@Nullable String joinLink, @Nullable String error) {
+        autolinkInFlight = false;
+        hideAutolinkLoader();
+        if (binding == null) {
+            return;
+        }
+        if (joinLink == null || joinLink.isEmpty()) {
+            String detail = TextUtils.isEmpty(error)
+                ? getString(R.string.vk_links_autolink_failed)
+                : getString(R.string.vk_links_autolink_failed) + ": " + error;
+            Toast.makeText(this, detail, Toast.LENGTH_LONG).show();
+            return;
+        }
+        String normalized = normalizeAndValidate(joinLink);
+        if (normalized == null) {
+            Toast.makeText(this, R.string.vk_links_invalid_url, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (links.contains(normalized)) {
+            Toast.makeText(this, R.string.vk_links_autolink_success, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        links.add(normalized);
+        persistAndRefresh();
+        Toast.makeText(this, R.string.vk_links_autolink_success, Toast.LENGTH_SHORT).show();
+    }
+
+    private void showAutolinkLoader() {
+        if (binding == null) {
+            return;
+        }
+        binding.progressAutolinkVk.setVisibility(View.VISIBLE);
+        binding.rowAutolinkVk.getEndImageView().setVisibility(View.INVISIBLE);
+        binding.rowAutolinkVk.setEnabled(false);
+    }
+
+    private void hideAutolinkLoader() {
+        if (binding == null) {
+            return;
+        }
+        binding.progressAutolinkVk.setVisibility(View.GONE);
+        binding.rowAutolinkVk.getEndImageView().setVisibility(View.VISIBLE);
+        binding.rowAutolinkVk.setEnabled(true);
     }
 
     private void loadLinks() {

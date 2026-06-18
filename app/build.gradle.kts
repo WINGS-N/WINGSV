@@ -588,6 +588,16 @@ android {
 
         val telegramUrl = (project.findProperty("wingsv.telegramUrl") as String?)?.trim().orEmpty()
         buildConfigField("String", "TELEGRAM_URL", "\"${telegramUrl}\"")
+
+        // VK OAuth client_id for the autolink generator. Configured per-build via
+        // -Pvkid.clientId=... or local.properties (vkid.clientId=...). When unset
+        // the autolink UI surfaces "VK API не настроен" and falls back to manual entry.
+        val vkidClientId: String =
+            ((project.findProperty("vkid.clientId") as String?)
+                ?: localProperties.getProperty("vkid.clientId"))?.trim().orEmpty()
+        val vkidConfigured = vkidClientId.matches(Regex("""\d+"""))
+        buildConfigField("String", "VK_OAUTH_CLIENT_ID", "\"${vkidClientId}\"")
+        buildConfigField("boolean", "VK_OAUTH_CONFIGURED", vkidConfigured.toString())
     }
 
     signingConfigs {

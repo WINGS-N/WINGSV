@@ -73,6 +73,28 @@
                     app:summary="@string/vk_links_add_summary"
                     app:title="@string/vk_links_add_title" />
 
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/row_autolink_vk"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                        app:summary="@string/vk_links_autolink_summary"
+                        app:title="@string/vk_links_autolink_title" />
+
+                    <ProgressBar
+                        android:id="@+id/progress_autolink_vk"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:layout_marginEnd="24dp"
+                        android:indeterminate="true"
+                        android:visibility="gone" />
+                </FrameLayout>
+
                 <dev.oneuiproject.oneui.widget.CardItemView
                     android:id="@+id/row_vk_link_secondary"
                     android:layout_width="match_parent"
