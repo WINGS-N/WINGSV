@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Process
 import android.system.Os
 import androidx.annotation.RequiresApi
-import be.mygod.librootkotlinx.JniInit
 import be.mygod.librootkotlinx.ParcelableBoolean
 import kotlinx.coroutines.runBlocking
 
@@ -103,9 +102,6 @@ object WingsVpnFirewallBridge {
         RootServerBridge.initialize(context)
         val removed = runBlocking {
             val result = WingsRootManager.use { server ->
-                if (Build.VERSION.SDK_INT >= 33) {
-                    server.execute(JniInit())
-                }
                 server.execute(RemoveUidInterfaceRuleCommand(uid))
             } as ParcelableBoolean
             result.value

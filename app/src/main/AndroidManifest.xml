@@ -540,6 +540,14 @@
             </intent-filter>
         </receiver>
 
+        <provider
+            android:name="be.mygod.librootkotlinx.impl.RootServiceHandoffProvider"
+            android:authorities="${applicationId}.librootkotlinx.root-service-handoff"
+            android:directBootAware="true"
+            android:exported="false"
+            android:process=":tunnel"
+            tools:replace="android:process" />
+
     </application>
 
 </manifest>

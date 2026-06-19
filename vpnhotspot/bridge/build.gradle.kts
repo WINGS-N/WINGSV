@@ -34,6 +34,6 @@ android {
 dependencies {
     implementation(libs.androidx.annotation)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.librootkotlinx)
+    implementation("be.mygod.librootkotlinx:librootkotlinx:${libs.versions.librootkotlinxV3.get()}")
     implementation(project(":vpnhotspot:upstream-runtime"))
 }

@@ -2,10 +2,11 @@ package wings.v.root.server
 
 import android.content.Context
 import android.util.Log
-import be.mygod.librootkotlinx.AppProcess
 import be.mygod.librootkotlinx.Logger
 import be.mygod.librootkotlinx.RootServer
 import be.mygod.librootkotlinx.RootSession
+import be.mygod.librootkotlinx.systemContext
+import be.mygod.vpnhotspot.util.UnblockCentral
 
 object WingsRootManager : RootSession(), Logger {
     private const val TAG = "WINGSV-Root"
@@ -13,15 +14,17 @@ object WingsRootManager : RootSession(), Logger {
     @Volatile
     private var appContext: Context? = null
 
+    override val context: Context
+        get() = appContext ?: systemContext
+
     fun initialize(context: Context) {
         appContext = context.applicationContext
     }
 
     override suspend fun initServer(server: RootServer) {
-        val context = checkNotNull(appContext) { "WingsRootManager not initialized" }
         Logger.me = this
-        server.init(context, AppProcess.shouldRelocateHeuristics)
-        server.execute(RootInitCommand())
+        UnblockCentral.openPidFd
+        super.initServer(server)
     }
 
     override fun d(m: String?, t: Throwable?) {
