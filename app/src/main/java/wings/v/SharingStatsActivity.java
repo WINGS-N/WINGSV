@@ -21,7 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.SharingTrafficStatsStore;
 import wings.v.databinding.ActivitySharingStatsBinding;
-import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingBridge;
+import wings.v.vpnhotspot.bridge.SharingApiGuard;
 import wings.v.vpnhotspot.sharing.runtime.VpnHotspotTrafficCounter;
 import wings.v.widget.TrafficWeeklyChartView;
 
@@ -45,6 +45,10 @@ public class SharingStatsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!SharingApiGuard.isSupported()) {
+            finish();
+            return;
+        }
         binding = ActivitySharingStatsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         binding.toolbarLayout.setTitle(getString(R.string.sharing_stats_title));
@@ -87,7 +91,7 @@ public class SharingStatsActivity extends AppCompatActivity {
         workExecutor.execute(() -> {
             List<VpnHotspotTrafficCounter> counters;
             try {
-                counters = VpnHotspotSharingBridge.readTrafficCounters(appContext);
+                counters = SharingApiGuard.readTrafficCountersOrEmpty(appContext);
             } catch (Throwable error) {
                 counters = new ArrayList<>();
             }

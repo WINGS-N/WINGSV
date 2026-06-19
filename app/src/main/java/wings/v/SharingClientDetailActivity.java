@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.util.Locale;
 import wings.v.core.SharingTrafficStatsStore;
 import wings.v.databinding.ActivitySharingClientDetailBinding;
+import wings.v.vpnhotspot.bridge.SharingApiGuard;
 
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.DoNotUseThreads" })
 public class SharingClientDetailActivity extends AppCompatActivity {
@@ -25,6 +26,10 @@ public class SharingClientDetailActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!SharingApiGuard.isSupported()) {
+            finish();
+            return;
+        }
         byte[] mac = getIntent().getByteArrayExtra(EXTRA_MAC);
         if (mac == null) {
             finish();

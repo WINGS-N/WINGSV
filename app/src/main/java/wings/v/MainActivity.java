@@ -49,6 +49,7 @@ import wings.v.core.WingsImportParser;
 import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityMainBinding;
 import wings.v.service.ProxyTunnelService;
+import wings.v.vpnhotspot.bridge.SharingApiGuard;
 
 @SuppressWarnings(
     {
@@ -149,7 +150,7 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager = AppUpdateManager.getInstance(this);
         BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
         hasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
-        hasSharingTab = AppPrefs.isRootModeEnabled(this);
+        hasSharingTab = AppPrefs.isRootModeEnabled(this) && SharingApiGuard.isSupported();
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -642,7 +643,7 @@ public class MainActivity extends AppCompatActivity {
     private void syncNavigationState() {
         BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
         boolean nextHasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
-        boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
+        boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this) && SharingApiGuard.isSupported();
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
             rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
         }
@@ -908,7 +909,7 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.clipboard_import_success, Toast.LENGTH_SHORT).show();
         BackendType backendType = XrayStore.getBackendType(this);
         boolean nextHasProfilesTab = backendType != null && backendType.usesXrayCore();
-        boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this);
+        boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this) && SharingApiGuard.isSupported();
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
             rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
         }

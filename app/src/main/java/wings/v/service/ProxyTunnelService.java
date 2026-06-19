@@ -109,8 +109,8 @@ import wings.v.core.XrayTproxyRouter;
 import wings.v.core.XrayTransportMode;
 import wings.v.qs.QuickSettingsTiles;
 import wings.v.root.server.RootProcessResult;
+import wings.v.vpnhotspot.bridge.SharingApiGuard;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
-import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingBridge;
 import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingConfig;
 import wings.v.xray.XrayBridge;
 import wings.v.xray.XrayConfigFactory;
@@ -4589,8 +4589,12 @@ public class ProxyTunnelService extends Service {
         ) {
             return;
         }
+        if (!SharingApiGuard.isSupported()) {
+            appendRuntimeLogLine("Root tether routing skipped: requires Android 10 or newer");
+            return;
+        }
         try {
-            VpnHotspotSharingBridge.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
+            SharingApiGuard.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
@@ -4617,7 +4621,9 @@ public class ProxyTunnelService extends Service {
     }
 
     private void clearRootTetherRouting() {
-        VpnHotspotSharingBridge.stopSharing(getApplicationContext());
+        if (SharingApiGuard.isSupported()) {
+            SharingApiGuard.stopSharing(getApplicationContext());
+        }
         appliedTetherUpstreamName = null;
         lastTetherSyncInterfaces = null;
         lastTetherSyncUpstream = null;

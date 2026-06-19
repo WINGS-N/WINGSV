@@ -568,11 +568,7 @@ pmd {
 
 android {
     namespace = "wings.v"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "wings.v"

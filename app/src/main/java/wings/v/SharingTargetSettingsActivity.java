@@ -30,7 +30,7 @@ import wings.v.core.Haptics;
 import wings.v.core.XrayStore;
 import wings.v.databinding.ActivitySharingTargetSettingsBinding;
 import wings.v.service.ProxyTunnelService;
-import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingBridge;
+import wings.v.vpnhotspot.bridge.SharingApiGuard;
 
 @SuppressWarnings(
     {
@@ -125,6 +125,10 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!SharingApiGuard.isSupported()) {
+            finish();
+            return;
+        }
         target = Target.fromValue(getIntent().getStringExtra(EXTRA_TARGET));
         if (target == null) {
             finish();
@@ -345,7 +349,10 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         updateSwitch(binding.itemDhcpWorkaround, AppPrefs.isSharingDhcpWorkaroundEnabled(this));
         updateSwitch(binding.itemRepeaterSafeMode, AppPrefs.isSharingRepeaterSafeModeEnabled(this));
         updateSwitch(binding.itemTempHotspotUseSystem, AppPrefs.isSharingTempHotspotUseSystemEnabled(this));
-        updateSwitch(binding.rowTetherOffload, VpnHotspotSharingBridge.isTetherOffloadEnabled(this));
+        updateSwitch(
+            binding.rowTetherOffload,
+            SharingApiGuard.isSupported() && SharingApiGuard.isTetherOffloadEnabled(this)
+        );
         binding.rowTetherOffload.setEnabled(!tetherOffloadOperationInFlight);
     }
 
@@ -386,7 +393,9 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         workExecutor.execute(() -> {
             String error = null;
             try {
-                VpnHotspotSharingBridge.setTetherOffloadEnabled(appContext, enabled);
+                if (SharingApiGuard.isSupported()) {
+                    SharingApiGuard.setTetherOffloadEnabled(appContext, enabled);
+                }
                 if (ProxyTunnelService.isActive()) {
                     appContext.startService(ProxyTunnelService.createReapplySharingIntent(appContext));
                 }
