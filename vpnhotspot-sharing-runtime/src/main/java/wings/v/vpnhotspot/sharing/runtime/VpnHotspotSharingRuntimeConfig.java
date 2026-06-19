@@ -1,4 +1,4 @@
-package wings.v.vpnhotspot.runtime;
+package wings.v.vpnhotspot.sharing.runtime;
 
 import java.util.Objects;
 

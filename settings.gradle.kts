@@ -55,7 +55,9 @@ dependencyResolutionManagement {
 rootProject.name = "WINGS V"
 include(":app")
 include(":vpnhotspot-bridge")
+include(":vpnhotspot-sharing-bridge")
 include(":vpnhotspot-upstream-runtime")
+include(":vpnhotspot-sharing-runtime")
 include(":amneziawg-tunnel")
 
 project(":amneziawg-tunnel").projectDir = file("external/amneziawg-android/tunnel")

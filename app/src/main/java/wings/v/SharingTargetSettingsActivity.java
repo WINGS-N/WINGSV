@@ -30,7 +30,7 @@ import wings.v.core.Haptics;
 import wings.v.core.XrayStore;
 import wings.v.databinding.ActivitySharingTargetSettingsBinding;
 import wings.v.service.ProxyTunnelService;
-import wings.v.vpnhotspot.bridge.VpnHotspotSharingBridge;
+import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingBridge;
 
 @SuppressWarnings(
     {

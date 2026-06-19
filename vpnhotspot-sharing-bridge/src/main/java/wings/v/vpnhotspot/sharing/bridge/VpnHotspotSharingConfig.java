@@ -1,4 +1,4 @@
-package wings.v.vpnhotspot.bridge.sharing;
+package wings.v.vpnhotspot.sharing.bridge;
 
 import java.util.Objects;
 

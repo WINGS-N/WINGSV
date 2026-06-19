@@ -1,4 +1,4 @@
-package wings.v.vpnhotspot.runtime
+package wings.v.vpnhotspot.sharing.runtime
 
 import android.content.Context
 import android.text.TextUtils
@@ -9,6 +9,7 @@ import be.mygod.vpnhotspot.net.Routing
 import be.mygod.vpnhotspot.net.monitor.FallbackUpstreamMonitor
 import be.mygod.vpnhotspot.net.monitor.UpstreamMonitor
 import kotlinx.coroutines.runBlocking
+import wings.v.vpnhotspot.runtime.VpnHotspotUpstreamRuntime
 
 object VpnHotspotSharingRuntime {
     private const val KEY_DISABLE_IPV6 = "service.disableIpv6"

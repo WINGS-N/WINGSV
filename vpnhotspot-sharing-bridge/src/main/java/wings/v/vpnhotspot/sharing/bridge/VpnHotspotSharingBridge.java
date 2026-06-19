@@ -1,33 +1,30 @@
-package wings.v.vpnhotspot.bridge;
+package wings.v.vpnhotspot.sharing.bridge;
 
 import android.content.Context;
 
 import java.util.Set;
 
-import wings.v.vpnhotspot.bridge.sharing.VpnHotspotSharingConfig;
-import wings.v.vpnhotspot.runtime.VpnHotspotSharingRuntimeConfig;
-import wings.v.vpnhotspot.runtime.VpnHotspotUpstreamRuntime;
+import wings.v.vpnhotspot.sharing.runtime.VpnHotspotSharingRuntimeConfig;
+import wings.v.vpnhotspot.sharing.runtime.VpnHotspotSharingRuntimeEntry;
 
-// Sharing-only entrypoints split out from VpnHotspotBridge so callers that do
-// not need hotspot/tether functionality (e.g. core VPN firewall and root
-// server init) can avoid linking against this class. When we later bump the
-// VPNHotspot submodule past minSdk 28, sharing will move into its own module
-// gated by a runtime SDK check; this class becomes the boundary at which the
-// move happens, instead of touching every consumer again.
+// Sharing-only entrypoints. Lives in a dedicated module so callers that need
+// only core VPN firewall / root server init never link against tether/hotspot
+// code. After the VPNHotspot submodule bump past minSdk 28 we gate access to
+// this class behind a runtime SDK check; the boundary stays put either way.
 public final class VpnHotspotSharingBridge {
     private VpnHotspotSharingBridge() {
     }
 
     public static boolean isTetherOffloadEnabled(Context context) {
-        return VpnHotspotUpstreamRuntime.isTetherOffloadEnabled(context.getApplicationContext());
+        return VpnHotspotSharingRuntimeEntry.isTetherOffloadEnabled(context.getApplicationContext());
     }
 
     public static void setTetherOffloadEnabled(Context context, boolean enabled) throws Exception {
-        VpnHotspotUpstreamRuntime.setTetherOffloadEnabled(context.getApplicationContext(), enabled);
+        VpnHotspotSharingRuntimeEntry.setTetherOffloadEnabled(context.getApplicationContext(), enabled);
     }
 
     public static void syncSharing(Context context, Set<String> activeInterfaces, VpnHotspotSharingConfig config) {
-        VpnHotspotUpstreamRuntime.syncSharing(
+        VpnHotspotSharingRuntimeEntry.syncSharing(
                 context.getApplicationContext(),
                 activeInterfaces,
                 new VpnHotspotSharingRuntimeConfig(
@@ -42,6 +39,6 @@ public final class VpnHotspotSharingBridge {
     }
 
     public static void stopSharing(Context context) {
-        VpnHotspotUpstreamRuntime.stopSharing(context.getApplicationContext());
+        VpnHotspotSharingRuntimeEntry.stopSharing(context.getApplicationContext());
     }
 }

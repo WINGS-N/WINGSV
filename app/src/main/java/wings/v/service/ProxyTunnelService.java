@@ -110,8 +110,8 @@ import wings.v.core.XrayTransportMode;
 import wings.v.qs.QuickSettingsTiles;
 import wings.v.root.server.RootProcessResult;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
-import wings.v.vpnhotspot.bridge.VpnHotspotSharingBridge;
-import wings.v.vpnhotspot.bridge.sharing.VpnHotspotSharingConfig;
+import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingBridge;
+import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingConfig;
 import wings.v.xray.XrayBridge;
 import wings.v.xray.XrayConfigFactory;
 

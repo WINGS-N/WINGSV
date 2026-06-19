@@ -1,4 +1,4 @@
-package wings.v.vpnhotspot.bridge.sharing;
+package wings.v.vpnhotspot.sharing.bridge;
 
 public final class VpnHotspotShell {
     private VpnHotspotShell() {
