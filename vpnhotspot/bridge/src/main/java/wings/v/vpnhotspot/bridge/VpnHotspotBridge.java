@@ -4,7 +4,7 @@ import android.content.Context;
 
 import wings.v.root.server.RootProcessResult;
 import wings.v.root.server.RootServerBridge;
-import wings.v.vpnhotspot.runtime.VpnHotspotUpstreamRuntime;
+import wings.v.root.server.WingsVpnFirewallBridge;
 
 // Core bridge: root server lifecycle and VPN firewall setup. Available on
 // every supported Android level. Sharing/hotspot entrypoints live in
@@ -15,7 +15,6 @@ public final class VpnHotspotBridge {
     }
 
     public static void initializeRootServer(Context context) {
-        VpnHotspotUpstreamRuntime.initialize(context.getApplicationContext());
         RootServerBridge.initialize(context.getApplicationContext());
     }
 
@@ -28,6 +27,6 @@ public final class VpnHotspotBridge {
     }
 
     public static void setupVpnFirewall(Context context) throws Exception {
-        VpnHotspotUpstreamRuntime.setupVpnFirewall(context.getApplicationContext());
+        WingsVpnFirewallBridge.setup(context.getApplicationContext());
     }
 }
