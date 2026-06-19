@@ -292,6 +292,19 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_ROOT_MODE, enabled).commit();
     }
 
+    private static final String KEY_LAST_RUNTIME_PREF_TOGGLE_AT = "pref_last_runtime_pref_toggle_at";
+
+    public static void markRuntimeAffectingPrefToggled(Context context) {
+        runtimePrefs(context).edit().putLong(KEY_LAST_RUNTIME_PREF_TOGGLE_AT, System.currentTimeMillis()).apply();
+    }
+
+    public static boolean wasRuntimeAffectingPrefRecentlyToggled(Context context, long windowMs) {
+        long stamp = runtimePrefs(context).getLong(KEY_LAST_RUNTIME_PREF_TOGGLE_AT, 0L);
+        if (stamp <= 0L) return false;
+        long delta = System.currentTimeMillis() - stamp;
+        return delta >= 0L && delta < windowMs;
+    }
+
     public static boolean isKernelWireGuardEnabled(Context context) {
         SharedPreferences preferences = prefs(context);
         if (preferences.contains(KEY_KERNEL_WIREGUARD)) {

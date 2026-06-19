@@ -768,12 +768,16 @@ public class ProxyTunnelService extends Service {
                 return;
             }
         }
-        // Leave non-stopped state and root runtime hints intact. Wiping here
-        // races with KEY_ROOT_MODE toggles during an active VPN session: the
-        // toggle triggers requestReconnect -> service restart, then on the
-        // next app start hasRootRuntimeHint is briefly false and the old code
-        // path nuked the persisted runtime state. The next foreground service
-        // start will reconcile on its own from the live settings.
+        // Skip the wipe only during the narrow window after a runtime-affecting
+        // pref toggle (KEY_ROOT_MODE, KEY_KERNEL_WIREGUARD). The toggle triggers
+        // requestReconnect, then this app-start may see the process dead very
+        // briefly before the new instance comes up. Outside that window a dead
+        // process with state != STOPPED means the service actually crashed and
+        // the UI should not keep showing "connected".
+        if (AppPrefs.wasRuntimeAffectingPrefRecentlyToggled(appContext, 30_000L)) {
+            return;
+        }
+        clearStalePersistedRuntimeState(appContext);
     }
 
     public static void requestRuntimeSyncIfNeeded(Context context) {

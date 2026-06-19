@@ -945,6 +945,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null || !ProxyTunnelService.isActive()) {
             return;
         }
+        AppPrefs.markRuntimeAffectingPrefToggled(context.getApplicationContext());
         ProxyTunnelService.requestReconnect(context.getApplicationContext(), "Runtime settings changed");
     }
 }
