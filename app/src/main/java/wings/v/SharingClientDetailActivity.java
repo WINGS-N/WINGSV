@@ -8,6 +8,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import java.util.Locale;
+import java.util.Map;
+import wings.v.core.SharingClientMetadata;
 import wings.v.core.SharingTrafficStatsStore;
 import wings.v.databinding.ActivitySharingClientDetailBinding;
 import wings.v.vpnhotspot.bridge.SharingApiGuard;
@@ -47,12 +49,15 @@ public class SharingClientDetailActivity extends AppCompatActivity {
             return;
         }
         binding.chartDetailWeekly.setPoints(weekly.points, Math.max(1L, weekly.getMaxDailyBytes()));
-        binding.textDetailMac.setText(formatMac(mac));
-        binding.toolbarLayout.setTitle(formatMac(mac));
 
         SharingTrafficStatsStore.ClientSummary summary = findSummary(store, mac);
+        String vendor = SharingClientMetadata.lookupVendor(mac, this);
+        String displayName = vendor != null ? vendor : formatMac(mac);
+        binding.textDetailMac.setText(displayName);
+        binding.toolbarLayout.setTitle(displayName);
         if (summary == null) {
             binding.textDetailMeta.setText("");
+            binding.textDetailAttrs.setText("");
             binding.textDetailLifetime.setText("");
             return;
         }
@@ -62,6 +67,24 @@ public class SharingClientDetailActivity extends AppCompatActivity {
                 summary.lastDownstream,
                 formatLastSeenAbsolute(summary.lastSeenMillis)
             )
+        );
+        Map<String, SharingClientMetadata.ArpEntry> arp = SharingClientMetadata.readArpTable();
+        SharingClientMetadata.ArpEntry arpEntry = arp.get(SharingClientMetadata.macKey(mac));
+        String ip = arpEntry != null && arpEntry.ipAddress != null ? arpEntry.ipAddress :
+            getString(R.string.sharing_stats_detail_offline);
+        String vendorLine = vendor != null ? vendor : getString(R.string.sharing_stats_detail_unknown);
+        String macLine = formatMac(mac);
+        String ifaceLine = summary.lastDownstream.isEmpty() ?
+            getString(R.string.sharing_stats_detail_unknown) : summary.lastDownstream;
+        String connectedLine = summary.firstSeenMillis > 0L ?
+            formatElapsed((System.currentTimeMillis() - summary.firstSeenMillis) / 1000L) :
+            getString(R.string.sharing_stats_detail_unknown);
+        binding.textDetailAttrs.setText(
+            getString(R.string.sharing_stats_detail_vendor) + ": " + vendorLine +
+                "\n" + "MAC: " + macLine +
+                "\n" + getString(R.string.sharing_stats_detail_ip) + ": " + ip +
+                "\n" + getString(R.string.sharing_stats_detail_iface) + ": " + ifaceLine +
+                "\n" + getString(R.string.sharing_stats_detail_connected) + ": " + connectedLine
         );
         binding.textDetailLifetime.setText(
             getString(
@@ -97,5 +120,14 @@ public class SharingClientDetailActivity extends AppCompatActivity {
     private String formatLastSeenAbsolute(long millis) {
         if (millis <= 0L) return "-";
         return DateFormat.format("dd.MM HH:mm", millis).toString();
+    }
+
+    @NonNull
+    private static String formatElapsed(long seconds) {
+        if (seconds < 0L) seconds = 0L;
+        long h = seconds / 3600L;
+        long m = (seconds % 3600L) / 60L;
+        long s = seconds % 60L;
+        return String.format(Locale.ROOT, "%02d:%02d:%02d", h, m, s);
     }
 }

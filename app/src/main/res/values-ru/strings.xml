@@ -1017,6 +1017,14 @@
     <string name="sharing_stats_entry_summary">График трафика за неделю и подключённые клиенты</string>
     <string name="sharing_stats_title">Статистика раздачи</string>
     <string name="sharing_stats_clients_section">Подключённые клиенты</string>
+    <string name="sharing_stats_clients_section_header">%1$s · %2$s</string>
+    <string name="sharing_stats_clients_section_idle">%1$s · ожидание</string>
+    <string name="sharing_stats_detail_vendor">Производитель</string>
+    <string name="sharing_stats_detail_ip">IP-адрес</string>
+    <string name="sharing_stats_detail_iface">Интерфейс</string>
+    <string name="sharing_stats_detail_connected">Подключён</string>
+    <string name="sharing_stats_detail_unknown">неизвестно</string>
+    <string name="sharing_stats_detail_offline">офлайн</string>
     <string name="sharing_stats_weekly_section">За последние 7 дней</string>
     <string name="sharing_stats_lifetime_section">За всё время</string>
     <string name="sharing_stats_total_summary">Отправлено %1$s / Принято %2$s</string>

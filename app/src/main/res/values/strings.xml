@@ -1017,6 +1017,14 @@
     <string name="sharing_stats_entry_summary">Weekly traffic chart and connected clients</string>
     <string name="sharing_stats_title">Sharing statistics</string>
     <string name="sharing_stats_clients_section">Connected clients</string>
+    <string name="sharing_stats_clients_section_header">%1$s · %2$s</string>
+    <string name="sharing_stats_clients_section_idle">%1$s · idle</string>
+    <string name="sharing_stats_detail_vendor">Vendor</string>
+    <string name="sharing_stats_detail_ip">IP address</string>
+    <string name="sharing_stats_detail_iface">Interface</string>
+    <string name="sharing_stats_detail_connected">Connected for</string>
+    <string name="sharing_stats_detail_unknown">unknown</string>
+    <string name="sharing_stats_detail_offline">offline</string>
     <string name="sharing_stats_weekly_section">Last 7 days</string>
     <string name="sharing_stats_lifetime_section">Lifetime</string>
     <string name="sharing_stats_total_summary">%1$s sent / %2$s received</string>

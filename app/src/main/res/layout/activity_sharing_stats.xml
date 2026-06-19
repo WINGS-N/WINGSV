@@ -54,6 +54,7 @@
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
             <dev.oneuiproject.oneui.widget.Separator
+                android:id="@+id/separator_clients"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/sharing_stats_clients_section" />

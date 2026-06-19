@@ -26,6 +26,8 @@ public final class SharingTrafficStatsStore {
     private final Map<String, ClientHistory> history = new LinkedHashMap<>();
     private final Map<String, long[]> sessionBaselines = new LinkedHashMap<>();
     private final Object lock = new Object();
+    private long sessionStartedAtMs = 0L;
+    private String lastActiveInterface = "";
 
     public SharingTrafficStatsStore(@NonNull Context context) {
         prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -35,12 +37,26 @@ public final class SharingTrafficStatsStore {
     public void applyCounters(@NonNull List<CounterSnapshot> snapshots) {
         synchronized (lock) {
             LocalDate today = LocalDate.now(ZoneId.systemDefault());
+            long nowMs = System.currentTimeMillis();
+            if (!snapshots.isEmpty() && sessionStartedAtMs == 0L) {
+                sessionStartedAtMs = nowMs;
+            }
             for (CounterSnapshot snapshot : snapshots) {
+                if (!snapshot.downstream.isEmpty()) {
+                    lastActiveInterface = snapshot.downstream;
+                }
                 String key = macKey(snapshot.mac);
+                ClientHistory entry = history.get(key);
+                if (entry == null) {
+                    entry = new ClientHistory(snapshot.mac, snapshot.downstream);
+                    entry.firstSeenMillis = nowMs;
+                    history.put(key, entry);
+                }
                 long[] baseline = sessionBaselines.get(key);
                 if (baseline == null) {
                     baseline = new long[] { snapshot.sentBytes, snapshot.receivedBytes };
                     sessionBaselines.put(key, baseline);
+                    entry.lastDownstream = snapshot.downstream;
                     continue;
                 }
                 long sentDelta = Math.max(0L, snapshot.sentBytes - baseline[0]);
@@ -48,12 +64,7 @@ public final class SharingTrafficStatsStore {
                 baseline[0] = snapshot.sentBytes;
                 baseline[1] = snapshot.receivedBytes;
                 if (sentDelta == 0L && recvDelta == 0L) continue;
-                ClientHistory entry = history.get(key);
-                if (entry == null) {
-                    entry = new ClientHistory(snapshot.mac, snapshot.downstream);
-                    history.put(key, entry);
-                }
-                entry.lastSeenMillis = System.currentTimeMillis();
+                entry.lastSeenMillis = nowMs;
                 entry.lastDownstream = snapshot.downstream;
                 entry.appendToday(today, sentDelta, recvDelta);
             }
@@ -64,6 +75,20 @@ public final class SharingTrafficStatsStore {
     public void resetSession() {
         synchronized (lock) {
             sessionBaselines.clear();
+            sessionStartedAtMs = 0L;
+        }
+    }
+
+    public long getSessionStartedAtMs() {
+        synchronized (lock) {
+            return sessionStartedAtMs;
+        }
+    }
+
+    @NonNull
+    public String getLastActiveInterface() {
+        synchronized (lock) {
+            return lastActiveInterface;
         }
     }
 
@@ -111,6 +136,7 @@ public final class SharingTrafficStatsStore {
                         entry.mac.clone(),
                         entry.lastDownstream,
                         entry.lastSeenMillis,
+                        entry.firstSeenMillis,
                         totals[0],
                         totals[1],
                         weekSent,
@@ -134,6 +160,7 @@ public final class SharingTrafficStatsStore {
                 if (mac == null) continue;
                 ClientHistory entry = new ClientHistory(mac, obj.optString("downstream", ""));
                 entry.lastSeenMillis = obj.optLong("lastSeen", 0L);
+                entry.firstSeenMillis = obj.optLong("firstSeen", 0L);
                 entry.lifetimeSent = obj.optLong("lifetimeSent", 0L);
                 entry.lifetimeReceived = obj.optLong("lifetimeReceived", 0L);
                 JSONArray days = obj.optJSONArray("days");
@@ -159,6 +186,7 @@ public final class SharingTrafficStatsStore {
                 obj.put("mac", encodeMac(entry.mac));
                 obj.put("downstream", entry.lastDownstream);
                 obj.put("lastSeen", entry.lastSeenMillis);
+                obj.put("firstSeen", entry.firstSeenMillis);
                 obj.put("lifetimeSent", entry.lifetimeSent);
                 obj.put("lifetimeReceived", entry.lifetimeReceived);
                 JSONArray days = new JSONArray();
@@ -233,6 +261,7 @@ public final class SharingTrafficStatsStore {
         String lastDownstream;
 
         long lastSeenMillis;
+        long firstSeenMillis;
         long lifetimeSent;
         long lifetimeReceived;
         final LinkedHashMap<LocalDate, long[]> daily = new LinkedHashMap<>();
@@ -353,6 +382,7 @@ public final class SharingTrafficStatsStore {
         public final String lastDownstream;
 
         public final long lastSeenMillis;
+        public final long firstSeenMillis;
         public final long lifetimeSentBytes;
         public final long lifetimeReceivedBytes;
         public final long weeklySentBytes;
@@ -362,6 +392,7 @@ public final class SharingTrafficStatsStore {
             @NonNull byte[] mac,
             @NonNull String lastDownstream,
             long lastSeenMillis,
+            long firstSeenMillis,
             long lifetimeSentBytes,
             long lifetimeReceivedBytes,
             long weeklySentBytes,
@@ -370,6 +401,7 @@ public final class SharingTrafficStatsStore {
             this.mac = mac;
             this.lastDownstream = lastDownstream;
             this.lastSeenMillis = lastSeenMillis;
+            this.firstSeenMillis = firstSeenMillis;
             this.lifetimeSentBytes = lifetimeSentBytes;
             this.lifetimeReceivedBytes = lifetimeReceivedBytes;
             this.weeklySentBytes = weeklySentBytes;

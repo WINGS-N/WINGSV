@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.Map;
+import wings.v.core.SharingClientMetadata;
 import wings.v.core.SharingTrafficStatsStore;
 import wings.v.databinding.ActivitySharingStatsBinding;
 import wings.v.vpnhotspot.bridge.SharingApiGuard;
@@ -29,6 +31,7 @@ import wings.v.widget.TrafficWeeklyChartView;
 public class SharingStatsActivity extends AppCompatActivity {
 
     private static final long POLL_INTERVAL_MS = 10_000L;
+    private static final long HEADER_TICK_MS = 1_000L;
 
     private ActivitySharingStatsBinding binding;
     private SharingTrafficStatsStore store;
@@ -36,6 +39,8 @@ public class SharingStatsActivity extends AppCompatActivity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final Runnable pollRunnable = this::pollCounters;
+    private final Runnable headerTickRunnable = this::tickHeader;
+    private Map<String, SharingClientMetadata.ArpEntry> arpCache = new java.util.HashMap<>();
     private boolean active;
 
     public static Intent createIntent(@NonNull Context context) {
@@ -70,12 +75,14 @@ public class SharingStatsActivity extends AppCompatActivity {
         active = true;
         store.resetSession();
         mainHandler.post(pollRunnable);
+        mainHandler.post(headerTickRunnable);
     }
 
     @Override
     protected void onPause() {
         active = false;
         mainHandler.removeCallbacks(pollRunnable);
+        mainHandler.removeCallbacks(headerTickRunnable);
         super.onPause();
     }
 
@@ -107,11 +114,42 @@ public class SharingStatsActivity extends AppCompatActivity {
                 );
             }
             store.applyCounters(snapshots);
+            Map<String, SharingClientMetadata.ArpEntry> arp = SharingClientMetadata.readArpTable();
             mainHandler.post(() -> {
+                arpCache = arp;
                 renderState();
                 if (active) mainHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
             });
         });
+    }
+
+    private void tickHeader() {
+        if (!active) return;
+        updateClientsHeader();
+        mainHandler.postDelayed(headerTickRunnable, HEADER_TICK_MS);
+    }
+
+    private void updateClientsHeader() {
+        if (binding == null) return;
+        String iface = store.getLastActiveInterface();
+        if (iface.isEmpty()) iface = "swlan0";
+        long startedAt = store.getSessionStartedAtMs();
+        String label;
+        if (startedAt > 0L) {
+            long elapsedSec = Math.max(0L, (System.currentTimeMillis() - startedAt) / 1000L);
+            label = getString(R.string.sharing_stats_clients_section_header, iface, formatElapsed(elapsedSec));
+        } else {
+            label = getString(R.string.sharing_stats_clients_section_idle, iface);
+        }
+        binding.separatorClients.setText(label);
+    }
+
+    @NonNull
+    private static String formatElapsed(long seconds) {
+        long h = seconds / 3600L;
+        long m = (seconds % 3600L) / 60L;
+        long s = seconds % 60L;
+        return String.format(Locale.ROOT, "%02d:%02d:%02d", h, m, s);
     }
 
     private void renderState() {
@@ -125,7 +163,8 @@ public class SharingStatsActivity extends AppCompatActivity {
             )
         );
         List<SharingTrafficStatsStore.ClientSummary> clients = store.getClientSummaries();
-        adapter.setItems(clients);
+        adapter.setItems(clients, arpCache, this);
+        updateClientsHeader();
         if (clients.isEmpty()) {
             binding.textEmpty.setVisibility(View.VISIBLE);
             binding.textEmpty.setText(R.string.sharing_stats_no_clients);
@@ -174,10 +213,18 @@ public class SharingStatsActivity extends AppCompatActivity {
     private final class ClientAdapter extends RecyclerView.Adapter<ClientViewHolder> {
 
         private final List<SharingTrafficStatsStore.ClientSummary> items = new ArrayList<>();
+        private Map<String, SharingClientMetadata.ArpEntry> arp = new java.util.HashMap<>();
+        private Context context = SharingStatsActivity.this;
 
-        void setItems(@NonNull List<SharingTrafficStatsStore.ClientSummary> next) {
+        void setItems(
+            @NonNull List<SharingTrafficStatsStore.ClientSummary> next,
+            @NonNull Map<String, SharingClientMetadata.ArpEntry> arpEntries,
+            @NonNull Context ctx
+        ) {
             items.clear();
             items.addAll(next);
+            arp = arpEntries;
+            context = ctx;
             notifyDataSetChanged();
         }
 
@@ -195,20 +242,27 @@ public class SharingStatsActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(@NonNull ClientViewHolder holder, int position) {
             SharingTrafficStatsStore.ClientSummary item = items.get(position);
-            holder.macView.setText(item.formatMac());
+            String vendor = SharingClientMetadata.lookupVendor(item.mac, context);
+            String displayName = vendor != null ? vendor : item.formatMac();
+            holder.macView.setText(displayName);
+            SharingClientMetadata.ArpEntry arpEntry = arp.get(SharingClientMetadata.macKey(item.mac));
+            String ip = arpEntry != null ? arpEntry.ipAddress : null;
+            String iface = item.lastDownstream;
+            String metaPrimary;
+            if (ip != null && !ip.isEmpty()) {
+                metaPrimary = ip + " · " + iface;
+            } else {
+                metaPrimary = iface;
+            }
             String meta;
             if (item.lastSeenMillis > 0L) {
                 meta = holder.itemView
                     .getContext()
-                    .getString(
-                        R.string.sharing_stats_client_meta,
-                        item.lastDownstream,
-                        formatLastSeen(item.lastSeenMillis)
-                    );
+                    .getString(R.string.sharing_stats_client_meta, metaPrimary, formatLastSeen(item.lastSeenMillis));
             } else {
                 meta = holder.itemView
                     .getContext()
-                    .getString(R.string.sharing_stats_client_meta_never, item.lastDownstream);
+                    .getString(R.string.sharing_stats_client_meta_never, metaPrimary);
             }
             holder.metaView.setText(meta);
             holder.trafficView.setText(
