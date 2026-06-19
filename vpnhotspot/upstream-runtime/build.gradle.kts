@@ -28,7 +28,7 @@ android {
         manifest.srcFile("src/main/AndroidManifest.xml")
         java.srcDirs(
             "src/main/java",
-            "../external/VPNHotspot/mobile/src/main/java"
+            "../../external/VPNHotspot/mobile/src/main/java"
         )
         java.filter.include(listOf(
             "be/mygod/vpnhotspot/RoutingManager.kt",
@@ -67,7 +67,7 @@ android {
 
     externalNativeBuild {
         cmake {
-            path = file("../external/VPNHotspot/mobile/src/main/cpp/CMakeLists.txt")
+            path = file("../../external/VPNHotspot/mobile/src/main/cpp/CMakeLists.txt")
         }
     }
 }

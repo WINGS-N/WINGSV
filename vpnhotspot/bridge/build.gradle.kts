@@ -35,5 +35,5 @@ dependencies {
     implementation(libs.androidx.annotation)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.librootkotlinx)
-    implementation(project(":vpnhotspot-upstream-runtime"))
+    implementation(project(":vpnhotspot:upstream-runtime"))
 }

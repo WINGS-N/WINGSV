@@ -24,7 +24,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":vpnhotspot-upstream-runtime"))
+    implementation(project(":vpnhotspot:upstream-runtime"))
     implementation("androidx.annotation:annotation:1.9.1")
     implementation("be.mygod.librootkotlinx:librootkotlinx:1.2.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
