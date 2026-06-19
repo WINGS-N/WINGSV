@@ -30,7 +30,8 @@ import wings.v.widget.TrafficWeeklyChartView;
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.DoNotUseThreads" })
 public class SharingStatsActivity extends AppCompatActivity {
 
-    private static final long POLL_INTERVAL_MS = 10_000L;
+    private static final long TEXT_POLL_INTERVAL_MS = 3_000L;
+    private static final long CHART_REDRAW_INTERVAL_MS = 30_000L;
     private static final long HEADER_TICK_MS = 1_000L;
 
     private ActivitySharingStatsBinding binding;
@@ -39,6 +40,7 @@ public class SharingStatsActivity extends AppCompatActivity {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final Runnable pollRunnable = this::pollCounters;
+    private final Runnable chartRedrawRunnable = this::redrawChart;
     private final Runnable headerTickRunnable = this::tickHeader;
     private Map<String, SharingClientMetadata.ArpEntry> arpCache = new java.util.HashMap<>();
     private boolean active;
@@ -75,6 +77,7 @@ public class SharingStatsActivity extends AppCompatActivity {
         active = true;
         store.resetSession();
         mainHandler.post(pollRunnable);
+        mainHandler.post(chartRedrawRunnable);
         mainHandler.post(headerTickRunnable);
     }
 
@@ -82,6 +85,7 @@ public class SharingStatsActivity extends AppCompatActivity {
     protected void onPause() {
         active = false;
         mainHandler.removeCallbacks(pollRunnable);
+        mainHandler.removeCallbacks(chartRedrawRunnable);
         mainHandler.removeCallbacks(headerTickRunnable);
         super.onPause();
     }
@@ -117,10 +121,19 @@ public class SharingStatsActivity extends AppCompatActivity {
             Map<String, SharingClientMetadata.ArpEntry> arp = SharingClientMetadata.readArpTable();
             mainHandler.post(() -> {
                 arpCache = arp;
-                renderState();
-                if (active) mainHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+                renderTextState();
+                if (active) mainHandler.postDelayed(pollRunnable, TEXT_POLL_INTERVAL_MS);
             });
         });
+    }
+
+    private void redrawChart() {
+        if (!active) return;
+        if (binding != null) {
+            SharingTrafficStatsStore.WeeklyTraffic weekly = store.getAggregateWeekly();
+            binding.chartWeekly.setPoints(weekly.points, Math.max(1L, weekly.getMaxDailyBytes()));
+        }
+        mainHandler.postDelayed(chartRedrawRunnable, CHART_REDRAW_INTERVAL_MS);
     }
 
     private void tickHeader() {
@@ -153,8 +166,16 @@ public class SharingStatsActivity extends AppCompatActivity {
     }
 
     private void renderState() {
+        renderTextState();
+        if (binding != null) {
+            SharingTrafficStatsStore.WeeklyTraffic weekly = store.getAggregateWeekly();
+            binding.chartWeekly.setPoints(weekly.points, Math.max(1L, weekly.getMaxDailyBytes()));
+        }
+    }
+
+    private void renderTextState() {
+        if (binding == null) return;
         SharingTrafficStatsStore.WeeklyTraffic weekly = store.getAggregateWeekly();
-        binding.chartWeekly.setPoints(weekly.points, Math.max(1L, weekly.getMaxDailyBytes()));
         binding.textTotalSummary.setText(
             getString(
                 R.string.sharing_stats_total_summary,

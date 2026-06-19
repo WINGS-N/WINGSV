@@ -1028,7 +1028,7 @@
     <string name="sharing_stats_weekly_section">Last 7 days</string>
     <string name="sharing_stats_lifetime_section">Lifetime</string>
     <string name="sharing_stats_total_summary">%1$s sent / %2$s received</string>
-    <string name="sharing_stats_legend">Blue: sent, gray: received</string>
+    <string name="sharing_stats_legend">Blue: sent, green: received</string>
     <string name="sharing_stats_no_clients">No traffic recorded yet. Start sharing to populate.</string>
     <string name="sharing_stats_client_meta">on %1$s, last seen %2$s</string>
     <string name="sharing_stats_client_meta_never">on %1$s</string>
