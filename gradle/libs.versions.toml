@@ -1,5 +1,5 @@
 [versions]
-agp = "9.0.1"
+agp = "9.2.1"
 jdkCoroutines = "1.11.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
