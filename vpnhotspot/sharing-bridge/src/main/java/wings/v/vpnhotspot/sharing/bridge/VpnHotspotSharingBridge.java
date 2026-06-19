@@ -2,10 +2,12 @@ package wings.v.vpnhotspot.sharing.bridge;
 
 import android.content.Context;
 
+import java.util.List;
 import java.util.Set;
 
 import wings.v.vpnhotspot.sharing.runtime.VpnHotspotSharingRuntimeConfig;
 import wings.v.vpnhotspot.sharing.runtime.VpnHotspotSharingRuntimeEntry;
+import wings.v.vpnhotspot.sharing.runtime.VpnHotspotTrafficCounter;
 
 // Sharing-only entrypoints. Lives in a dedicated module so callers that need
 // only core VPN firewall / root server init never link against tether/hotspot
@@ -40,5 +42,9 @@ public final class VpnHotspotSharingBridge {
 
     public static void stopSharing(Context context) {
         VpnHotspotSharingRuntimeEntry.stopSharing(context.getApplicationContext());
+    }
+
+    public static List<VpnHotspotTrafficCounter> readTrafficCounters(Context context) {
+        return VpnHotspotSharingRuntimeEntry.readTrafficCounters(context.getApplicationContext());
     }
 }

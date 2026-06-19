@@ -230,6 +230,12 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
             )
         );
         configureTetherOffloadSwitch();
+        configureActionRow(
+            binding.rowOpenStats,
+            R.string.sharing_stats_entry_title,
+            R.string.sharing_stats_entry_summary,
+            view -> startActivity(SharingStatsActivity.createIntent(this))
+        );
     }
 
     private void bindTargetRows() {

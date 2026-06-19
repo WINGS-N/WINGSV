@@ -123,6 +123,16 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".SharingStatsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".SharingClientDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".SubscriptionsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
