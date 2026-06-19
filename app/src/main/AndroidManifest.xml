@@ -120,16 +120,19 @@
         <activity
             android:name=".SharingTargetSettingsActivity"
             android:exported="false"
+            android:process=":tunnel"
             android:theme="@style/Theme.WINGSV" />
 
         <activity
             android:name=".SharingStatsActivity"
             android:exported="false"
+            android:process=":tunnel"
             android:theme="@style/Theme.WINGSV" />
 
         <activity
             android:name=".SharingClientDetailActivity"
             android:exported="false"
+            android:process=":tunnel"
             android:theme="@style/Theme.WINGSV" />
 
         <activity
