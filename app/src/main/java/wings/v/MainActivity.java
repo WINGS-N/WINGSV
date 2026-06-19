@@ -102,7 +102,6 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
     private final ExecutorService rootStateExecutor = Executors.newSingleThreadExecutor();
     private volatile int rootStateRefreshGeneration;
-    private long lastRootStateReprobeAtMs;
     private final Runnable rootStateReprobeRunnable = new Runnable() {
         @Override
         public void run() {
@@ -169,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
                     boolean changed = currentTabId != tabId;
                     currentTabId = tabId;
                     bottomTab().setSelectedItem(tabId);
-                    updateTitle(tabId);
+                    updateTitle();
                     if (changed) {
                         invalidateOptionsMenu();
                     }
@@ -200,7 +199,7 @@ public class MainActivity extends AppCompatActivity {
         currentTabId = initialTabId;
         binding.mainPager.setCurrentItem(positionForTabId(initialTabId), false);
         bottomTab().setSelectedItem(initialTabId);
-        updateTitle(initialTabId);
+        updateTitle();
         applyUpdateBadgeState(appUpdateManager.getState());
         pageSelectionReady = true;
 
@@ -382,9 +381,7 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    private void updateTitle(int tabId) {
-        // tabId сохранили в сигнатуре чтобы не трогать call sites; имя вкладки
-        // больше не отображается. Тулбар держит только бренд приложения.
+    private void updateTitle() {
         binding.toolbarLayout.setTitle(buildToolbarTitle());
     }
 
@@ -456,7 +453,7 @@ public class MainActivity extends AppCompatActivity {
         currentTabId = forcedTabId;
         binding.mainPager.setCurrentItem(positionForTabId(forcedTabId), false);
         bottomTab().setSelectedItem(forcedTabId);
-        updateTitle(forcedTabId);
+        updateTitle();
     }
 
     private void configureToolbar() {
@@ -547,7 +544,7 @@ public class MainActivity extends AppCompatActivity {
             currentTabId = R.id.menu_home;
             binding.mainPager.setCurrentItem(positionForTabId(R.id.menu_home), false);
             bottomTab().setSelectedItem(R.id.menu_home);
-            updateTitle(R.id.menu_home);
+            updateTitle();
             return;
         }
         long now = SystemClock.elapsedRealtime();
@@ -614,7 +611,6 @@ public class MainActivity extends AppCompatActivity {
         // handleRootRevoked для UI cleanup.
         rootStateRefreshGeneration++;
         final int generation = rootStateRefreshGeneration;
-        lastRootStateReprobeAtMs = System.currentTimeMillis();
         rootStateExecutor.execute(() -> {
             Context appContext = getApplicationContext();
             RootUtils.quickRefreshRootAccessState(appContext);
@@ -677,7 +673,7 @@ public class MainActivity extends AppCompatActivity {
         bottomTab().setSelectedItem(resolvedTabId);
         bottomTab().refresh(false);
         bottomTab().setVisibility(View.VISIBLE);
-        updateTitle(resolvedTabId);
+        updateTitle();
         pageSelectionReady = true;
     }
 

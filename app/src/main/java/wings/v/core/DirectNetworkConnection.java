@@ -49,7 +49,7 @@ public final class DirectNetworkConnection {
             return (HttpURLConnection) url.openConnection();
         }
         String host = url.getHost();
-        if (host != null && (host.equals("127.0.0.1") || host.equals("localhost") || host.equals("::1"))) {
+        if (host != null && ("127.0.0.1".equals(host) || "localhost".equals(host) || "::1".equals(host))) {
             return (HttpURLConnection) url.openConnection();
         }
         Network network = findUsablePhysicalNetwork(context);

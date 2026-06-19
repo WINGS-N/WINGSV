@@ -487,7 +487,7 @@ public final class XrayConfigFactory {
             rules.put(blockQuicRule);
         }
 
-        addCustomRoutingRules(rules, settings, context, trafficInboundTags);
+        addCustomRoutingRules(rules, context, trafficInboundTags);
 
         JSONObject trafficRule = new JSONObject();
         trafficRule.put("type", "field");
@@ -522,12 +522,8 @@ public final class XrayConfigFactory {
         return inboundTags;
     }
 
-    private static void addCustomRoutingRules(
-        JSONArray rules,
-        XraySettings settings,
-        Context context,
-        JSONArray inboundTags
-    ) throws Exception {
+    private static void addCustomRoutingRules(JSONArray rules, Context context, JSONArray inboundTags)
+        throws Exception {
         for (XrayRoutingRule rule : XrayRoutingStore.getValidRules(context)) {
             if (rule == null || !rule.enabled || TextUtils.isEmpty(rule.code)) {
                 continue;

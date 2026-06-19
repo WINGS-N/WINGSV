@@ -558,14 +558,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
-    private void configureXrayPreferences() {
-        Context context = getContext();
-        if (context == null) {
-            return;
-        }
-        configureXrayPreferences(XrayStore.getBackendType(context));
-    }
-
     private void configureXrayPreferences(@Nullable BackendType backendType) {
         boolean xrayBackend = backendType != null && backendType.usesXrayCore();
         XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
@@ -639,13 +631,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 transportMode != null &&
                 transportMode.usesTurnProxy())
         );
-    }
-
-    private void setPreferenceVisible(String key, boolean visible) {
-        Preference preference = findPreference(key);
-        if (preference != null) {
-            preference.setVisible(visible);
-        }
     }
 
     private void refreshAboutPreferenceBadge(@Nullable AppUpdateManager.UpdateState state) {

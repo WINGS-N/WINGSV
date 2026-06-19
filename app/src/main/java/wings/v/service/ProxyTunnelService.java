@@ -202,7 +202,6 @@ public class ProxyTunnelService extends Service {
     private static final int SERVICE_NOTIFICATION_ID = 1;
     private static final int CAPTCHA_NOTIFICATION_ID = 2;
     private static final int TUNNEL_PROCESS_RESTART_REQUEST_CODE = 4242;
-    private static final long NETWORK_READY_TIMEOUT_MS = 8_000L;
     private static final long NETWORK_READY_POLL_MS = 250L;
     private static final long PROXY_START_GRACE_MS = 1_500L;
     private static final long PROXY_WARMUP_TIMEOUT_MS = 20_000L;
@@ -647,7 +646,7 @@ public class ProxyTunnelService extends Service {
         return settings.xraySettings.transportMode;
     }
 
-    private static String describeXrayTcpRelay(@Nullable ProxySettings settings) {
+    private static String describeXrayTcpRelay() {
         return "VK TURN TCP";
     }
 
@@ -1671,7 +1670,7 @@ public class ProxyTunnelService extends Service {
             );
         }
         if (xrayExternalRelayEnabled) {
-            String relayName = describeXrayTcpRelay(settings);
+            String relayName = describeXrayTcpRelay();
             appendRuntimeLogLine(
                 "Starting " +
                     relayName +
@@ -1681,14 +1680,14 @@ public class ProxyTunnelService extends Service {
                     xrayTcpRelayEndpoint.port
             );
             long proxyStartedAt = startProxyProcess(settings, generation);
-            waitForProxyWarmup(proxyStartedAt, generation, settings);
+            waitForProxyWarmup(proxyStartedAt, generation);
             waitForLocalTcpRelayReady(xrayTcpRelayEndpoint, generation);
         }
         if (launchByeDpiFrontProxy && !xrayExternalRelayEnabled) {
             ensureRuntimeStillWanted(generation);
             startByeDpiFrontProxy(byeDpiSettings, generation);
         } else if (launchByeDpiFrontProxy) {
-            appendRuntimeLogLine("Skipping ByeDPI front proxy in " + describeXrayTcpRelay(settings) + " mode");
+            appendRuntimeLogLine("Skipping ByeDPI front proxy in " + describeXrayTcpRelay() + " mode");
         } else if (activeXrayProxyOnly && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart) {
             appendRuntimeLogLine("Skipping ByeDPI front proxy in Xray proxy-only mode");
         }
@@ -1719,7 +1718,7 @@ public class ProxyTunnelService extends Service {
             );
             appendRuntimeLogLine(
                 "Starting Xray backend via " +
-                    describeXrayTcpRelay(settings) +
+                    describeXrayTcpRelay() +
                     " relay " +
                     xrayTcpRelayEndpoint.host +
                     ":" +
@@ -1813,7 +1812,7 @@ public class ProxyTunnelService extends Service {
 
         appendRuntimeLogLine("Starting VK TURN local proxy backend");
         long proxyStartedAt = startProxyProcess(settings, generation);
-        waitForProxyWarmup(proxyStartedAt, generation, settings);
+        waitForProxyWarmup(proxyStartedAt, generation);
 
         setServiceState(ServiceState.RUNNING);
         sRunning = true;
@@ -1843,7 +1842,7 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
-            waitForProxyWarmup(proxyStartedAt, generation, settings);
+            waitForProxyWarmup(proxyStartedAt, generation);
         }
         ensureRuntimeStillWanted(generation);
 
@@ -1902,7 +1901,7 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
-            waitForProxyWarmup(proxyStartedAt, generation, settings);
+            waitForProxyWarmup(proxyStartedAt, generation);
         }
 
         ensureRuntimeStillWanted(generation);
@@ -3139,7 +3138,7 @@ public class ProxyTunnelService extends Service {
             host = host.substring(0, colon);
         }
         host = host.toLowerCase(java.util.Locale.ROOT);
-        return host.equals("localhost") || host.equals("::1") || host.startsWith("127.");
+        return "localhost".equals(host) || "::1".equals(host) || host.startsWith("127.");
     }
 
     @Nullable
@@ -3791,7 +3790,7 @@ public class ProxyTunnelService extends Service {
             return false;
         }
         String tail = line.substring(markerIdx + "PROXY_STATUS:".length()).trim().toLowerCase(Locale.US);
-        return tail.equals(PROXY_STATUS_OK);
+        return PROXY_STATUS_OK.equals(tail);
     }
 
     private void handleProxyEventLine(String line) {
@@ -4281,9 +4280,8 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    private void waitForProxyWarmup(long proxyStartedAt, int generation, @Nullable ProxySettings settings)
-        throws InterruptedException {
-        long deadline = proxyStartedAt + getProxyWarmupTimeoutMs(settings);
+    private void waitForProxyWarmup(long proxyStartedAt, int generation) throws InterruptedException {
+        long deadline = proxyStartedAt + getProxyWarmupTimeoutMs();
         boolean lockoutWaitLogged = false;
         while (true) {
             ensureRuntimeStillWanted(generation);
@@ -4329,7 +4327,7 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    private static long getProxyWarmupTimeoutMs(@Nullable ProxySettings settings) {
+    private static long getProxyWarmupTimeoutMs() {
         return PROXY_WARMUP_TIMEOUT_MS;
     }
 

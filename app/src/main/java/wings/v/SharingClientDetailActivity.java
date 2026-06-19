@@ -70,21 +70,38 @@ public class SharingClientDetailActivity extends AppCompatActivity {
         );
         Map<String, SharingClientMetadata.ArpEntry> arp = SharingClientMetadata.readArpTable();
         SharingClientMetadata.ArpEntry arpEntry = arp.get(SharingClientMetadata.macKey(mac));
-        String ip = arpEntry != null && arpEntry.ipAddress != null ? arpEntry.ipAddress :
-            getString(R.string.sharing_stats_detail_offline);
+        String ip =
+            arpEntry != null && arpEntry.ipAddress != null
+                ? arpEntry.ipAddress
+                : getString(R.string.sharing_stats_detail_offline);
         String vendorLine = vendor != null ? vendor : getString(R.string.sharing_stats_detail_unknown);
         String macLine = formatMac(mac);
-        String ifaceLine = summary.lastDownstream.isEmpty() ?
-            getString(R.string.sharing_stats_detail_unknown) : summary.lastDownstream;
-        String connectedLine = summary.firstSeenMillis > 0L ?
-            formatElapsed((System.currentTimeMillis() - summary.firstSeenMillis) / 1000L) :
-            getString(R.string.sharing_stats_detail_unknown);
+        String ifaceLine = summary.lastDownstream.isEmpty()
+            ? getString(R.string.sharing_stats_detail_unknown)
+            : summary.lastDownstream;
+        String connectedLine =
+            summary.firstSeenMillis > 0L
+                ? formatElapsed((System.currentTimeMillis() - summary.firstSeenMillis) / 1000L)
+                : getString(R.string.sharing_stats_detail_unknown);
         binding.textDetailAttrs.setText(
-            getString(R.string.sharing_stats_detail_vendor) + ": " + vendorLine +
-                "\n" + "MAC: " + macLine +
-                "\n" + getString(R.string.sharing_stats_detail_ip) + ": " + ip +
-                "\n" + getString(R.string.sharing_stats_detail_iface) + ": " + ifaceLine +
-                "\n" + getString(R.string.sharing_stats_detail_connected) + ": " + connectedLine
+            getString(R.string.sharing_stats_detail_vendor) +
+                ": " +
+                vendorLine +
+                "\n" +
+                "MAC: " +
+                macLine +
+                "\n" +
+                getString(R.string.sharing_stats_detail_ip) +
+                ": " +
+                ip +
+                "\n" +
+                getString(R.string.sharing_stats_detail_iface) +
+                ": " +
+                ifaceLine +
+                "\n" +
+                getString(R.string.sharing_stats_detail_connected) +
+                ": " +
+                connectedLine
         );
         binding.textDetailLifetime.setText(
             getString(

@@ -21,7 +21,6 @@ public class TrafficWeeklyChartView extends View {
 
     private final Paint slotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sentPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint recvPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
     private final Path barPath = new Path();

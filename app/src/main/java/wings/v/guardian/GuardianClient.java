@@ -65,7 +65,6 @@ public final class GuardianClient {
     private final SecureRandom random = new SecureRandom();
     private final Listener listener;
 
-    private OkHttpClient currentClient;
     private WebSocket socket;
     private boolean phyBindActive;
     private int phyFailureStreak;
@@ -211,7 +210,6 @@ public final class GuardianClient {
         Request request = new Request.Builder().url(wsUrl).build();
         Log.i(TAG, "connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
         ProxyTunnelService.writeRuntimeLogLine("[guardian] connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
-        currentClient = client;
         socket = client.newWebSocket(request, new GuardianListener(wsUrl));
     }
 
@@ -239,17 +237,17 @@ public final class GuardianClient {
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(@NonNull Network network) {
-                evaluateNetworkChange(cm, "default-available");
+                evaluateNetworkChange("default-available");
             }
 
             @Override
             public void onLost(@NonNull Network network) {
-                evaluateNetworkChange(cm, "default-lost");
+                evaluateNetworkChange("default-lost");
             }
 
             @Override
             public void onCapabilitiesChanged(@NonNull Network network, @NonNull android.net.NetworkCapabilities caps) {
-                evaluateNetworkChange(cm, "caps-changed");
+                evaluateNetworkChange("caps-changed");
             }
         };
         try {
@@ -270,7 +268,7 @@ public final class GuardianClient {
      *   <li>Wi-Fi → mobile handover, etc.</li>
      * </ul>
      */
-    private void evaluateNetworkChange(ConnectivityManager cm, String reason) {
+    private void evaluateNetworkChange(String reason) {
         if (stopped) {
             return;
         }
@@ -331,10 +329,6 @@ public final class GuardianClient {
         long delay = Math.max(1_000L, backoffMs + jitter);
         attemptConnect(delay);
         backoffMs = Math.min(MAX_BACKOFF_MS, backoffMs * 2);
-    }
-
-    private void resetBackoff() {
-        backoffMs = INITIAL_BACKOFF_MS;
     }
 
     /**

@@ -63,7 +63,6 @@ public final class XrayStore {
 
     public static XraySettings getXraySettings(Context context) {
         SharedPreferences prefs = prefs(context);
-        BackendType backendType = getBackendType(context);
         SocksAuthCredentials.Pair credentials = SocksAuthCredentials.ensure(
             prefs,
             AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME,

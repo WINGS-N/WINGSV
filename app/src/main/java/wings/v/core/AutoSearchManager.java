@@ -44,7 +44,6 @@ import wings.v.byedpi.ByeDpiLocalRunner;
 import wings.v.service.EmergencyVpnResetService;
 import wings.v.service.ProxyTunnelService;
 import wings.v.service.XrayVpnService;
-import wings.v.xray.XrayAutoSearchConfigFactory;
 import wings.v.xray.XrayBridge;
 
 @SuppressWarnings(
@@ -75,6 +74,8 @@ import wings.v.xray.XrayBridge;
         "PMD.AvoidDuplicateLiterals",
         "PMD.SingularField",
         "PMD.SimplifyBooleanReturns",
+        "PMD.UnusedPrivateMethod",
+        "PMD.UnusedPrivateField",
     }
 )
 public final class AutoSearchManager {
@@ -756,7 +757,7 @@ public final class AutoSearchManager {
         }
         int targetCount = getTargetProfileCount(appContext);
         int parallelism = Math.min(wings.v.service.XrayAutoSearchProbeService.workerCount(), total);
-        long stableBytes = resolveStableBytes(getDownloadSizeBytes(appContext), getDownloadAttempts(appContext));
+        long stableBytes = resolveStableBytes(getDownloadSizeBytes(appContext));
         List<CandidateResult> stable = new ArrayList<>();
         List<CandidateResult> successful = new ArrayList<>();
 
@@ -1053,90 +1054,7 @@ public final class AutoSearchManager {
         );
     }
 
-    private void runCandidateDownloadTest(
-        Mode mode,
-        CandidateResult candidate,
-        XraySettings xraySettings,
-        ByeDpiSettings byeDpiSettings,
-        int foundProfilesCount
-    ) throws Exception {
-        int localPort = findAvailableTcpPort();
-        String configJson = XrayAutoSearchConfigFactory.buildConfigJson(
-            appContext,
-            candidate.profile,
-            xraySettings,
-            localPort,
-            byeDpiSettings,
-            mode == Mode.WHITELIST
-        );
-        try {
-            stopXrayQuietly();
-            XrayBridge.prepareRuntimeDirect(
-                xraySettings != null ? xraySettings.remoteDns : null,
-                xraySettings != null ? xraySettings.directDns : null
-            );
-            XrayBridge.runFromJson(appContext, configJson, 0);
-            waitForLocalProxy(localPort);
-            SystemClock.sleep(XRAY_PROXY_WARMUP_MS);
-            if (candidate.pingResponsive) {
-                candidate.live = true;
-                updateState(
-                    State.running(
-                        mode,
-                        appContext.getString(R.string.auto_search_step_preflight),
-                        appContext.getString(R.string.auto_search_preflight_summary),
-                        false,
-                        1,
-                        1,
-                        safeProfileTitle(candidate.profile),
-                        appContext.getString(R.string.auto_search_ping_metric, candidate.latencyMs),
-                        0L,
-                        foundProfilesCount,
-                        candidate.latencyMs
-                    )
-                );
-            } else {
-                ProbeResult probeResult = ensureTrafficUp(mode, candidate, xraySettings, localPort, foundProfilesCount);
-                candidate.live = probeResult.success;
-                if (!probeResult.success) {
-                    return;
-                }
-            }
-            int downloadAttempts = getDownloadAttempts(appContext);
-            long downloadSizeBytes = getDownloadSizeBytes(appContext);
-            long stableBytes = resolveStableBytes(downloadSizeBytes, downloadAttempts);
-            for (int attempt = 1; attempt <= downloadAttempts; attempt++) {
-                DownloadResult result = downloadThroughProxy(
-                    mode,
-                    candidate,
-                    xraySettings,
-                    localPort,
-                    foundProfilesCount,
-                    attempt,
-                    downloadAttempts,
-                    stableBytes
-                );
-                candidate.downloadedBytes = Math.max(candidate.downloadedBytes, result.bytesRead);
-                candidate.successfulAttempts += result.success ? 1 : 0;
-                candidate.completedRuns++;
-                candidate.totalDownloadSpeedBytesPerSecond += result.averageSpeedBytesPerSecond;
-                candidate.averageDownloadSpeedBytesPerSecond =
-                    candidate.completedRuns > 0
-                        ? candidate.totalDownloadSpeedBytesPerSecond / candidate.completedRuns
-                        : 0L;
-                candidate.live = candidate.live || result.bytesRead > 0L;
-                candidate.stableRuns += meetsDownloadTarget(result.bytesRead, stableBytes) && result.success ? 1 : 0;
-                candidate.stable = candidate.stableRuns >= downloadAttempts;
-                if (attempt < downloadAttempts) {
-                    SystemClock.sleep(INTER_ATTEMPT_DELAY_MS);
-                }
-            }
-        } finally {
-            stopXrayQuietly();
-        }
-    }
-
-    private static long resolveStableBytes(long downloadSizeBytes, int downloadAttempts) {
+    private static long resolveStableBytes(long downloadSizeBytes) {
         return Math.max(1L, downloadSizeBytes);
     }
 

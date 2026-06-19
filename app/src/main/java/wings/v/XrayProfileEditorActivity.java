@@ -427,6 +427,7 @@ public class XrayProfileEditorActivity extends AppCompatActivity {
         binding.textEditorLineNumbers.setWrapLines(wrapLines);
     }
 
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     private boolean handleEditorTouch(View view, MotionEvent event) {
         if (event == null) {
             return false;

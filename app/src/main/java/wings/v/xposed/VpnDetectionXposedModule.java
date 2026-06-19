@@ -6,9 +6,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
-import android.net.ConnectivityManager;
 import android.net.LinkProperties;
-import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.RouteInfo;
 import android.net.VpnService;
@@ -59,6 +57,7 @@ import wings.v.core.XposedModulePrefs;
         "PMD.LocalVariableCouldBeFinal",
         "PMD.LongVariable",
         "PMD.OnlyOneReturn",
+        "PMD.CompareObjectsWithEquals",
     }
 )
 public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
@@ -2715,88 +2714,6 @@ public final class VpnDetectionXposedModule implements IXposedHookLoadPackage {
             return false;
         }
         return VPN_SERVICE_PERMISSION.equals(serviceInfo.permission);
-    }
-
-    private static boolean isVpnNetwork(ConnectivityManager connectivityManager, Network network) {
-        if (connectivityManager == null || network == null) {
-            return false;
-        }
-        NetworkCapabilities capabilities = getRawNetworkCapabilities(connectivityManager, network);
-        if (capabilities != null) {
-            try {
-                if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) || hasVpnTransportInfo(capabilities)) {
-                    return true;
-                }
-            } catch (Throwable ignored) {}
-        }
-        LinkProperties linkProperties = getRawLinkProperties(connectivityManager, network);
-        return isTunnelInterface(getInterfaceName(linkProperties));
-    }
-
-    private static Network findPhysicalNetwork(ConnectivityManager connectivityManager) {
-        if (connectivityManager == null) {
-            return null;
-        }
-        Network[] networks = getRawAllNetworks(connectivityManager);
-        if (networks == null) {
-            return null;
-        }
-        for (Network network : networks) {
-            NetworkCapabilities capabilities = getRawNetworkCapabilities(connectivityManager, network);
-            if (capabilities == null) {
-                continue;
-            }
-            try {
-                if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
-                    continue;
-                }
-                if (
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-                ) {
-                    return network;
-                }
-            } catch (Throwable ignored) {}
-        }
-        return null;
-    }
-
-    private static LinkProperties getPhysicalLinkProperties(ConnectivityManager connectivityManager) {
-        Network replacement = findPhysicalNetwork(connectivityManager);
-        return replacement != null ? getRawLinkProperties(connectivityManager, replacement) : null;
-    }
-
-    private static Network[] getRawAllNetworks(ConnectivityManager connectivityManager) {
-        return callOriginal(() -> {
-            Method method = ConnectivityManager.class.getMethod("getAllNetworks");
-            return (Network[]) XposedBridge.invokeOriginalMethod(method, connectivityManager, new Object[0]);
-        });
-    }
-
-    private static NetworkCapabilities getRawNetworkCapabilities(
-        ConnectivityManager connectivityManager,
-        Network network
-    ) {
-        return callOriginal(() -> {
-            Method method = ConnectivityManager.class.getMethod("getNetworkCapabilities", Network.class);
-            return (NetworkCapabilities) XposedBridge.invokeOriginalMethod(
-                method,
-                connectivityManager,
-                new Object[] { network }
-            );
-        });
-    }
-
-    private static LinkProperties getRawLinkProperties(ConnectivityManager connectivityManager, Network network) {
-        return callOriginal(() -> {
-            Method method = ConnectivityManager.class.getMethod("getLinkProperties", Network.class);
-            return (LinkProperties) XposedBridge.invokeOriginalMethod(
-                method,
-                connectivityManager,
-                new Object[] { network }
-            );
-        });
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

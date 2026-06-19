@@ -10,8 +10,21 @@
 
   <rule ref="category/java/bestpractices.xml/ImplicitFunctionalInterface" />
   <rule ref="category/java/bestpractices.xml/SystemPrintln" />
+  <rule ref="category/java/bestpractices.xml/UnusedLocalVariable" />
+  <rule ref="category/java/bestpractices.xml/UnusedFormalParameter" />
+  <rule ref="category/java/bestpractices.xml/UnusedPrivateField" />
+  <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod" />
+  <rule ref="category/java/bestpractices.xml/LiteralsFirstInComparisons" />
+  <rule ref="category/java/bestpractices.xml/PreserveStackTrace" />
   <rule ref="category/java/codestyle.xml/FieldNamingConventions" />
   <rule ref="category/java/codestyle.xml/MethodNamingConventions" />
   <rule ref="category/java/errorprone.xml/AssignmentInOperand" />
+  <rule ref="category/java/errorprone.xml/CompareObjectsWithEquals" />
+  <rule ref="category/java/errorprone.xml/EmptyCatchBlock">
+    <properties>
+      <property name="allowCommentedBlocks" value="true" />
+    </properties>
+  </rule>
   <rule ref="category/java/errorprone.xml/UseLocaleWithCaseConversions" />
+  <rule ref="category/java/multithreading.xml/DontCallThreadRun" />
 </ruleset>

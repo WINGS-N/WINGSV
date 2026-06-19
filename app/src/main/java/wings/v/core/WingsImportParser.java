@@ -115,7 +115,6 @@ public final class WingsImportParser {
             .setBackend(backendType.toProto())
             .setType(WingsvProto.ConfigType.CONFIG_TYPE_ALL)
             .setAppRouting(buildAppRouting(context));
-        ProxySettings settings = AppPrefs.getSettings(context);
 
         WingsvProto.Turn turn = buildTurn(scopedSettings(context, ExportScope.VK_TURN), true);
         if (!turn.equals(WingsvProto.Turn.getDefaultInstance())) {
@@ -140,7 +139,7 @@ public final class WingsImportParser {
         if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
             builder.setXray(xray);
         }
-        WingsvProto.WbStream wb = buildWbStream(context, scopedSettings(context, ExportScope.WB_STREAM), true);
+        WingsvProto.WbStream wb = buildWbStream(context, true);
         if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
             builder.setWbStream(wb);
         }
@@ -564,7 +563,7 @@ public final class WingsImportParser {
             if (!xray.equals(WingsvProto.Xray.getDefaultInstance())) {
                 builder.setXray(xray);
             }
-            WingsvProto.WbStream wb = buildWbStream(context, scopedSettings(context, ExportScope.WB_STREAM), false);
+            WingsvProto.WbStream wb = buildWbStream(context, false);
             if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
                 builder.setWbStream(wb);
             }
@@ -664,7 +663,7 @@ public final class WingsImportParser {
             return builder.build();
         }
         if (settings != null && (scope == ExportScope.WB_STREAM || backendType == BackendType.WB_STREAM)) {
-            WingsvProto.WbStream wb = buildWbStream(context, settings, scope != ExportScope.ACTIVE);
+            WingsvProto.WbStream wb = buildWbStream(context, scope != ExportScope.ACTIVE);
             if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
                 builder.setWbStream(wb);
             }
@@ -713,11 +712,7 @@ public final class WingsImportParser {
         return WingsvProto.ConfigType.CONFIG_TYPE_VK;
     }
 
-    private static WingsvProto.WbStream buildWbStream(
-        Context context,
-        ProxySettings settings,
-        boolean includeDefaults
-    ) {
+    private static WingsvProto.WbStream buildWbStream(Context context, boolean includeDefaults) {
         WingsvProto.WbStream.Builder builder = WingsvProto.WbStream.newBuilder();
         String roomId = context != null ? AppPrefs.getWbStreamRoomId(context) : "";
         String displayName = context != null ? AppPrefs.getWbStreamDisplayName(context) : "";
@@ -1700,10 +1695,6 @@ public final class WingsImportParser {
         return WingsvProto.XrayRoutingAction.XRAY_ROUTING_ACTION_PROXY;
     }
 
-    private static WingsvProto.Turn buildTurn(ProxySettings settings) throws Exception {
-        return buildTurn(settings, false);
-    }
-
     private static WingsvProto.Turn buildTurn(ProxySettings settings, boolean includeDefaults) throws Exception {
         WingsvProto.Turn.Builder builder = WingsvProto.Turn.newBuilder();
         setEndpoint(builder, value(settings.endpoint), true);
@@ -1842,10 +1833,6 @@ public final class WingsImportParser {
         } else {
             builder.setLocalEndpoint(parsed);
         }
-    }
-
-    private static WingsvProto.WireGuard buildWireGuard(ProxySettings settings) throws Exception {
-        return buildWireGuard(settings, false);
     }
 
     private static WingsvProto.WireGuard buildWireGuard(ProxySettings settings, boolean includeDefaults)
@@ -2643,10 +2630,6 @@ public final class WingsImportParser {
             result.wakeProbeMode = XraySettings.WakeProbeMode.PROCESS;
         }
         return result;
-    }
-
-    private static WingsvProto.XraySettings toProtoXraySettings(XraySettings settings) {
-        return toProtoXraySettings(settings, false);
     }
 
     private static WingsvProto.XraySettings toProtoXraySettings(XraySettings settings, boolean includeDefaults) {
