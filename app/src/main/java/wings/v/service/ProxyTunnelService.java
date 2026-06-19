@@ -4765,8 +4765,9 @@ public class ProxyTunnelService extends Service {
                         if (errorLog.exists() && errorLog.length() > position) {
                             try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(errorLog, "r")) {
                                 raf.seek(position);
-                                String line;
-                                while ((line = raf.readLine()) != null) {
+                                while (true) {
+                                    String line = raf.readLine();
+                                    if (line == null) break;
                                     handleXrayTproxyListenerLine(line);
                                     if (tproxyListenerReady.get()) {
                                         return;

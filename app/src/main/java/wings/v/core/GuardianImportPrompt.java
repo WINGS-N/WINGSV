@@ -31,6 +31,7 @@ public final class GuardianImportPrompt {
 
     private GuardianImportPrompt() {}
 
+    @FunctionalInterface
     public interface OnConfirm {
         void onConfirm();
     }

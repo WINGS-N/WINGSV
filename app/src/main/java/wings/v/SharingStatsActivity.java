@@ -17,15 +17,14 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.Map;
 import wings.v.core.SharingClientMetadata;
 import wings.v.core.SharingTrafficStatsStore;
 import wings.v.databinding.ActivitySharingStatsBinding;
 import wings.v.vpnhotspot.bridge.SharingApiGuard;
 import wings.v.vpnhotspot.sharing.runtime.VpnHotspotTrafficCounter;
-import wings.v.widget.TrafficWeeklyChartView;
 
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.DoNotUseThreads" })
 public class SharingStatsActivity extends AppCompatActivity {
@@ -281,9 +280,7 @@ public class SharingStatsActivity extends AppCompatActivity {
                     .getContext()
                     .getString(R.string.sharing_stats_client_meta, metaPrimary, formatLastSeen(item.lastSeenMillis));
             } else {
-                meta = holder.itemView
-                    .getContext()
-                    .getString(R.string.sharing_stats_client_meta_never, metaPrimary);
+                meta = holder.itemView.getContext().getString(R.string.sharing_stats_client_meta_never, metaPrimary);
             }
             holder.metaView.setText(meta);
             holder.trafficView.setText(
