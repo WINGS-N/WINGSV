@@ -104,7 +104,6 @@ public final class AutoSearchManager {
     public static final String KEY_DOWNLOAD_TIMEOUT_SECONDS = "pref_auto_search_download_timeout_seconds";
     public static final String KEY_DOWNLOAD_ATTEMPTS = "pref_auto_search_download_attempts";
 
-    private static final String AUTOSEARCH_SUBSCRIPTION_TITLE = "Автопоиск";
     private static final String DOWNLOAD_TEST_URL_PREFIX = "https://speed.cloudflare.com/__down?bytes=";
     private static final String[] TRAFFIC_PROBE_URLS = {
         "https://cp.cloudflare.com/generate_204",
@@ -1769,7 +1768,7 @@ public final class AutoSearchManager {
             String stableKey = profile.stableDedupKey();
             CandidateResult candidate = candidateByKey.get(stableKey);
             if (candidate != null) {
-                XrayProfile tagged = tagAutoSearchProfile(profile);
+                XrayProfile tagged = tagAutoSearchProfile(appContext, profile);
                 updatedProfiles.add(tagged);
                 XrayStore.putProfilePingResult(
                     appContext,
@@ -1786,13 +1785,13 @@ public final class AutoSearchManager {
     }
 
     @NonNull
-    private static XrayProfile tagAutoSearchProfile(@NonNull XrayProfile profile) {
+    private static XrayProfile tagAutoSearchProfile(@NonNull Context context, @NonNull XrayProfile profile) {
         return new XrayProfile(
             profile.id,
             profile.title,
             profile.rawLink,
             AUTOSEARCH_SUBSCRIPTION_ID,
-            AUTOSEARCH_SUBSCRIPTION_TITLE,
+            context.getString(wings.v.R.string.auto_search_subscription_title),
             profile.address,
             profile.port
         );

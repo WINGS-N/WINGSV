@@ -302,7 +302,7 @@ public class XrayProfileEditorActivity extends AppCompatActivity {
                 ? XrayProfileEditorCodec.parseJsonProfile(profile, textValue())
                 : XrayProfileEditorCodec.parseVlessProfile(profile, textValue());
             if (!XrayStore.replaceProfile(this, updatedProfile)) {
-                throw new IllegalStateException("Профиль не найден");
+                throw new IllegalStateException(getString(R.string.xray_profile_editor_profile_missing));
             }
             profile = updatedProfile;
             if (TextUtils.equals(XrayStore.getActiveProfileId(this), updatedProfile.id)) {

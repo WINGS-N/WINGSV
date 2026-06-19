@@ -292,7 +292,7 @@ public final class RootUtils {
             AppPrefs.setRootAccessGranted(context, true);
             return null;
         }
-        return "Root-доступ не подтверждён";
+        return context.getString(wings.v.R.string.root_access_not_confirmed);
     }
 
     public static boolean isKernelWireGuardSupported(Context context, BackendType backendType, boolean refreshAccess) {
@@ -306,13 +306,13 @@ public final class RootUtils {
     ) {
         boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
         if (!rootGranted) {
-            return "Root-доступ не подтверждён";
+            return context.getString(wings.v.R.string.root_access_not_confirmed);
         }
         if (backendType == null || !backendType.supportsKernelWireGuard()) {
-            return "Доступно только для WireGuard backend";
+            return context.getString(wings.v.R.string.root_kernel_wireguard_backend_only);
         }
         if (!WgQuickBackend.hasKernelSupport()) {
-            return "Kernel WireGuard недоступен на этом устройстве";
+            return context.getString(wings.v.R.string.root_kernel_wireguard_unavailable_device);
         }
         return null;
     }
@@ -324,10 +324,10 @@ public final class RootUtils {
     public static String getXrayTproxyUnavailableReason(Context context, boolean refreshAccess) {
         boolean rootGranted = refreshAccess ? refreshRootAccessState(context) : isRootAccessGranted(context);
         if (!rootGranted) {
-            return "Root-доступ не подтверждён";
+            return context.getString(wings.v.R.string.root_access_not_confirmed);
         }
         if (!runRootCheck(context, "grep -qE '(^| )TPROXY( |$)' /proc/net/ip_tables_targets 2>/dev/null")) {
-            return "Kernel-модуль xt_TPROXY не загружен";
+            return context.getString(wings.v.R.string.root_xt_tproxy_module_missing);
         }
         return null;
     }

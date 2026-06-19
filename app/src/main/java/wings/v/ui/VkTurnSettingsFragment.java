@@ -326,7 +326,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         }
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? "Не задано" : UiFormatter.truncate(value, 64);
+            return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : UiFormatter.truncate(value, 64);
         });
     }
 
@@ -338,7 +338,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             if (TextUtils.isEmpty(value)) {
-                return "Не задано";
+                return getString(R.string.common_not_set);
             }
             if (value.length() <= SECRET_PREVIEW_PLAIN_LENGTH) {
                 return value;
@@ -355,7 +355,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         preference.setOnBindEditTextListener(editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? "Не задано" : value;
+            return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : value;
         });
     }
 

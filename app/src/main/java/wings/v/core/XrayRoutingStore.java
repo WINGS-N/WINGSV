@@ -210,43 +210,56 @@ public final class XrayRoutingStore {
 
     public static ValidationResult validateRule(Context context, XrayRoutingRule rule) {
         if (rule == null) {
-            return new ValidationResult(false, "Правило не задано");
+            return new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_rule_missing));
         }
         if (!rule.enabled) {
-            return new ValidationResult(true, "Правило выключено");
+            return new ValidationResult(true, context.getString(wings.v.R.string.xray_routing_rule_disabled));
         }
         String normalizedCode = XrayRoutingRule.normalizeCode(rule.code, rule.matchType);
         if (TextUtils.isEmpty(normalizedCode)) {
-            return new ValidationResult(false, "Значение правила не задано");
+            return new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_rule_value_missing));
         }
         if (!rule.matchType.isGeo()) {
-            return validateSimpleRule(rule.matchType, normalizedCode);
+            return validateSimpleRule(context, rule.matchType, normalizedCode);
         }
         File datFile = getGeoDatFile(context, rule.matchType);
         if (!datFile.exists()) {
-            return new ValidationResult(false, "Файл " + datFile.getName() + " не найден");
+            return new ValidationResult(
+                false,
+                context.getString(wings.v.R.string.xray_routing_dat_file_missing, datFile.getName())
+            );
         }
         GeoIndex index = loadGeoIndex(context, rule.matchType);
         if (index.codes.isEmpty()) {
-            return new ValidationResult(false, "Не удалось прочитать " + datFile.getName());
+            return new ValidationResult(
+                false,
+                context.getString(wings.v.R.string.xray_routing_dat_read_failed, datFile.getName())
+            );
         }
         if (!index.codes.contains(normalizedCode)) {
-            return new ValidationResult(false, "Код не найден в " + datFile.getName());
+            return new ValidationResult(
+                false,
+                context.getString(wings.v.R.string.xray_routing_code_not_found, datFile.getName())
+            );
         }
         return new ValidationResult(true, datFile.getName());
     }
 
-    private static ValidationResult validateSimpleRule(XrayRoutingRule.MatchType matchType, String value) {
+    private static ValidationResult validateSimpleRule(
+        Context context,
+        XrayRoutingRule.MatchType matchType,
+        String value
+    ) {
         if (matchType == XrayRoutingRule.MatchType.PORT) {
-            return validatePortRule(value);
+            return validatePortRule(context, value);
         }
         if (!hasListValue(value)) {
-            return new ValidationResult(false, "Значение правила не задано");
+            return new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_rule_value_missing));
         }
         return new ValidationResult(true, matchType.value);
     }
 
-    private static ValidationResult validatePortRule(String value) {
+    private static ValidationResult validatePortRule(Context context, String value) {
         boolean hasValue = false;
         for (String token : value.split("[,\\s]+")) {
             String normalized = trim(token);
@@ -255,12 +268,12 @@ public final class XrayRoutingStore {
             }
             hasValue = true;
             if (!isValidPortToken(normalized)) {
-                return new ValidationResult(false, "Порт должен быть 1-65535 или диапазоном");
+                return new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_port_invalid));
             }
         }
         return hasValue
             ? new ValidationResult(true, XrayRoutingRule.MatchType.PORT.value)
-            : new ValidationResult(false, "Порт не задан");
+            : new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_port_missing));
     }
 
     private static boolean isValidPortToken(String token) {

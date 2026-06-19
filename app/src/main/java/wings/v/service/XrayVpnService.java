@@ -302,9 +302,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         }
         Intent vpnPermissionIntent = VpnService.prepare(this);
         if (vpnPermissionIntent != null) {
-            throw new IllegalStateException(
-                "VPN permission is unavailable. Проверьте системное разрешение VPN, другой активный VPN и Always-On VPN"
-            );
+            throw new IllegalStateException(getString(wings.v.R.string.xray_vpn_permission_unavailable));
         }
         ProxySettings value = settings != null ? settings : new ProxySettings();
         synchronized (tunnelLock) {
@@ -348,24 +346,19 @@ public class XrayVpnService extends VpnService implements DialerController {
                 Intent permissionAfterFailure = VpnService.prepare(this);
                 if (permissionAfterFailure != null) {
                     throw new IllegalStateException(
-                        "VPN permission became unavailable while starting Xray. Проверьте системное разрешение VPN, другой активный VPN и Always-On VPN",
+                        getString(wings.v.R.string.xray_vpn_permission_lost_starting),
                         error
                     );
                 }
-                throw new IllegalStateException(
-                    "Не удалось открыть Xray TUN. Возможен конфликт с другим VPN, Always-On VPN или прошивкой устройства",
-                    error
-                );
+                throw new IllegalStateException(getString(wings.v.R.string.xray_tun_open_failed_conflict), error);
             }
             if (established == null) {
                 Intent permissionAfterFailure = VpnService.prepare(this);
                 if (permissionAfterFailure != null) {
-                    throw new IllegalStateException(
-                        "Не удалось открыть Xray TUN: системное разрешение VPN недоступно. Проверьте другой VPN и Always-On VPN"
-                    );
+                    throw new IllegalStateException(getString(wings.v.R.string.xray_tun_open_failed_no_permission));
                 }
                 throw new IllegalStateException(
-                    "Не удалось открыть Xray TUN. Возможен конфликт с другим VPN, Always-On VPN или ограничениями прошивки"
+                    getString(wings.v.R.string.xray_tun_open_failed_conflict_or_restrictions)
                 );
             }
             tunnelFd = established;
@@ -404,7 +397,7 @@ public class XrayVpnService extends VpnService implements DialerController {
                 }
             }
         } catch (Exception error) {
-            throw new IllegalStateException("Не удалось применить app routing для Xray", error);
+            throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
         }
     }
 

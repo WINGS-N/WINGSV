@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import wings.v.R;
 import wings.v.core.WingsImportParser.ImportedConfig;
 
 public final class ImportConfigSummary {
@@ -18,34 +19,34 @@ public final class ImportConfigSummary {
     public static String forUser(@NonNull Context context, @NonNull ImportedConfig cfg) {
         List<String> sections = new ArrayList<>();
 
-        sections.add(buildHeader(cfg));
+        sections.add(buildHeader(context, cfg));
 
-        String turn = buildTurnBlock(cfg);
+        String turn = buildTurnBlock(context, cfg);
         if (turn != null) {
             sections.add(turn);
         }
 
-        String wg = buildWireGuardBlock(cfg);
+        String wg = buildWireGuardBlock(context, cfg);
         if (wg != null) {
             sections.add(wg);
         }
 
-        String xray = buildXrayBlock(cfg);
+        String xray = buildXrayBlock(context, cfg);
         if (xray != null) {
             sections.add(xray);
         }
 
-        String awg = buildAmneziaBlock(cfg);
+        String awg = buildAmneziaBlock(context, cfg);
         if (awg != null) {
             sections.add(awg);
         }
 
-        String routing = buildXrayRoutingBlock(cfg);
+        String routing = buildXrayRoutingBlock(context, cfg);
         if (routing != null) {
             sections.add(routing);
         }
 
-        String appRouting = buildAppRoutingBlock(cfg);
+        String appRouting = buildAppRoutingBlock(context, cfg);
         if (appRouting != null) {
             sections.add(appRouting);
         }
@@ -54,19 +55,19 @@ public final class ImportConfigSummary {
     }
 
     @NonNull
-    private static String buildHeader(@NonNull ImportedConfig cfg) {
+    private static String buildHeader(@NonNull Context context, @NonNull ImportedConfig cfg) {
         StringBuilder sb = new StringBuilder();
         sb.append("Backend: ").append(backendLabel(cfg.backendType));
         if (cfg.hasAllSettings) {
-            sb.append("\nТип: Все настройки");
+            sb.append(context.getString(R.string.import_summary_type_all));
         } else if (cfg.xrayMergeOnly) {
-            sb.append("\nТип: Только дополнение Xray");
+            sb.append(context.getString(R.string.import_summary_type_xray_merge));
         }
         return sb.toString();
     }
 
     @Nullable
-    private static String buildTurnBlock(@NonNull ImportedConfig cfg) {
+    private static String buildTurnBlock(@NonNull Context context, @NonNull ImportedConfig cfg) {
         if (!cfg.hasTurnSettings) {
             return null;
         }
@@ -74,33 +75,47 @@ public final class ImportConfigSummary {
         lines.add("VK TURN");
         addLine(lines, "TURN", cfg.endpoint);
         addLine(lines, "Local endpoint", cfg.localEndpoint);
-        addLine(lines, "Сессия", cfg.turnSessionMode);
+        addLine(lines, context.getString(R.string.import_summary_label_session), cfg.turnSessionMode);
         if (cfg.threads != null) {
-            addLine(lines, "Воркеров", String.valueOf(cfg.threads));
+            addLine(lines, context.getString(R.string.import_summary_label_workers), String.valueOf(cfg.threads));
         }
         if (cfg.credsGroupSize != null) {
-            addLine(lines, "Размер группы кредов", String.valueOf(cfg.credsGroupSize));
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_creds_group),
+                String.valueOf(cfg.credsGroupSize)
+            );
         }
         if (cfg.useUdp != null) {
-            addLine(lines, "Транспорт", cfg.useUdp ? "UDP" : "TCP");
+            addLine(lines, context.getString(R.string.import_summary_label_transport), cfg.useUdp ? "UDP" : "TCP");
         }
         if (cfg.noObfuscation != null) {
-            addLine(lines, "Обфускация", cfg.noObfuscation ? "Выкл" : "Вкл");
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_obfuscation),
+                context.getString(
+                    cfg.noObfuscation ? R.string.import_summary_obfuscation_off : R.string.import_summary_obfuscation_on
+                )
+            );
         }
         if (cfg.links != null && !cfg.links.isEmpty()) {
-            addLine(lines, "VK ссылок", String.valueOf(cfg.links.size()));
+            addLine(lines, context.getString(R.string.import_summary_label_vk_links), String.valueOf(cfg.links.size()));
             int shown = Math.min(cfg.links.size(), MAX_LIST_ITEMS);
             for (int i = 0; i < shown; i++) {
                 lines.add("  " + (i + 1) + ". " + truncate(cfg.links.get(i), 64));
             }
             if (cfg.links.size() > shown) {
-                lines.add("  …и ещё " + (cfg.links.size() - shown));
+                lines.add(context.getString(R.string.import_summary_more_items, cfg.links.size() - shown));
             }
         } else {
-            addLine(lines, "Ссылка", truncate(cfg.link, 64));
+            addLine(lines, context.getString(R.string.import_summary_label_link), truncate(cfg.link, 64));
         }
         if (!TextUtils.isEmpty(cfg.linkSecondary)) {
-            addLine(lines, "Резервная ссылка", truncate(cfg.linkSecondary, 64));
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_link_secondary),
+                truncate(cfg.linkSecondary, 64)
+            );
         }
         if (lines.size() <= 1) {
             return null;
@@ -109,14 +124,14 @@ public final class ImportConfigSummary {
     }
 
     @Nullable
-    private static String buildWireGuardBlock(@NonNull ImportedConfig cfg) {
+    private static String buildWireGuardBlock(@NonNull Context context, @NonNull ImportedConfig cfg) {
         if (!cfg.hasWireGuardSettings) {
             return null;
         }
         List<String> lines = new ArrayList<>();
         lines.add("WireGuard");
         addLine(lines, "Endpoint", cfg.wgEndpoint);
-        addLine(lines, "Адреса", cfg.wgAddresses);
+        addLine(lines, context.getString(R.string.import_summary_label_addresses), cfg.wgAddresses);
         addLine(lines, "DNS", cfg.wgDns);
         if (cfg.wgMtu != null) {
             addLine(lines, "MTU", String.valueOf(cfg.wgMtu));
@@ -129,7 +144,7 @@ public final class ImportConfigSummary {
     }
 
     @Nullable
-    private static String buildXrayBlock(@NonNull ImportedConfig cfg) {
+    private static String buildXrayBlock(@NonNull Context context, @NonNull ImportedConfig cfg) {
         boolean hasProfiles = cfg.xrayProfiles != null && !cfg.xrayProfiles.isEmpty();
         boolean hasSubs = cfg.xraySubscriptions != null && !cfg.xraySubscriptions.isEmpty();
         if (!hasProfiles && !hasSubs && !cfg.hasXraySettings && !cfg.hasXraySubscriptionJson) {
@@ -138,7 +153,11 @@ public final class ImportConfigSummary {
         List<String> lines = new ArrayList<>();
         lines.add("Xray");
         if (hasProfiles) {
-            addLine(lines, "Профилей", String.valueOf(cfg.xrayProfiles.size()));
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_profiles),
+                String.valueOf(cfg.xrayProfiles.size())
+            );
             int shown = Math.min(cfg.xrayProfiles.size(), MAX_LIST_ITEMS);
             for (int i = 0; i < shown; i++) {
                 XrayProfile p = cfg.xrayProfiles.get(i);
@@ -148,11 +167,15 @@ public final class ImportConfigSummary {
                 }
             }
             if (cfg.xrayProfiles.size() > shown) {
-                lines.add("  …и ещё " + (cfg.xrayProfiles.size() - shown));
+                lines.add(context.getString(R.string.import_summary_more_items, cfg.xrayProfiles.size() - shown));
             }
         }
         if (hasSubs) {
-            addLine(lines, "Подписок", String.valueOf(cfg.xraySubscriptions.size()));
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_subscriptions),
+                String.valueOf(cfg.xraySubscriptions.size())
+            );
             int shown = Math.min(cfg.xraySubscriptions.size(), MAX_LIST_ITEMS);
             for (int i = 0; i < shown; i++) {
                 XraySubscription s = cfg.xraySubscriptions.get(i);
@@ -162,11 +185,15 @@ public final class ImportConfigSummary {
                 }
             }
             if (cfg.xraySubscriptions.size() > shown) {
-                lines.add("  …и ещё " + (cfg.xraySubscriptions.size() - shown));
+                lines.add(context.getString(R.string.import_summary_more_items, cfg.xraySubscriptions.size() - shown));
             }
         }
         if (cfg.hasXraySettings && cfg.xraySettings != null && cfg.xraySettings.transportMode != null) {
-            addLine(lines, "Транспорт", cfg.xraySettings.transportMode.name());
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_transport),
+                cfg.xraySettings.transportMode.name()
+            );
         }
         if (lines.size() <= 1) {
             return null;
@@ -175,23 +202,27 @@ public final class ImportConfigSummary {
     }
 
     @Nullable
-    private static String buildAmneziaBlock(@NonNull ImportedConfig cfg) {
+    private static String buildAmneziaBlock(@NonNull Context context, @NonNull ImportedConfig cfg) {
         if (!cfg.hasAmneziaSettings || TextUtils.isEmpty(cfg.awgQuickConfig)) {
             return null;
         }
         int lineCount = cfg.awgQuickConfig.split("\\R").length;
-        return "AmneziaWG\nКонфиг: " + lineCount + " строк";
+        return context.getString(R.string.import_summary_amneziawg_config_lines, lineCount);
     }
 
     @Nullable
-    private static String buildXrayRoutingBlock(@NonNull ImportedConfig cfg) {
+    private static String buildXrayRoutingBlock(@NonNull Context context, @NonNull ImportedConfig cfg) {
         if (!cfg.hasXrayRouting) {
             return null;
         }
         List<String> lines = new ArrayList<>();
         lines.add("Xray routing");
         if (cfg.xrayRoutingRules != null && !cfg.xrayRoutingRules.isEmpty()) {
-            addLine(lines, "Правил", String.valueOf(cfg.xrayRoutingRules.size()));
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_rules),
+                String.valueOf(cfg.xrayRoutingRules.size())
+            );
         }
         addLine(lines, "GeoIP", cfg.xrayRoutingGeoipUrl);
         addLine(lines, "Geosite", cfg.xrayRoutingGeositeUrl);
@@ -202,17 +233,25 @@ public final class ImportConfigSummary {
     }
 
     @Nullable
-    private static String buildAppRoutingBlock(@NonNull ImportedConfig cfg) {
+    private static String buildAppRoutingBlock(@NonNull Context context, @NonNull ImportedConfig cfg) {
         if (!cfg.hasAppRouting) {
             return null;
         }
         List<String> lines = new ArrayList<>();
         lines.add("Per-app routing");
         if (cfg.appRoutingBypass != null) {
-            addLine(lines, "Режим", cfg.appRoutingBypass ? "Bypass" : "Только эти приложения");
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_mode),
+                cfg.appRoutingBypass ? "Bypass" : context.getString(R.string.import_summary_mode_only_apps)
+            );
         }
         if (cfg.appRoutingPackages != null && !cfg.appRoutingPackages.isEmpty()) {
-            addLine(lines, "Пакетов", String.valueOf(cfg.appRoutingPackages.size()));
+            addLine(
+                lines,
+                context.getString(R.string.import_summary_label_packages),
+                String.valueOf(cfg.appRoutingPackages.size())
+            );
         }
         if (lines.size() <= 1) {
             return null;

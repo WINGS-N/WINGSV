@@ -520,7 +520,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         if (hasError) {
             return getString(R.string.first_launch_vk_turn_validation_error);
         }
-        String configError = settings.validate();
+        String configError = settings.validate(requireContext());
         return TextUtils.isEmpty(configError) ? "" : configError;
     }
 

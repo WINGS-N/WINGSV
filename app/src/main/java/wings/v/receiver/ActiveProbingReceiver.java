@@ -46,7 +46,7 @@ public class ActiveProbingReceiver extends BroadcastReceiver {
                 );
                 ProxySettings fallbackSettings = AppPrefs.getSettings(appContext);
                 fallbackSettings.backendType = fallbackBackend;
-                if (!TextUtils.isEmpty(fallbackSettings.validate())) {
+                if (!TextUtils.isEmpty(fallbackSettings.validate(appContext))) {
                     return;
                 }
                 BackendType restoreBackend = XrayStore.getBackendType(appContext);

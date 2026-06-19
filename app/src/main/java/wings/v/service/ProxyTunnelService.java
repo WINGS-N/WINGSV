@@ -1370,7 +1370,7 @@ public class ProxyTunnelService extends Service {
                 stopping = false;
             }
             if (hasRuntimeArtifacts()) {
-                throw new IllegalStateException("Не удалось полностью очистить предыдущий backend перед reconnect");
+                throw new IllegalStateException(getString(R.string.proxy_cleanup_backend_failed));
             }
 
             clearPendingCaptchaPrompt(getApplicationContext());
@@ -1382,7 +1382,7 @@ public class ProxyTunnelService extends Service {
             // Авто-truncate по MAX_PROXY_LOG_LINES всё равно держит размер в норме.
             Context appContext = getApplicationContext();
             ProxySettings settings = AppPrefs.getSettings(appContext);
-            String validationError = settings.validate();
+            String validationError = settings.validate(appContext);
             if (!TextUtils.isEmpty(validationError)) {
                 setLastError(validationError);
                 setServiceState(ServiceState.STOPPED);
@@ -1601,13 +1601,11 @@ public class ProxyTunnelService extends Service {
             Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
             if (vpnPermissionIntent != null) {
                 if (hasOwnedVpnServiceRuntime()) {
-                    throw new IllegalStateException(
-                        "Предыдущий VPN backend ещё не перешёл в DOWN; запуск Xray невозможен"
-                    );
+                    throw new IllegalStateException(getString(R.string.proxy_previous_vpn_backend_not_down_xray));
                 }
                 throw new IllegalStateException(
                     getString(R.string.vpn_permission_required) +
-                        ". Проверьте другой активный VPN и Always-On VPN в системных настройках"
+                        getString(R.string.proxy_vpn_permission_check_other_vpn)
                 );
             }
             for (int attempt = 1; attempt <= XRAY_VPN_START_ATTEMPTS; attempt++) {
@@ -1615,11 +1613,11 @@ public class ProxyTunnelService extends Service {
                 try {
                     vpnService = XrayVpnService.ensureServiceStarted(getApplicationContext());
                     if (vpnService == null) {
-                        throw new IllegalStateException("Не удалось запустить Xray VPN service");
+                        throw new IllegalStateException(getString(R.string.proxy_xray_vpn_service_start_failed));
                     }
                     tunFd = vpnService.establishTunnel(settings);
                     if (tunFd <= 0) {
-                        throw new IllegalStateException("Не удалось открыть Xray TUN");
+                        throw new IllegalStateException(getString(R.string.proxy_xray_tun_open_failed));
                     }
                     startupError = null;
                     break;
@@ -1662,7 +1660,11 @@ public class ProxyTunnelService extends Service {
             activeXrayUsesTurnProxy = true;
         }
         if (!activeXrayProxyOnly && !activeXrayTproxyMode) {
-            ensureProtectBridgeReady(XrayVpnService::getServiceNow, null, "Не удалось запустить Xray protect bridge");
+            ensureProtectBridgeReady(
+                XrayVpnService::getServiceNow,
+                null,
+                getString(R.string.proxy_xray_protect_bridge_start_failed)
+            );
         }
         if (xrayExternalRelayEnabled) {
             String relayName = describeXrayTcpRelay(settings);
@@ -1738,7 +1740,7 @@ public class ProxyTunnelService extends Service {
         } else {
             XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
             if (!XrayBridge.isRunning()) {
-                throw new IllegalStateException("Xray core не перешел в состояние running");
+                throw new IllegalStateException(getString(R.string.proxy_xray_core_not_running));
             }
         }
 
@@ -1801,9 +1803,7 @@ public class ProxyTunnelService extends Service {
         } catch (Exception ignored) {}
         forceStopXrayVpnServiceAndWait("VK TURN proxy-only startup cleanup");
         if (!stopUserspaceVpnServicesAndWait()) {
-            throw new IllegalStateException(
-                "Userspace VPN backend ещё не перешёл в DOWN; запуск proxy-only невозможен"
-            );
+            throw new IllegalStateException(getString(R.string.proxy_userspace_vpn_not_down_proxy_only));
         }
         ensureRuntimeStillWanted(generation);
 
@@ -1950,7 +1950,7 @@ public class ProxyTunnelService extends Service {
         // available.
         boolean requireProtect = !activeXrayTproxyMode;
         if (requireProtect && TextUtils.isEmpty(protectSocketName)) {
-            throw new IllegalStateException("ByeDPI protect socket не инициализирован");
+            throw new IllegalStateException(getString(R.string.proxy_byedpi_protect_socket_missing));
         }
         byeDpiNative = new ByeDpiNative();
         byeDpiFrontProxyActive = true;
@@ -1959,13 +1959,13 @@ public class ProxyTunnelService extends Service {
         String byeDpiProtectPath = requireProtect ? protectSocketName : null;
         List<String> arguments = settings.buildRuntimeArguments(byeDpiProtectPath);
         if (requireProtect && !containsProtectPathArgument(arguments)) {
-            throw new IllegalStateException("ByeDPI должен стартовать только с protect(fd)");
+            throw new IllegalStateException(getString(R.string.proxy_byedpi_requires_protect_fd));
         }
         appendRuntimeLogLine("Starting ByeDPI front proxy on " + byeDpiDialHost + ":" + byeDpiDialPort);
         byeDpiWorkTask = byeDpiExecutor.submit(() -> {
             int exitCode = byeDpiNative.startProxy(arguments.toArray(new String[0]));
             if (!stopping && byeDpiFrontProxyActive && exitCode != 0) {
-                throw new IllegalStateException("ByeDPI завершился с кодом " + exitCode);
+                throw new IllegalStateException(getString(R.string.proxy_byedpi_exited_code, exitCode));
             }
             return exitCode;
         });
@@ -1985,11 +1985,11 @@ public class ProxyTunnelService extends Service {
                     throw error;
                 } catch (ExecutionException error) {
                     throw new IllegalStateException(
-                        firstNonEmpty(error.getMessage(), "ByeDPI завершился до старта"),
+                        firstNonEmpty(error.getMessage(), getString(R.string.proxy_byedpi_exited_before_start)),
                         error
                     );
                 }
-                throw new IllegalStateException("ByeDPI завершился до старта");
+                throw new IllegalStateException(getString(R.string.proxy_byedpi_exited_before_start));
             }
             if (isLocalTcpPortReady(byeDpiDialHost, byeDpiDialPort)) {
                 appendRuntimeLogLine("ByeDPI front proxy is ready");
@@ -1997,7 +1997,7 @@ public class ProxyTunnelService extends Service {
             }
             sleepInterruptibly(BYEDPI_START_POLL_MS, generation);
         }
-        throw new IllegalStateException("ByeDPI не открыл локальный proxy вовремя");
+        throw new IllegalStateException(getString(R.string.proxy_byedpi_local_proxy_timeout));
     }
 
     private boolean isLocalTcpPortReady(String host, int port) {
@@ -2034,7 +2034,7 @@ public class ProxyTunnelService extends Service {
     private ParsedLocalEndpoint parseLocalEndpoint(String endpoint) {
         String normalized = trimToNull(endpoint);
         if (normalized == null) {
-            throw new IllegalStateException("Локальный endpoint не заполнен");
+            throw new IllegalStateException(getString(R.string.proxy_local_endpoint_required));
         }
         String host;
         String portValue;
@@ -2045,29 +2045,29 @@ public class ProxyTunnelService extends Service {
                 closingBracket + 2 > normalized.length() ||
                 normalized.charAt(closingBracket + 1) != ':'
             ) {
-                throw new IllegalStateException("Локальный endpoint должен быть в формате host:port");
+                throw new IllegalStateException(getString(R.string.proxy_local_endpoint_format_host_port));
             }
             host = normalized.substring(1, closingBracket).trim();
             portValue = normalized.substring(closingBracket + 2).trim();
         } else {
             int separatorIndex = normalized.lastIndexOf(':');
             if (separatorIndex <= 0 || separatorIndex >= normalized.length() - 1) {
-                throw new IllegalStateException("Локальный endpoint должен быть в формате host:port");
+                throw new IllegalStateException(getString(R.string.proxy_local_endpoint_format_host_port));
             }
             host = normalized.substring(0, separatorIndex).trim();
             portValue = normalized.substring(separatorIndex + 1).trim();
         }
         if (TextUtils.isEmpty(host)) {
-            throw new IllegalStateException("Локальный endpoint должен содержать host");
+            throw new IllegalStateException(getString(R.string.proxy_local_endpoint_must_have_host));
         }
         int port;
         try {
             port = Integer.parseInt(portValue);
         } catch (NumberFormatException error) {
-            throw new IllegalStateException("Локальный endpoint содержит некорректный port");
+            throw new IllegalStateException(getString(R.string.proxy_local_endpoint_invalid_port));
         }
         if (port <= 0 || port > 65535) {
-            throw new IllegalStateException("Локальный endpoint содержит некорректный port");
+            throw new IllegalStateException(getString(R.string.proxy_local_endpoint_invalid_port));
         }
         return new ParsedLocalEndpoint(host, port);
     }
@@ -2079,7 +2079,7 @@ public class ProxyTunnelService extends Service {
             Process activeProcess = proxyProcess;
             if (activeProcess == null || !activeProcess.isAlive()) {
                 throw new IllegalStateException(
-                    firstNonEmpty(sLastError, "vk-turn-proxy завершился до открытия локального TCP relay")
+                    firstNonEmpty(sLastError, getString(R.string.proxy_vk_turn_proxy_exited_before_tcp_relay))
                 );
             }
             if (isLocalTcpPortReady(relayEndpoint.host, relayEndpoint.port)) {
@@ -2087,7 +2087,7 @@ public class ProxyTunnelService extends Service {
             }
             sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
         }
-        throw new IllegalStateException("vk-turn-proxy не открыл локальный TCP relay вовремя");
+        throw new IllegalStateException(getString(R.string.proxy_vk_turn_proxy_tcp_relay_timeout));
     }
 
     private void stopByeDpiFrontProxy() {
@@ -2272,9 +2272,7 @@ public class ProxyTunnelService extends Service {
         );
         XrayVpnService.forceStopService(getApplicationContext());
         if (!XrayVpnService.waitForStopped(XRAY_VPN_STOP_WAIT_MS)) {
-            throw new IllegalStateException(
-                "Xray VPN service ещё не перешёл в DOWN; запуск userspace WireGuard невозможен"
-            );
+            throw new IllegalStateException(getString(R.string.proxy_xray_vpn_not_down_userspace_wg));
         }
         ensureRuntimeStillWanted(generation);
     }
@@ -2723,7 +2721,7 @@ public class ProxyTunnelService extends Service {
                 clearPersistedRootRuntimeState();
                 return false;
             }
-            throw new IllegalStateException("Root runtime marker повреждён");
+            throw new IllegalStateException(getString(R.string.proxy_root_runtime_marker_corrupt));
         }
         if (usesTurnProxyBackend(settings.backendType) && proxyPid <= 0L) {
             proxyPid = findRunningRootProxyPid(settings);
@@ -2751,7 +2749,7 @@ public class ProxyTunnelService extends Service {
             if (allowFallbackToFreshStart) {
                 return false;
             }
-            throw new IllegalStateException("Root runtime больше не активен");
+            throw new IllegalStateException(getString(R.string.proxy_root_runtime_not_active));
         }
 
         ensureRuntimeStillWanted(generation);
@@ -2802,7 +2800,11 @@ public class ProxyTunnelService extends Service {
             }
 
             int exitCode = launchedProcess.exitValue();
-            launchError = firstNonEmpty(launchOutputError.get(), sLastError, "Proxy завершился с кодом " + exitCode);
+            launchError = firstNonEmpty(
+                launchOutputError.get(),
+                sLastError,
+                getString(R.string.proxy_exited_code, exitCode)
+            );
             setLastError(launchError);
 
             if (shouldRetryProxyLaunch(launchError, attempt)) {
@@ -2812,7 +2814,7 @@ public class ProxyTunnelService extends Service {
             throw new IllegalStateException(launchError);
         }
 
-        throw new IllegalStateException(firstNonEmpty(launchError, "Не удалось запустить proxy"));
+        throw new IllegalStateException(firstNonEmpty(launchError, getString(R.string.proxy_start_failed)));
     }
 
     /** Передаём собственные DNS-резолверы юзера в vk-turn-proxy через
@@ -2990,7 +2992,10 @@ public class ProxyTunnelService extends Service {
             }
         } catch (Exception error) {
             throw new IllegalStateException(
-                "Не удалось создать LiveKit-комнату: " + firstNonEmpty(error.getMessage(), error.toString()),
+                getString(
+                    R.string.proxy_livekit_room_create_failed,
+                    firstNonEmpty(error.getMessage(), error.toString())
+                ),
                 error
             );
         }
@@ -3024,8 +3029,10 @@ public class ProxyTunnelService extends Service {
             }
             if (lastError != null) {
                 throw new IllegalStateException(
-                    "VK TURN handshake для обмена room id не удался: " +
-                        firstNonEmpty(lastError.getMessage(), lastError.toString()),
+                    getString(
+                        R.string.proxy_vk_turn_room_handshake_failed,
+                        firstNonEmpty(lastError.getMessage(), lastError.toString())
+                    ),
                     lastError
                 );
             }
@@ -3071,11 +3078,7 @@ public class ProxyTunnelService extends Service {
             throw new IllegalStateException("VK TURN endpoint is empty — fill it in VK TURN settings");
         }
         if (isLoopbackEndpoint(settings.endpoint)) {
-            throw new IllegalStateException(
-                "VK TURN endpoint указывает на localhost (" +
-                    settings.endpoint +
-                    "). Room exchange передаётся VK TURN серверу 3x-ui — укажите его публичный endpoint в VK TURN settings, а 127.0.0.1:9000 оставьте только в \"Локальный endpoint\"."
-            );
+            throw new IllegalStateException(getString(R.string.proxy_vk_turn_endpoint_loopback, settings.endpoint));
         }
         if (roomIds == null || roomIds.isEmpty()) {
             throw new IllegalStateException("Empty room id list for VK TURN room exchange");
@@ -4286,7 +4289,7 @@ public class ProxyTunnelService extends Service {
             Process activeProcess = proxyProcess;
             if (activeProcess == null || !activeProcess.isAlive()) {
                 throw new IllegalStateException(
-                    firstNonEmpty(sLastError, "vk-turn-proxy завершился во время прогрева")
+                    firstNonEmpty(sLastError, getString(R.string.proxy_vk_turn_proxy_exited_during_warmup))
                 );
             }
             if (!TextUtils.isEmpty(sPendingCaptchaUrl)) {
@@ -4314,8 +4317,8 @@ public class ProxyTunnelService extends Service {
                     return;
                 }
                 String fallbackError = proxyWarmupAuthReady
-                    ? "vk-turn-proxy прошёл auth, но не достиг TURN/DTLS ready-состояния"
-                    : "vk-turn-proxy не достиг ready-состояния";
+                    ? getString(R.string.proxy_vk_turn_proxy_auth_only)
+                    : getString(R.string.proxy_vk_turn_proxy_no_ready);
                 throw new IllegalStateException(firstNonEmpty(sLastError, fallbackError));
             }
             sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
@@ -4366,7 +4369,7 @@ public class ProxyTunnelService extends Service {
         ensureProtectBridgeReady(
             GoBackendVpnAccess::getServiceNow,
             this::ensureWireGuardVpnServiceStarted,
-            "Не удалось запустить VPN protect bridge"
+            getString(R.string.proxy_vpn_protect_bridge_start_failed)
         );
     }
 
@@ -4374,7 +4377,7 @@ public class ProxyTunnelService extends Service {
         ensureProtectBridgeReady(
             AwgBackendVpnAccess::getServiceNow,
             this::ensureAmneziaVpnServiceStarted,
-            "Не удалось запустить AmneziaWG protect bridge"
+            getString(R.string.proxy_amneziawg_protect_bridge_start_failed)
         );
     }
 
@@ -4412,7 +4415,7 @@ public class ProxyTunnelService extends Service {
             if (vpnService == null) {
                 if (hasOwnedVpnServiceRuntime()) {
                     throw new IllegalStateException(
-                        "Предыдущий VPN backend ещё не перешёл в DOWN; запуск protect bridge невозможен"
+                        getString(R.string.proxy_previous_vpn_backend_not_down_protect_bridge)
                     );
                 }
                 throw new IllegalStateException(failureMessage);
@@ -4527,9 +4530,7 @@ public class ProxyTunnelService extends Service {
             appendActiveNetworkDefaultRoutes(ipv4Routes, ipv6Routes);
         }
         if (ipv4Routes.isEmpty() && ipv6Routes.isEmpty()) {
-            throw new IllegalStateException(
-                "Не удалось определить upstream маршрут для root режима: default route не найден"
-            );
+            throw new IllegalStateException(getString(R.string.proxy_upstream_route_not_found));
         }
         return new RootRoutingState(ipv4Routes, ipv6Routes, collectRootBypassUids());
     }
@@ -4560,7 +4561,7 @@ public class ProxyTunnelService extends Service {
                     : resolveRecoveryTunnelName();
             if (TextUtils.isEmpty(liveTunnelName)) {
                 AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
-                appendRuntimeLogLine("Root tether routing skipped: live root tunnel не найден");
+                appendRuntimeLogLine(getString(R.string.proxy_root_tether_no_live_tunnel));
                 return;
             }
             activeTunnelName = liveTunnelName;
@@ -4658,13 +4659,13 @@ public class ProxyTunnelService extends Service {
         File configFile = new File(appContext.getFilesDir(), "xray-tproxy/config.json");
         File parentDir = configFile.getParentFile();
         if (parentDir != null && !parentDir.exists() && !parentDir.mkdirs()) {
-            throw new IOException("Не удалось создать директорию для TPROXY конфига");
+            throw new IOException(getString(R.string.proxy_tproxy_config_dir_failed));
         }
         try (java.io.FileWriter writer = new java.io.FileWriter(configFile, false)) {
             writer.write(configJson);
         }
         if (!configFile.setReadable(false, false) || !configFile.setReadable(true, true)) {
-            appendRuntimeLogLine("Не удалось ограничить права на TPROXY конфиг");
+            appendRuntimeLogLine(getString(R.string.proxy_tproxy_config_permissions_failed));
         }
         configFile.setWritable(false, false);
         configFile.setWritable(true, true);
@@ -4703,12 +4704,10 @@ public class ProxyTunnelService extends Service {
                 process.destroy();
             } catch (Exception ignored) {}
             tproxyXrayProcess = null;
-            throw new IllegalStateException(
-                "Xray TPROXY listener не открылся на 0.0.0.0:" + XRAY_TPROXY_PORT + " за отведённое время"
-            );
+            throw new IllegalStateException(getString(R.string.proxy_xray_tproxy_listener_timeout, XRAY_TPROXY_PORT));
         }
         stopXrayTproxyErrorLogTailer();
-        appendRuntimeLogLine("Xray TPROXY runtime запущен под root, listener на :" + XRAY_TPROXY_PORT);
+        appendRuntimeLogLine(getString(R.string.proxy_xray_tproxy_runtime_started, XRAY_TPROXY_PORT));
     }
 
     private boolean waitForXrayTproxyListenerSignal(long timeoutMs, int generation) {
@@ -5286,7 +5285,7 @@ public class ProxyTunnelService extends Service {
         }
         String tunnelTableLookup = resolveTunnelTableLookup();
         if (TextUtils.isEmpty(tunnelTableLookup)) {
-            appendRuntimeLogLine("Root app tunnel routing skipped: table для " + activeTunnelName + " не найдена");
+            appendRuntimeLogLine(getString(R.string.proxy_root_app_tunnel_table_missing, activeTunnelName));
             return;
         }
         int appUid = getApplicationInfo().uid;
@@ -5743,7 +5742,7 @@ public class ProxyTunnelService extends Service {
         if (isRootNatTableAvailable()) {
             return configuredMode;
         }
-        appendRuntimeLogLine("Root tether NAT fallback: iptables nat недоступен, переключаемся на netd");
+        appendRuntimeLogLine(getString(R.string.proxy_root_tether_nat_fallback_netd));
         Log.w(TAG, "Root tether NAT fallback: iptables nat unavailable, using netd masquerade");
         return AppPrefs.SHARING_MASQUERADE_NETD;
     }
@@ -6560,7 +6559,7 @@ public class ProxyTunnelService extends Service {
         }
         ProxySettings settings = AppPrefs.getSettings(getApplicationContext());
         settings.backendType = backendType;
-        return TextUtils.isEmpty(settings.validate());
+        return TextUtils.isEmpty(settings.validate(getApplicationContext()));
     }
 
     private boolean canSwitchFromXrayToBackend(@Nullable BackendType backendType) {
@@ -6696,7 +6695,7 @@ public class ProxyTunnelService extends Service {
         }
         appendRuntimeLogLine("Waiting for userspace VPN service teardown before starting Xray backend");
         if (!stopUserspaceVpnServicesAndWait()) {
-            throw new IllegalStateException("Userspace VPN backend ещё не перешёл в DOWN; запуск Xray невозможен");
+            throw new IllegalStateException(getString(R.string.proxy_userspace_vpn_not_down_xray));
         }
         ensureRuntimeStillWanted(generation);
     }
@@ -6707,9 +6706,7 @@ public class ProxyTunnelService extends Service {
         }
         appendRuntimeLogLine("Waiting for previous userspace VPN service teardown before starting userspace backend");
         if (!stopUserspaceVpnServicesAndWait()) {
-            throw new IllegalStateException(
-                "Предыдущий userspace VPN backend ещё не перешёл в DOWN; запуск невозможен"
-            );
+            throw new IllegalStateException(getString(R.string.proxy_previous_userspace_vpn_not_down));
         }
         ensureRuntimeStillWanted(generation);
     }
@@ -6737,7 +6734,7 @@ public class ProxyTunnelService extends Service {
     private Exception rewriteUserspaceVpnStartupException(Exception error, String backendName) {
         if (isRetryableUserspaceVpnStartupException(error) && hasOwnedVpnServiceRuntime()) {
             return new IllegalStateException(
-                "Предыдущий VPN backend ещё не перешёл в DOWN; запуск " + backendName + " невозможен",
+                getString(R.string.proxy_previous_vpn_backend_not_down_named, backendName),
                 error
             );
         }
@@ -6774,9 +6771,7 @@ public class ProxyTunnelService extends Service {
     private void ensureOwnedVpnBackendStopped(String backendName, int generation) throws InterruptedException {
         ensureRuntimeStillWanted(generation);
         if (hasOwnedVpnServiceRuntime()) {
-            throw new IllegalStateException(
-                "Предыдущий VPN backend ещё не перешёл в DOWN; запуск " + backendName + " невозможен"
-            );
+            throw new IllegalStateException(getString(R.string.proxy_previous_vpn_backend_not_down_named, backendName));
         }
     }
 

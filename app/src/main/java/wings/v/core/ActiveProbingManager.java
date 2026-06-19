@@ -252,10 +252,10 @@ public final class ActiveProbingManager {
     }
 
     @NonNull
-    public static String buildUrlsSummary(@Nullable String rawValue) {
+    public static String buildUrlsSummary(@NonNull Context context, @Nullable String rawValue) {
         List<String> urls = parseUrls(null, rawValue);
         if (urls.isEmpty()) {
-            return "Нет сайтов";
+            return context.getString(wings.v.R.string.common_no_sites);
         }
         if (urls.size() == 1) {
             return urls.get(0);

@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import libXray.DialerController;
 import libXray.LibXray;
 import org.json.JSONObject;
+import wings.v.R;
+import wings.v.WingsApplication;
 import wings.v.service.XrayVpnService;
 
 @SuppressWarnings(
@@ -81,7 +83,9 @@ public final class XrayBridge {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             if (vpnService == null) {
-                throw new IllegalStateException("Xray VpnService не готов");
+                throw new IllegalStateException(
+                    WingsApplication.getStringSafe(R.string.xray_bridge_vpn_service_not_ready)
+                );
             }
             ACTIVE_NETWORK_CONTROLLER.set(vpnService);
             configureRuntimeNetworkingLocked(remoteDns, directDns);
@@ -123,7 +127,7 @@ public final class XrayBridge {
             if (data != null) {
                 return String.valueOf(data);
             }
-            throw new IllegalStateException("libXray вернул пустой outbound config");
+            throw new IllegalStateException(WingsApplication.getStringSafe(R.string.xray_bridge_empty_outbound_config));
         }
     }
 
@@ -136,7 +140,7 @@ public final class XrayBridge {
             if (data != null) {
                 return String.valueOf(data);
             }
-            throw new IllegalStateException("libXray вернул пустые share links");
+            throw new IllegalStateException(WingsApplication.getStringSafe(R.string.xray_bridge_empty_share_links));
         }
     }
 

@@ -15,6 +15,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import wings.v.R;
+import wings.v.WingsApplication;
 import wings.v.core.ByeDpiSettings;
 
 @SuppressWarnings(
@@ -136,7 +138,9 @@ public final class ByeDpiLocalRunner implements AutoCloseable {
     private Exception buildEarlyExitException(Future<Integer> currentTask) {
         try {
             Integer exitCode = currentTask.get();
-            return new IllegalStateException("ByeDPI завершился с кодом " + exitCode);
+            return new IllegalStateException(
+                WingsApplication.getStringSafe(R.string.proxy_byedpi_exited_code, exitCode)
+            );
         } catch (ExecutionException error) {
             Throwable cause = error.getCause() != null ? error.getCause() : error;
             return new IllegalStateException(firstNonEmpty(cause.getMessage()), cause);
@@ -162,7 +166,7 @@ public final class ByeDpiLocalRunner implements AutoCloseable {
         if (!TextUtils.isEmpty(first)) {
             return first;
         }
-        return "ByeDPI завершился до старта";
+        return WingsApplication.getStringSafe(R.string.proxy_byedpi_exited_before_start);
     }
 
     @Override

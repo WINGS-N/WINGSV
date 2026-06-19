@@ -462,7 +462,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             xrayTproxyPreference.setEnabled(xrayBackend && tproxySupported);
             if (!xrayBackend) {
                 xrayTproxyPreference.setSummary(
-                    getString(R.string.xray_tproxy_unavailable, "доступно только на Xray backend")
+                    getString(R.string.xray_tproxy_unavailable, getString(R.string.xray_tproxy_unavailable_xray_only))
                 );
             } else if (!tproxySupported) {
                 xrayTproxyPreference.setSummary(getString(R.string.xray_tproxy_unavailable, tproxyUnavailable));
@@ -509,7 +509,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     XrayStore.getBackendType(appContext),
                     false
                 );
-                final String message = TextUtils.isEmpty(reason) ? "Root-доступ не подтверждён" : reason;
+                final String message = TextUtils.isEmpty(reason)
+                    ? getString(R.string.root_access_not_confirmed)
+                    : reason;
                 mainHandler.post(() -> {
                     if (!isAdded()) {
                         return;
@@ -675,7 +677,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? "Не задано" : UiFormatter.truncate(value, 64);
+            return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : UiFormatter.truncate(value, 64);
         });
     }
 
@@ -687,7 +689,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             if (TextUtils.isEmpty(value)) {
-                return "Не задано";
+                return getString(R.string.common_not_set);
             }
             if (value.length() <= SECRET_PREVIEW_PLAIN_LENGTH) {
                 return value;
@@ -704,7 +706,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         preference.setOnBindEditTextListener(editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? "Не задано" : value;
+            return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : value;
         });
     }
 

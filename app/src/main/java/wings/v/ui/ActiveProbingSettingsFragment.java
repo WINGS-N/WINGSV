@@ -85,7 +85,7 @@ public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
         preference.setOnBindEditTextListener(editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? "Не задано" : value;
+            return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : value;
         });
     }
 
@@ -202,6 +202,6 @@ public class ActiveProbingSettingsFragment extends PreferenceFragmentCompat {
         if (preference == null) {
             return;
         }
-        preference.setSummary(ActiveProbingManager.buildUrlsSummary(rawValue));
+        preference.setSummary(ActiveProbingManager.buildUrlsSummary(requireContext(), rawValue));
     }
 }

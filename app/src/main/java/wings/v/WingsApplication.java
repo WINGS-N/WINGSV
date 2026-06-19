@@ -22,14 +22,28 @@ import wings.v.service.RuntimeStateStore;
 public class WingsApplication extends Application {
 
     private static final AtomicInteger STARTED_ACTIVITY_COUNT = new AtomicInteger(0);
+    private static volatile android.content.Context sAppContext;
 
     public static boolean isUiForeground() {
         return STARTED_ACTIVITY_COUNT.get() > 0;
     }
 
+    public static android.content.Context appContext() {
+        return sAppContext;
+    }
+
+    public static String getStringSafe(int resId, Object... args) {
+        android.content.Context context = sAppContext;
+        if (context == null) {
+            return "";
+        }
+        return args.length == 0 ? context.getString(resId) : context.getString(resId, args);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        sAppContext = getApplicationContext();
         RuntimeStateStore.initialize(this);
         if (!isMainProcess()) {
             return;

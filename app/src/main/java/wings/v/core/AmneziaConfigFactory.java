@@ -28,7 +28,7 @@ public final class AmneziaConfigFactory {
         boolean overridePeerEndpoint = settings.backendType.usesTurnProxy();
         String localEndpoint = settings.localEndpoint == null ? "" : settings.localEndpoint.trim();
         if (overridePeerEndpoint && localEndpoint.isEmpty()) {
-            throw new IllegalArgumentException("Локальный endpoint не заполнен");
+            throw new IllegalArgumentException(context.getString(wings.v.R.string.amnezia_local_endpoint_required));
         }
         Interface iface = parsed.getInterface();
         Interface.Builder ifaceBuilder = new Interface.Builder().setKeyPair(iface.getKeyPair());

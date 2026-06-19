@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 import org.amnezia.awg.config.Config;
+import wings.v.R;
+import wings.v.WingsApplication;
 import wings.v.proto.WingsvProto;
 
 @SuppressWarnings(
@@ -393,19 +395,25 @@ public final class WingsImportParser {
         }
         String link = extractLink(rawText);
         if (TextUtils.isEmpty(link)) {
-            throw new IllegalArgumentException("WINGSV ссылка не найдена");
+            throw new IllegalArgumentException(
+                WingsApplication.getStringSafe(R.string.import_parser_wingsv_link_not_found)
+            );
         }
 
         byte[] decodedPayload = decodePayload(link);
         if (decodedPayload.length == 0) {
-            throw new IllegalArgumentException("WINGSV payload пуст");
+            throw new IllegalArgumentException(
+                WingsApplication.getStringSafe(R.string.import_parser_wingsv_payload_empty)
+            );
         }
 
         if (decodedPayload[0] == FORMAT_PROTOBUF_DEFLATE) {
             byte[] protobufPayload = inflate(slice(decodedPayload, 1, decodedPayload.length));
             return parseProtoConfig(WingsvProto.Config.parseFrom(protobufPayload));
         }
-        throw new IllegalArgumentException("Неподдерживаемый формат WINGSV ссылки");
+        throw new IllegalArgumentException(
+            WingsApplication.getStringSafe(R.string.import_parser_wingsv_link_unsupported_format)
+        );
     }
 
     public static boolean isSubscriptionOnlyXrayImport(ImportedConfig importedConfig) {
@@ -1899,7 +1907,9 @@ public final class WingsImportParser {
 
     public static ImportedConfig parseProtoConfig(WingsvProto.Config config) throws Exception {
         if (config.getVer() <= 0) {
-            throw new IllegalArgumentException("Отсутствует или некорректен ver");
+            throw new IllegalArgumentException(
+                WingsApplication.getStringSafe(R.string.import_parser_version_missing_or_invalid)
+            );
         }
 
         ImportedConfig importedConfig = new ImportedConfig();
@@ -2064,9 +2074,7 @@ public final class WingsImportParser {
         }
 
         if (!handled) {
-            throw new IllegalArgumentException(
-                "Поддерживается только type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing"
-            );
+            throw new IllegalArgumentException(WingsApplication.getStringSafe(R.string.import_parser_unsupported_type));
         }
         return importedConfig;
     }
@@ -2454,7 +2462,9 @@ public final class WingsImportParser {
             if (inflater.needsInput()) {
                 break;
             }
-            throw new IllegalArgumentException("Не удалось распаковать payload");
+            throw new IllegalArgumentException(
+                WingsApplication.getStringSafe(R.string.import_parser_payload_unpack_failed)
+            );
         }
         inflater.end();
         return output.toByteArray();

@@ -197,7 +197,12 @@ public final class AppUpdateManager {
                     : downloadFullRelease(currentPlan.latestRelease);
                 updateState(UpdateState.downloaded(releaseInfo, targetFile));
             } catch (DownloadCancelledException ignored) {
-                updateState(UpdateState.updateAvailable(releaseInfo, "Загрузка отменена"));
+                updateState(
+                    UpdateState.updateAvailable(
+                        releaseInfo,
+                        appContext.getString(wings.v.R.string.app_update_download_cancelled)
+                    )
+                );
             } catch (Exception error) {
                 if (currentPlan.hasPatchChain()) {
                     ProxyTunnelService.writeRuntimeLogLine(
@@ -221,7 +226,12 @@ public final class AppUpdateManager {
                         File targetFile = downloadFullRelease(releaseInfo);
                         updateState(UpdateState.downloaded(releaseInfo, targetFile));
                     } catch (DownloadCancelledException ignored) {
-                        updateState(UpdateState.updateAvailable(releaseInfo, "Загрузка отменена"));
+                        updateState(
+                            UpdateState.updateAvailable(
+                                releaseInfo,
+                                appContext.getString(wings.v.R.string.app_update_download_cancelled)
+                            )
+                        );
                     } catch (Exception fallbackError) {
                         ProxyTunnelService.writeRuntimeLogLine(
                             "App update full APK fallback also failed: " +
@@ -382,7 +392,7 @@ public final class AppUpdateManager {
             if (!cachedReleases.isEmpty()) {
                 return buildStateFromReleaseCatalog(cachedReleases);
             }
-            return UpdateState.error("GitHub не вернул опубликованный релиз", null);
+            return UpdateState.error(appContext.getString(wings.v.R.string.app_update_github_no_release), null);
         }
         return buildStateFromReleaseCatalog(releases);
     }
@@ -392,7 +402,7 @@ public final class AppUpdateManager {
         ReleaseInfo releaseInfo = releases.get(0);
         updatePlan = UpdatePlan.empty();
         if (!releaseInfo.hasInstallableAsset()) {
-            return UpdateState.error("В релизе не найден APK-артефакт", releaseInfo);
+            return UpdateState.error(appContext.getString(wings.v.R.string.app_update_no_apk_asset), releaseInfo);
         }
         String currentVersionName = resolveCurrentVersionName();
         long currentVersionCode = resolveCurrentVersionCode();
@@ -884,11 +894,11 @@ public final class AppUpdateManager {
         }
         String expectedChecksum = fetchChecksumValue(checksumInfo);
         if (TextUtils.isEmpty(expectedChecksum)) {
-            throw new IllegalStateException("Не удалось получить checksum");
+            throw new IllegalStateException(appContext.getString(wings.v.R.string.app_update_checksum_fetch_failed));
         }
         String actualChecksum = computeChecksum(file, checksumInfo.algorithm);
         if (!expectedChecksum.equalsIgnoreCase(actualChecksum)) {
-            throw new IllegalStateException("Checksum не совпал");
+            throw new IllegalStateException(appContext.getString(wings.v.R.string.app_update_checksum_mismatch));
         }
     }
 
@@ -1010,7 +1020,7 @@ public final class AppUpdateManager {
     private File resolveInstalledApkFile() {
         File installedApk = new File(appContext.getPackageCodePath());
         if (!installedApk.isFile() || installedApk.length() <= 0L) {
-            throw new IllegalStateException("Не удалось найти установленный APK");
+            throw new IllegalStateException(appContext.getString(wings.v.R.string.app_update_installed_apk_missing));
         }
         return installedApk;
     }
@@ -1063,12 +1073,12 @@ public final class AppUpdateManager {
         }
     }
 
-    private static void replaceWithTarget(@NonNull File sourceFile, @NonNull File targetFile) {
+    private void replaceWithTarget(@NonNull File sourceFile, @NonNull File targetFile) {
         if (targetFile.exists() && !targetFile.delete()) {
-            throw new IllegalStateException("Не удалось заменить старый APK");
+            throw new IllegalStateException(appContext.getString(wings.v.R.string.app_update_replace_old_apk_failed));
         }
         if (!sourceFile.renameTo(targetFile)) {
-            throw new IllegalStateException("Не удалось сохранить APK");
+            throw new IllegalStateException(appContext.getString(wings.v.R.string.app_update_save_apk_failed));
         }
     }
 

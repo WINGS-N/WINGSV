@@ -11,6 +11,8 @@ import java.util.Locale;
 import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import wings.v.R;
+import wings.v.WingsApplication;
 import wings.v.core.AppPrefs;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ProxySettings;
@@ -129,7 +131,7 @@ public final class XrayConfigFactory {
             settings.activeXrayProfile == null ||
             TextUtils.isEmpty(settings.activeXrayProfile.rawLink)
         ) {
-            throw new IllegalArgumentException("Xray профиль не выбран");
+            throw new IllegalArgumentException(context.getString(wings.v.R.string.xray_config_profile_not_selected));
         }
 
         XraySettings xraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
@@ -156,7 +158,7 @@ public final class XrayConfigFactory {
     private static JSONObject resolveProxyOutbound(XrayProfile profile) throws Exception {
         String rawPayload = profile == null ? "" : profile.rawLink == null ? "" : profile.rawLink.trim();
         if (TextUtils.isEmpty(rawPayload)) {
-            throw new IllegalStateException("Xray профиль пуст");
+            throw new IllegalStateException(WingsApplication.getStringSafe(R.string.xray_config_profile_empty));
         }
         if (looksLikeJsonProfilePayload(rawPayload)) {
             JSONObject container = rawPayload.startsWith("[")
@@ -164,7 +166,9 @@ public final class XrayConfigFactory {
                 : new JSONObject(rawPayload);
             JSONObject outbound = extractPrimaryOutbound(container);
             if (outbound == null) {
-                throw new IllegalStateException("Не удалось получить outbound из JSON профиля");
+                throw new IllegalStateException(
+                    WingsApplication.getStringSafe(R.string.xray_config_outbound_from_json_failed)
+                );
             }
             return new JSONObject(outbound.toString());
         }
@@ -172,7 +176,9 @@ public final class XrayConfigFactory {
         JSONObject converted = new JSONObject(XrayBridge.convertShareLinkToOutboundJson(rawPayload));
         JSONObject outbound = extractPrimaryOutbound(converted);
         if (outbound == null) {
-            throw new IllegalStateException("Не удалось получить outbound из share-link профиля");
+            throw new IllegalStateException(
+                WingsApplication.getStringSafe(R.string.xray_config_outbound_from_share_link_failed)
+            );
         }
         return new JSONObject(outbound.toString());
     }
@@ -775,7 +781,9 @@ public final class XrayConfigFactory {
     static void rewritePrimaryOutboundEndpoint(JSONObject outbound, String host, int port) throws Exception {
         JSONObject settings = outbound == null ? null : outbound.optJSONObject("settings");
         if (settings == null || TextUtils.isEmpty(trim(host)) || port <= 0) {
-            throw new IllegalStateException("Xray outbound override не может быть применён");
+            throw new IllegalStateException(
+                WingsApplication.getStringSafe(R.string.xray_config_outbound_override_failed)
+            );
         }
         if (
             rewriteEndpointArray(settings.optJSONArray("vnext"), trim(host), port) ||
@@ -788,7 +796,7 @@ public final class XrayConfigFactory {
             settings.put("port", port);
             return;
         }
-        throw new IllegalStateException("Текущий Xray outbound не поддерживает VK TURN TCP relay");
+        throw new IllegalStateException(WingsApplication.getStringSafe(R.string.xray_config_outbound_no_vk_turn_relay));
     }
 
     private static boolean rewriteEndpointArray(JSONArray servers, String host, int port) throws Exception {

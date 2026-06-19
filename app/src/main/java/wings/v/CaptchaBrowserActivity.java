@@ -462,7 +462,7 @@ public class CaptchaBrowserActivity extends AppCompatActivity {
             finishSelf();
             return;
         }
-        Toast.makeText(this, "WebView недоступен, captcha будет открыта в внешнем браузере", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, R.string.captcha_browser_webview_unavailable, Toast.LENGTH_LONG).show();
         Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url))
             .addCategory(Intent.CATEGORY_BROWSABLE)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

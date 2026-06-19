@@ -51,13 +51,15 @@ public final class XrayAutoSearchConfigFactory {
         boolean useByeDpi
     ) throws Exception {
         if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
-            throw new IllegalArgumentException("Xray профиль не выбран");
+            throw new IllegalArgumentException(context.getString(wings.v.R.string.xray_config_profile_not_selected));
         }
 
         JSONObject converted = new JSONObject(XrayBridge.convertShareLinkToOutboundJson(profile.rawLink));
         JSONArray convertedOutbounds = converted.optJSONArray("outbounds");
         if (convertedOutbounds == null || convertedOutbounds.length() == 0) {
-            throw new IllegalStateException("Не удалось получить outbound из VLESS профиля");
+            throw new IllegalStateException(
+                context.getString(wings.v.R.string.xray_autosearch_outbound_from_vless_failed)
+            );
         }
 
         XraySettings settings = xraySettings != null ? xraySettings : new XraySettings();

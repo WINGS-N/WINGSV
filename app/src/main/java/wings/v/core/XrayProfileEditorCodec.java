@@ -4,6 +4,8 @@ import android.text.TextUtils;
 import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import wings.v.R;
+import wings.v.WingsApplication;
 import wings.v.xray.XrayBridge;
 
 @SuppressWarnings({ "PMD.CyclomaticComplexity", "PMD.CognitiveComplexity" })
@@ -14,7 +16,7 @@ public final class XrayProfileEditorCodec {
     public static String toEditableJson(XrayProfile profile) throws Exception {
         String rawPayload = profile == null || profile.rawLink == null ? "" : profile.rawLink.trim();
         if (TextUtils.isEmpty(rawPayload)) {
-            throw new IllegalArgumentException("Xray профиль пуст");
+            throw new IllegalArgumentException(WingsApplication.getStringSafe(R.string.editor_xray_profile_empty));
         }
         JSONObject outbound = extractPrimaryOutboundObject(rawPayload);
         return outbound.toString(2);
@@ -23,7 +25,7 @@ public final class XrayProfileEditorCodec {
     public static String toEditableVless(XrayProfile profile) throws Exception {
         String rawPayload = profile == null || profile.rawLink == null ? "" : profile.rawLink.trim();
         if (TextUtils.isEmpty(rawPayload)) {
-            throw new IllegalArgumentException("Xray профиль пуст");
+            throw new IllegalArgumentException(WingsApplication.getStringSafe(R.string.editor_xray_profile_empty));
         }
         if (rawPayload.startsWith("vless://")) {
             return rawPayload;
@@ -34,14 +36,16 @@ public final class XrayProfileEditorCodec {
         String links = XrayBridge.convertXrayJsonToShareLinks(xrayContainer.toString());
         String firstLink = firstNonEmptyLine(links);
         if (!firstLink.startsWith("vless://")) {
-            throw new IllegalStateException("Не удалось получить VLESS ссылку из JSON профиля");
+            throw new IllegalStateException(
+                WingsApplication.getStringSafe(R.string.editor_xray_vless_extract_from_json_failed)
+            );
         }
         return firstLink;
     }
 
     public static XrayProfile parseJsonProfile(XrayProfile existingProfile, String rawJson) throws Exception {
         if (existingProfile == null) {
-            throw new IllegalArgumentException("Профиль не найден");
+            throw new IllegalArgumentException(WingsApplication.getStringSafe(R.string.editor_xray_profile_not_found));
         }
         JSONObject outbound = extractPrimaryOutboundObject(rawJson);
         Endpoint endpoint = extractEndpoint(outbound);
@@ -59,11 +63,13 @@ public final class XrayProfileEditorCodec {
 
     public static XrayProfile parseVlessProfile(XrayProfile existingProfile, String rawLink) throws Exception {
         if (existingProfile == null) {
-            throw new IllegalArgumentException("Профиль не найден");
+            throw new IllegalArgumentException(WingsApplication.getStringSafe(R.string.editor_xray_profile_not_found));
         }
         String normalized = rawLink == null ? "" : rawLink.trim();
         if (!normalized.startsWith("vless://")) {
-            throw new IllegalArgumentException("Ожидается vless:// ссылка");
+            throw new IllegalArgumentException(
+                WingsApplication.getStringSafe(R.string.editor_xray_expected_vless_link)
+            );
         }
         XrayProfile parsed = VlessLinkParser.parseProfile(
             normalized,
@@ -71,7 +77,7 @@ public final class XrayProfileEditorCodec {
             existingProfile.subscriptionTitle
         );
         if (parsed == null) {
-            throw new IllegalStateException("Не удалось разобрать VLESS ссылку");
+            throw new IllegalStateException(WingsApplication.getStringSafe(R.string.editor_xray_vless_parse_failed));
         }
         return new XrayProfile(
             existingProfile.id,
@@ -92,7 +98,7 @@ public final class XrayProfileEditorCodec {
     private static JSONObject extractPrimaryOutboundObject(String rawPayload) throws Exception {
         String normalized = rawPayload == null ? "" : rawPayload.trim();
         if (TextUtils.isEmpty(normalized)) {
-            throw new IllegalArgumentException("Пустой JSON");
+            throw new IllegalArgumentException(WingsApplication.getStringSafe(R.string.editor_xray_json_empty));
         }
         JSONObject container;
         if (looksLikeJsonPayload(normalized)) {
@@ -104,7 +110,9 @@ public final class XrayProfileEditorCodec {
         }
         JSONObject outbound = extractPrimaryOutbound(container);
         if (outbound == null) {
-            throw new IllegalStateException("Не удалось получить outbound из профиля");
+            throw new IllegalStateException(
+                WingsApplication.getStringSafe(R.string.editor_xray_outbound_extract_failed)
+            );
         }
         return new JSONObject(outbound.toString());
     }

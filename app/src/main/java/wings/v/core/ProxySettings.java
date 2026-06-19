@@ -1,9 +1,11 @@
 package wings.v.core;
 
+import android.content.Context;
 import android.text.TextUtils;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import org.amnezia.awg.config.Config;
+import wings.v.R;
 
 @SuppressWarnings(
     {
@@ -65,27 +67,27 @@ public class ProxySettings {
     public XraySettings xraySettings;
     public ByeDpiSettings byeDpiSettings;
 
-    public String validate() {
+    public String validate(Context context) {
         if (backendType != null && backendType.usesXrayCore()) {
             if (activeXrayProfile == null || TextUtils.isEmpty(activeXrayProfile.rawLink)) {
-                return "Xray профиль не выбран";
+                return context.getString(R.string.proxy_xray_profile_not_selected);
             }
             if (
                 xraySettings != null && xraySettings.transportMode != null && xraySettings.transportMode.usesTurnProxy()
             ) {
                 if (TextUtils.isEmpty(endpoint)) {
-                    return "Endpoint не заполнен";
+                    return context.getString(R.string.proxy_endpoint_required);
                 }
                 if (TextUtils.isEmpty(vkLink)) {
-                    return "VK Link не заполнен";
+                    return context.getString(R.string.proxy_vk_link_required);
                 }
                 if (TextUtils.isEmpty(localEndpoint)) {
-                    return "Локальный endpoint не заполнен";
+                    return context.getString(R.string.proxy_local_endpoint_required);
                 }
             }
             if (xraySettings != null && xraySettings.runtimeMode != null && xraySettings.runtimeMode.isProxyOnly()) {
                 if (!xraySettings.localProxyEnabled || xraySettings.localProxyPort <= 0) {
-                    return "Для режима только proxy включите локальный SOCKS proxy Xray";
+                    return context.getString(R.string.proxy_only_mode_requires_socks);
                 }
             }
             return null;
@@ -93,53 +95,53 @@ public class ProxySettings {
         if (backendType != null && backendType.usesAmneziaSettings()) {
             if (backendType.usesTurnProxy()) {
                 if (TextUtils.isEmpty(endpoint)) {
-                    return "Endpoint не заполнен";
+                    return context.getString(R.string.proxy_endpoint_required);
                 }
                 if (TextUtils.isEmpty(vkLink)) {
-                    return "VK Link не заполнен";
+                    return context.getString(R.string.proxy_vk_link_required);
                 }
                 if (TextUtils.isEmpty(localEndpoint)) {
-                    return "Локальный endpoint не заполнен";
+                    return context.getString(R.string.proxy_local_endpoint_required);
                 }
                 if (vkTurnRuntimeMode != null && vkTurnRuntimeMode.isProxyOnly()) {
                     return null;
                 }
             }
             if (TextUtils.isEmpty(awgQuickConfig)) {
-                return "AmneziaWG config не заполнен";
+                return context.getString(R.string.proxy_amneziawg_config_required);
             }
             try {
                 Config.parse(new ByteArrayInputStream(awgQuickConfig.getBytes(StandardCharsets.UTF_8)));
             } catch (Exception error) {
-                return "AmneziaWG config некорректен: " + error.getMessage();
+                return context.getString(R.string.proxy_amneziawg_config_invalid, error.getMessage());
             }
             return null;
         }
         if (TextUtils.isEmpty(endpoint)) {
-            return "Endpoint не заполнен";
+            return context.getString(R.string.proxy_endpoint_required);
         }
         if (backendType != null && backendType.usesTurnProxy()) {
             if (TextUtils.isEmpty(vkLink)) {
-                return "VK Link не заполнен";
+                return context.getString(R.string.proxy_vk_link_required);
             }
             if (TextUtils.isEmpty(localEndpoint)) {
-                return "Локальный endpoint не заполнен";
+                return context.getString(R.string.proxy_local_endpoint_required);
             }
             if (vkTurnRuntimeMode != null && vkTurnRuntimeMode.isProxyOnly()) {
                 return null;
             }
         }
         if (TextUtils.isEmpty(wgPrivateKey)) {
-            return "WireGuard private key не заполнен";
+            return context.getString(R.string.proxy_wireguard_private_key_required);
         }
         if (TextUtils.isEmpty(wgAddresses)) {
-            return "WireGuard addresses не заполнены";
+            return context.getString(R.string.proxy_wireguard_addresses_required);
         }
         if (TextUtils.isEmpty(wgPublicKey)) {
-            return "WireGuard public key не заполнен";
+            return context.getString(R.string.proxy_wireguard_public_key_required);
         }
         if (TextUtils.isEmpty(wgAllowedIps)) {
-            return "WireGuard allowed IPs не заполнены";
+            return context.getString(R.string.proxy_wireguard_allowed_ips_required);
         }
         return null;
     }
