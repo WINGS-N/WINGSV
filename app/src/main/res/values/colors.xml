@@ -15,4 +15,8 @@
     <color name="wingsv_power_on_text">#FFFFFFFF</color>
     <color name="wingsv_power_off_text">#10131A</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="wingsv_chart_sent_start">#5AC8FA</color>
+    <color name="wingsv_chart_sent_end">#0A84FF</color>
+    <color name="wingsv_chart_recv_start">#A8E063</color>
+    <color name="wingsv_chart_recv_end">#34C759</color>
 </resources>

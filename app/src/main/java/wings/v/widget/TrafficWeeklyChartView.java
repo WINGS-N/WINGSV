@@ -42,10 +42,10 @@ public class TrafficWeeklyChartView extends View {
         labelPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_text_secondary));
         labelPaint.setTextSize(getResources().getDisplayMetrics().scaledDensity * 11f);
         labelPaint.setTextAlign(Paint.Align.CENTER);
-        sentStartColor = ContextCompat.getColor(context, R.color.wingsv_accent);
-        sentEndColor = ContextCompat.getColor(context, R.color.wingsv_success);
-        recvStartColor = ContextCompat.getColor(context, R.color.wingsv_text_secondary);
-        recvEndColor = ContextCompat.getColor(context, R.color.wingsv_surface_alt);
+        sentStartColor = ContextCompat.getColor(context, R.color.wingsv_chart_sent_start);
+        sentEndColor = ContextCompat.getColor(context, R.color.wingsv_chart_sent_end);
+        recvStartColor = ContextCompat.getColor(context, R.color.wingsv_chart_recv_start);
+        recvEndColor = ContextCompat.getColor(context, R.color.wingsv_chart_recv_end);
     }
 
     public void setPoints(@NonNull List<SharingTrafficStatsStore.DailyTraffic> points, long maxBytes) {
