@@ -259,6 +259,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
             showView(binding.itemDhcpWorkaround, false);
             showView(binding.itemRepeaterSafeMode, false);
             showView(binding.itemTempHotspotUseSystem, false);
+            updateSectionDividers();
             return;
         }
 
@@ -277,6 +278,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
         showView(binding.rowTetherOffload, false);
         showView(binding.itemRepeaterSafeMode, false);
         showView(binding.itemTempHotspotUseSystem, false);
+        updateSectionDividers();
     }
 
     private void configureSwitch(
@@ -362,6 +364,37 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     private void showView(View view, boolean visible) {
         view.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateSectionDividers() {
+        updateSectionDividers((android.view.ViewGroup) binding.sectionSettings);
+    }
+
+    private static void updateSectionDividers(android.view.ViewGroup section) {
+        View lastVisible = null;
+        for (int index = 0; index < section.getChildCount(); index++) {
+            View child = section.getChildAt(index);
+            if (child.getVisibility() == View.VISIBLE) {
+                lastVisible = child;
+            }
+        }
+        for (int index = 0; index < section.getChildCount(); index++) {
+            View child = section.getChildAt(index);
+            if (child.getVisibility() != View.VISIBLE) continue;
+            applyDividerVisibility(child, child != lastVisible);
+        }
+    }
+
+    private static void applyDividerVisibility(View view, boolean bottom) {
+        if (view instanceof CardItemView) {
+            CardItemView card = (CardItemView) view;
+            card.setShowTopDivider(false);
+            card.setShowBottomDivider(bottom);
+        } else if (view instanceof SwitchItemView) {
+            SwitchItemView item = (SwitchItemView) view;
+            item.setShowTopDivider(false);
+            item.setShowBottomDivider(bottom);
+        }
     }
 
     private void configureTetherOffloadSwitch() {

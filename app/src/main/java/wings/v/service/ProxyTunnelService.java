@@ -768,7 +768,12 @@ public class ProxyTunnelService extends Service {
                 return;
             }
         }
-        clearStalePersistedRuntimeState(appContext);
+        // Leave non-stopped state and root runtime hints intact. Wiping here
+        // races with KEY_ROOT_MODE toggles during an active VPN session: the
+        // toggle triggers requestReconnect -> service restart, then on the
+        // next app start hasRootRuntimeHint is briefly false and the old code
+        // path nuked the persisted runtime state. The next foreground service
+        // start will reconcile on its own from the live settings.
     }
 
     public static void requestRuntimeSyncIfNeeded(Context context) {
