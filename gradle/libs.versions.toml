@@ -7,6 +7,11 @@ espressoCore = "3.5.1"
 kotlin = "2.4.0"
 protobuf = "4.35.0"
 librootkotlinx = "1.2.1"
+librootkotlinxV3 = "2.0.0-alpha13"
+ktorIo = "3.5.0"
+okio = "3.10.2"
+timber = "5.0.1"
+wire = "6.4.0"
 xhook = "1.2.0"
 oneuiDesign = "0.9.13+oneui8"
 wireguardTunnel = "1.0.20260102"
@@ -73,6 +78,8 @@ livekit-android = { module = "io.livekit:livekit-android", version.ref = "liveki
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
+wire = { id = "com.squareup.wire", version.ref = "wire" }
 
 [bundles]
 sesl-androidx = [

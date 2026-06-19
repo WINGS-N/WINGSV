@@ -16,6 +16,14 @@ data class TrafficRecord(
     var receivedBytes: Long = 0,
     val previousId: Long? = null,
 ) {
+    companion object {
+        val DAEMON_SOURCE_ADDRESS: InetAddress = InetAddress.getByAddress(byteArrayOf(0, 0, 0, 0))
+        const val DAEMON_SOURCE_DNS = "dns"
+        const val DAEMON_SOURCE_NAT66_TCP = "nat66tcp"
+        const val DAEMON_SOURCE_NAT66_UDP = "nat66udp"
+        const val DAEMON_SOURCE_NAT66_ICMPV6 = "nat66icmpv6"
+    }
+
     class Dao {
         private var nextId = 1L
         private val records = LinkedHashMap<Long, TrafficRecord>()
