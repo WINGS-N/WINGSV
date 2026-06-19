@@ -403,7 +403,13 @@ public class FirstLaunchVkTurnFragment extends Fragment {
             if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
                 pendingImportRawText = rawText;
                 pendingImport = importedConfig;
-                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                if (!android.text.TextUtils.isEmpty(importedConfig.guardianAdminUsername)) {
+                    wings.v.core.GuardianImportPrompt.show(requireActivity(), importedConfig, () ->
+                        wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                    );
+                } else {
+                    wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                }
                 return;
             }
             applyParsedImport(rawText, importedConfig);

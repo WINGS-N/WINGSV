@@ -152,12 +152,15 @@ public class FirstLaunchConnectionFragment extends Fragment {
             return;
         }
         if (GuardianImportGate.needsConfirmation(parsed)) {
-            // На этом флоу импорта ещё нет — единственный гейт, который ловит
-            // Guardian-конфиг до применения. Показываем 5-секундное warn-окно
-            // как и на главной/HomeFragment.
             pendingImportRawText = rawText;
             pendingImportParsed = parsed;
-            GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+            if (!android.text.TextUtils.isEmpty(parsed.guardianAdminUsername)) {
+                wings.v.core.GuardianImportPrompt.show(requireActivity(), parsed, () ->
+                    GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                );
+            } else {
+                GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+            }
             return;
         }
         commitImportedConfig(context, parsed);

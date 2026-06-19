@@ -187,7 +187,13 @@ public class FirstLaunchXrayFragment extends Fragment {
         if (wings.v.core.GuardianImportGate.needsConfirmation(parsed)) {
             pendingImportRawText = rawText;
             pendingImport = parsed;
-            wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+            if (!android.text.TextUtils.isEmpty(parsed.guardianAdminUsername)) {
+                wings.v.core.GuardianImportPrompt.show(requireActivity(), parsed, () ->
+                    wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                );
+            } else {
+                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+            }
             return;
         }
         applyParsedImport(rawText, parsed);

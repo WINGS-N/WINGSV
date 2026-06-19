@@ -544,6 +544,17 @@ public class HomeFragment extends Fragment {
                 importSubscriptionUrls(context, rawText, importedConfig);
                 return;
             }
+            if (
+                wings.v.core.GuardianImportGate.needsConfirmation(importedConfig) &&
+                !TextUtils.isEmpty(importedConfig.guardianAdminUsername)
+            ) {
+                pendingImportRawText = rawText;
+                pendingImport = importedConfig;
+                wings.v.core.GuardianImportPrompt.show(requireActivity(), importedConfig, () ->
+                    wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                );
+                return;
+            }
             if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
                 pendingImportRawText = rawText;
                 pendingImport = importedConfig;
