@@ -53,6 +53,7 @@ import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -1862,6 +1863,7 @@ public class ProxyTunnelService extends Service {
                 throw rewriteUserspaceVpnStartupException(error, "AmneziaWG");
             }
         }
+        applySplitTunnelLockdown("AmneziaWG VPN", findActiveUserspaceVpnTunInterface());
 
         if (rootModeActive && shouldInitializeRootSharing()) {
             registerTetherReceiverIfNeeded();
@@ -1916,6 +1918,10 @@ public class ProxyTunnelService extends Service {
             } catch (Exception error) {
                 throw rewriteUserspaceVpnStartupException(error, "WireGuard");
             }
+        }
+        if (!kernelWireguardActive) {
+            String backendLabel = usesTurnProxyBackend(activeBackendType) ? "VK TURN VPN" : "WireGuard VPN";
+            applySplitTunnelLockdown(backendLabel, findActiveUserspaceVpnTunInterface());
         }
         markUserspaceWireGuardWatchdogHealthy();
         markRootWireGuardWatchdogHealthy();
@@ -5426,6 +5432,22 @@ public class ProxyTunnelService extends Service {
                 backendLabel + " split-tunnel lockdown failed: " + firstNonEmpty(error.getMessage(), error.toString())
             );
         }
+    }
+
+    @Nullable
+    private static String findActiveUserspaceVpnTunInterface() {
+        try {
+            java.util.Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            if (ifaces == null) return null;
+            for (NetworkInterface iface : java.util.Collections.list(ifaces)) {
+                if (iface == null || !iface.isUp()) continue;
+                String name = iface.getName();
+                if (name != null && name.startsWith("tun") && name.length() > 3) {
+                    return name;
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     /**
