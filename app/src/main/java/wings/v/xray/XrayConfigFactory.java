@@ -45,6 +45,7 @@ import wings.v.core.XraySettings;
 public final class XrayConfigFactory {
 
     private static final String TUN_TAG = "tun-in";
+    private static final String TUN_BYPASS_TAG = "tun-in-bypass";
     private static final String TPROXY_TAG = "tproxy-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String HTTP_TAG = "http-in";
@@ -593,6 +594,17 @@ public final class XrayConfigFactory {
         JSONArray rules = new JSONArray();
 
         JSONArray trafficInboundTags = buildTrafficInboundTags(settings, includeTunInbound, tproxyPort);
+        // Bypass rule MUST come before the DNS rule so even DNS queries from
+        // bypass UIDs get diverted to direct. Otherwise the tun-bypass tag
+        // matches "tun-in" routing decision twice (DNS -> dns-out, then
+        // proxy), and the DNS rule wins because it is listed earlier.
+        if (includeTunInbound) {
+            JSONObject bypassRule = new JSONObject();
+            bypassRule.put("type", "field");
+            bypassRule.put("inboundTag", new JSONArray().put(TUN_BYPASS_TAG));
+            bypassRule.put("outboundTag", DIRECT_TAG);
+            rules.put(bypassRule);
+        }
         JSONObject dnsRule = new JSONObject();
         dnsRule.put("type", "field");
         dnsRule.put("inboundTag", trafficInboundTags);
@@ -797,8 +809,26 @@ public final class XrayConfigFactory {
         }
         boolean bypassMode = AppPrefs.isAppRoutingBypassEnabled(context);
         if (bypassMode) {
-            // Bypass mode: listed packages must NOT use the tunnel.
-            tunSettings.put("excludedUids", uidArray);
+            // Bypass mode: tag listed-UID connections with bypass_inbound_tag
+            // so xray routing diverts them to the freedom/direct outbound
+            // (= underlying network via protect-bridge). Combined with the
+            // VpnService running WITHOUT addDisallowedApplication, all apps'
+            // traffic enters the tunnel and ConnectivityManager
+            // .getConnectionOwnerUid resolves their UIDs - including
+            // bypass apps that try --interface tun0 tricks. Their packets
+            // are redirected back to the underlying network at gVisor
+            // level, transparently to the app, instead of being dropped.
+            tunSettings.put("bypassUids", uidArray);
+            tunSettings.put("bypassInboundTag", TUN_BYPASS_TAG);
+            // Optional: also bypass connections whose UID could not be
+            // resolved (Android's API returns INVALID_UID for SO_BINDTODEVICE
+            // / explicit source-IP-bind leakers like `curl --interface tun0`
+            // because Android never registered the connection as VPN-tracked).
+            // Closes the deliberate-leak path at the cost of also routing
+            // system services that happen to not have a UID through direct.
+            if (xraySettings != null && xraySettings.tunUnknownUidBypass) {
+                tunSettings.put("bypassUnknownUid", true);
+            }
         } else {
             // Allowlist mode: only listed packages are tunneled, drop everyone else.
             tunSettings.put("allowedUids", uidArray);

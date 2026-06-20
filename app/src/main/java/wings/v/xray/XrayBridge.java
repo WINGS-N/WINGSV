@@ -9,7 +9,6 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.text.TextUtils;
 import android.util.Base64;
-import android.util.Log;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -67,31 +66,68 @@ public final class XrayBridge {
         DIRECT_NETWORK_CONTROLLER
     );
     private static final AtomicReference<Context> UID_LOOKUP_CONTEXT = new AtomicReference<>();
+    private static final java.util.concurrent.atomic.AtomicLong UID_LOOKUP_CALLS =
+        new java.util.concurrent.atomic.AtomicLong();
+
+    private static void diagAppend(Context context, String line) {
+        if (context == null) return;
+        try {
+            File diagFile = new File(context.getFilesDir(), "uid-diag.log");
+            try (FileOutputStream out = new FileOutputStream(diagFile, true)) {
+                String ts = String.valueOf(System.currentTimeMillis());
+                out.write((ts + " " + line + "\n").getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {}
+    }
+
     private static final UIDLookupController UID_LOOKUP_CONTROLLER = new UIDLookupController() {
         @Override
         public int lookupConnectionUID(long protocol, String local, String remote) {
+            long callIndex = UID_LOOKUP_CALLS.incrementAndGet();
             Context context = UID_LOOKUP_CONTEXT.get();
             if (context == null) {
+                if (callIndex % 16 == 1) {
+                    diagAppend(null, "no-context #" + callIndex);
+                }
                 return -1;
             }
             ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);
             if (cm == null) {
+                if (callIndex % 16 == 1) {
+                    diagAppend(context, "no-cm #" + callIndex);
+                }
                 return -1;
             }
             try {
                 InetSocketAddress localAddr = parseHostPort(local);
                 InetSocketAddress remoteAddr = parseHostPort(remote);
                 if (localAddr == null || remoteAddr == null) {
+                    if (callIndex % 16 == 1) {
+                        diagAppend(context, "parse-fail local=" + local + " remote=" + remote + " #" + callIndex);
+                    }
                     return -1;
                 }
                 int uid = cm.getConnectionOwnerUid((int) protocol, localAddr, remoteAddr);
+                // Log every call to see the full distribution of UIDs that
+                // the API surfaces. If a known bypass-app UID (e.g. termux
+                // 10316) ever appears here, the API can see it and the
+                // filter just needs to fire correctly. If we only ever see
+                // our own UID (wings.v) and -1, the API hides per-app-VPN
+                // excluded apps and we need a different mechanism.
+                if (uid != Process.INVALID_UID || callIndex < 200) {
+                    diagAppend(
+                        context,
+                        "lookup #" + callIndex + " proto=" + protocol + " " + local + " -> " + remote + " uid=" + uid
+                    );
+                }
                 return uid == Process.INVALID_UID ? -1 : uid;
             } catch (SecurityException error) {
-                // Caller must be the active VpnService. If we lose that role
-                // mid-runtime, surface once and stop trying.
-                Log.w("WINGSV-Xray", "getConnectionOwnerUid denied: " + error.getMessage());
+                diagAppend(context, "denied: " + error.getMessage());
                 return -1;
-            } catch (RuntimeException ignored) {
+            } catch (RuntimeException error) {
+                if (callIndex % 16 == 1) {
+                    diagAppend(context, "exception #" + callIndex + ": " + error);
+                }
                 return -1;
             }
         }
@@ -373,6 +409,17 @@ public final class XrayBridge {
      */
     public static void setUidLookupContext(Context applicationContext) {
         UID_LOOKUP_CONTEXT.set(applicationContext);
+        try {
+            File diagFile = new File(applicationContext.getFilesDir(), "uid-diag-go.log");
+            // Empty the file so each process restart begins fresh; the Go
+            // side opens with O_APPEND.
+            try (FileOutputStream out = new FileOutputStream(diagFile, false)) {
+                out.write(
+                    ("=== go-diag init " + System.currentTimeMillis() + " ===\n").getBytes(StandardCharsets.UTF_8)
+                );
+            }
+            LibXray.setUIDLookupDiagPath(diagFile.getAbsolutePath());
+        } catch (Exception ignored) {}
     }
 
     private static void configureRuntimeNetworkingLocked(String remoteDns, String directDns) {
