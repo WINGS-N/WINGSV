@@ -7574,7 +7574,7 @@ public class ProxyTunnelService extends Service {
         if (!TextUtils.isEmpty(currentUnderlyingFingerprint)) {
             lastUnderlyingNetworkFingerprint = currentUnderlyingFingerprint;
         }
-        if (usesXrayBackend(activeBackendType)) {
+        if (usesXrayBackend(activeBackendType) || activeXrayWgRuntime) {
             if (activeXrayUsesTurnProxy && (proxyProcess == null || !proxyProcess.isAlive())) {
                 scheduleRuntimeReconnect("Xray TCP relay disappeared", RUNTIME_RECONNECT_DELAY_MS);
                 return;
@@ -7645,6 +7645,7 @@ public class ProxyTunnelService extends Service {
         if (
             activeBackendType != null &&
             activeBackendType.usesWireGuardSettings() &&
+            !activeXrayWgRuntime &&
             (backend == null || currentTunnel == null)
         ) {
             scheduleRuntimeReconnect("WireGuard runtime lost tunnel state", RUNTIME_RECONNECT_DELAY_MS);
