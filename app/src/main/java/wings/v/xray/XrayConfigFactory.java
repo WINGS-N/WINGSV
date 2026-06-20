@@ -155,6 +155,93 @@ public final class XrayConfigFactory {
         return configJson;
     }
 
+    /**
+     * Builds an xray config that pipes the VpnService TUN through xray-core's
+     * gVisor inbound (which honors excludedUids/allowedUids the same way the
+     * Xray VPN path does) into a synthetic WireGuard outbound. Used as the
+     * non-root replacement for wireguard-android GoBackend on the userspace
+     * WG / VK TURN VpnService path: bypassed apps that try to bind to tun
+     * directly get filtered by xray's per-connection UID lookup, closing the
+     * Android per-app-VPN leak that GoBackend cannot fix from userspace.
+     */
+    public static String buildUserspaceWireGuardConfigJson(
+        Context context,
+        ProxySettings settings,
+        String peerEndpointOverride
+    ) throws Exception {
+        if (settings == null) {
+            throw new IllegalArgumentException("settings required");
+        }
+        XraySettings xraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
+        JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
+
+        JSONObject root = new JSONObject();
+        root.put("log", buildLog(context));
+        root.put("dns", buildDns(xraySettings));
+        root.put("inbounds", buildInbounds(context, xraySettings, true, 0));
+        root.put("outbounds", buildOutbounds(wgOutbound, xraySettings, null));
+        root.put("routing", buildRouting(context, xraySettings, true, 0));
+        String configJson = root.toString();
+        writeDebugArtifacts(context, configJson, wgOutbound);
+        return configJson;
+    }
+
+    private static JSONObject buildWireGuardOutbound(ProxySettings settings, String peerEndpointOverride)
+        throws Exception {
+        String privateKey = settings.wgPrivateKey == null ? "" : settings.wgPrivateKey.trim();
+        String peerPublicKey = settings.wgPublicKey == null ? "" : settings.wgPublicKey.trim();
+        if (privateKey.isEmpty() || peerPublicKey.isEmpty()) {
+            throw new IllegalStateException("WireGuard keys missing for userspace xray-WG outbound");
+        }
+        String resolvedEndpoint = !TextUtils.isEmpty(trim(peerEndpointOverride))
+            ? trim(peerEndpointOverride)
+            : settings.backendType == wings.v.core.BackendType.WIREGUARD
+                ? settings.endpoint
+                : settings.localEndpoint;
+        if (TextUtils.isEmpty(resolvedEndpoint)) {
+            throw new IllegalStateException("WireGuard peer endpoint missing for userspace xray-WG outbound");
+        }
+
+        JSONObject peer = new JSONObject();
+        peer.put("publicKey", peerPublicKey);
+        if (!TextUtils.isEmpty(settings.wgPresharedKey)) {
+            peer.put("preSharedKey", settings.wgPresharedKey.trim());
+        }
+        peer.put("endpoint", resolvedEndpoint);
+        peer.put("keepAlive", 25);
+        JSONArray allowedIps = new JSONArray();
+        String allowedIpsRaw = settings.wgAllowedIps == null ? "" : settings.wgAllowedIps;
+        for (String entry : allowedIpsRaw.split(",")) {
+            String trimmed = entry.trim();
+            if (!trimmed.isEmpty()) allowedIps.put(trimmed);
+        }
+        if (allowedIps.length() == 0) {
+            allowedIps.put("0.0.0.0/0").put("::/0");
+        }
+        peer.put("allowedIPs", allowedIps);
+
+        JSONArray address = new JSONArray();
+        String addressRaw = settings.wgAddresses == null ? "" : settings.wgAddresses;
+        for (String entry : addressRaw.split(",")) {
+            String trimmed = entry.trim();
+            if (!trimmed.isEmpty()) address.put(trimmed);
+        }
+
+        JSONObject wgSettings = new JSONObject();
+        wgSettings.put("secretKey", privateKey);
+        wgSettings.put("address", address);
+        wgSettings.put("peers", new JSONArray().put(peer));
+        wgSettings.put("mtu", settings.wgMtu > 0 ? settings.wgMtu : 1420);
+        wgSettings.put("isClient", true);
+        wgSettings.put("noKernelTun", true);
+
+        JSONObject outbound = new JSONObject();
+        outbound.put("tag", PROXY_TAG);
+        outbound.put("protocol", "wireguard");
+        outbound.put("settings", wgSettings);
+        return outbound;
+    }
+
     private static JSONObject resolveProxyOutbound(XrayProfile profile) throws Exception {
         String rawPayload = profile == null ? "" : profile.rawLink == null ? "" : profile.rawLink.trim();
         if (TextUtils.isEmpty(rawPayload)) {
