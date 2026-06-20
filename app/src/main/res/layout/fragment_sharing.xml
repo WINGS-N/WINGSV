@@ -214,6 +214,13 @@
                 android:id="@+id/item_auto_start_services"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:showBottomDivider="true"
+                app:showTopDivider="false" />
+
+            <dev.oneuiproject.oneui.widget.SwitchItemView
+                android:id="@+id/item_hide_from_operator"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 app:showBottomDivider="false"
                 app:showTopDivider="false" />
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
