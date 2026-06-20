@@ -254,8 +254,8 @@ public class ProxyTunnelService extends Service {
     private static final long BYEDPI_START_TIMEOUT_MS = 4_000L;
     private static final long BYEDPI_START_POLL_MS = 100L;
     private static final long BYEDPI_STOP_TIMEOUT_MS = 750L;
-    private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 1_000L;
-    private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 1_200L;
+    private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 500L;
+    private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 500L;
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int WB_STREAM_EXCHANGE_MAX_ATTEMPTS = 3;
     private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
@@ -417,6 +417,7 @@ public class ProxyTunnelService extends Service {
     private boolean activeXrayUsesTurnProxy;
     private boolean activeXrayProxyOnly;
     private boolean activeXrayTproxyMode;
+    private boolean activeXrayWgRuntime;
     private Process tproxyXrayProcess;
     // Signalled by the proxy output reader when xray-core logs that its TPROXY
     // TCP listener bound. We watch the stdout marker instead of probing the
@@ -1214,6 +1215,19 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.initialize(this);
         sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
+        // Warm up libXray on a background thread so the JNI library and
+        // Go runtime are paged in by the time the user hits Start. Saves
+        // a few hundred ms of cold-start cost on the synchronous run path.
+        Thread warmup = new Thread(
+            () -> {
+                try {
+                    XrayBridge.warmupRuntimeLoad();
+                } catch (Throwable ignored) {}
+            },
+            "wingsv-xray-warmup"
+        );
+        warmup.setDaemon(true);
+        warmup.start();
     }
 
     @Override
@@ -1598,6 +1612,45 @@ public class ProxyTunnelService extends Service {
             ensureOwnedVpnBackendStopped("Xray", generation);
         }
 
+        // Pre-build the xray-core config JSON in parallel with VpnService
+        // setup + iptables lockdown + protect bridge wiring. Avoids tacking
+        // 50-150 ms of JSON marshalling + debug artifact write IO onto the
+        // critical path. Skipped for the TCP relay flow because the config
+        // depends on the relay endpoint we only learn after the relay is
+        // up; that path stays sync.
+        final boolean preBuildRelayFlow = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
+        final boolean fProxyOnly = activeXrayProxyOnly;
+        final boolean fTproxy = activeXrayTproxyMode;
+        final ProxySettings fSettings = settings;
+        final Context appCtxForConfig = getApplicationContext();
+        java.util.concurrent.CompletableFuture<String> configBuildFuture = null;
+        if (!preBuildRelayFlow) {
+            configBuildFuture = new java.util.concurrent.CompletableFuture<>();
+            final java.util.concurrent.CompletableFuture<String> sink = configBuildFuture;
+            Thread builder = new Thread(
+                () -> {
+                    try {
+                        String built = fTproxy
+                            ? XrayConfigFactory.buildTproxyConfigJson(appCtxForConfig, fSettings, XRAY_TPROXY_PORT)
+                            : XrayConfigFactory.buildConfigJson(
+                                  appCtxForConfig,
+                                  fSettings,
+                                  null,
+                                  0,
+                                  fProxyOnly ? null : fSettings.byeDpiSettings,
+                                  !fProxyOnly
+                              );
+                        sink.complete(built);
+                    } catch (Throwable error) {
+                        sink.completeExceptionally(error);
+                    }
+                },
+                "wingsv-xray-config-build"
+            );
+            builder.setDaemon(true);
+            builder.start();
+        }
+
         int tunFd = (activeXrayProxyOnly || activeXrayTproxyMode) ? 0 : -1;
         XrayVpnService vpnService = null;
         Exception startupError = null;
@@ -1693,9 +1746,11 @@ public class ProxyTunnelService extends Service {
             appendRuntimeLogLine("Skipping ByeDPI front proxy in Xray proxy-only mode");
         }
 
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {}
+        if (XrayBridge.isRunning()) {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {}
+        }
 
         String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
         String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
@@ -1706,7 +1761,14 @@ public class ProxyTunnelService extends Service {
         }
         String configJson;
         if (activeXrayTproxyMode) {
-            configJson = XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, XRAY_TPROXY_PORT);
+            try {
+                configJson =
+                    configBuildFuture != null
+                        ? configBuildFuture.get()
+                        : XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, XRAY_TPROXY_PORT);
+            } catch (java.util.concurrent.ExecutionException error) {
+                throw error.getCause() instanceof Exception ? (Exception) error.getCause() : error;
+            }
             appendRuntimeLogLine("Starting Xray backend via TPROXY on port " + XRAY_TPROXY_PORT);
         } else if (xrayExternalRelayEnabled) {
             configJson = XrayConfigFactory.buildConfigJson(
@@ -1726,14 +1788,21 @@ public class ProxyTunnelService extends Service {
                     xrayTcpRelayEndpoint.port
             );
         } else {
-            configJson = XrayConfigFactory.buildConfigJson(
-                getApplicationContext(),
-                settings,
-                null,
-                0,
-                activeXrayProxyOnly ? null : settings.byeDpiSettings,
-                !activeXrayProxyOnly
-            );
+            try {
+                configJson =
+                    configBuildFuture != null
+                        ? configBuildFuture.get()
+                        : XrayConfigFactory.buildConfigJson(
+                              getApplicationContext(),
+                              settings,
+                              null,
+                              0,
+                              activeXrayProxyOnly ? null : settings.byeDpiSettings,
+                              !activeXrayProxyOnly
+                          );
+            } catch (java.util.concurrent.ExecutionException error) {
+                throw error.getCause() instanceof Exception ? (Exception) error.getCause() : error;
+            }
             appendRuntimeLogLine(activeXrayProxyOnly ? "Starting Xray local proxy backend" : "Starting Xray backend");
         }
         if (XrayBridge.usesCachedStateFallback()) {
@@ -1800,11 +1869,14 @@ public class ProxyTunnelService extends Service {
         protectSocketName = null;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = true;
 
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {}
+        if (XrayBridge.isRunning()) {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {}
+        }
         forceStopXrayVpnServiceAndWait("VK TURN proxy-only startup cleanup");
         if (!stopUserspaceVpnServicesAndWait()) {
             throw new IllegalStateException(getString(R.string.proxy_userspace_vpn_not_down_proxy_only));
@@ -1834,6 +1906,7 @@ public class ProxyTunnelService extends Service {
         closeProtectBridge();
         protectSocketName = null;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
 
         ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
@@ -1882,12 +1955,31 @@ public class ProxyTunnelService extends Service {
     private void startWireGuardRuntime(ProxySettings settings, int generation) throws Exception {
         ensureRuntimeStillWanted(generation);
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         boolean willUseKernelWireGuard =
             settings.rootModeEnabled &&
             settings.kernelWireguardEnabled &&
             activeBackendType != null &&
             activeBackendType.supportsKernelWireGuard();
+        // Non-root userspace WG/VK TURN VpnService path: Android's
+        // addDisallowedApplication does not stop bypassed apps from binding
+        // to tun directly, and we cannot install iptables to plug the leak
+        // without root. Route the TUN through xray-core's gVisor inbound
+        // (same UID lookup the Xray VPN mode uses) into a synthetic WG
+        // outbound. Same protect-bridge fd path as the regular Xray VPN.
+        // Gate by user's master Root functions toggle, not OS-level grant:
+        // when the user explicitly turned root off the app must behave as
+        // no-root even if su is still available.
+        if (
+            !willUseKernelWireGuard &&
+            !settings.rootModeEnabled &&
+            activeBackendType != null &&
+            !usesAmneziaBackend(activeBackendType)
+        ) {
+            startUserspaceWireGuardViaXrayRuntime(settings, generation);
+            return;
+        }
         if (!willUseKernelWireGuard) {
             ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
             ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
@@ -1938,6 +2030,125 @@ public class ProxyTunnelService extends Service {
             registerTetherEventCallbackIfNeeded();
             syncRootTetherRouting(null);
         }
+        setServiceState(ServiceState.RUNNING);
+        sRunning = true;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
+        requestPublicIpRefresh(true);
+        restoreSharingOnBootIfNeeded();
+        startPolling();
+    }
+
+    private void startUserspaceWireGuardViaXrayRuntime(ProxySettings settings, int generation) throws Exception {
+        clearPersistedRootRuntimeState();
+        AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+        activeTunnelName = "";
+        backend = null;
+        currentTunnel = null;
+        currentConfig = null;
+        closeProtectBridge();
+        protectSocketName = null;
+        activeXrayUsesTurnProxy = usesTurnProxyBackend(activeBackendType);
+        activeXrayProxyOnly = false;
+        activeXrayTproxyMode = false;
+        activeXrayWgRuntime = true;
+
+        ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
+        ensureOwnedVpnBackendStopped("WireGuard userspace (xray-WG)", generation);
+
+        ensureRuntimeStillWanted(generation);
+
+        Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
+        if (vpnPermissionIntent != null) {
+            throw new IllegalStateException(
+                getString(R.string.vpn_permission_required) + getString(R.string.proxy_vpn_permission_check_other_vpn)
+            );
+        }
+
+        // Bring up the tunnel and protect bridge BEFORE starting vk-turn-proxy.
+        // The working VK TURN relay path in startXrayRuntime does the same:
+        // protect bridge has to be ready when vktp creates its egress UDP
+        // sockets to the TURN servers, otherwise those sockets get caught
+        // by the per-app VPN routing and reenter our own xray TUN inbound,
+        // looping back into vktp via the WG outbound and never reaching the
+        // real TURN servers. We diagnosed this by spotting source IP =
+        // device LAN IP packets to 193.203.43.x:19302 entering tun-in.
+        int tunFd = -1;
+        XrayVpnService vpnService = null;
+        for (int attempt = 1; attempt <= XRAY_VPN_START_ATTEMPTS; attempt++) {
+            ensureRuntimeStillWanted(generation);
+            try {
+                vpnService = XrayVpnService.ensureServiceStarted(getApplicationContext());
+                if (vpnService == null) {
+                    throw new IllegalStateException(getString(R.string.proxy_xray_vpn_service_start_failed));
+                }
+                tunFd = vpnService.establishTunnel(settings);
+                if (tunFd <= 0) {
+                    throw new IllegalStateException(getString(R.string.proxy_xray_tun_open_failed));
+                }
+                break;
+            } catch (Exception error) {
+                appendRuntimeLogLine(
+                    "Userspace xray-WG VPN start attempt " + attempt + " failed: " + error.getMessage()
+                );
+                forceStopXrayVpnServiceAndWait("Userspace xray-WG start attempt cleanup");
+                if (attempt >= XRAY_VPN_START_ATTEMPTS) {
+                    throw error;
+                }
+                try {
+                    Thread.sleep(500L);
+                } catch (InterruptedException interruptedError) {
+                    Thread.currentThread().interrupt();
+                    throw interruptedError;
+                }
+            }
+        }
+        ensureRuntimeStillWanted(generation);
+
+        ensureProtectBridgeReady(
+            XrayVpnService::getServiceNow,
+            null,
+            getString(R.string.proxy_xray_protect_bridge_start_failed)
+        );
+
+        String wgPeerEndpoint = null;
+        if (activeXrayUsesTurnProxy) {
+            long proxyStartedAt = startProxyProcess(settings, generation);
+            waitForProxyWarmup(proxyStartedAt, generation);
+            wgPeerEndpoint = settings.localEndpoint;
+        }
+
+        ensureRuntimeStillWanted(generation);
+
+        if (XrayBridge.isRunning()) {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {}
+        }
+
+        String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
+        String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
+        XrayBridge.prepareRuntime(vpnService, remoteDns, directDns);
+
+        String configJson = XrayConfigFactory.buildUserspaceWireGuardConfigJson(
+            getApplicationContext(),
+            settings,
+            wgPeerEndpoint
+        );
+        appendRuntimeLogLine(
+            (activeXrayUsesTurnProxy
+                ? "Starting userspace WireGuard via xray-core (VK TURN relay)"
+                : "Starting userspace WireGuard via xray-core")
+        );
+        XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
+        if (!XrayBridge.isRunning()) {
+            throw new IllegalStateException(getString(R.string.proxy_xray_core_not_running));
+        }
+
+        applySplitTunnelLockdown(
+            usesTurnProxyBackend(activeBackendType) ? "VK TURN VPN (xray-WG)" : "WireGuard VPN (xray-WG)",
+            XrayVpnService.findActiveTunInterfaceName()
+        );
+
         setServiceState(ServiceState.RUNNING);
         sRunning = true;
         AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
@@ -2171,36 +2382,23 @@ public class ProxyTunnelService extends Service {
                 this::stopUserspaceVpnServicesAndWait
             );
         }
-        runFastStopCleanupStep(
-            "Active tunnel force link down",
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::forceLinkDownActiveTunnelIfNeeded
-        );
-
-        runFastStopCleanupStep(
-            "Root tether routing cleanup",
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::clearRootTetherRouting
-        );
-        runFastStopCleanupStep(
-            "Root app tunnel routing cleanup",
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::clearRootAppTunnelRouting
-        );
         unregisterTetherReceiver();
         unregisterTetherEventCallback();
         releaseTunnelWifiLock();
         releaseSharingWifiLocks();
-        runFastStopCleanupStep("Root routing cleanup", FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, this::clearRootRouting);
 
         if (proxyProcess != null) {
             proxyProcess.destroy();
             proxyProcess = null;
         }
-        runFastStopCleanupStep(
-            "Persisted root proxy cleanup",
+
+        runFastStopCleanupGroup(
             FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::killPersistedRootProxyIfNeeded
+            new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
+            new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
+            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
+            new CleanupTask("Root routing cleanup", this::clearRootRouting),
+            new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded)
         );
 
         protectSocketName = null;
@@ -2208,6 +2406,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
@@ -2357,6 +2556,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
@@ -2496,6 +2696,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
@@ -2559,6 +2760,66 @@ public class ProxyTunnelService extends Service {
         } catch (Exception error) {
             appendRuntimeLogLine("Reconnect cleanup warning (" + stepName + "): " + error.getMessage());
             Log.w(TAG, "Reconnect cleanup warning during " + stepName, error);
+        }
+    }
+
+    private static final class CleanupTask {
+
+        final String name;
+        final CleanupStep step;
+
+        CleanupTask(String name, CleanupStep step) {
+            this.name = name;
+            this.step = step;
+        }
+    }
+
+    private void runFastStopCleanupGroup(long timeoutMs, CleanupTask... tasks) {
+        if (tasks == null || tasks.length == 0) return;
+        Thread[] threads = new Thread[tasks.length];
+        AtomicReference<?>[] errors = new AtomicReference<?>[tasks.length];
+        for (int i = 0; i < tasks.length; i++) {
+            CleanupTask task = tasks[i];
+            AtomicReference<Throwable> errorRef = new AtomicReference<>();
+            errors[i] = errorRef;
+            threads[i] = new Thread(
+                () -> {
+                    try {
+                        task.step.run();
+                    } catch (Throwable error) {
+                        errorRef.set(error);
+                    }
+                },
+                "wingsv-stop-" + task.name.replace(' ', '-')
+            );
+            threads[i].setDaemon(true);
+            threads[i].start();
+        }
+        long deadline = android.os.SystemClock.elapsedRealtime() + Math.max(1L, timeoutMs);
+        for (Thread thread : threads) {
+            long remaining = deadline - android.os.SystemClock.elapsedRealtime();
+            if (remaining <= 0L) break;
+            try {
+                thread.join(remaining);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        for (int i = 0; i < tasks.length; i++) {
+            CleanupTask task = tasks[i];
+            if (threads[i].isAlive()) {
+                appendRuntimeLogLine("Stop cleanup timed out during " + task.name + ", continuing in background");
+                Log.w(TAG, "Stop cleanup timed out during " + task.name);
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Throwable error = ((AtomicReference<Throwable>) errors[i]).get();
+            if (error == null || error instanceof InterruptedException) continue;
+            appendRuntimeLogLine(
+                "Stop cleanup warning (" + task.name + "): " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+            Log.w(TAG, "Stop cleanup warning during " + task.name, error);
         }
     }
 
@@ -2641,6 +2902,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
@@ -3195,6 +3457,7 @@ public class ProxyTunnelService extends Service {
         lastProxyDtlsActivityAtElapsedMs = 0L;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeTunnelProbingInProgress.set(false);
         sProxyCapabilities = ProxyCapabilities.empty();
@@ -5397,7 +5660,16 @@ public class ProxyTunnelService extends Service {
      */
     private void applySplitTunnelLockdown(String backendLabel, @Nullable String tunIface) {
         Context appContext = getApplicationContext();
-        if (!RootUtils.isRootAccessGranted(appContext)) {
+        // Master Root functions toggle off -> behave as no-root (do not touch
+        // iptables even if su is still granted at OS level). If a previous
+        // session left filter chains in place, sweep them now.
+        ProxySettings prefSettings = AppPrefs.getSettings(appContext);
+        if (prefSettings == null || !prefSettings.rootModeEnabled || !RootUtils.isRootAccessGranted(appContext)) {
+            if (lastSplitTunnelLockdownBackendLabel != null && RootUtils.isRootAccessGranted(appContext)) {
+                RootMultiUserRouter.clearQuietly(appContext);
+            }
+            lastSplitTunnelLockdownTunIface = null;
+            lastSplitTunnelLockdownBackendLabel = null;
             return;
         }
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
@@ -7312,7 +7584,7 @@ public class ProxyTunnelService extends Service {
         if (!TextUtils.isEmpty(currentUnderlyingFingerprint)) {
             lastUnderlyingNetworkFingerprint = currentUnderlyingFingerprint;
         }
-        if (usesXrayBackend(activeBackendType)) {
+        if (usesXrayBackend(activeBackendType) || activeXrayWgRuntime) {
             if (activeXrayUsesTurnProxy && (proxyProcess == null || !proxyProcess.isAlive())) {
                 scheduleRuntimeReconnect("Xray TCP relay disappeared", RUNTIME_RECONNECT_DELAY_MS);
                 return;
@@ -7383,6 +7655,7 @@ public class ProxyTunnelService extends Service {
         if (
             activeBackendType != null &&
             activeBackendType.usesWireGuardSettings() &&
+            !activeXrayWgRuntime &&
             (backend == null || currentTunnel == null)
         ) {
             scheduleRuntimeReconnect("WireGuard runtime lost tunnel state", RUNTIME_RECONNECT_DELAY_MS);
@@ -7471,7 +7744,8 @@ public class ProxyTunnelService extends Service {
             activeBackendType.usesWireGuardSettings() &&
             !activeVkTurnProxyOnly &&
             !usesAmneziaBackend(activeBackendType) &&
-            !kernelWireguardActive
+            !kernelWireguardActive &&
+            !activeXrayWgRuntime
         );
     }
 
