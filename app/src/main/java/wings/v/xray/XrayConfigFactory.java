@@ -192,13 +192,13 @@ public final class XrayConfigFactory {
         root.put("dns", buildDns(effectiveXraySettings));
         root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
-        // Route xray's internal DNS resolver through the WG outbound rather
-        // than the freedom/direct outbound. In block conditions the upstream
-        // DNS (1.1.1.1 etc.) is not reachable from the physical network in
-        // the clear, but it IS reachable via the WG tunnel that vk-turn-proxy
-        // has bootstrapped. This matches how wireguard-android's
-        // [Interface] DNS line behaves: DNS lookups flow through the tunnel.
-        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, PROXY_TAG));
+        // dns-internal stays on direct/freedom. Tried routing through the WG
+        // proxy outbound to survive block conditions, but xray-WG userspace
+        // UDP plus vk-turn-proxy did not deliver replies (every query hit a
+        // 4 s xray-dns timeout). Block-condition DNS needs a separate
+        // mechanism (vk-turn-proxy DNS forwarder, static hosts, or DoH with
+        // bootstrapped IPs).
+        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
