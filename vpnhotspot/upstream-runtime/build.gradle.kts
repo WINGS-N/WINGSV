@@ -206,7 +206,12 @@ androidComponents {
 
 afterEvaluate {
     tasks.matching {
-        it.name.startsWith("compile") && (it.name.endsWith("Kotlin") || it.name.endsWith("JavaWithJavac"))
+        val name = it.name
+        (name.startsWith("compile") && (name.endsWith("Kotlin") || name.endsWith("JavaWithJavac"))) ||
+            name.startsWith("extract") && name.endsWith("Annotations") ||
+            name.startsWith("lint") ||
+            name.startsWith("kspKotlin") ||
+            name.startsWith("javadoc")
     }.configureEach {
         dependsOn(copyMobileSources)
     }
