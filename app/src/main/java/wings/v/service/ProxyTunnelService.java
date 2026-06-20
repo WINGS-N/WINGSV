@@ -1888,6 +1888,21 @@ public class ProxyTunnelService extends Service {
             settings.kernelWireguardEnabled &&
             activeBackendType != null &&
             activeBackendType.supportsKernelWireGuard();
+        // Non-root userspace WG/VK TURN VpnService path: Android's
+        // addDisallowedApplication does not stop bypassed apps from binding
+        // to tun directly, and we cannot install iptables to plug the leak
+        // without root. Route the TUN through xray-core's gVisor inbound
+        // (same UID lookup the Xray VPN mode uses) into a synthetic WG
+        // outbound. Same protect-bridge fd path as the regular Xray VPN.
+        if (
+            !willUseKernelWireGuard &&
+            !RootUtils.isRootAccessGranted(getApplicationContext()) &&
+            activeBackendType != null &&
+            !usesAmneziaBackend(activeBackendType)
+        ) {
+            startUserspaceWireGuardViaXrayRuntime(settings, generation);
+            return;
+        }
         if (!willUseKernelWireGuard) {
             ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
             ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
@@ -1938,6 +1953,112 @@ public class ProxyTunnelService extends Service {
             registerTetherEventCallbackIfNeeded();
             syncRootTetherRouting(null);
         }
+        setServiceState(ServiceState.RUNNING);
+        sRunning = true;
+        AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
+        requestPublicIpRefresh(true);
+        restoreSharingOnBootIfNeeded();
+        startPolling();
+    }
+
+    private void startUserspaceWireGuardViaXrayRuntime(ProxySettings settings, int generation) throws Exception {
+        clearPersistedRootRuntimeState();
+        AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+        activeTunnelName = "";
+        backend = null;
+        currentTunnel = null;
+        currentConfig = null;
+        closeProtectBridge();
+        protectSocketName = null;
+        activeXrayUsesTurnProxy = usesTurnProxyBackend(activeBackendType);
+        activeXrayProxyOnly = false;
+        activeXrayTproxyMode = false;
+
+        ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
+        ensureOwnedVpnBackendStopped("WireGuard userspace (xray-WG)", generation);
+
+        String wgPeerEndpoint = null;
+        if (activeXrayUsesTurnProxy) {
+            long proxyStartedAt = startProxyProcess(settings, generation);
+            waitForProxyWarmup(proxyStartedAt, generation);
+            wgPeerEndpoint = settings.localEndpoint;
+        }
+
+        ensureRuntimeStillWanted(generation);
+
+        Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
+        if (vpnPermissionIntent != null) {
+            throw new IllegalStateException(
+                getString(R.string.vpn_permission_required) + getString(R.string.proxy_vpn_permission_check_other_vpn)
+            );
+        }
+
+        int tunFd = -1;
+        XrayVpnService vpnService = null;
+        for (int attempt = 1; attempt <= XRAY_VPN_START_ATTEMPTS; attempt++) {
+            ensureRuntimeStillWanted(generation);
+            try {
+                vpnService = XrayVpnService.ensureServiceStarted(getApplicationContext());
+                if (vpnService == null) {
+                    throw new IllegalStateException(getString(R.string.proxy_xray_vpn_service_start_failed));
+                }
+                tunFd = vpnService.establishTunnel(settings);
+                if (tunFd <= 0) {
+                    throw new IllegalStateException(getString(R.string.proxy_xray_tun_open_failed));
+                }
+                break;
+            } catch (Exception error) {
+                appendRuntimeLogLine(
+                    "Userspace xray-WG VPN start attempt " + attempt + " failed: " + error.getMessage()
+                );
+                forceStopXrayVpnServiceAndWait("Userspace xray-WG start attempt cleanup");
+                if (attempt >= XRAY_VPN_START_ATTEMPTS) {
+                    throw error;
+                }
+                try {
+                    Thread.sleep(500L);
+                } catch (InterruptedException interruptedError) {
+                    Thread.currentThread().interrupt();
+                    throw interruptedError;
+                }
+            }
+        }
+        ensureRuntimeStillWanted(generation);
+
+        ensureProtectBridgeReady(
+            XrayVpnService::getServiceNow,
+            null,
+            getString(R.string.proxy_xray_protect_bridge_start_failed)
+        );
+
+        try {
+            XrayBridge.stop();
+        } catch (Exception ignored) {}
+
+        String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
+        String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
+        XrayBridge.prepareRuntime(vpnService, remoteDns, directDns);
+
+        String configJson = XrayConfigFactory.buildUserspaceWireGuardConfigJson(
+            getApplicationContext(),
+            settings,
+            wgPeerEndpoint
+        );
+        appendRuntimeLogLine(
+            (activeXrayUsesTurnProxy
+                ? "Starting userspace WireGuard via xray-core (VK TURN relay)"
+                : "Starting userspace WireGuard via xray-core")
+        );
+        XrayBridge.runFromJson(getApplicationContext(), configJson, tunFd);
+        if (!XrayBridge.isRunning()) {
+            throw new IllegalStateException(getString(R.string.proxy_xray_core_not_running));
+        }
+
+        applySplitTunnelLockdown(
+            usesTurnProxyBackend(activeBackendType) ? "VK TURN VPN (xray-WG)" : "WireGuard VPN (xray-WG)",
+            XrayVpnService.findActiveTunInterfaceName()
+        );
+
         setServiceState(ServiceState.RUNNING);
         sRunning = true;
         AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
