@@ -774,6 +774,8 @@
     <string name="xray_settings_sniffing_summary">Определение destination по traffic sniffing для прозрачного режима</string>
     <string name="xray_settings_tun_uid_lookup_timeout_title">Таймаут UID lookup (мс)</string>
     <string name="xray_settings_tun_uid_lookup_timeout_summary">Время ожидания публикации UID нового TCP/UDP соединения в /proc/net, прежде чем фильтр по приложениям его дропнет. Помогает Tor/SSH, открывающим много сокетов за секунду — даёт ядру время их зарегистрировать. 0 отключает retry. Рекомендуется: 50</string>
+    <string name="xray_settings_tun_unknown_uid_bypass_title">Пропускать пакеты с неизвестным UID напрямую</string>
+    <string name="xray_settings_tun_unknown_uid_bypass_summary">Закрывает утечки от приложений, которые биндятся к tun0 напрямую.</string>
     <string name="xray_settings_proxy_quic_title">Проксировать QUIC-трафик</string>
     <string name="xray_settings_proxy_quic_summary">Разрешить отправку UDP/443 через Xray. Если выключено, QUIC блокируется и приложения откатываются на TCP</string>
     <string name="xray_settings_restart_on_network_change_title">Перезапускать Xray при смене сетевого интерфейса</string>
@@ -815,6 +817,7 @@
     <string name="warning_socks_auth_disable">Вы отключаете аутентификацию SOCKS сервера. Это снизит безопасность вашего соединения</string>
     <string name="warning_socks_password_weak">Задан слишком простой пароль SOCKS сервера. Это снизит безопасность вашего соединения</string>
     <string name="warning_http_auth_disable">Вы отключаете аутентификацию HTTP прокси. Это снизит безопасность вашего соединения</string>
+    <string name="warning_xray_tun_unknown_uid_bypass_disable">Вы отключаете защиту от утечек для пакетов с неизвестным UID. Приложения, биндящиеся к tun0 напрямую (через SO_BINDTODEVICE или явный source IP), будут уходить через VPN даже если они в bypass-списке, раскрывая IP VPN сервера.</string>
     <string name="warning_http_password_weak">Задан слишком простой пароль HTTP прокси. Это снизит безопасность вашего соединения</string>
     <string name="warning_xray_allow_insecure_enable">Вы отключаете проверку TLS-сертификатов в outbound Xray. Соединение становится уязвимым к MITM-атакам</string>
     <string name="xray_routing_settings_title">Маршрутизация Xray</string>

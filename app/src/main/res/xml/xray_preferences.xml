@@ -37,6 +37,12 @@
         android:inputType="number" />
 
     <SwitchPreferenceCompat
+        android:key="pref_xray_tun_unknown_uid_bypass"
+        android:title="@string/xray_settings_tun_unknown_uid_bypass_title"
+        android:summary="@string/xray_settings_tun_unknown_uid_bypass_summary"
+        android:defaultValue="true" />
+
+    <SwitchPreferenceCompat
         android:key="pref_xray_proxy_quic_enabled"
         android:title="@string/xray_settings_proxy_quic_title"
         android:summary="@string/xray_settings_proxy_quic_summary"

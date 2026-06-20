@@ -388,9 +388,17 @@ public class XrayVpnService extends VpnService implements DialerController {
         }
         try {
             if (AppPrefs.isAppRoutingBypassEnabled(this)) {
-                for (String packageName : packages) {
-                    builder.addDisallowedApplication(packageName);
-                }
+                // Bypass mode: deliberately do NOT call addDisallowedApplication.
+                // If we exclude bypass apps from VPN routing at the Android layer,
+                // ConnectivityManager.getConnectionOwnerUid stops reporting them
+                // as VPN-tracked connections (their UID resolves to -1 inside
+                // xray's gVisor TUN UID lookup). With the per-app gating off,
+                // every app's traffic enters the tunnel, xray-core sees the UID,
+                // and the gVisor stack diverts bypass UIDs to the direct/freedom
+                // outbound via the bypass_inbound_tag tagging. The net effect is
+                // identical to Android-level disallow for cooperating apps and,
+                // crucially, also stops apps that bypass by binding directly to
+                // tun (`curl --interface tun0`).
             } else {
                 for (String packageName : packages) {
                     builder.addAllowedApplication(packageName);

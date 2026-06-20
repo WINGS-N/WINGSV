@@ -44,6 +44,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -1216,6 +1217,18 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.initialize(this);
         sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
+        // Hand the application context to XrayBridge so its UID lookup
+        // controller can reach ConnectivityManager.getConnectionOwnerUid().
+        // This is the only non-root API that lets the VPN see UIDs of
+        // connections crossing its tunnel, which is what backs the gVisor
+        // TUN inbound's excludedUids/allowedUids enforcement.
+        XrayBridge.setUidLookupContext(getApplicationContext());
+        try {
+            File diagFile = new File(getApplicationContext().getFilesDir(), "uid-diag.log");
+            try (FileOutputStream out = new FileOutputStream(diagFile, false)) {
+                out.write(("=== onCreate " + System.currentTimeMillis() + " ===\n").getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception ignored) {}
         // Warm up libXray on a background thread so the JNI library and
         // Go runtime are paged in by the time the user hits Start. Saves
         // a few hundred ms of cold-start cost on the synchronous run path.

@@ -25,6 +25,7 @@ public final class XraySettings {
     public boolean proxyQuicEnabled;
     public boolean restartOnNetworkChange;
     public int tunUidLookupTimeoutMs;
+    public boolean tunUnknownUidBypass;
     public ProxyRuntimeMode runtimeMode = ProxyRuntimeMode.VPN;
     public XrayTransportMode transportMode = XrayTransportMode.DIRECT;
     public String wakeProbeMode = WakeProbeMode.PROCESS;
@@ -67,6 +68,7 @@ public final class XraySettings {
         copy.proxyQuicEnabled = proxyQuicEnabled;
         copy.restartOnNetworkChange = restartOnNetworkChange;
         copy.tunUidLookupTimeoutMs = tunUidLookupTimeoutMs;
+        copy.tunUnknownUidBypass = tunUnknownUidBypass;
         copy.runtimeMode = runtimeMode;
         copy.transportMode = transportMode;
         copy.wakeProbeMode = wakeProbeMode;
@@ -96,6 +98,7 @@ public final class XraySettings {
             proxyQuicEnabled == that.proxyQuicEnabled &&
             restartOnNetworkChange == that.restartOnNetworkChange &&
             tunUidLookupTimeoutMs == that.tunUidLookupTimeoutMs &&
+            tunUnknownUidBypass == that.tunUnknownUidBypass &&
             runtimeMode == that.runtimeMode &&
             transportMode == that.transportMode &&
             Objects.equals(wakeProbeMode, that.wakeProbeMode) &&
@@ -134,6 +137,7 @@ public final class XraySettings {
             proxyQuicEnabled,
             restartOnNetworkChange,
             tunUidLookupTimeoutMs,
+            tunUnknownUidBypass,
             runtimeMode,
             transportMode,
             wakeProbeMode
