@@ -192,7 +192,13 @@ public final class XrayConfigFactory {
         root.put("dns", buildDns(effectiveXraySettings));
         root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
-        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0));
+        // Route xray's internal DNS resolver through the WG outbound rather
+        // than the freedom/direct outbound. In block conditions the upstream
+        // DNS (1.1.1.1 etc.) is not reachable from the physical network in
+        // the clear, but it IS reachable via the WG tunnel that vk-turn-proxy
+        // has bootstrapped. This matches how wireguard-android's
+        // [Interface] DNS line behaves: DNS lookups flow through the tunnel.
+        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, PROXY_TAG));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
@@ -557,6 +563,16 @@ public final class XrayConfigFactory {
         boolean includeTunInbound,
         int tproxyPort
     ) throws Exception {
+        return buildRouting(context, settings, includeTunInbound, tproxyPort, DIRECT_TAG);
+    }
+
+    private static JSONObject buildRouting(
+        Context context,
+        XraySettings settings,
+        boolean includeTunInbound,
+        int tproxyPort,
+        String internalDnsOutboundTag
+    ) throws Exception {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
         JSONArray rules = new JSONArray();
@@ -573,7 +589,7 @@ public final class XrayConfigFactory {
         JSONObject internalDnsRule = new JSONObject();
         internalDnsRule.put("type", "field");
         internalDnsRule.put("inboundTag", new JSONArray().put(DNS_TAG));
-        internalDnsRule.put("outboundTag", DIRECT_TAG);
+        internalDnsRule.put("outboundTag", internalDnsOutboundTag);
         rules.put(internalDnsRule);
 
         if (!settings.proxyQuicEnabled) {
