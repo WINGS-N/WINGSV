@@ -1214,6 +1214,19 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.initialize(this);
         sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
+        // Warm up libXray on a background thread so the JNI library and
+        // Go runtime are paged in by the time the user hits Start. Saves
+        // a few hundred ms of cold-start cost on the synchronous run path.
+        Thread warmup = new Thread(
+            () -> {
+                try {
+                    XrayBridge.warmupRuntimeLoad();
+                } catch (Throwable ignored) {}
+            },
+            "wingsv-xray-warmup"
+        );
+        warmup.setDaemon(true);
+        warmup.start();
     }
 
     @Override
@@ -1598,6 +1611,45 @@ public class ProxyTunnelService extends Service {
             ensureOwnedVpnBackendStopped("Xray", generation);
         }
 
+        // Pre-build the xray-core config JSON in parallel with VpnService
+        // setup + iptables lockdown + protect bridge wiring. Avoids tacking
+        // 50-150 ms of JSON marshalling + debug artifact write IO onto the
+        // critical path. Skipped for the TCP relay flow because the config
+        // depends on the relay endpoint we only learn after the relay is
+        // up; that path stays sync.
+        final boolean preBuildRelayFlow = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
+        final boolean fProxyOnly = activeXrayProxyOnly;
+        final boolean fTproxy = activeXrayTproxyMode;
+        final ProxySettings fSettings = settings;
+        final Context appCtxForConfig = getApplicationContext();
+        java.util.concurrent.CompletableFuture<String> configBuildFuture = null;
+        if (!preBuildRelayFlow) {
+            configBuildFuture = new java.util.concurrent.CompletableFuture<>();
+            final java.util.concurrent.CompletableFuture<String> sink = configBuildFuture;
+            Thread builder = new Thread(
+                () -> {
+                    try {
+                        String built = fTproxy
+                            ? XrayConfigFactory.buildTproxyConfigJson(appCtxForConfig, fSettings, XRAY_TPROXY_PORT)
+                            : XrayConfigFactory.buildConfigJson(
+                                  appCtxForConfig,
+                                  fSettings,
+                                  null,
+                                  0,
+                                  fProxyOnly ? null : fSettings.byeDpiSettings,
+                                  !fProxyOnly
+                              );
+                        sink.complete(built);
+                    } catch (Throwable error) {
+                        sink.completeExceptionally(error);
+                    }
+                },
+                "wingsv-xray-config-build"
+            );
+            builder.setDaemon(true);
+            builder.start();
+        }
+
         int tunFd = (activeXrayProxyOnly || activeXrayTproxyMode) ? 0 : -1;
         XrayVpnService vpnService = null;
         Exception startupError = null;
@@ -1708,7 +1760,14 @@ public class ProxyTunnelService extends Service {
         }
         String configJson;
         if (activeXrayTproxyMode) {
-            configJson = XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, XRAY_TPROXY_PORT);
+            try {
+                configJson =
+                    configBuildFuture != null
+                        ? configBuildFuture.get()
+                        : XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, XRAY_TPROXY_PORT);
+            } catch (java.util.concurrent.ExecutionException error) {
+                throw error.getCause() instanceof Exception ? (Exception) error.getCause() : error;
+            }
             appendRuntimeLogLine("Starting Xray backend via TPROXY on port " + XRAY_TPROXY_PORT);
         } else if (xrayExternalRelayEnabled) {
             configJson = XrayConfigFactory.buildConfigJson(
@@ -1728,14 +1787,21 @@ public class ProxyTunnelService extends Service {
                     xrayTcpRelayEndpoint.port
             );
         } else {
-            configJson = XrayConfigFactory.buildConfigJson(
-                getApplicationContext(),
-                settings,
-                null,
-                0,
-                activeXrayProxyOnly ? null : settings.byeDpiSettings,
-                !activeXrayProxyOnly
-            );
+            try {
+                configJson =
+                    configBuildFuture != null
+                        ? configBuildFuture.get()
+                        : XrayConfigFactory.buildConfigJson(
+                              getApplicationContext(),
+                              settings,
+                              null,
+                              0,
+                              activeXrayProxyOnly ? null : settings.byeDpiSettings,
+                              !activeXrayProxyOnly
+                          );
+            } catch (java.util.concurrent.ExecutionException error) {
+                throw error.getCause() instanceof Exception ? (Exception) error.getCause() : error;
+            }
             appendRuntimeLogLine(activeXrayProxyOnly ? "Starting Xray local proxy backend" : "Starting Xray backend");
         }
         if (XrayBridge.usesCachedStateFallback()) {
@@ -5574,7 +5640,16 @@ public class ProxyTunnelService extends Service {
      */
     private void applySplitTunnelLockdown(String backendLabel, @Nullable String tunIface) {
         Context appContext = getApplicationContext();
-        if (!RootUtils.isRootAccessGranted(appContext)) {
+        // Master Root functions toggle off -> behave as no-root (do not touch
+        // iptables even if su is still granted at OS level). If a previous
+        // session left filter chains in place, sweep them now.
+        ProxySettings prefSettings = AppPrefs.getSettings(appContext);
+        if (prefSettings == null || !prefSettings.rootModeEnabled || !RootUtils.isRootAccessGranted(appContext)) {
+            if (lastSplitTunnelLockdownBackendLabel != null && RootUtils.isRootAccessGranted(appContext)) {
+                RootMultiUserRouter.clearQuietly(appContext);
+            }
+            lastSplitTunnelLockdownTunIface = null;
+            lastSplitTunnelLockdownBackendLabel = null;
             return;
         }
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();

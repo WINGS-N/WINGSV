@@ -284,6 +284,16 @@ public final class XrayBridge {
         }
     }
 
+    /**
+     * Public hook for one-time warmup of the native library, typically
+     * called from ProxyTunnelService.onCreate on a background thread so
+     * the JNI link + Go runtime init happen off the user-perceived start
+     * path. Cheap no-op on repeat calls.
+     */
+    public static void warmupRuntimeLoad() {
+        ensureLoaded();
+    }
+
     private static void ensureControllersRegisteredLocked() {
         if (CONTROLLERS_REGISTERED.compareAndSet(false, true)) {
             LibXray.registerDialerController(DELEGATING_CONTROLLER);
