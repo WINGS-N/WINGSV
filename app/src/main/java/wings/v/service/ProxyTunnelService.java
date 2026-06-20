@@ -2069,6 +2069,19 @@ public class ProxyTunnelService extends Service {
         ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
         ensureOwnedVpnBackendStopped("WireGuard userspace (xray-WG)", generation);
 
+        // Active-probing auto-switch from Xray to VK TURN tears down the prior
+        // XrayVpnService with a 650 ms fast-stop window. Android may still be
+        // in the destruction phase when we get here, so XrayVpnService
+        // .ensureServiceStarted would either pick up a half-shutdown service
+        // (isReusable returned true on stale state) or queue the new
+        // startService behind the old destroy, stalling the whole connect for
+        // the full 8 s service-wait. Force a hard teardown up front when any
+        // XrayVpnService trace is still around so the new startup gets a
+        // clean slate.
+        if (XrayVpnService.isServiceAlive() || XrayVpnService.hasActiveTunnel()) {
+            forceStopXrayVpnServiceAndWait("Userspace xray-WG runtime entry: stale XrayVpnService teardown");
+        }
+
         ensureRuntimeStillWanted(generation);
 
         Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
@@ -2388,12 +2401,19 @@ public class ProxyTunnelService extends Service {
                 forceStopXrayVpnServiceAndWait("Xray VPN service force stop")
             );
         } else {
-            // libwg-go/libamneziawg_go keep global native handles; do not overlap DOWN with a later UP.
-            shutdownVpnBackendsLocked();
-            runFastStopCleanupStep(
-                "Userspace VPN service stop wait",
+            // libwg-go/libamneziawg_go keep global native handles; do not
+            // overlap DOWN with a later UP (the "later UP" being the racing
+            // concern, not the parallel service stop here). Run the WG-DOWN
+            // native call and the GoBackend/Awg VpnService stop in parallel:
+            // they touch independent state (vpnBackendLock for the native
+            // teardown, Android binder for the service stop) and together
+            // dominate the VKTP/WG stop latency. Worst-case bound by the
+            // group timeout; whichever finishes first does not wait for the
+            // other.
+            runFastStopCleanupGroup(
                 FAST_STOP_CLEANUP_TIMEOUT_MS,
-                this::stopUserspaceVpnServicesAndWait
+                new CleanupTask("Userspace VPN backend WG down", this::shutdownVpnBackendsLocked),
+                new CleanupTask("Userspace VPN service stop wait", this::stopUserspaceVpnServicesAndWait)
             );
         }
         unregisterTetherReceiver();
