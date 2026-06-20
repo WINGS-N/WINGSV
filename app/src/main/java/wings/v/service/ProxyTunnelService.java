@@ -1216,6 +1216,12 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.initialize(this);
         sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
+        // Hand the application context to XrayBridge so its UID lookup
+        // controller can reach ConnectivityManager.getConnectionOwnerUid().
+        // This is the only non-root API that lets the VPN see UIDs of
+        // connections crossing its tunnel, which is what backs the gVisor
+        // TUN inbound's excludedUids/allowedUids enforcement.
+        XrayBridge.setUidLookupContext(getApplicationContext());
         // Warm up libXray on a background thread so the JNI library and
         // Go runtime are paged in by the time the user hits Start. Saves
         // a few hundred ms of cold-start cost on the synchronous run path.

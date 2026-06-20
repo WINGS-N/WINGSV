@@ -1,24 +1,31 @@
 package wings.v.xray;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.text.TextUtils;
 import android.util.Base64;
+import android.util.Log;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import libXray.DialerController;
 import libXray.LibXray;
+import libXray.UIDLookupController;
 import org.json.JSONObject;
 import wings.v.R;
 import wings.v.WingsApplication;
@@ -59,6 +66,62 @@ public final class XrayBridge {
     private static final AtomicReference<DialerController> ACTIVE_NETWORK_CONTROLLER = new AtomicReference<>(
         DIRECT_NETWORK_CONTROLLER
     );
+    private static final AtomicReference<Context> UID_LOOKUP_CONTEXT = new AtomicReference<>();
+    private static final UIDLookupController UID_LOOKUP_CONTROLLER = new UIDLookupController() {
+        @Override
+        public int lookupConnectionUID(long protocol, String local, String remote) {
+            Context context = UID_LOOKUP_CONTEXT.get();
+            if (context == null) {
+                return -1;
+            }
+            ConnectivityManager cm = context.getSystemService(ConnectivityManager.class);
+            if (cm == null) {
+                return -1;
+            }
+            try {
+                InetSocketAddress localAddr = parseHostPort(local);
+                InetSocketAddress remoteAddr = parseHostPort(remote);
+                if (localAddr == null || remoteAddr == null) {
+                    return -1;
+                }
+                int uid = cm.getConnectionOwnerUid((int) protocol, localAddr, remoteAddr);
+                return uid == Process.INVALID_UID ? -1 : uid;
+            } catch (SecurityException error) {
+                // Caller must be the active VpnService. If we lose that role
+                // mid-runtime, surface once and stop trying.
+                Log.w("WINGSV-Xray", "getConnectionOwnerUid denied: " + error.getMessage());
+                return -1;
+            } catch (RuntimeException ignored) {
+                return -1;
+            }
+        }
+    };
+
+    private static InetSocketAddress parseHostPort(String hostPort) {
+        if (TextUtils.isEmpty(hostPort)) return null;
+        // Go's netip.AddrPort.String() format: IPv4 "1.2.3.4:567", IPv6
+        // "[::1]:567". Split on the last colon outside any brackets so the
+        // colons inside the IPv6 part are not treated as separators.
+        int closeBracket = hostPort.lastIndexOf(']');
+        int portColon = hostPort.lastIndexOf(':');
+        if (portColon < 0 || portColon < closeBracket) return null;
+        String host = hostPort.substring(0, portColon);
+        if (host.startsWith("[") && host.endsWith("]")) {
+            host = host.substring(1, host.length() - 1);
+        }
+        int port;
+        try {
+            port = Integer.parseInt(hostPort.substring(portColon + 1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+        try {
+            return new InetSocketAddress(InetAddress.getByName(host), port);
+        } catch (UnknownHostException ignored) {
+            return null;
+        }
+    }
+
     private static final DialerController DELEGATING_CONTROLLER = new DialerController() {
         @Override
         public boolean protectFd(long fd) {
@@ -298,7 +361,18 @@ public final class XrayBridge {
         if (CONTROLLERS_REGISTERED.compareAndSet(false, true)) {
             LibXray.registerDialerController(DELEGATING_CONTROLLER);
             LibXray.registerListenerController(DELEGATING_CONTROLLER);
+            LibXray.registerUIDLookupController(UID_LOOKUP_CONTROLLER);
         }
+    }
+
+    /**
+     * Sets the application context used by {@link #UID_LOOKUP_CONTROLLER} to
+     * obtain {@link ConnectivityManager#getConnectionOwnerUid}. The context
+     * is stored as a static reference; pass an Application context to avoid
+     * Activity leaks.
+     */
+    public static void setUidLookupContext(Context applicationContext) {
+        UID_LOOKUP_CONTEXT.set(applicationContext);
     }
 
     private static void configureRuntimeNetworkingLocked(String remoteDns, String directDns) {
