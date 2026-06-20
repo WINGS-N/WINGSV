@@ -1898,9 +1898,12 @@ public class ProxyTunnelService extends Service {
         // without root. Route the TUN through xray-core's gVisor inbound
         // (same UID lookup the Xray VPN mode uses) into a synthetic WG
         // outbound. Same protect-bridge fd path as the regular Xray VPN.
+        // Gate by user's master Root functions toggle, not OS-level grant:
+        // when the user explicitly turned root off the app must behave as
+        // no-root even if su is still available.
         if (
             !willUseKernelWireGuard &&
-            !RootUtils.isRootAccessGranted(getApplicationContext()) &&
+            !settings.rootModeEnabled &&
             activeBackendType != null &&
             !usesAmneziaBackend(activeBackendType)
         ) {
