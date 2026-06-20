@@ -183,15 +183,14 @@ public final class XrayConfigFactory {
         XraySettings sourceXraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
         XraySettings effectiveXraySettings = sourceXraySettings.copy();
         String dnsServers;
-        boolean useTurnRouting = settings.backendType != null && settings.backendType.usesTurnProxy();
-        if (useTurnRouting) {
-            // TCP DNS through WG outbound. Previous UDP-via-proxy attempt
-            // (edd281b) saw every reply dropped at 4 s xray-dns timeout while
-            // TCP connections through the same outbound were accepted just
-            // fine. tcp:// forces xray's internal resolver to dial TCP/53,
-            // which survives userspace netstack hiccups and tolerates packet
-            // loss inside the WG tunnel better than UDP.
-            dnsServers = "tcp://77.88.8.8, tcp://77.88.8.1, tcp://8.8.8.8, tcp://8.8.4.4, tcp://1.1.1.1";
+        if (settings.backendType != null && settings.backendType.usesTurnProxy()) {
+            // vk-turn-proxy bootstrap resolver list. Goes through the direct
+            // freedom outbound (physical network), so works as long as at
+            // least one of these survives the local network's DPI. Routing
+            // DNS through the WG/proxy outbound was tried twice (UDP, TCP);
+            // both failed because xray-WG outbound via vk-turn-proxy is not
+            // currently delivering data plane traffic to the WG peer.
+            dnsServers = "77.88.8.8, 77.88.8.1, 8.8.8.8, 8.8.4.4, 1.1.1.1";
         } else {
             String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
             dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
@@ -205,14 +204,7 @@ public final class XrayConfigFactory {
         root.put("dns", buildDns(effectiveXraySettings));
         root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
-        // For VK TURN / WG-style backends route xray's internal DNS resolver
-        // through the WG outbound. Combined with tcp:// DNS servers (set
-        // above) this rides on TCP/53 over the tunnel, which survived
-        // userspace netstack quirks in earlier tests where plain UDP did
-        // not. In block conditions the physical-network path (direct
-        // freedom) cannot reach 1.1.1.1 in the clear; the WG peer can.
-        String internalDnsOutbound = useTurnRouting ? PROXY_TAG : DIRECT_TAG;
-        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, internalDnsOutbound));
+        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
