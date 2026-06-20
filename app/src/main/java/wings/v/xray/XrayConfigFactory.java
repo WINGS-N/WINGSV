@@ -172,19 +172,25 @@ public final class XrayConfigFactory {
         if (settings == null) {
             throw new IllegalArgumentException("settings required");
         }
-        // Use a shallow copy of XraySettings with DNS overridden from the
-        // WireGuard "DNS = ..." preference. Default DoH bootstraps from a
-        // hostname that itself needs DNS to resolve - on a WG-only profile
-        // the xraySettings DoH field is rarely populated and the chain
-        // collapses. wgDns is plain UDP and matches how wireguard-android
-        // wires up its [Interface] DNS line.
+        // DNS server selection for xray's internal resolver. Three buckets:
+        //   1. VK TURN backend - mirror vk-turn-proxy's own bootstrap
+        //      resolver list (protected_net.go defaultResolverAddrs).
+        //      Yandex 77.88.8.x is first because in RU block conditions it
+        //      is rarely censored while 1.1.1.1 often is.
+        //   2. Other WG-style backends - use settings.wgDns ([Interface]
+        //      DNS line), matching wireguard-android's defaults.
+        //   3. Fallback - 1.1.1.1, 1.0.0.1.
         XraySettings sourceXraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
         XraySettings effectiveXraySettings = sourceXraySettings.copy();
-        String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
-        if (!wgDns.isEmpty()) {
-            effectiveXraySettings.remoteDns = wgDns;
-            effectiveXraySettings.directDns = wgDns;
+        String dnsServers;
+        if (settings.backendType != null && settings.backendType.usesTurnProxy()) {
+            dnsServers = "77.88.8.8, 77.88.8.1, 8.8.8.8, 8.8.4.4, 1.1.1.1";
+        } else {
+            String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
+            dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
         }
+        effectiveXraySettings.remoteDns = dnsServers;
+        effectiveXraySettings.directDns = dnsServers;
         JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
 
         JSONObject root = new JSONObject();
