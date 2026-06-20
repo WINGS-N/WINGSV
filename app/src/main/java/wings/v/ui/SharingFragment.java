@@ -180,6 +180,17 @@ public class SharingFragment extends Fragment {
             R.string.sharing_auto_start_summary,
             checked -> AppPrefs.setSharingAutoStartOnBootEnabled(requireContext(), checked)
         );
+        configureSettingSwitch(
+            binding.itemHideFromOperator,
+            R.string.sharing_hide_from_operator_title,
+            R.string.sharing_hide_from_operator_summary,
+            checked -> {
+                AppPrefs.setSharingHideFromOperatorEnabled(requireContext(), checked);
+                if (ProxyTunnelService.isActive()) {
+                    requireContext().startService(ProxyTunnelService.createReapplySharingIntent(requireContext()));
+                }
+            }
+        );
 
         refreshStickyState();
         refreshUi();

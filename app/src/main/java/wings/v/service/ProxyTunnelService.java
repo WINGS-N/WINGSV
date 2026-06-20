@@ -101,6 +101,7 @@ import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
 import wings.v.core.RootMultiUserRouter;
 import wings.v.core.RootUtils;
+import wings.v.core.SharingTtlHider;
 import wings.v.core.TetherType;
 import wings.v.core.UiFormatter;
 import wings.v.core.WireGuardConfigFactory;
@@ -4873,6 +4874,7 @@ public class ProxyTunnelService extends Service {
         try {
             SharingApiGuard.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
+            applySharingTtlHide(configuredInterfaces);
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
             lastTetherSyncUpstream = upstreamNameForLog;
@@ -4901,11 +4903,27 @@ public class ProxyTunnelService extends Service {
         if (SharingApiGuard.isSupported()) {
             SharingApiGuard.stopSharing(getApplicationContext());
         }
+        SharingTtlHider.clearQuietly(getApplicationContext());
         appliedTetherUpstreamName = null;
         lastTetherSyncInterfaces = null;
         lastTetherSyncUpstream = null;
         lastTetherSyncConfig = null;
         releaseSharingWifiLocks();
+    }
+
+    private void applySharingTtlHide(Set<String> tetherInterfaces) {
+        Context appContext = getApplicationContext();
+        try {
+            if (AppPrefs.isSharingHideFromOperatorEnabled(appContext)) {
+                SharingTtlHider.apply(appContext, tetherInterfaces);
+                appendRuntimeLogLine("Sharing TTL hide applied for " + tetherInterfaces);
+            } else {
+                SharingTtlHider.clearQuietly(appContext);
+            }
+        } catch (Exception error) {
+            appendRuntimeLogLine("Sharing TTL hide failed: " + firstNonEmpty(error.getMessage(), error.toString()));
+            Log.w(TAG, "Sharing TTL hide failed", error);
+        }
     }
 
     private void requestRootTetherRoutingSync(@Nullable Intent tetherIntent) {
