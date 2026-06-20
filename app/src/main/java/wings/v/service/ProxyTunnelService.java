@@ -2056,13 +2056,6 @@ public class ProxyTunnelService extends Service {
         ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
         ensureOwnedVpnBackendStopped("WireGuard userspace (xray-WG)", generation);
 
-        String wgPeerEndpoint = null;
-        if (activeXrayUsesTurnProxy) {
-            long proxyStartedAt = startProxyProcess(settings, generation);
-            waitForProxyWarmup(proxyStartedAt, generation);
-            wgPeerEndpoint = settings.localEndpoint;
-        }
-
         ensureRuntimeStillWanted(generation);
 
         Intent vpnPermissionIntent = VpnService.prepare(getApplicationContext());
@@ -2072,6 +2065,14 @@ public class ProxyTunnelService extends Service {
             );
         }
 
+        // Bring up the tunnel and protect bridge BEFORE starting vk-turn-proxy.
+        // The working VK TURN relay path in startXrayRuntime does the same:
+        // protect bridge has to be ready when vktp creates its egress UDP
+        // sockets to the TURN servers, otherwise those sockets get caught
+        // by the per-app VPN routing and reenter our own xray TUN inbound,
+        // looping back into vktp via the WG outbound and never reaching the
+        // real TURN servers. We diagnosed this by spotting source IP =
+        // device LAN IP packets to 193.203.43.x:19302 entering tun-in.
         int tunFd = -1;
         XrayVpnService vpnService = null;
         for (int attempt = 1; attempt <= XRAY_VPN_START_ATTEMPTS; attempt++) {
@@ -2109,6 +2110,15 @@ public class ProxyTunnelService extends Service {
             null,
             getString(R.string.proxy_xray_protect_bridge_start_failed)
         );
+
+        String wgPeerEndpoint = null;
+        if (activeXrayUsesTurnProxy) {
+            long proxyStartedAt = startProxyProcess(settings, generation);
+            waitForProxyWarmup(proxyStartedAt, generation);
+            wgPeerEndpoint = settings.localEndpoint;
+        }
+
+        ensureRuntimeStillWanted(generation);
 
         if (XrayBridge.isRunning()) {
             try {
