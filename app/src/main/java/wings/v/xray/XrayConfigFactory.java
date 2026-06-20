@@ -200,7 +200,12 @@ public final class XrayConfigFactory {
         JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
 
         JSONObject root = new JSONObject();
-        root.put("log", buildLog(context));
+        // Debug log level so wireguard-go handshake init/response and
+        // bind dial events are visible. xray-WG via vk-turn-proxy is still
+        // a fragile chain (different from the working GoBackend path) and
+        // we need traces to tell whether the WG handshake even reaches
+        // the peer.
+        root.put("log", buildLog(context, "debug"));
         root.put("dns", buildDns(effectiveXraySettings));
         root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
@@ -335,6 +340,10 @@ public final class XrayConfigFactory {
     }
 
     private static JSONObject buildLog(Context context) throws Exception {
+        return buildLog(context, "info");
+    }
+
+    private static JSONObject buildLog(Context context, String level) throws Exception {
         JSONObject log = new JSONObject();
         File logDir = new File(context.getFilesDir(), "xray/log");
         if (!logDir.exists()) {
@@ -346,7 +355,7 @@ public final class XrayConfigFactory {
         resetLogFile(errorLog);
         log.put("access", accessLog.getAbsolutePath());
         log.put("error", errorLog.getAbsolutePath());
-        log.put("loglevel", "info");
+        log.put("loglevel", level);
         log.put("dnsLog", true);
         return log;
     }
