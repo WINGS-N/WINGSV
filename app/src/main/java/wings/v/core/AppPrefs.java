@@ -172,6 +172,7 @@ public final class AppPrefs {
     public static final String KEY_SHARING_WIFI_LOCK = "pref_sharing_wifi_lock";
     public static final String KEY_SHARING_REPEATER_SAFE_MODE = "pref_sharing_repeater_safe_mode";
     public static final String KEY_SHARING_TEMP_HOTSPOT_USE_SYSTEM = "pref_sharing_temp_hotspot_use_system";
+    public static final String KEY_SHARING_HIDE_FROM_OPERATOR = "pref_sharing_hide_from_operator";
     public static final String KEY_SHARING_IP_MONITOR_MODE = "pref_sharing_ip_monitor_mode";
     public static final String KEY_ONBOARDING_SEEN = "pref_onboarding_seen";
     public static final String KEY_BATTERY_OPTIMIZATION_ACKNOWLEDGED = "pref_battery_optimization_acknowledged";
@@ -770,6 +771,14 @@ public final class AppPrefs {
 
     public static void setSharingDisableIpv6Enabled(Context context, boolean enabled) {
         prefs(context).edit().putBoolean(KEY_SHARING_DISABLE_IPV6, enabled).apply();
+    }
+
+    public static boolean isSharingHideFromOperatorEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_SHARING_HIDE_FROM_OPERATOR, false);
+    }
+
+    public static void setSharingHideFromOperatorEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_SHARING_HIDE_FROM_OPERATOR, enabled).apply();
     }
 
     public static boolean isSharingDhcpWorkaroundEnabled(Context context) {

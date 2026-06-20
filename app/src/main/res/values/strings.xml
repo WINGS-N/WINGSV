@@ -1083,6 +1083,8 @@
     <string name="sharing_disable_ipv6_summary">Reduces the risk of IPv6 leaks outside the VPN</string>
     <string name="sharing_auto_start_title">Auto-start sharing at device boot</string>
     <string name="sharing_auto_start_summary">After the system boots, automatically restores the last active sharing endpoints on the selected backend</string>
+    <string name="sharing_hide_from_operator_title">Hide sharing from operator</string>
+    <string name="sharing_hide_from_operator_summary">Bumps TTL/HL of tether traffic by +1 via iptables so carrier-side detection sees direct mobile packets instead of forwarded ones. Requires root and the xt_HL kernel module.</string>
     <string name="sharing_offload_title">Hardware acceleration for sharing</string>
     <string name="sharing_offload_summary">Disable if system tethering does not route traffic through the VPN</string>
     <string name="sharing_dhcp_title">DHCP workaround</string>

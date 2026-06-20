@@ -1083,6 +1083,8 @@
     <string name="sharing_disable_ipv6_summary">Уменьшает риск IPv6-утечек вне VPN</string>
     <string name="sharing_auto_start_title">Автозапуск раздачи при старте устройства</string>
     <string name="sharing_auto_start_summary">После загрузки системы автоматически восстанавливает последние активные точки раздачи на выбранном backend</string>
+    <string name="sharing_hide_from_operator_title">Скрывать раздачу от оператора</string>
+    <string name="sharing_hide_from_operator_summary">Повышает TTL/HL пакетов раздачи на +1 через iptables — оператор видит пакеты как прямые мобильные, а не переадресованные. Нужен root и модуль ядра xt_HL.</string>
     <string name="sharing_offload_title">Аппаратное ускорение раздачи</string>
     <string name="sharing_offload_summary">Отключайте, если системная раздача не проводит трафик через VPN</string>
     <string name="sharing_dhcp_title">DHCP workaround</string>
