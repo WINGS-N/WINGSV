@@ -172,15 +172,27 @@ public final class XrayConfigFactory {
         if (settings == null) {
             throw new IllegalArgumentException("settings required");
         }
-        XraySettings xraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
+        // Use a shallow copy of XraySettings with DNS overridden from the
+        // WireGuard "DNS = ..." preference. Default DoH bootstraps from a
+        // hostname that itself needs DNS to resolve - on a WG-only profile
+        // the xraySettings DoH field is rarely populated and the chain
+        // collapses. wgDns is plain UDP and matches how wireguard-android
+        // wires up its [Interface] DNS line.
+        XraySettings sourceXraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
+        XraySettings effectiveXraySettings = sourceXraySettings.copy();
+        String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
+        if (!wgDns.isEmpty()) {
+            effectiveXraySettings.remoteDns = wgDns;
+            effectiveXraySettings.directDns = wgDns;
+        }
         JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
 
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
-        root.put("dns", buildDns(xraySettings));
-        root.put("inbounds", buildInbounds(context, xraySettings, true, 0));
-        root.put("outbounds", buildOutbounds(wgOutbound, xraySettings, null));
-        root.put("routing", buildRouting(context, xraySettings, true, 0));
+        root.put("dns", buildDns(effectiveXraySettings));
+        root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
+        root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
+        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
