@@ -417,6 +417,7 @@ public class ProxyTunnelService extends Service {
     private boolean activeXrayUsesTurnProxy;
     private boolean activeXrayProxyOnly;
     private boolean activeXrayTproxyMode;
+    private boolean activeXrayWgRuntime;
     private Process tproxyXrayProcess;
     // Signalled by the proxy output reader when xray-core logs that its TPROXY
     // TCP listener bound. We watch the stdout marker instead of probing the
@@ -1868,6 +1869,7 @@ public class ProxyTunnelService extends Service {
         protectSocketName = null;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = true;
 
         if (XrayBridge.isRunning()) {
@@ -1904,6 +1906,7 @@ public class ProxyTunnelService extends Service {
         closeProtectBridge();
         protectSocketName = null;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
 
         ensureUserspaceVpnServicesQuiescedBeforeUserspaceBackend(generation);
@@ -1952,6 +1955,7 @@ public class ProxyTunnelService extends Service {
     private void startWireGuardRuntime(ProxySettings settings, int generation) throws Exception {
         ensureRuntimeStillWanted(generation);
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         boolean willUseKernelWireGuard =
             settings.rootModeEnabled &&
@@ -2046,6 +2050,7 @@ public class ProxyTunnelService extends Service {
         activeXrayUsesTurnProxy = usesTurnProxyBackend(activeBackendType);
         activeXrayProxyOnly = false;
         activeXrayTproxyMode = false;
+        activeXrayWgRuntime = true;
 
         ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
         ensureOwnedVpnBackendStopped("WireGuard userspace (xray-WG)", generation);
@@ -2391,6 +2396,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
@@ -2540,6 +2546,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
@@ -2679,6 +2686,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeTunnelName = ROOT_TUNNEL_NAME;
         appliedTetherUpstreamName = null;
@@ -2884,6 +2892,7 @@ public class ProxyTunnelService extends Service {
         kernelWireguardActive = false;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeBackendType = BackendType.VK_TURN_WIREGUARD;
         activeTunnelName = ROOT_TUNNEL_NAME;
@@ -3438,6 +3447,7 @@ public class ProxyTunnelService extends Service {
         lastProxyDtlsActivityAtElapsedMs = 0L;
         activeXrayUsesTurnProxy = false;
         activeXrayProxyOnly = false;
+        activeXrayWgRuntime = false;
         activeVkTurnProxyOnly = false;
         activeTunnelProbingInProgress.set(false);
         sProxyCapabilities = ProxyCapabilities.empty();
@@ -7723,7 +7733,8 @@ public class ProxyTunnelService extends Service {
             activeBackendType.usesWireGuardSettings() &&
             !activeVkTurnProxyOnly &&
             !usesAmneziaBackend(activeBackendType) &&
-            !kernelWireguardActive
+            !kernelWireguardActive &&
+            !activeXrayWgRuntime
         );
     }
 
