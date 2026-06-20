@@ -182,15 +182,16 @@ public final class XrayConfigFactory {
         //   3. Fallback - 1.1.1.1, 1.0.0.1.
         XraySettings sourceXraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
         XraySettings effectiveXraySettings = sourceXraySettings.copy();
+        boolean turnFlavor = settings.backendType != null && settings.backendType.usesTurnProxy();
         String dnsServers;
-        if (settings.backendType != null && settings.backendType.usesTurnProxy()) {
-            // vk-turn-proxy bootstrap resolver list. Goes through the direct
-            // freedom outbound (physical network), so works as long as at
-            // least one of these survives the local network's DPI. Routing
-            // DNS through the WG/proxy outbound was tried twice (UDP, TCP);
-            // both failed because xray-WG outbound via vk-turn-proxy is not
-            // currently delivering data plane traffic to the WG peer.
-            dnsServers = "77.88.8.8, 77.88.8.1, 8.8.8.8, 8.8.4.4, 1.1.1.1";
+        if (turnFlavor) {
+            // For WG-style backends (VK TURN / WB Stream / AmneziaWG) use
+            // the wgDns from the WireGuard [Interface] preference. Routed
+            // through the WG outbound below so resolve works in block
+            // conditions where the underlying network cannot reach public
+            // resolvers in the clear.
+            String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
+            dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
         } else {
             String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
             dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
@@ -200,16 +201,15 @@ public final class XrayConfigFactory {
         JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
 
         JSONObject root = new JSONObject();
-        // Debug log level so wireguard-go handshake init/response and
-        // bind dial events are visible. xray-WG via vk-turn-proxy is still
-        // a fragile chain (different from the working GoBackend path) and
-        // we need traces to tell whether the WG handshake even reaches
-        // the peer.
-        root.put("log", buildLog(context, "debug"));
+        root.put("log", buildLog(context, "info"));
         root.put("dns", buildDns(effectiveXraySettings));
         root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
-        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0));
+        // For TURN/WG flavors route xray's internal DNS resolver through
+        // the WG outbound so DNS queries ride the tunnel instead of leaking
+        // out via direct/freedom on the underlying physical network.
+        String internalDnsOutbound = turnFlavor ? PROXY_TAG : DIRECT_TAG;
+        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, internalDnsOutbound));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
@@ -776,6 +776,10 @@ public final class XrayConfigFactory {
         }
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(context);
         if (packages == null || packages.isEmpty()) {
+            android.util.Log.i(
+                "WINGSV-Xray",
+                "applyTunUidFilter: no effective app-routing packages, gVisor UID filter disabled"
+            );
             return;
         }
         List<Integer> uids = wings.v.core.XrayTproxyRouter.resolveRoutedUids(context, packages);
@@ -791,13 +795,23 @@ public final class XrayConfigFactory {
         if (uidArray.length() == 0) {
             return;
         }
-        if (AppPrefs.isAppRoutingBypassEnabled(context)) {
+        boolean bypassMode = AppPrefs.isAppRoutingBypassEnabled(context);
+        if (bypassMode) {
             // Bypass mode: listed packages must NOT use the tunnel.
             tunSettings.put("excludedUids", uidArray);
         } else {
             // Allowlist mode: only listed packages are tunneled, drop everyone else.
             tunSettings.put("allowedUids", uidArray);
         }
+        android.util.Log.i(
+            "WINGSV-Xray",
+            "applyTunUidFilter: mode=" +
+                (bypassMode ? "bypass" : "allowlist") +
+                " uids=" +
+                uids +
+                " packages=" +
+                packages
+        );
         // Unresolved /proc/net UID is now always treated as a filter failure
         // and the connection is dropped, closing the SO_BINDTODEVICE escape
         // route. To absorb the race between an app opening sockets in rapid
