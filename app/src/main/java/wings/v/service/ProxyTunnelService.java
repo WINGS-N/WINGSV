@@ -254,8 +254,8 @@ public class ProxyTunnelService extends Service {
     private static final long BYEDPI_START_TIMEOUT_MS = 4_000L;
     private static final long BYEDPI_START_POLL_MS = 100L;
     private static final long BYEDPI_STOP_TIMEOUT_MS = 750L;
-    private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 1_000L;
-    private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 1_200L;
+    private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 500L;
+    private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 500L;
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int WB_STREAM_EXCHANGE_MAX_ATTEMPTS = 3;
     private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
@@ -1693,9 +1693,11 @@ public class ProxyTunnelService extends Service {
             appendRuntimeLogLine("Skipping ByeDPI front proxy in Xray proxy-only mode");
         }
 
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {}
+        if (XrayBridge.isRunning()) {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {}
+        }
 
         String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
         String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
@@ -1802,9 +1804,11 @@ public class ProxyTunnelService extends Service {
         activeXrayProxyOnly = false;
         activeVkTurnProxyOnly = true;
 
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {}
+        if (XrayBridge.isRunning()) {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {}
+        }
         forceStopXrayVpnServiceAndWait("VK TURN proxy-only startup cleanup");
         if (!stopUserspaceVpnServicesAndWait()) {
             throw new IllegalStateException(getString(R.string.proxy_userspace_vpn_not_down_proxy_only));
@@ -2031,9 +2035,11 @@ public class ProxyTunnelService extends Service {
             getString(R.string.proxy_xray_protect_bridge_start_failed)
         );
 
-        try {
-            XrayBridge.stop();
-        } catch (Exception ignored) {}
+        if (XrayBridge.isRunning()) {
+            try {
+                XrayBridge.stop();
+            } catch (Exception ignored) {}
+        }
 
         String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
         String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
@@ -2292,36 +2298,23 @@ public class ProxyTunnelService extends Service {
                 this::stopUserspaceVpnServicesAndWait
             );
         }
-        runFastStopCleanupStep(
-            "Active tunnel force link down",
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::forceLinkDownActiveTunnelIfNeeded
-        );
-
-        runFastStopCleanupStep(
-            "Root tether routing cleanup",
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::clearRootTetherRouting
-        );
-        runFastStopCleanupStep(
-            "Root app tunnel routing cleanup",
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::clearRootAppTunnelRouting
-        );
         unregisterTetherReceiver();
         unregisterTetherEventCallback();
         releaseTunnelWifiLock();
         releaseSharingWifiLocks();
-        runFastStopCleanupStep("Root routing cleanup", FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, this::clearRootRouting);
 
         if (proxyProcess != null) {
             proxyProcess.destroy();
             proxyProcess = null;
         }
-        runFastStopCleanupStep(
-            "Persisted root proxy cleanup",
+
+        runFastStopCleanupGroup(
             FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            this::killPersistedRootProxyIfNeeded
+            new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
+            new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
+            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
+            new CleanupTask("Root routing cleanup", this::clearRootRouting),
+            new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded)
         );
 
         protectSocketName = null;
@@ -2680,6 +2673,66 @@ public class ProxyTunnelService extends Service {
         } catch (Exception error) {
             appendRuntimeLogLine("Reconnect cleanup warning (" + stepName + "): " + error.getMessage());
             Log.w(TAG, "Reconnect cleanup warning during " + stepName, error);
+        }
+    }
+
+    private static final class CleanupTask {
+
+        final String name;
+        final CleanupStep step;
+
+        CleanupTask(String name, CleanupStep step) {
+            this.name = name;
+            this.step = step;
+        }
+    }
+
+    private void runFastStopCleanupGroup(long timeoutMs, CleanupTask... tasks) {
+        if (tasks == null || tasks.length == 0) return;
+        Thread[] threads = new Thread[tasks.length];
+        AtomicReference<?>[] errors = new AtomicReference<?>[tasks.length];
+        for (int i = 0; i < tasks.length; i++) {
+            CleanupTask task = tasks[i];
+            AtomicReference<Throwable> errorRef = new AtomicReference<>();
+            errors[i] = errorRef;
+            threads[i] = new Thread(
+                () -> {
+                    try {
+                        task.step.run();
+                    } catch (Throwable error) {
+                        errorRef.set(error);
+                    }
+                },
+                "wingsv-stop-" + task.name.replace(' ', '-')
+            );
+            threads[i].setDaemon(true);
+            threads[i].start();
+        }
+        long deadline = android.os.SystemClock.elapsedRealtime() + Math.max(1L, timeoutMs);
+        for (Thread thread : threads) {
+            long remaining = deadline - android.os.SystemClock.elapsedRealtime();
+            if (remaining <= 0L) break;
+            try {
+                thread.join(remaining);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        for (int i = 0; i < tasks.length; i++) {
+            CleanupTask task = tasks[i];
+            if (threads[i].isAlive()) {
+                appendRuntimeLogLine("Stop cleanup timed out during " + task.name + ", continuing in background");
+                Log.w(TAG, "Stop cleanup timed out during " + task.name);
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Throwable error = ((AtomicReference<Throwable>) errors[i]).get();
+            if (error == null || error instanceof InterruptedException) continue;
+            appendRuntimeLogLine(
+                "Stop cleanup warning (" + task.name + "): " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+            Log.w(TAG, "Stop cleanup warning during " + task.name, error);
         }
     }
 
