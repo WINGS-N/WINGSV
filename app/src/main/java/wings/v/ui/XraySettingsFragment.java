@@ -53,6 +53,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_RUNTIME_MODE);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TRANSPORT_MODE);
@@ -88,6 +89,8 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         bindNumeric(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
+        bindSwitch(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS);
+        applyTunUidPrefVisibility();
         bindSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE);
         bindRuntimeMode(AppPrefs.KEY_XRAY_RUNTIME_MODE);
@@ -110,7 +113,19 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onResume() {
         super.onResume();
+        applyTunUidPrefVisibility();
         syncFromStore();
+    }
+
+    private void applyTunUidPrefVisibility() {
+        // UID lookup timeout drives the /proc/net retry window that only kicks
+        // in under root TPROXY mode (SELinux blocks the read for unprivileged
+        // apps, so the value is dead weight otherwise). Hide it when the user
+        // has not opted into root mode to declutter the settings screen.
+        androidx.preference.Preference timeoutPref = findPreference(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
+        if (timeoutPref != null) {
+            timeoutPref.setVisible(AppPrefs.isRootModeEnabled(requireContext()));
+        }
     }
 
     private void bindSwitch(String key) {
@@ -398,6 +413,9 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         }
         if (TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED)) {
             return getString(R.string.warning_http_auth_disable);
+        }
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS)) {
+            return getString(R.string.warning_xray_tun_unknown_uid_bypass_disable);
         }
         return null;
     }
