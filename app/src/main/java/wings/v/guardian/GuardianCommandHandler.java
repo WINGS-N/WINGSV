@@ -51,6 +51,11 @@ public final class GuardianCommandHandler {
                 case COMMAND_TYPE_REFRESH_INSTALLED_APPS:
                     // Handled by the caller (it has access to the WS client).
                     break;
+                case COMMAND_TYPE_GENERATE_VK_LINK:
+                    // Handled by the caller in foreground (it has the WS
+                    // client to push the fresh StateReport + ack). Background
+                    // sync without a live channel is a no-op.
+                    break;
                 default:
                     ok = false;
                     error = "unknown command";

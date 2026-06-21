@@ -273,6 +273,9 @@ public final class GuardianService extends Service implements GuardianClient.Lis
                 case COMMAND_TYPE_REFRESH_INSTALLED_APPS:
                     sendInstalledAppsAsync();
                     break;
+                case COMMAND_TYPE_GENERATE_VK_LINK:
+                    handleGenerateVkLinkCommand(command.getId());
+                    return;
                 default:
                     ok = false;
                     error = "unknown command";
@@ -328,6 +331,56 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         if (client != null) {
             client.sendFrame(buildStateReport());
         }
+    }
+
+    private void handleGenerateVkLinkCommand(String commandId) {
+        Context ctx = getApplicationContext();
+        new Thread(
+            () -> {
+                boolean ok = true;
+                String error = "";
+                try {
+                    if (!wings.v.vk.VkOAuthAuth.isClientConfigured()) {
+                        ok = false;
+                        error = "VK OAuth client not configured";
+                    } else if (!wings.v.vk.VkOAuthAuth.isAuthorized(ctx)) {
+                        ok = false;
+                        error = "VK OAuth token missing";
+                    } else {
+                        String joinLink = wings.v.vk.VkCallsApi.generateJoinLink(ctx);
+                        java.util.List<String> existing = new java.util.ArrayList<>(AppPrefs.getVkLinks(ctx));
+                        if (!existing.contains(joinLink)) {
+                            existing.add(joinLink);
+                            AppPrefs.setVkLinks(ctx, existing);
+                        }
+                        ProxyTunnelService.writeRuntimeLogLine("[guardian] generate VK link ok");
+                    }
+                } catch (Exception err) {
+                    ok = false;
+                    error = err.getMessage() == null ? err.getClass().getSimpleName() : err.getMessage();
+                    ProxyTunnelService.writeRuntimeLogLine("[guardian] generate VK link failed: " + error);
+                }
+                if (client != null) {
+                    client.sendFrame(
+                        GuardianProto.Frame.newBuilder()
+                            .setCommandAck(
+                                GuardianProto.CommandAck.newBuilder()
+                                    .setId(commandId)
+                                    .setOk(ok)
+                                    .setErrorMessage(error == null ? "" : error)
+                            )
+                            .build()
+                    );
+                    if (ok) {
+                        // Push fresh snapshot so the panel sees the new link
+                        // without waiting for the next regular report.
+                        client.sendFrame(buildStateReport());
+                    }
+                }
+            },
+            "guardian-vk-link-gen"
+        )
+            .start();
     }
 
     private void runSubscriptionRefresh(Context ctx) {
@@ -470,10 +523,13 @@ public final class GuardianService extends Service implements GuardianClient.Lis
     }
 
     private GuardianProto.Frame buildStateReport() {
+        Context ctx = getApplicationContext();
+        boolean vkAuthorized = wings.v.vk.VkOAuthAuth.isClientConfigured() && wings.v.vk.VkOAuthAuth.isAuthorized(ctx);
         GuardianProto.RuntimeState runtime = GuardianProto.RuntimeState.newBuilder()
             .setTunnelActive(ProxyTunnelService.isActive())
             .setPhase(GuardianProto.TunnelPhase.TUNNEL_PHASE_UNSPECIFIED)
-            .setHasRootAccess(wings.v.core.RootUtils.isRootAccessGranted(getApplicationContext()))
+            .setHasRootAccess(wings.v.core.RootUtils.isRootAccessGranted(ctx))
+            .setVkOauthAuthorized(vkAuthorized)
             .build();
         GuardianProto.StateReport.Builder report = GuardianProto.StateReport.newBuilder().setRuntime(runtime);
         try {
