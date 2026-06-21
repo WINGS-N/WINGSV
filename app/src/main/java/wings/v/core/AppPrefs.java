@@ -142,6 +142,10 @@ public final class AppPrefs {
     public static final String KEY_XRAY_SUBSCRIPTIONS_LAST_ERROR = "pref_xray_subscriptions_last_error";
     public static final String KEY_XRAY_IMPORTED_SUBSCRIPTION_JSON = "pref_xray_imported_subscription_json";
     public static final String KEY_THEME_MODE = "pref_theme_mode";
+    public static final String KEY_UI_NAVBAR_ORDER = "pref_ui_navbar_order";
+    public static final String KEY_UI_NAVBAR_HIDDEN = "pref_ui_navbar_hidden";
+    public static final String KEY_UI_NOTIFICATION_ORDER = "pref_ui_notification_order";
+    public static final String KEY_UI_NOTIFICATION_HIDDEN = "pref_ui_notification_hidden";
     public static final String KEY_SUBSCRIPTION_HWID_ENABLED = "pref_subscription_hwid_enabled";
     public static final String KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED = "pref_subscription_hwid_manual_enabled";
     public static final String KEY_SUBSCRIPTION_HWID_VALUE = "pref_subscription_hwid_value";
