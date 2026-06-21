@@ -150,6 +150,25 @@ public final class RootMultiUserRouter {
         @NonNull Set<String> selectedPackages,
         @NonNull List<Integer> systemProxyPorts
     ) throws Exception {
+        applyFilterOnly(context, tunnelIface, mode, selectedPackages, systemProxyPorts, false);
+    }
+
+    /**
+     * Same as {@link #applyFilterOnly(Context, String, Mode, Set, List)} but
+     * with bypassEntersTun=true the BYPASS-direction REJECT against tun is
+     * skipped. Use it when the userspace VPN backend (Xray gVisor) needs all
+     * apps - including bypass UIDs - to enter the tun device so it can divert
+     * bypass connections at the stack level. Without this, iptables drops the
+     * packet before gVisor sees it and bypass apps lose all connectivity.
+     */
+    public static void applyFilterOnly(
+        @NonNull Context context,
+        @Nullable String tunnelIface,
+        @NonNull Mode mode,
+        @NonNull Set<String> selectedPackages,
+        @NonNull List<Integer> systemProxyPorts,
+        boolean bypassEntersTun
+    ) throws Exception {
         if (TextUtils.isEmpty(tunnelIface) && systemProxyPorts.isEmpty()) {
             // Без tun-имени и без локальных system-proxy портов резать нечего.
             return;
@@ -161,7 +180,16 @@ public final class RootMultiUserRouter {
         int ownUid = context.getApplicationInfo().uid;
         StringBuilder script = new StringBuilder();
         appendFilterTeardown(script);
-        appendFilterRules(script, tunnelIface, userIds, selectedAppIds, effectiveMode, ownUid, systemProxyPorts);
+        appendFilterRules(
+            script,
+            tunnelIface,
+            userIds,
+            selectedAppIds,
+            effectiveMode,
+            ownUid,
+            systemProxyPorts,
+            bypassEntersTun
+        );
         synchronized (SCRIPT_LOCK) {
             RootUtils.runRootHelper(context, "shell", script.toString());
         }
@@ -207,6 +235,19 @@ public final class RootMultiUserRouter {
         int ownUid,
         List<Integer> systemProxyPorts
     ) {
+        appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode, ownUid, systemProxyPorts, false);
+    }
+
+    private static void appendFilterRules(
+        StringBuilder script,
+        @Nullable String tunnelIface,
+        List<Integer> userIds,
+        Set<Integer> selectedAppIds,
+        Mode mode,
+        int ownUid,
+        List<Integer> systemProxyPorts,
+        boolean bypassEntersTun
+    ) {
         // Многонаправленный OUTPUT-фильтр:
         //   - исключённые UID, пробующие достучаться до tun -> REJECT
         //   - tunneled UID, пробующие выйти НЕ через tun (например через
@@ -251,8 +292,11 @@ public final class RootMultiUserRouter {
 
             // Блок 1: пакеты, идущие через tun. REJECT для тех, кто не должен
             // туда ходить, RETURN для остальных - чтобы блок 2 их уже не трогал.
+            // bypassEntersTun=true пропускает блок 1 для BYPASS: пакеты bypass-
+            // UID должны войти в tun, чтобы userspace VPN backend (gVisor)
+            // перехватил их и редиректнул на freedom outbound.
             if (hasTun) {
-                if (mode == Mode.BYPASS) {
+                if (mode == Mode.BYPASS && !bypassEntersTun) {
                     for (int userId : userIds) {
                         for (int appId : selectedAppIds) {
                             int uid = userId * PER_USER_UID_STRIDE + appId;
@@ -267,7 +311,7 @@ public final class RootMultiUserRouter {
                                 .append(" -j REJECT 2>/dev/null; ");
                         }
                     }
-                } else {
+                } else if (mode == Mode.ONLY_SELECTED) {
                     for (int userId : userIds) {
                         for (int appId : selectedAppIds) {
                             int uid = userId * PER_USER_UID_STRIDE + appId;
