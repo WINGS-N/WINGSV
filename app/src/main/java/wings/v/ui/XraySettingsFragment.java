@@ -415,6 +415,14 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             return getString(R.string.warning_http_auth_disable);
         }
         if (TextUtils.equals(key, AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS)) {
+            // С root-режимом iptables OUTPUT-фильтр (applyFilterOnly block-2)
+            // уже блокирует tunneled UID на underlying network, так что drop
+            // unknown UID в gVisor не открывает дыру - только режет race-cases
+            // у приложений, которые быстро открывают много сокетов. Warning о
+            // деанонимизации в этом сценарии не релевантен.
+            if (AppPrefs.isRootModeEnabled(requireContext())) {
+                return null;
+            }
             return getString(R.string.warning_xray_tun_unknown_uid_bypass_disable);
         }
         return null;
