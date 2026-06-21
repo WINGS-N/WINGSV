@@ -382,6 +382,12 @@ public class ProxyTunnelService extends Service {
     private final Object vpnBackendLock = new Object();
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService byeDpiExecutor = Executors.newSingleThreadExecutor();
+    // Iptables/ip-rule скрипты для split-tunnel lockdown идут через отдельный
+    // одиночный поток: shell-execution блокирует на сотни мс-секунды (особенно
+    // на холодных startup'ах когда su-daemon ещё не warm). Тащить это на
+    // главный поток коннекта удлиняет видимую задержку подключения. Single-
+    // thread executor сохраняет упорядоченность apply/clear/reapply.
+    private final ExecutorService rootRoutingExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
     private final AtomicBoolean rootTetherSyncQueued = new AtomicBoolean();
     private final BroadcastReceiver tetherStateReceiver = new BroadcastReceiver() {
@@ -5710,7 +5716,16 @@ public class ProxyTunnelService extends Service {
      * No-op без root или с выключенным lockdown-переключателем.
      */
     private void applySplitTunnelLockdown(String backendLabel, @Nullable String tunIface) {
+        // Сам apply iptables-фильтра уходит в rootRoutingExecutor, чтобы su-
+        // shell, который может занимать сотни мс на холодных startup'ах,
+        // не блокировал основной поток коннекта. Короткий промежуток до
+        // применения фильтра leak-windowsec, но это та же ситуация что и
+        // у любого split-tunnel firewall на старте; UI/tunnel виден сразу.
         Context appContext = getApplicationContext();
+        rootRoutingExecutor.execute(() -> applySplitTunnelLockdownBlocking(appContext, backendLabel, tunIface));
+    }
+
+    private void applySplitTunnelLockdownBlocking(Context appContext, String backendLabel, @Nullable String tunIface) {
         // Master Root functions toggle off -> behave as no-root (do not touch
         // iptables even if su is still granted at OS level). If a previous
         // session left filter chains in place, sweep them now.
@@ -5734,8 +5749,20 @@ public class ProxyTunnelService extends Service {
         }
         RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
+        // Xray-VPN userspace stack (gVisor) gets bypass UIDs into the tun and
+        // redirects them at the stack level. iptables must NOT reject them on
+        // tun egress in that mode, otherwise gVisor never sees the packets and
+        // bypass apps lose internet entirely.
+        boolean bypassEntersTun = usesXrayBackend(activeBackendType) && !activeXrayTproxyMode && !activeXrayProxyOnly;
         try {
-            RootMultiUserRouter.applyFilterOnly(appContext, tunIface, mode, packages, systemProxyPorts);
+            RootMultiUserRouter.applyFilterOnly(
+                appContext,
+                tunIface,
+                mode,
+                packages,
+                systemProxyPorts,
+                bypassEntersTun
+            );
             lastSplitTunnelLockdownTunIface = hasTun ? tunIface : "";
             lastSplitTunnelLockdownBackendLabel = backendLabel;
             appendRuntimeLogLine(
@@ -8169,6 +8196,7 @@ public class ProxyTunnelService extends Service {
     private String describeDtlsActivityForNotification() {
         long activityAt = lastProxyDtlsActivityAtElapsedMs;
         if (activityAt <= 0L) {
+            // Нет данных DTLS - просто скрываем секцию из уведомления.
             return "";
         }
         long ageMs = Math.max(0L, SystemClock.elapsedRealtime() - activityAt);
