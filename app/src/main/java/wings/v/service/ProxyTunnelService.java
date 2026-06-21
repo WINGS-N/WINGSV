@@ -2682,6 +2682,12 @@ public class ProxyTunnelService extends Service {
         @Nullable BackendType backendToStop,
         boolean skipNativeStopForProcessRestart
     ) {
+        // Параллельный teardown по тому же паттерну что и stopWorkInternal()
+        // (STOP-кнопка) - reconnect раньше шёл sequentially через
+        // runReconnectCleanupStep и зависал на 2-4 секунды на каждой
+        // su-shell / Android binder ступени, чувствительно ощущается при
+        // auto-reconnect после изменения настроек. Параллельные группы
+        // ограничены 500ms окнами, hung шаги доезжают в фоне.
         stopping = true;
         sRunning = false;
         setServiceState(ServiceState.STOPPING);
@@ -2691,46 +2697,74 @@ public class ProxyTunnelService extends Service {
 
         shutdownStatsExecutor();
 
-        runReconnectCleanupStep("ByeDPI front proxy stop", this::stopByeDpiFrontProxy);
+        runFastStopCleanupStep("ByeDPI front proxy stop", BYEDPI_STOP_TIMEOUT_MS + 250L, this::stopByeDpiFrontProxy);
 
         BackendType resolvedBackendToStop = backendToStop != null ? backendToStop : activeBackendType;
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly(resolvedBackendToStop);
         if (usesXrayBackend(resolvedBackendToStop)) {
-            runReconnectCleanupStep("Xray VPN service force stop wait", () ->
-                forceStopXrayVpnServiceAndWait("Xray VPN service stop for reconnect")
-            );
+            // Xray VPN force stop и core stop запараллеливаем: первая ждёт
+            // Android binder destroy, вторая дёргает native xray cleanup,
+            // независимые состояния. Если skipNativeStopForProcessRestart -
+            // core stop вырубаем, его сделает kill процесса.
             if (skipNativeStopForProcessRestart) {
                 appendRuntimeLogLine("Skipping Xray core stop before tunnel runtime process restart");
+                runFastStopCleanupStep("Xray VPN service force stop wait", FAST_STOP_CLEANUP_TIMEOUT_MS, () ->
+                    forceStopXrayVpnServiceAndWait("Xray VPN service stop for reconnect")
+                );
             } else {
-                runReconnectCleanupStep("Xray core stop", XrayBridge::stop);
+                runFastStopCleanupGroup(
+                    FAST_STOP_CLEANUP_TIMEOUT_MS,
+                    new CleanupTask("Xray VPN service force stop wait", () ->
+                        forceStopXrayVpnServiceAndWait("Xray VPN service stop for reconnect")
+                    ),
+                    new CleanupTask("Xray core stop", XrayBridge::stop)
+                );
             }
         } else {
-            if (skipNativeStopForProcessRestart) {
-                runReconnectCleanupStep("VPN backend detach", this::detachVpnBackendsForProcessRestart);
-            } else {
-                runReconnectCleanupStep("VPN backend shutdown", this::shutdownVpnBackendsLocked);
-            }
-            runReconnectCleanupStep("Userspace VPN service stop wait", this::stopUserspaceVpnServicesAndWait);
+            // libwg-go / libamneziawg_go: native WG-DOWN и Android VpnService
+            // stop трогают независимый стейт (vpnBackendLock vs binder), как
+            // и в stopWorkInternal.
+            CleanupTask backendShutdown = skipNativeStopForProcessRestart
+                ? new CleanupTask("VPN backend detach", this::detachVpnBackendsForProcessRestart)
+                : new CleanupTask("VPN backend shutdown", this::shutdownVpnBackendsLocked);
+            runFastStopCleanupGroup(
+                FAST_STOP_CLEANUP_TIMEOUT_MS,
+                backendShutdown,
+                new CleanupTask("Userspace VPN service stop wait", this::stopUserspaceVpnServicesAndWait)
+            );
         }
-        runReconnectCleanupStep("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded);
 
-        runReconnectCleanupStep("Root tether routing cleanup", this::clearRootTetherRouting);
-        runReconnectCleanupStep("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting);
-        runReconnectCleanupStep("Tether receiver unregister", this::unregisterTetherReceiver);
-        runReconnectCleanupStep("Tether callback unregister", this::unregisterTetherEventCallback);
-        runReconnectCleanupStep("Tunnel Wi-Fi lock release", this::releaseTunnelWifiLock);
-        runReconnectCleanupStep("Sharing Wi-Fi lock release", this::releaseSharingWifiLocks);
-        runReconnectCleanupStep("Root routing cleanup", this::clearRootRouting);
+        // Захват ссылки на proxyProcess до параллельной чистки: уничтожение
+        // делается в группе, чтобы destroy() (synchronous) не блокировал
+        // основной поток ещё на 50-200ms.
+        final Process proxyProcessToDestroy = proxyProcess;
+        proxyProcess = null;
 
-        if (proxyProcess != null) {
-            runReconnectCleanupStep("Proxy process destroy", () -> {
-                if (proxyProcess != null) {
-                    proxyProcess.destroy();
+        // Все root-shell teardown'ы независимы между собой: каждая команда
+        // sweep'ит свои iptables/ip-rule pref'ы или свой PID-файл, не пересекаются.
+        runFastStopCleanupGroup(
+            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
+            new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
+            new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
+            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
+            new CleanupTask("Root routing cleanup", this::clearRootRouting),
+            new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded),
+            new CleanupTask("Proxy process destroy", () -> {
+                if (proxyProcessToDestroy != null) {
+                    proxyProcessToDestroy.destroy();
                 }
-            });
-            proxyProcess = null;
-        }
-        runReconnectCleanupStep("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded);
+            })
+        );
+
+        // Receiver/callback unregister и Wi-Fi locks release - чистые Android
+        // binder ops, никаких блокировок, можно сразу пачкой параллельно.
+        runFastStopCleanupGroup(
+            FAST_STOP_CLEANUP_TIMEOUT_MS,
+            new CleanupTask("Tether receiver unregister", this::unregisterTetherReceiver),
+            new CleanupTask("Tether callback unregister", this::unregisterTetherEventCallback),
+            new CleanupTask("Tunnel Wi-Fi lock release", this::releaseTunnelWifiLock),
+            new CleanupTask("Sharing Wi-Fi lock release", this::releaseSharingWifiLocks)
+        );
 
         protectSocketName = null;
         rootModeActive = false;
@@ -2746,31 +2780,41 @@ public class ProxyTunnelService extends Service {
         lastTetherSyncConfig = null;
         pendingSharingRestoreOnBoot = false;
 
-        runReconnectCleanupStep("Protect bridge close", this::closeProtectBridge);
+        // Финальные cleanup'ы: bridge close + два service stop + final Xray
+        // service stop - всё независимое.
+        java.util.List<CleanupTask> finalTasks = new java.util.ArrayList<>(6);
+        finalTasks.add(new CleanupTask("Protect bridge close", this::closeProtectBridge));
         if (shouldStopGoBackendBridgeService) {
-            runReconnectCleanupStep("VPN access bridge stop", () ->
-                GoBackendVpnAccess.stopService(getApplicationContext())
+            finalTasks.add(
+                new CleanupTask("VPN access bridge stop", () -> GoBackendVpnAccess.stopService(getApplicationContext()))
             );
         }
-        runReconnectCleanupStep("AmneziaWG VPN access bridge stop", () ->
-            AwgBackendVpnAccess.stopService(getApplicationContext())
+        finalTasks.add(
+            new CleanupTask("AmneziaWG VPN access bridge stop", () ->
+                AwgBackendVpnAccess.stopService(getApplicationContext())
+            )
         );
         if (!skipNativeStopForProcessRestart) {
-            runReconnectCleanupStep("Final Xray VPN service stop", () ->
-                stopXrayVpnServiceAndWait("Final Xray VPN service stop")
+            finalTasks.add(
+                new CleanupTask("Final Xray VPN service stop", () ->
+                    stopXrayVpnServiceAndWait("Final Xray VPN service stop")
+                )
             );
         }
+        finalTasks.add(new CleanupTask("Root server close", VpnHotspotBridge::closeExistingRootServer));
         if (rootShell != null) {
-            runReconnectCleanupStep("Root shell stop", () -> {
-                if (rootShell != null) {
-                    rootShell.stop();
-                }
-            });
+            final RootShell shellToStop = rootShell;
             rootShell = null;
+            finalTasks.add(new CleanupTask("Root shell stop", shellToStop::stop));
         }
-        runReconnectCleanupStep("Root server close", VpnHotspotBridge::closeExistingRootServer);
+        runFastStopCleanupGroup(FAST_STOP_CLEANUP_TIMEOUT_MS, finalTasks.toArray(new CleanupTask[0]));
+
+        runFastStopCleanupStep(
+            "Persisted root runtime clear",
+            FAST_STOP_CLEANUP_TIMEOUT_MS,
+            this::clearPersistedRootRuntimeState
+        );
         toolsInstaller = null;
-        runReconnectCleanupStep("Persisted root runtime clear", this::clearPersistedRootRuntimeState);
         clearVpnBackendReferences();
         proxyProcess = null;
         byeDpiNative = null;
