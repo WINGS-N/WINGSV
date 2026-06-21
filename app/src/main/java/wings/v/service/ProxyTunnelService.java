@@ -8105,16 +8105,74 @@ public class ProxyTunnelService extends Service {
             );
         }
         if (sServiceState != ServiceState.RUNNING) {
+            // На любом не-RUNNING состоянии секции трафика/потоков скрываем,
+            // даже если пользователь их включил - значения не репрезентативны.
             return status;
         }
-        long totalSpeed = Math.max(0L, sRxBytesPerSecond) + Math.max(0L, sTxBytesPerSecond);
-        long totalTraffic = Math.max(0L, sRxBytes) + Math.max(0L, sTxBytes);
-        return getString(
-            R.string.service_notification_traffic_summary,
-            status,
-            UiFormatter.formatBytesPerSecond(this, totalSpeed),
-            UiFormatter.formatBytes(this, totalTraffic)
-        );
+        java.util.List<String> order = wings.v.core.UiPrefs.getNotificationOrder(this);
+        java.util.Set<String> hidden = wings.v.core.UiPrefs.getNotificationHidden(this);
+        StringBuilder builder = new StringBuilder();
+        for (String key : order) {
+            if (hidden.contains(key)) {
+                continue;
+            }
+            String part = buildNotificationPart(key, status);
+            if (android.text.TextUtils.isEmpty(part)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(" · ");
+            }
+            builder.append(part);
+        }
+        return builder.length() == 0 ? status : builder.toString();
+    }
+
+    private String buildNotificationPart(String key, String status) {
+        if (wings.v.core.UiPrefs.NOTIF_STATUS.equals(key)) {
+            return status;
+        }
+        if (wings.v.core.UiPrefs.NOTIF_SPEED.equals(key)) {
+            long totalSpeed = Math.max(0L, sRxBytesPerSecond) + Math.max(0L, sTxBytesPerSecond);
+            return UiFormatter.formatBytesPerSecond(this, totalSpeed);
+        }
+        if (wings.v.core.UiPrefs.NOTIF_TRAFFIC_TOTAL.equals(key)) {
+            long totalTraffic = Math.max(0L, sRxBytes) + Math.max(0L, sTxBytes);
+            return UiFormatter.formatBytes(this, totalTraffic);
+        }
+        if (wings.v.core.UiPrefs.NOTIF_TRAFFIC_TX.equals(key)) {
+            return "↑ " + UiFormatter.formatBytes(this, Math.max(0L, sTxBytes));
+        }
+        if (wings.v.core.UiPrefs.NOTIF_TRAFFIC_RX.equals(key)) {
+            return "↓ " + UiFormatter.formatBytes(this, Math.max(0L, sRxBytes));
+        }
+        if (wings.v.core.UiPrefs.NOTIF_VK_TURN_STREAMS.equals(key)) {
+            if (
+                !usesTurnProxyBackend(activeBackendType) &&
+                !(usesXrayBackend(activeBackendType) && activeXrayUsesTurnProxy)
+            ) {
+                return "";
+            }
+            int threads = AppPrefs.getSettings(getApplicationContext()).threads;
+            if (threads <= 0) {
+                return "";
+            }
+            return threads + "T";
+        }
+        if (wings.v.core.UiPrefs.NOTIF_DTLS_HEARTBEAT.equals(key)) {
+            String ageText = describeDtlsActivityForNotification();
+            return ageText.isEmpty() ? "" : "DTLS " + ageText;
+        }
+        return "";
+    }
+
+    private String describeDtlsActivityForNotification() {
+        long activityAt = lastProxyDtlsActivityAtElapsedMs;
+        if (activityAt <= 0L) {
+            return "";
+        }
+        long ageMs = Math.max(0L, SystemClock.elapsedRealtime() - activityAt);
+        return ageMs + " ms";
     }
 
     private android.app.Notification buildNotification() {
