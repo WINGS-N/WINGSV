@@ -66,6 +66,10 @@ message RuntimeState {
   // использует это чтобы прятать root/sharing/xposed/kernel-WG секции в UI и
   // молча обнулять их при push'е конфига клиенту без рута.
   bool has_root_access = 5;
+  // Сигнал устройства: VK OAuth выполнен и токен в силе. Без этого панель
+  // не показывает кнопку "Сгенерировать VK link" (и device-side команда
+  // GENERATE_VK_LINK ответит ошибкой).
+  bool vk_oauth_authorized = 6;
 }
 
 enum TunnelPhase {
@@ -122,6 +126,10 @@ enum CommandType {
   COMMAND_TYPE_REFRESH_SUBSCRIPTION = 5;
   COMMAND_TYPE_REFRESH_ALL_SUBSCRIPTIONS = 6;
   COMMAND_TYPE_REFRESH_INSTALLED_APPS = 7;
+  // Просит устройство сгенерировать новый VK-link через VkCallsApi,
+  // добавить его в settings.vkLinks и отослать свежий StateReport.
+  // Работает только если на устройстве выполнен VK OAuth.
+  COMMAND_TYPE_GENERATE_VK_LINK = 8;
 }
 
 message InstalledApps {
