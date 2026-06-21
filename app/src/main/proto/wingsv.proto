@@ -231,8 +231,23 @@ message Xray {
 }
 
 message AppRouting {
+  // bypass поле унаследовано от старой версии: true -> BYPASS, false -> WHITELIST.
+  // Используется только для миграции и совместимости со старыми экспортами.
+  // Новые клиенты должны выставлять mode и соответствующий *_packages.
   optional bool bypass = 1;
+  // Унаследованный единый список пакетов. При импорте кладётся в bypass_packages
+  // или whitelist_packages в зависимости от mode/bypass.
   repeated string packages = 2;
+  AppRoutingMode mode = 3;
+  repeated string bypass_packages = 4;
+  repeated string whitelist_packages = 5;
+}
+
+enum AppRoutingMode {
+  APP_ROUTING_MODE_UNSPECIFIED = 0;
+  APP_ROUTING_MODE_OFF = 1;
+  APP_ROUTING_MODE_BYPASS = 2;
+  APP_ROUTING_MODE_WHITELIST = 3;
 }
 
 message XrayRouting {
