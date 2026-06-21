@@ -570,6 +570,14 @@ android {
     namespace = "wings.v"
     compileSdk = 37
 
+    installation {
+        // installDebug / installRelease push the APK only to user 0. Without this,
+        // adb install on devices with secure/work-profile users picks the foreground
+        // user, which often is not 0 and confuses our root/sharing logic that
+        // assumes installation under user 0.
+        installOptions += listOf("--user", "0")
+    }
+
     defaultConfig {
         applicationId = "wings.v"
         minSdk = 26
