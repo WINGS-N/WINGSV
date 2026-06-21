@@ -174,9 +174,13 @@
     <string name="runtime_notice_hide">Скрыть</string>
     <string name="apps_title">Маршрутизация приложений</string>
     <string name="apps_subtitle">Выберите приложения, для которых будет действовать особое правило VPN</string>
-    <string name="apps_mode_title">Режим bypass</string>
-    <string name="apps_mode_bypass_on">Если включено, выбранные приложения идут в обход VPN</string>
-    <string name="apps_mode_bypass_off">Если выключено, VPN используется только для выбранных приложений</string>
+    <string name="apps_mode_title">Режим маршрутизации</string>
+    <string name="apps_mode_off">Off</string>
+    <string name="apps_mode_bypass">Bypass</string>
+    <string name="apps_mode_whitelist">Whitelist</string>
+    <string name="apps_mode_off_summary">Все приложения идут через VPN</string>
+    <string name="apps_mode_bypass_summary">Выбранные приложения идут в обход VPN, остальные — через него</string>
+    <string name="apps_mode_whitelist_summary">Через VPN идут только выбранные приложения, остальные — напрямую</string>
     <string name="apps_reconnect_hint">Изменения применяются после переподключения</string>
     <string name="apps_count">Выбрано приложений: %1$d</string>
     <string name="apps_count_zero">Выбрано приложений: 0</string>

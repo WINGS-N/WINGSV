@@ -40,49 +40,155 @@
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="?android:textColorSecondary" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:gravity="center_vertical"
+            android:text="@string/apps_mode_title"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:textColor="?android:textColorPrimary"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/mode_picker"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
             android:orientation="horizontal">
 
             <LinearLayout
+                android:id="@+id/mode_item_off"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_routing_mode_circle"
+                    android:duplicateParentState="true">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:duplicateParentState="true"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_routing_off"
+                        app:tint="@color/routing_mode_icon_tint" />
+                </FrameLayout>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/apps_mode_title"
-                    android:textAppearance="?android:attr/textAppearanceMedium"
-                    android:textColor="?android:textColorPrimary"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/text_mode_summary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/apps_mode_bypass_on"
+                    android:layout_marginTop="8dp"
+                    android:duplicateParentState="true"
+                    android:text="@string/apps_mode_off"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
+                    android:textColor="@color/routing_mode_label_color" />
             </LinearLayout>
 
-            <androidx.appcompat.widget.SwitchCompat
-                android:id="@+id/switch_bypass_mode"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:id="@+id/mode_item_bypass"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:checked="true" />
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_routing_mode_circle"
+                    android:duplicateParentState="true">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:duplicateParentState="true"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_routing_bypass"
+                        app:tint="@color/routing_mode_icon_tint" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:duplicateParentState="true"
+                    android:text="@string/apps_mode_bypass"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="@color/routing_mode_label_color" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/mode_item_whitelist"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_routing_mode_circle"
+                    android:duplicateParentState="true">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:duplicateParentState="true"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_routing_whitelist"
+                        app:tint="@color/routing_mode_icon_tint" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:duplicateParentState="true"
+                    android:text="@string/apps_mode_whitelist"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="@color/routing_mode_label_color" />
+            </LinearLayout>
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/text_mode_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/apps_mode_bypass_summary"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="?android:textColorSecondary" />
 
         <LinearLayout
             android:id="@+id/row_selected_apps"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="14dp"
             android:background="?attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true"

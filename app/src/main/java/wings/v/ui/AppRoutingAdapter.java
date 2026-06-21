@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import wings.v.R;
+import wings.v.core.AppRoutingMode;
 import wings.v.databinding.ItemAppRoutingBinding;
 import wings.v.databinding.ItemAppRoutingHeaderBinding;
 
@@ -33,7 +34,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     interface Callback {
         void onPackageToggled(String packageName, boolean enabled, View sourceView);
 
-        void onBypassModeChanged(boolean enabled, View sourceView);
+        void onModeChanged(AppRoutingMode mode, View sourceView);
 
         void onSelectedAppsRequested(View sourceView);
     }
@@ -41,14 +42,14 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private final Callback callback;
     private final List<AppRoutingEntry> items = new ArrayList<>();
     private final Set<String> enabledPackages = new LinkedHashSet<>();
-    private boolean bypassEnabled = true;
+    private AppRoutingMode mode = AppRoutingMode.BYPASS;
 
     AppRoutingAdapter(Callback callback) {
         this.callback = callback;
         setHasStableIds(true);
     }
 
-    void replaceItems(List<AppRoutingEntry> entries, Set<String> enabled, boolean bypassEnabled) {
+    void replaceItems(List<AppRoutingEntry> entries, Set<String> enabled, AppRoutingMode mode) {
         items.clear();
         enabledPackages.clear();
         if (entries != null) {
@@ -57,31 +58,16 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         if (enabled != null) {
             enabledPackages.addAll(enabled);
         }
-        this.bypassEnabled = bypassEnabled;
+        this.mode = mode == null ? AppRoutingMode.BYPASS : mode;
         notifyDataSetChanged();
     }
 
-    void setPackageEnabled(String packageName, boolean enabled) {
-        boolean changed;
-        if (enabled) {
-            changed = enabledPackages.add(packageName);
-        } else {
-            changed = enabledPackages.remove(packageName);
-        }
-        if (changed) {
-            notifyItemChanged(0);
-            int itemIndex = indexOfPackage(packageName);
-            if (itemIndex >= 0) {
-                notifyItemChanged(itemIndex + 1);
-            }
-        }
-    }
-
-    void setBypassEnabled(boolean enabled) {
-        if (bypassEnabled == enabled) {
+    void setMode(AppRoutingMode mode) {
+        AppRoutingMode next = mode == null ? AppRoutingMode.BYPASS : mode;
+        if (this.mode == next) {
             return;
         }
-        bypassEnabled = enabled;
+        this.mode = next;
         notifyItemChanged(0);
     }
 
@@ -90,7 +76,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     boolean hasAnyApps() {
-        return !items.isEmpty();
+        return mode != AppRoutingMode.OFF && !items.isEmpty();
     }
 
     @NonNull
@@ -116,7 +102,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
     @Override
     public int getItemCount() {
-        return 1 + items.size();
+        return 1 + (mode == AppRoutingMode.OFF ? 0 : items.size());
     }
 
     @Override
@@ -132,15 +118,6 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         return position == 0 ? TYPE_HEADER : TYPE_APP;
     }
 
-    private int indexOfPackage(String packageName) {
-        for (int index = 0; index < items.size(); index++) {
-            if (items.get(index).packageName.equals(packageName)) {
-                return index;
-            }
-        }
-        return -1;
-    }
-
     final class HeaderViewHolder extends RecyclerView.ViewHolder {
 
         private final ItemAppRoutingHeaderBinding binding;
@@ -151,27 +128,45 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
 
         void bind() {
-            binding.switchBypassMode.setOnCheckedChangeListener(null);
-            binding.switchBypassMode.setChecked(bypassEnabled);
-            binding.switchBypassMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (callback != null) {
-                    callback.onBypassModeChanged(isChecked, buttonView);
-                }
-            });
+            bindModeItem(binding.modeItemOff, AppRoutingMode.OFF);
+            bindModeItem(binding.modeItemBypass, AppRoutingMode.BYPASS);
+            bindModeItem(binding.modeItemWhitelist, AppRoutingMode.WHITELIST);
 
-            binding.textModeSummary.setText(
-                bypassEnabled ? R.string.apps_mode_bypass_on : R.string.apps_mode_bypass_off
-            );
-            if (getEnabledCount() > 0) {
-                binding.textAppsCount.setText(
-                    binding.getRoot().getContext().getString(R.string.apps_count, getEnabledCount())
-                );
+            int summaryRes;
+            if (mode == AppRoutingMode.OFF) {
+                summaryRes = R.string.apps_mode_off_summary;
+            } else if (mode == AppRoutingMode.WHITELIST) {
+                summaryRes = R.string.apps_mode_whitelist_summary;
             } else {
-                binding.textAppsCount.setText(R.string.apps_count_zero);
+                summaryRes = R.string.apps_mode_bypass_summary;
             }
-            binding.rowSelectedApps.setOnClickListener(v -> {
-                if (callback != null) {
-                    callback.onSelectedAppsRequested(v);
+            binding.textModeSummary.setText(summaryRes);
+
+            boolean showSelectedRow = mode != AppRoutingMode.OFF;
+            binding.rowSelectedApps.setVisibility(showSelectedRow ? View.VISIBLE : View.GONE);
+            if (showSelectedRow) {
+                if (getEnabledCount() > 0) {
+                    binding.textAppsCount.setText(
+                        binding.getRoot().getContext().getString(R.string.apps_count, getEnabledCount())
+                    );
+                } else {
+                    binding.textAppsCount.setText(R.string.apps_count_zero);
+                }
+                binding.rowSelectedApps.setOnClickListener(v -> {
+                    if (callback != null) {
+                        callback.onSelectedAppsRequested(v);
+                    }
+                });
+            } else {
+                binding.rowSelectedApps.setOnClickListener(null);
+            }
+        }
+
+        private void bindModeItem(View item, AppRoutingMode value) {
+            item.setSelected(mode == value);
+            item.setOnClickListener(view -> {
+                if (callback != null && mode != value) {
+                    callback.onModeChanged(value, view);
                 }
             });
         }

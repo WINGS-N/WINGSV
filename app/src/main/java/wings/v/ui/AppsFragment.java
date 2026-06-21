@@ -39,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.R;
 import wings.v.core.AppPrefs;
+import wings.v.core.AppRoutingMode;
 import wings.v.core.Haptics;
 import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.databinding.FragmentAppsBinding;
@@ -132,8 +133,8 @@ public class AppsFragment extends Fragment {
                 }
 
                 @Override
-                public void onBypassModeChanged(boolean enabled, View sourceView) {
-                    AppsFragment.this.onBypassModeChanged(enabled, sourceView);
+                public void onModeChanged(AppRoutingMode mode, View sourceView) {
+                    AppsFragment.this.onRoutingModeChanged(mode, sourceView);
                 }
 
                 @Override
@@ -289,42 +290,43 @@ public class AppsFragment extends Fragment {
         if (TextUtils.equals(packageName, context.getPackageName())) {
             return;
         }
+        AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
+        if (mode == AppRoutingMode.OFF) {
+            return;
+        }
         boolean recommendedPackage = RuStoreRecommendedAppsAsset.getApps(context).containsKey(packageName);
-        boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(context);
         if (recommendedPackage) {
             if (enabled) {
                 AppPrefs.setAppRoutingRecommendedPackageDismissed(context, packageName, false);
-            } else if (bypassEnabled) {
+            } else if (mode == AppRoutingMode.BYPASS) {
                 AppPrefs.setAppRoutingRecommendedPackageDismissed(context, packageName, true);
             }
         }
-        AppPrefs.setAppRoutingPackageEnabled(context, packageName, enabled);
+        AppPrefs.setAppRoutingPackageEnabled(context, mode, packageName, enabled);
         appRoutingChanged = true;
         if (enabled) {
             enabledPackages.add(packageName);
         } else {
             enabledPackages.remove(packageName);
         }
-        adapter.replaceItems(
-            filterEntries("", false),
-            enabledPackages,
-            AppPrefs.isAppRoutingBypassEnabled(requireContext())
-        );
+        adapter.replaceItems(filterEntries("", false), enabledPackages, mode);
         updateSearchResults();
         updateSearchResultsEmptyState();
         Haptics.softSliderStep(sourceView);
     }
 
-    private void onBypassModeChanged(boolean enabled, View sourceView) {
-        AppPrefs.setAppRoutingBypassEnabled(requireContext(), enabled);
+    private void onRoutingModeChanged(AppRoutingMode mode, View sourceView) {
+        Context context = requireContext();
+        AppPrefs.setAppRoutingMode(context, mode);
         appRoutingChanged = true;
-        if (enabled && syncRecommendedPackages()) {
-            adapter.replaceItems(filterEntries("", false), enabledPackages, true);
-            updateMainEmptyState();
-            updateSearchResults();
-        } else {
-            adapter.setBypassEnabled(enabled);
+        if (mode == AppRoutingMode.BYPASS) {
+            syncRecommendedPackages();
         }
+        enabledPackages.clear();
+        enabledPackages.addAll(AppPrefs.getAppRoutingPackages(context, mode));
+        adapter.replaceItems(filterEntries("", false), enabledPackages, mode);
+        updateMainEmptyState();
+        updateSearchResults();
         Haptics.softSliderStep(sourceView);
     }
 
@@ -397,9 +399,11 @@ public class AppsFragment extends Fragment {
                 installedPackages.add(entry.packageName);
             }
             boolean autoSelected = AppPrefs.syncRecommendedAppRoutingPackages(appContext, installedPackages);
-            AppPrefs.setAppRoutingPackageEnabled(appContext, appContext.getPackageName(), false);
-            Set<String> storedEnabledPackages = AppPrefs.getAppRoutingPackages(appContext);
-            boolean bypassEnabled = AppPrefs.isAppRoutingBypassEnabled(appContext);
+            AppRoutingMode currentMode = AppPrefs.getAppRoutingMode(appContext);
+            if (currentMode != AppRoutingMode.OFF) {
+                AppPrefs.setAppRoutingPackageEnabled(appContext, currentMode, appContext.getPackageName(), false);
+            }
+            Set<String> storedEnabledPackages = AppPrefs.getAppRoutingPackages(appContext, currentMode);
             mainHandler.post(() -> {
                 if (!isAdded() || binding == null) {
                     return;
@@ -412,7 +416,7 @@ public class AppsFragment extends Fragment {
                 if (autoSelected) {
                     appRoutingChanged = true;
                 }
-                adapter.replaceItems(filterEntries("", false), enabledPackages, bypassEnabled);
+                adapter.replaceItems(filterEntries("", false), enabledPackages, currentMode);
                 updateMainEmptyState();
                 updateSearchResults();
                 updateScrollToTopButton();
@@ -429,13 +433,17 @@ public class AppsFragment extends Fragment {
         boolean changed = AppPrefs.syncRecommendedAppRoutingPackages(appContext, installedPackages);
         if (changed) {
             enabledPackages.clear();
-            enabledPackages.addAll(AppPrefs.getAppRoutingPackages(appContext));
+            enabledPackages.addAll(AppPrefs.getActiveAppRoutingPackages(appContext));
         }
         return changed;
     }
 
     private void updateMainEmptyState() {
         if (binding == null || adapter == null || binding.progressApps.getVisibility() == View.VISIBLE) {
+            return;
+        }
+        if (AppPrefs.getAppRoutingMode(requireContext()) == AppRoutingMode.OFF) {
+            binding.textAppsEmpty.setVisibility(View.GONE);
             return;
         }
         if (!adapter.hasAnyApps()) {
@@ -519,7 +527,12 @@ public class AppsFragment extends Fragment {
             return true;
         }
         if (TextUtils.equals(activeAppTypeFilter, FILTER_RECOMMENDED)) {
-            return entry.recommendedApp;
+            // In whitelist mode the recommendation set is inverted: the original
+            // RuStore recommendations are meant for BYPASS, so the equivalent for
+            // whitelist is "everything except those" - i.e. apps that should be
+            // routed through VPN are the ones NOT in the recommended-bypass list.
+            boolean whitelist = AppPrefs.getAppRoutingMode(requireContext()) == AppRoutingMode.WHITELIST;
+            return whitelist != entry.recommendedApp;
         }
         if (TextUtils.equals(activeAppTypeFilter, FILTER_USER)) {
             return !entry.systemApp;
@@ -567,7 +580,7 @@ public class AppsFragment extends Fragment {
             adapter.replaceItems(
                 filterEntries("", false),
                 enabledPackages,
-                AppPrefs.isAppRoutingBypassEnabled(requireContext())
+                AppPrefs.getAppRoutingMode(requireContext())
             );
             updateMainEmptyState();
             updateSearchResults();

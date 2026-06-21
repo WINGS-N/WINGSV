@@ -174,9 +174,13 @@
     <string name="runtime_notice_hide">Hide</string>
     <string name="apps_title">App routing</string>
     <string name="apps_subtitle">Select apps that will use a special VPN rule</string>
-    <string name="apps_mode_title">Bypass mode</string>
-    <string name="apps_mode_bypass_on">If enabled, selected apps bypass the VPN</string>
-    <string name="apps_mode_bypass_off">If disabled, the VPN is used only for selected apps</string>
+    <string name="apps_mode_title">Routing mode</string>
+    <string name="apps_mode_off">Off</string>
+    <string name="apps_mode_bypass">Bypass</string>
+    <string name="apps_mode_whitelist">Whitelist</string>
+    <string name="apps_mode_off_summary">All apps go through the VPN</string>
+    <string name="apps_mode_bypass_summary">Selected apps skip the VPN; everything else is routed through it</string>
+    <string name="apps_mode_whitelist_summary">Only selected apps go through the VPN; everything else stays direct</string>
     <string name="apps_reconnect_hint">Changes take effect after reconnect</string>
     <string name="apps_count">Selected apps: %1$d</string>
     <string name="apps_count_zero">Selected apps: 0</string>
