@@ -12,11 +12,15 @@ import android.os.Looper;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatSpinner;
+import androidx.appcompat.widget.SeslArrayAdapter;
 import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.CardItemView;
 import dev.oneuiproject.oneui.widget.SwitchItemView;
@@ -67,6 +71,10 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     private interface ChoiceSetter {
         void set(String value);
+    }
+
+    private interface StringPreferenceGetter {
+        String get();
     }
 
     public enum Target {
@@ -209,29 +217,29 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
                 AppPrefs::setSharingFallbackUpstreamInterface
             )
         );
-        configureActionRow(binding.rowMasqueradeMode, R.string.sharing_masquerade_title, null, view ->
-            showSingleChoiceDialog(
-                R.string.sharing_masquerade_title,
-                R.array.sharing_masquerade_entries,
-                R.array.sharing_masquerade_values,
-                AppPrefs.getSharingMasqueradeMode(this),
-                value -> {
-                    AppPrefs.setSharingMasqueradeMode(this, value);
-                    refreshUi();
-                }
-            )
+        binding.rowMasqueradeMode.setTitle(getString(R.string.sharing_masquerade_title));
+        bindDropdownRow(
+            binding.rowMasqueradeMode,
+            binding.spinnerMasqueradeMode,
+            R.array.sharing_masquerade_entries,
+            R.array.sharing_masquerade_values,
+            () -> AppPrefs.getSharingMasqueradeMode(this),
+            value -> {
+                AppPrefs.setSharingMasqueradeMode(this, value);
+                refreshUi();
+            }
         );
-        configureActionRow(binding.rowWifiLock, R.string.sharing_wifi_lock_title, null, view ->
-            showSingleChoiceDialog(
-                R.string.sharing_wifi_lock_title,
-                R.array.sharing_wifi_lock_entries,
-                R.array.sharing_wifi_lock_values,
-                AppPrefs.getSharingWifiLockMode(this),
-                value -> {
-                    AppPrefs.setSharingWifiLockMode(this, value);
-                    refreshUi();
-                }
-            )
+        binding.rowWifiLock.setTitle(getString(R.string.sharing_wifi_lock_title));
+        bindDropdownRow(
+            binding.rowWifiLock,
+            binding.spinnerWifiLock,
+            R.array.sharing_wifi_lock_entries,
+            R.array.sharing_wifi_lock_values,
+            () -> AppPrefs.getSharingWifiLockMode(this),
+            value -> {
+                AppPrefs.setSharingWifiLockMode(this, value);
+                refreshUi();
+            }
         );
         configureTetherOffloadSwitch();
         configureActionRow(
@@ -571,35 +579,64 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
             .show();
     }
 
-    private void showSingleChoiceDialog(
-        int titleRes,
+    private void bindDropdownRow(
+        @NonNull CardItemView row,
+        @NonNull AppCompatSpinner spinner,
         int entriesRes,
         int valuesRes,
-        @Nullable String selectedValue,
-        ChoiceSetter setter
+        @NonNull StringPreferenceGetter getter,
+        @NonNull ChoiceSetter setter
     ) {
         CharSequence[] entries = getResources().getTextArray(entriesRes);
         String[] values = getResources().getStringArray(valuesRes);
-        int selectedIndex = 0;
-        if (!TextUtils.isEmpty(selectedValue)) {
-            for (int index = 0; index < values.length; index++) {
-                if (selectedValue.equals(values[index])) {
-                    selectedIndex = index;
-                    break;
+
+        SeslArrayAdapter adapter = new SeslArrayAdapter(
+            this,
+            androidx.appcompat.R.layout.support_simple_spinner_dropdown_item
+        );
+        for (CharSequence entry : entries) {
+            adapter.add(entry.toString());
+        }
+        spinner.setAdapter(adapter);
+        spinner.setSoundEffectsEnabled(false);
+        spinner.setSelection(findIndexOfValue(values, getter.get()));
+        spinner.setOnItemSelectedListener(
+            new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (position < 0 || position >= values.length) {
+                        return;
+                    }
+                    String newValue = values[position];
+                    if (TextUtils.equals(newValue, getter.get())) {
+                        return;
+                    }
+                    setter.set(newValue);
+                    Haptics.softSelection(parent);
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                    // noop
                 }
             }
-        }
+        );
+        row.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            spinner.setSelection(findIndexOfValue(values, getter.get()));
+            spinner.performClick();
+        });
+    }
 
-        new AlertDialog.Builder(this)
-            .setTitle(titleRes)
-            .setSingleChoiceItems(entries, selectedIndex, (dialog, which) -> {
-                if (which >= 0 && which < values.length) {
-                    setter.set(values[which]);
-                }
-                dialog.dismiss();
-                refreshUi();
-            })
-            .setNegativeButton(R.string.sharing_edit_dialog_cancel, null)
-            .show();
+    private static int findIndexOfValue(@NonNull String[] values, @Nullable String value) {
+        if (value == null) {
+            return 0;
+        }
+        for (int index = 0; index < values.length; index++) {
+            if (value.equals(values[index])) {
+                return index;
+            }
+        }
+        return 0;
     }
 }

@@ -176,6 +176,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:showBottomDivider="false" />
+
+            <androidx.appcompat.widget.AppCompatSpinner
+                android:id="@+id/spinner_masquerade_mode"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:visibility="invisible" />
         </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
         <dev.oneuiproject.oneui.widget.Separator

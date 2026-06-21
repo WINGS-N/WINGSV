@@ -84,10 +84,22 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
+                <androidx.appcompat.widget.AppCompatSpinner
+                    android:id="@+id/spinner_masquerade_mode"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:visibility="invisible" />
+
                 <dev.oneuiproject.oneui.widget.CardItemView
                     android:id="@+id/row_wifi_lock"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
+
+                <androidx.appcompat.widget.AppCompatSpinner
+                    android:id="@+id/spinner_wifi_lock"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:visibility="invisible" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
                     android:id="@+id/row_tether_offload"
