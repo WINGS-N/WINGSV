@@ -641,11 +641,7 @@ public class ProfilesFragment extends Fragment {
             )
         );
         rowBinding.buttonProfileFavorite.setContentDescription(
-            getString(
-                favorite
-                    ? R.string.xray_profile_favorite_remove
-                    : R.string.xray_profile_favorite_add
-            )
+            getString(favorite ? R.string.xray_profile_favorite_remove : R.string.xray_profile_favorite_add)
         );
     }
 
