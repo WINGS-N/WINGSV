@@ -239,19 +239,22 @@ public final class ImportConfigSummary {
         }
         List<String> lines = new ArrayList<>();
         lines.add("Per-app routing");
-        if (cfg.appRoutingBypass != null) {
-            addLine(
-                lines,
-                context.getString(R.string.import_summary_label_mode),
-                cfg.appRoutingBypass ? "Bypass" : context.getString(R.string.import_summary_mode_only_apps)
-            );
+        if (cfg.appRoutingMode != null) {
+            String modeLabel;
+            if (cfg.appRoutingMode == AppRoutingMode.OFF) {
+                modeLabel = "Off";
+            } else if (cfg.appRoutingMode == AppRoutingMode.WHITELIST) {
+                modeLabel = context.getString(R.string.import_summary_mode_only_apps);
+            } else {
+                modeLabel = "Bypass";
+            }
+            addLine(lines, context.getString(R.string.import_summary_label_mode), modeLabel);
         }
-        if (cfg.appRoutingPackages != null && !cfg.appRoutingPackages.isEmpty()) {
-            addLine(
-                lines,
-                context.getString(R.string.import_summary_label_packages),
-                String.valueOf(cfg.appRoutingPackages.size())
-            );
+        if (cfg.appRoutingBypassPackages != null && !cfg.appRoutingBypassPackages.isEmpty()) {
+            addLine(lines, "Bypass packages", String.valueOf(cfg.appRoutingBypassPackages.size()));
+        }
+        if (cfg.appRoutingWhitelistPackages != null && !cfg.appRoutingWhitelistPackages.isEmpty()) {
+            addLine(lines, "Whitelist packages", String.valueOf(cfg.appRoutingWhitelistPackages.size()));
         }
         if (lines.size() <= 1) {
             return null;

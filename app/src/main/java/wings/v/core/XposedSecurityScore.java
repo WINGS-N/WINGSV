@@ -159,13 +159,16 @@ public final class XposedSecurityScore {
         }
 
         totalWeight += WEIGHT_BYPASS_RECOMMENDED;
-        if (AppPrefs.isAppRoutingBypassEnabled(context)) {
+        if (AppPrefs.getAppRoutingMode(context) == AppRoutingMode.BYPASS) {
             Set<String> installedRecommendedBypass = intersectInstalled(
                 context,
                 RuStoreRecommendedAppsAsset.getPackageNames(context)
             );
             if (!installedRecommendedBypass.isEmpty()) {
-                float ratio = coverageRatio(installedRecommendedBypass, AppPrefs.getAppRoutingPackages(context));
+                float ratio = coverageRatio(
+                    installedRecommendedBypass,
+                    AppPrefs.getAppRoutingPackages(context, AppRoutingMode.BYPASS)
+                );
                 currentScore += Math.round(WEIGHT_BYPASS_RECOMMENDED * ratio);
                 if (ratio < 1f) {
                     highlights.add(context.getString(R.string.xposed_security_hint_bypass_recommended));

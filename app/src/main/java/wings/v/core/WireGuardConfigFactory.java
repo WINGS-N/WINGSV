@@ -45,10 +45,11 @@ public final class WireGuardConfigFactory {
                 context != null ? new TreeSet<>(AppPrefs.getEffectiveAppRoutingPackages(context)) : new TreeSet<>();
             if (!routedPackages.isEmpty()) {
                 String joinedPackages = String.join(", ", routedPackages);
-                if (AppPrefs.isAppRoutingBypassEnabled(context)) {
-                    builder.append("ExcludedApplications = ").append(joinedPackages).append('\n');
-                } else {
+                AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
+                if (mode == AppRoutingMode.WHITELIST) {
                     builder.append("IncludedApplications = ").append(joinedPackages).append('\n');
+                } else {
+                    builder.append("ExcludedApplications = ").append(joinedPackages).append('\n');
                 }
             }
         }

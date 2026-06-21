@@ -807,7 +807,7 @@ public final class XrayConfigFactory {
         if (uidArray.length() == 0) {
             return;
         }
-        boolean bypassMode = AppPrefs.isAppRoutingBypassEnabled(context);
+        boolean bypassMode = AppPrefs.getAppRoutingMode(context) != wings.v.core.AppRoutingMode.WHITELIST;
         if (bypassMode) {
             // Bypass mode: tag listed-UID connections with bypass_inbound_tag
             // so xray routing diverts them to the freedom/direct outbound

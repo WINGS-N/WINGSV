@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import libXray.DialerController;
 import wings.v.MainActivity;
 import wings.v.core.AppPrefs;
+import wings.v.core.AppRoutingMode;
 import wings.v.core.ProxySettings;
 import wings.v.core.XraySettings;
 import wings.v.xray.XrayBridge;
@@ -386,24 +387,25 @@ public class XrayVpnService extends VpnService implements DialerController {
         if (packages.isEmpty()) {
             return;
         }
+        AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
         try {
-            if (AppPrefs.isAppRoutingBypassEnabled(this)) {
-                // Bypass mode: deliberately do NOT call addDisallowedApplication.
-                // If we exclude bypass apps from VPN routing at the Android layer,
-                // ConnectivityManager.getConnectionOwnerUid stops reporting them
-                // as VPN-tracked connections (their UID resolves to -1 inside
-                // xray's gVisor TUN UID lookup). With the per-app gating off,
-                // every app's traffic enters the tunnel, xray-core sees the UID,
-                // and the gVisor stack diverts bypass UIDs to the direct/freedom
-                // outbound via the bypass_inbound_tag tagging. The net effect is
-                // identical to Android-level disallow for cooperating apps and,
-                // crucially, also stops apps that bypass by binding directly to
-                // tun (`curl --interface tun0`).
-            } else {
+            if (mode == AppRoutingMode.WHITELIST) {
                 for (String packageName : packages) {
                     builder.addAllowedApplication(packageName);
                 }
             }
+            // BYPASS mode: deliberately do NOT call addDisallowedApplication.
+            // If we exclude bypass apps from VPN routing at the Android layer,
+            // ConnectivityManager.getConnectionOwnerUid stops reporting them
+            // as VPN-tracked connections (their UID resolves to -1 inside
+            // xray's gVisor TUN UID lookup). With the per-app gating off,
+            // every app's traffic enters the tunnel, xray-core sees the UID,
+            // and the gVisor stack diverts bypass UIDs to the direct/freedom
+            // outbound via the bypass_inbound_tag tagging. The net effect is
+            // identical to Android-level disallow for cooperating apps and,
+            // crucially, also stops apps that bypass by binding directly to
+            // tun (curl --interface tun0).
+            // OFF mode: packages is empty above, so we never reach here.
         } catch (Exception error) {
             throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
         }
@@ -444,7 +446,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         builder
             .append(xraySettings != null && xraySettings.ipv6)
             .append('|')
-            .append(AppPrefs.isAppRoutingBypassEnabled(this));
+            .append(AppPrefs.getAppRoutingMode(this).prefValue);
         for (String packageName : AppPrefs.getEffectiveAppRoutingPackages(this)) {
             builder.append('|').append(packageName);
         }

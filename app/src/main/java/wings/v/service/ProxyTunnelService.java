@@ -1834,12 +1834,13 @@ public class ProxyTunnelService extends Service {
         if (activeXrayTproxyMode) {
             XrayTproxyRouter.AppRoutingMode tproxyAppMode;
             java.util.Set<String> routedPackages = AppPrefs.getEffectiveAppRoutingPackages(getApplicationContext());
+            wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(getApplicationContext());
             if (routedPackages == null || routedPackages.isEmpty()) {
                 tproxyAppMode = XrayTproxyRouter.AppRoutingMode.NONE;
-            } else if (AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
-                tproxyAppMode = XrayTproxyRouter.AppRoutingMode.BYPASS;
-            } else {
+            } else if (appMode == wings.v.core.AppRoutingMode.WHITELIST) {
                 tproxyAppMode = XrayTproxyRouter.AppRoutingMode.ONLY_SELECTED;
+            } else {
+                tproxyAppMode = XrayTproxyRouter.AppRoutingMode.BYPASS;
             }
             java.util.List<Integer> routedUids = XrayTproxyRouter.resolveRoutedUids(
                 getApplicationContext(),
@@ -5224,12 +5225,13 @@ public class ProxyTunnelService extends Service {
                 appendRuntimeLogLine("Xray TPROXY routing missing after " + reason + ", reapplying");
                 XrayTproxyRouter.AppRoutingMode mode;
                 java.util.Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(getApplicationContext());
+                wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(getApplicationContext());
                 if (packages == null || packages.isEmpty()) {
                     mode = XrayTproxyRouter.AppRoutingMode.NONE;
-                } else if (AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
-                    mode = XrayTproxyRouter.AppRoutingMode.BYPASS;
-                } else {
+                } else if (appMode == wings.v.core.AppRoutingMode.WHITELIST) {
                     mode = XrayTproxyRouter.AppRoutingMode.ONLY_SELECTED;
+                } else {
+                    mode = XrayTproxyRouter.AppRoutingMode.BYPASS;
                 }
                 java.util.List<Integer> uids = XrayTproxyRouter.resolveRoutedUids(getApplicationContext(), packages);
                 XrayTproxyRouter.apply(getApplicationContext(), XRAY_TPROXY_PORT, mode, uids);
@@ -5474,7 +5476,7 @@ public class ProxyTunnelService extends Service {
     }
 
     private Set<Integer> collectRootBypassUids() {
-        if (!AppPrefs.isAppRoutingBypassEnabled(getApplicationContext())) {
+        if (AppPrefs.getAppRoutingMode(getApplicationContext()) != wings.v.core.AppRoutingMode.BYPASS) {
             return new LinkedHashSet<>();
         }
         Set<Integer> result = new LinkedHashSet<>();
@@ -5645,9 +5647,7 @@ public class ProxyTunnelService extends Service {
 
     private void applyKernelWgMultiUserRouting(String tunnelTableLookup) {
         Context appContext = getApplicationContext();
-        RootMultiUserRouter.Mode mode = AppPrefs.isAppRoutingBypassEnabled(appContext)
-            ? RootMultiUserRouter.Mode.BYPASS
-            : RootMultiUserRouter.Mode.ONLY_SELECTED;
+        RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
         try {
@@ -5732,9 +5732,7 @@ public class ProxyTunnelService extends Service {
             lastSplitTunnelLockdownBackendLabel = backendLabel;
             return;
         }
-        RootMultiUserRouter.Mode mode = AppPrefs.isAppRoutingBypassEnabled(appContext)
-            ? RootMultiUserRouter.Mode.BYPASS
-            : RootMultiUserRouter.Mode.ONLY_SELECTED;
+        RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
         try {
             RootMultiUserRouter.applyFilterOnly(appContext, tunIface, mode, packages, systemProxyPorts);

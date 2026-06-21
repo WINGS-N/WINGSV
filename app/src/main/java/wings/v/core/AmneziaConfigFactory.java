@@ -55,10 +55,11 @@ public final class AmneziaConfigFactory {
         ifaceBuilder.setSpecialJunkI5(iface.getSpecialJunkI5().orElse(null));
         Set<String> appRoutingPackages = AppPrefs.getEffectiveAppRoutingPackages(context);
         if (!appRoutingPackages.isEmpty()) {
-            if (AppPrefs.isAppRoutingBypassEnabled(context)) {
-                ifaceBuilder.excludeApplications(appRoutingPackages);
-            } else {
+            AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
+            if (mode == AppRoutingMode.WHITELIST) {
                 ifaceBuilder.includeApplications(appRoutingPackages);
+            } else {
+                ifaceBuilder.excludeApplications(appRoutingPackages);
             }
         } else {
             ifaceBuilder.excludeApplications(iface.getExcludedApplications());

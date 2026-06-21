@@ -57,8 +57,20 @@ public final class RootMultiUserRouter {
     private static final int PER_USER_UID_STRIDE = 100_000;
 
     public enum Mode {
+        OFF,
         BYPASS,
         ONLY_SELECTED,
+    }
+
+    public static Mode modeFromPrefs(@NonNull Context context) {
+        AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
+        if (mode == AppRoutingMode.OFF) {
+            return Mode.OFF;
+        }
+        if (mode == AppRoutingMode.WHITELIST) {
+            return Mode.ONLY_SELECTED;
+        }
+        return Mode.BYPASS;
     }
 
     private RootMultiUserRouter() {}
@@ -85,8 +97,10 @@ public final class RootMultiUserRouter {
         if (TextUtils.isEmpty(tunnelTable)) {
             throw new IllegalArgumentException("tunnelTable required");
         }
+        Mode effectiveMode = mode == Mode.OFF ? Mode.BYPASS : mode;
+        Set<String> effectivePackages = mode == Mode.OFF ? java.util.Collections.emptySet() : selectedPackages;
         List<Integer> userIds = listAndroidUserIds(context);
-        Set<Integer> selectedAppIds = resolveAppIds(context, selectedPackages);
+        Set<Integer> selectedAppIds = resolveAppIds(context, effectivePackages);
         int ownUid = context.getApplicationInfo().uid;
         StringBuilder script = new StringBuilder();
         appendClear(script);
@@ -95,17 +109,17 @@ public final class RootMultiUserRouter {
             int rangeMin = userId * PER_USER_UID_STRIDE + APP_UID_MIN_OFFSET;
             int rangeMax = userId * PER_USER_UID_STRIDE + APP_UID_MAX_OFFSET;
             int userPriority = USER_RANGE_PRIORITY_BASE + i;
-            String userTable = mode == Mode.BYPASS ? tunnelTable : "main";
+            String userTable = effectiveMode == Mode.BYPASS ? tunnelTable : "main";
             appendAddRule(script, userPriority, rangeMin, rangeMax, userTable);
             int overridePriority = APP_OVERRIDE_PRIORITY_BASE + i;
-            String overrideTable = mode == Mode.BYPASS ? "main" : tunnelTable;
+            String overrideTable = effectiveMode == Mode.BYPASS ? "main" : tunnelTable;
             for (int appId : selectedAppIds) {
                 int uid = userId * PER_USER_UID_STRIDE + appId;
                 appendAddRule(script, overridePriority, uid, uid, overrideTable);
             }
         }
         if (!TextUtils.isEmpty(tunnelIface) || !systemProxyPorts.isEmpty()) {
-            appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode, ownUid, systemProxyPorts);
+            appendFilterRules(script, tunnelIface, userIds, selectedAppIds, effectiveMode, ownUid, systemProxyPorts);
         }
         synchronized (SCRIPT_LOCK) {
             RootUtils.runRootHelper(context, "shell", script.toString());
@@ -140,12 +154,14 @@ public final class RootMultiUserRouter {
             // Без tun-имени и без локальных system-proxy портов резать нечего.
             return;
         }
+        Mode effectiveMode = mode == Mode.OFF ? Mode.BYPASS : mode;
+        Set<String> effectivePackages = mode == Mode.OFF ? java.util.Collections.emptySet() : selectedPackages;
         List<Integer> userIds = listAndroidUserIds(context);
-        Set<Integer> selectedAppIds = resolveAppIds(context, selectedPackages);
+        Set<Integer> selectedAppIds = resolveAppIds(context, effectivePackages);
         int ownUid = context.getApplicationInfo().uid;
         StringBuilder script = new StringBuilder();
         appendFilterTeardown(script);
-        appendFilterRules(script, tunnelIface, userIds, selectedAppIds, mode, ownUid, systemProxyPorts);
+        appendFilterRules(script, tunnelIface, userIds, selectedAppIds, effectiveMode, ownUid, systemProxyPorts);
         synchronized (SCRIPT_LOCK) {
             RootUtils.runRootHelper(context, "shell", script.toString());
         }
@@ -490,8 +506,8 @@ public final class RootMultiUserRouter {
     }
 
     public static String describeFromPrefs(@NonNull Context context) {
-        Mode mode = AppPrefs.isAppRoutingBypassEnabled(context) ? Mode.BYPASS : Mode.ONLY_SELECTED;
-        int packages = AppPrefs.getAppRoutingPackages(context).size();
+        Mode mode = modeFromPrefs(context);
+        int packages = AppPrefs.getActiveAppRoutingPackages(context).size();
         return String.format(Locale.ROOT, "mode=%s packages=%d", mode.name().toLowerCase(Locale.ROOT), packages);
     }
 }

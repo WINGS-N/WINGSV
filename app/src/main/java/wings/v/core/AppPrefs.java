@@ -150,6 +150,10 @@ public final class AppPrefs {
     public static final String KEY_SUBSCRIPTION_HWID_DEVICE_MODEL = "pref_subscription_hwid_device_model";
     public static final String KEY_APP_ROUTING_BYPASS = "pref_app_routing_bypass";
     public static final String KEY_APP_ROUTING_PACKAGES = "pref_app_routing_packages";
+    public static final String KEY_XRAY_FAVORITE_PROFILE_IDS = "pref_xray_favorite_profile_ids";
+    public static final String KEY_APP_ROUTING_MODE = "pref_app_routing_mode";
+    public static final String KEY_APP_ROUTING_BYPASS_PACKAGES = "pref_app_routing_bypass_packages";
+    public static final String KEY_APP_ROUTING_WHITELIST_PACKAGES = "pref_app_routing_whitelist_packages";
     public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
@@ -847,16 +851,50 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, true).apply();
     }
 
-    public static boolean isAppRoutingBypassEnabled(Context context) {
-        return prefs(context).getBoolean(KEY_APP_ROUTING_BYPASS, true);
+    public static AppRoutingMode getAppRoutingMode(Context context) {
+        SharedPreferences prefs = prefs(context);
+        String stored = prefs.getString(KEY_APP_ROUTING_MODE, null);
+        if (stored != null) {
+            return AppRoutingMode.fromPrefValue(stored);
+        }
+        return migrateLegacyAppRouting(prefs);
     }
 
-    public static void setAppRoutingBypassEnabled(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_APP_ROUTING_BYPASS, enabled).commit();
+    public static void setAppRoutingMode(Context context, AppRoutingMode mode) {
+        if (mode == null) {
+            return;
+        }
+        prefs(context).edit().putString(KEY_APP_ROUTING_MODE, mode.prefValue).commit();
     }
 
-    public static Set<String> getAppRoutingPackages(Context context) {
-        Set<String> stored = prefs(context).getStringSet(KEY_APP_ROUTING_PACKAGES, null);
+    private static AppRoutingMode migrateLegacyAppRouting(SharedPreferences prefs) {
+        boolean legacyBypass = prefs.getBoolean(KEY_APP_ROUTING_BYPASS, true);
+        AppRoutingMode mode = legacyBypass ? AppRoutingMode.BYPASS : AppRoutingMode.WHITELIST;
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(KEY_APP_ROUTING_MODE, mode.prefValue);
+        Set<String> legacyPackages = prefs.getStringSet(KEY_APP_ROUTING_PACKAGES, null);
+        if (legacyPackages != null && !legacyPackages.isEmpty()) {
+            String targetKey =
+                mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+            if (!prefs.contains(targetKey)) {
+                editor.putStringSet(targetKey, new LinkedHashSet<>(legacyPackages));
+            }
+        }
+        editor.commit();
+        return mode;
+    }
+
+    /**
+     * Returns the package set stored for a specific mode. For OFF returns an
+     * empty set since OFF intentionally routes everything through VPN.
+     */
+    public static Set<String> getAppRoutingPackages(Context context, AppRoutingMode mode) {
+        if (mode == null || mode == AppRoutingMode.OFF) {
+            return new LinkedHashSet<>();
+        }
+        String key =
+            mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+        Set<String> stored = prefs(context).getStringSet(key, null);
         if (stored == null || stored.isEmpty()) {
             return new LinkedHashSet<>();
         }
@@ -865,24 +903,32 @@ public final class AppPrefs {
         return packages;
     }
 
+    public static Set<String> getActiveAppRoutingPackages(Context context) {
+        return getAppRoutingPackages(context, getAppRoutingMode(context));
+    }
+
     /**
-     * Returns the bypass/allowlist set every routing backend should actually
-     * enforce. Differs from {@link #getAppRoutingPackages(Context)} when the
-     * Xposed "hide VPN status" feature is enabled: apps that are lied to
-     * about the VPN being absent must also be physically kept out of the
-     * tunnel, otherwise the app sees "no VPN" yet its packets still go via
-     * the tunnel and outbound connections silently fail.
+     * Returns the package set every routing backend should actually enforce
+     * for the active mode. Differs from {@link #getActiveAppRoutingPackages}
+     * when the Xposed "hide VPN status" feature is enabled: apps that are
+     * lied to about the VPN being absent must also be physically kept out
+     * of the tunnel, otherwise the app sees "no VPN" yet its packets still
+     * go via the tunnel and outbound connections silently fail.
      *
-     * In bypass mode (the default) the hidden-VPN list is merged into the
-     * user-managed bypass set. In allowlist mode the hidden-VPN packages are
-     * subtracted from the allowlist so they are excluded from the tunnel.
-     * The user's own package is always removed from the result.
+     * In BYPASS the hidden-VPN list is merged into the user-managed bypass
+     * set. In WHITELIST the hidden-VPN packages are subtracted from the
+     * allowlist so they are excluded from the tunnel. In OFF the result is
+     * always empty (per-app filter disabled).
      */
     public static Set<String> getEffectiveAppRoutingPackages(Context context) {
-        LinkedHashSet<String> packages = new LinkedHashSet<>(getAppRoutingPackages(context));
+        AppRoutingMode mode = getAppRoutingMode(context);
+        if (mode == AppRoutingMode.OFF) {
+            return new LinkedHashSet<>();
+        }
+        LinkedHashSet<String> packages = new LinkedHashSet<>(getAppRoutingPackages(context, mode));
         Set<String> hiddenVpnPackages = effectiveHiddenVpnPackages(context);
         if (!hiddenVpnPackages.isEmpty()) {
-            if (isAppRoutingBypassEnabled(context)) {
+            if (mode == AppRoutingMode.BYPASS) {
                 packages.addAll(hiddenVpnPackages);
             } else {
                 packages.removeAll(hiddenVpnPackages);
@@ -912,20 +958,30 @@ public final class AppPrefs {
         return hidden;
     }
 
-    public static void setAppRoutingPackageEnabled(Context context, String packageName, boolean enabled) {
-        if (TextUtils.isEmpty(packageName)) {
+    public static void setAppRoutingPackageEnabled(
+        Context context,
+        AppRoutingMode mode,
+        String packageName,
+        boolean enabled
+    ) {
+        if (TextUtils.isEmpty(packageName) || mode == null || mode == AppRoutingMode.OFF) {
             return;
         }
-        Set<String> packages = getAppRoutingPackages(context);
+        Set<String> packages = getAppRoutingPackages(context, mode);
         if (enabled && !TextUtils.equals(packageName, context.getPackageName())) {
             packages.add(packageName);
         } else {
             packages.remove(packageName);
         }
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, new LinkedHashSet<>(packages)).commit();
+        String key =
+            mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+        prefs(context).edit().putStringSet(key, new LinkedHashSet<>(packages)).commit();
     }
 
-    public static void setAppRoutingPackages(Context context, Set<String> packages) {
+    public static void setAppRoutingPackages(Context context, AppRoutingMode mode, Set<String> packages) {
+        if (mode == null || mode == AppRoutingMode.OFF) {
+            return;
+        }
         LinkedHashSet<String> normalizedPackages = new LinkedHashSet<>();
         if (packages != null) {
             for (String packageName : packages) {
@@ -938,7 +994,9 @@ public final class AppPrefs {
                 }
             }
         }
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, normalizedPackages).commit();
+        String key =
+            mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+        prefs(context).edit().putStringSet(key, normalizedPackages).commit();
     }
 
     public static Set<String> getAppRoutingRecommendedDismissedPackages(Context context) {
@@ -979,9 +1037,15 @@ public final class AppPrefs {
         String normalizedPackageName = trim(packageName);
         if (
             TextUtils.isEmpty(normalizedPackageName) ||
-            TextUtils.equals(normalizedPackageName, context.getPackageName()) ||
-            !isAppRoutingBypassEnabled(context)
+            TextUtils.equals(normalizedPackageName, context.getPackageName())
         ) {
+            return false;
+        }
+        AppRoutingMode mode = getAppRoutingMode(context);
+        if (mode != AppRoutingMode.BYPASS) {
+            // OFF: list is hidden / no auto-add. WHITELIST: recommended apps
+            // should stay OUTSIDE the tunnel, i.e. NOT be added to whitelist
+            // (recommendations are effectively inverted).
             return false;
         }
         if (!RuStoreRecommendedAppsAsset.getApps(context).containsKey(normalizedPackageName)) {
@@ -991,17 +1055,21 @@ public final class AppPrefs {
         if (dismissedPackages.contains(normalizedPackageName)) {
             return false;
         }
-        Set<String> enabledPackages = getAppRoutingPackages(context);
+        Set<String> enabledPackages = getAppRoutingPackages(context, mode);
         if (enabledPackages.contains(normalizedPackageName)) {
             return false;
         }
         enabledPackages.add(normalizedPackageName);
-        prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, new LinkedHashSet<>(enabledPackages)).commit();
+        prefs(context)
+            .edit()
+            .putStringSet(KEY_APP_ROUTING_BYPASS_PACKAGES, new LinkedHashSet<>(enabledPackages))
+            .commit();
         return true;
     }
 
     public static boolean syncRecommendedAppRoutingPackages(Context context, Set<String> installedPackages) {
-        if (!isAppRoutingBypassEnabled(context) || installedPackages == null || installedPackages.isEmpty()) {
+        AppRoutingMode mode = getAppRoutingMode(context);
+        if (mode != AppRoutingMode.BYPASS || installedPackages == null || installedPackages.isEmpty()) {
             return false;
         }
         Set<String> dismissedPackages = getAppRoutingRecommendedDismissedPackages(context);
@@ -1009,7 +1077,7 @@ public final class AppPrefs {
         if (recommendedPackages.isEmpty()) {
             return false;
         }
-        Set<String> enabledPackages = getAppRoutingPackages(context);
+        Set<String> enabledPackages = getAppRoutingPackages(context, mode);
         boolean changed = false;
         for (String packageName : installedPackages) {
             String normalizedPackageName = trim(packageName);
@@ -1026,7 +1094,10 @@ public final class AppPrefs {
             changed = true;
         }
         if (changed) {
-            prefs(context).edit().putStringSet(KEY_APP_ROUTING_PACKAGES, new LinkedHashSet<>(enabledPackages)).commit();
+            prefs(context)
+                .edit()
+                .putStringSet(KEY_APP_ROUTING_BYPASS_PACKAGES, new LinkedHashSet<>(enabledPackages))
+                .commit();
         }
         return changed;
     }
@@ -1148,10 +1219,23 @@ public final class AppPrefs {
             XrayRoutingStore.setRules(context, importedConfig.xrayRoutingRules);
         }
         if (importedConfig.hasAppRouting) {
-            if (importedConfig.appRoutingBypass != null) {
-                setAppRoutingBypassEnabled(context, importedConfig.appRoutingBypass);
+            if (importedConfig.appRoutingMode != null) {
+                setAppRoutingMode(context, importedConfig.appRoutingMode);
             }
-            setAppRoutingPackages(context, new LinkedHashSet<>(importedConfig.appRoutingPackages));
+            if (importedConfig.appRoutingBypassPackages != null) {
+                setAppRoutingPackages(
+                    context,
+                    AppRoutingMode.BYPASS,
+                    new LinkedHashSet<>(importedConfig.appRoutingBypassPackages)
+                );
+            }
+            if (importedConfig.appRoutingWhitelistPackages != null) {
+                setAppRoutingPackages(
+                    context,
+                    AppRoutingMode.WHITELIST,
+                    new LinkedHashSet<>(importedConfig.appRoutingWhitelistPackages)
+                );
+            }
         }
         // Root/xposed/sharing/kernel-wg/xray-tproxy фичи доступны только когда у
         // нас реально есть рут. Раньше эти блоки писались в prefs безусловно,

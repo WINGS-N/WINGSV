@@ -598,7 +598,7 @@ public final class WingsImportParser {
             return WingsvProto.Config.newBuilder()
                 .setVer(CURRENT_VERSION)
                 .setType(WingsvProto.ConfigType.CONFIG_TYPE_APP_ROUTING)
-                .setAppRouting(buildAppRouting(context, true))
+                .setAppRouting(buildAppRouting(context))
                 .build();
         }
         if (scope == ExportScope.XRAY_ROUTING) {
@@ -1514,19 +1514,50 @@ public final class WingsImportParser {
     }
 
     private static WingsvProto.AppRouting buildAppRouting(Context context) {
-        return buildAppRouting(context, null);
-    }
-
-    private static WingsvProto.AppRouting buildAppRouting(Context context, Boolean bypassOverride) {
-        boolean bypass = bypassOverride != null ? bypassOverride : AppPrefs.isAppRoutingBypassEnabled(context);
-        WingsvProto.AppRouting.Builder builder = WingsvProto.AppRouting.newBuilder().setBypass(bypass);
-        Set<String> packages = AppPrefs.getAppRoutingPackages(context);
-        for (String packageName : packages) {
+        AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
+        WingsvProto.AppRouting.Builder builder = WingsvProto.AppRouting.newBuilder()
+            .setMode(toProtoAppRoutingMode(mode))
+            // legacy bypass field for backward-compatible import on older clients
+            .setBypass(mode != AppRoutingMode.WHITELIST);
+        Set<String> bypassPackages = AppPrefs.getAppRoutingPackages(context, AppRoutingMode.BYPASS);
+        for (String packageName : bypassPackages) {
+            if (!TextUtils.isEmpty(value(packageName))) {
+                builder.addBypassPackages(value(packageName));
+            }
+        }
+        Set<String> whitelistPackages = AppPrefs.getAppRoutingPackages(context, AppRoutingMode.WHITELIST);
+        for (String packageName : whitelistPackages) {
+            if (!TextUtils.isEmpty(value(packageName))) {
+                builder.addWhitelistPackages(value(packageName));
+            }
+        }
+        Set<String> activePackages = AppPrefs.getAppRoutingPackages(context, mode);
+        for (String packageName : activePackages) {
             if (!TextUtils.isEmpty(value(packageName))) {
                 builder.addPackages(value(packageName));
             }
         }
         return builder.build();
+    }
+
+    private static WingsvProto.AppRoutingMode toProtoAppRoutingMode(AppRoutingMode mode) {
+        if (mode == AppRoutingMode.OFF) {
+            return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_OFF;
+        }
+        if (mode == AppRoutingMode.WHITELIST) {
+            return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_WHITELIST;
+        }
+        return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_BYPASS;
+    }
+
+    private static AppRoutingMode fromProtoAppRoutingMode(WingsvProto.AppRoutingMode mode) {
+        if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_OFF) {
+            return AppRoutingMode.OFF;
+        }
+        if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_WHITELIST) {
+            return AppRoutingMode.WHITELIST;
+        }
+        return AppRoutingMode.BYPASS;
     }
 
     private static WingsvProto.Xray buildXray(
@@ -2343,14 +2374,49 @@ public final class WingsImportParser {
 
     private static void parseAppRouting(WingsvProto.AppRouting appRouting, ImportedConfig importedConfig) {
         importedConfig.hasAppRouting = true;
-        if (appRouting.hasBypass()) {
-            importedConfig.appRoutingBypass = appRouting.getBypass();
+
+        AppRoutingMode mode = null;
+        if (appRouting.getMode() != WingsvProto.AppRoutingMode.APP_ROUTING_MODE_UNSPECIFIED) {
+            mode = fromProtoAppRoutingMode(appRouting.getMode());
+        } else if (appRouting.hasBypass()) {
+            mode = appRouting.getBypass() ? AppRoutingMode.BYPASS : AppRoutingMode.WHITELIST;
         }
-        importedConfig.appRoutingPackages.clear();
+        importedConfig.appRoutingMode = mode;
+
+        List<String> bypassPackages = new ArrayList<>();
+        for (String packageName : appRouting.getBypassPackagesList()) {
+            if (!TextUtils.isEmpty(value(packageName))) {
+                bypassPackages.add(value(packageName));
+            }
+        }
+        List<String> whitelistPackages = new ArrayList<>();
+        for (String packageName : appRouting.getWhitelistPackagesList()) {
+            if (!TextUtils.isEmpty(value(packageName))) {
+                whitelistPackages.add(value(packageName));
+            }
+        }
+
+        boolean hasNewLists = !bypassPackages.isEmpty() || !whitelistPackages.isEmpty();
+        if (hasNewLists) {
+            importedConfig.appRoutingBypassPackages = bypassPackages;
+            importedConfig.appRoutingWhitelistPackages = whitelistPackages;
+            return;
+        }
+
+        // Legacy single-list payload: route packages into the inferred mode's bucket.
+        List<String> legacyPackages = new ArrayList<>();
         for (String packageName : appRouting.getPackagesList()) {
             if (!TextUtils.isEmpty(value(packageName))) {
-                importedConfig.appRoutingPackages.add(value(packageName));
+                legacyPackages.add(value(packageName));
             }
+        }
+        if (legacyPackages.isEmpty()) {
+            return;
+        }
+        if (mode == AppRoutingMode.WHITELIST) {
+            importedConfig.appRoutingWhitelistPackages = legacyPackages;
+        } else {
+            importedConfig.appRoutingBypassPackages = legacyPackages;
         }
     }
 
@@ -2863,8 +2929,9 @@ public final class WingsImportParser {
         public final List<XrayRoutingRule> xrayRoutingRules = new ArrayList<>();
         public String xrayRoutingGeoipUrl;
         public String xrayRoutingGeositeUrl;
-        public Boolean appRoutingBypass;
-        public final List<String> appRoutingPackages = new ArrayList<>();
+        public AppRoutingMode appRoutingMode;
+        public List<String> appRoutingBypassPackages;
+        public List<String> appRoutingWhitelistPackages;
         public boolean hasXposedSettings;
         public Boolean xposedEnabled;
         public Boolean xposedAllApps;
