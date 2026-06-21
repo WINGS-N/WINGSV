@@ -136,6 +136,20 @@
                 android:textStyle="bold"
                 android:visibility="gone" />
         </FrameLayout>
+
+        <ImageView
+            android:id="@+id/button_profile_favorite"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/xray_profile_favorite_add"
+            android:focusable="true"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_star_outline"
+            app:tint="?android:textColorSecondary" />
     </LinearLayout>
 
     <View

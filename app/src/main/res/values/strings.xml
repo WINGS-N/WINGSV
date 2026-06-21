@@ -695,6 +695,9 @@
     <string name="xray_profile_long_press_select">Select</string>
     <string name="xray_profile_long_press_edit_json">Edit JSON</string>
     <string name="xray_profile_long_press_edit_vless">Edit VLESS</string>
+    <string name="xray_profile_favorite_add">Add to favorites</string>
+    <string name="xray_profile_favorite_remove">Remove from favorites</string>
+    <string name="xray_profiles_filter_favorites">Favorites</string>
     <string name="xray_profile_editor_title">Xray profile editor</string>
     <string name="xray_profile_editor_wrap_lines">Wrap lines</string>
     <string name="xray_profile_editor_mode_json">JSON</string>

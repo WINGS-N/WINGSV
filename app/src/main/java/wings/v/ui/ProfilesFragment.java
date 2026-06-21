@@ -14,6 +14,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -105,6 +106,7 @@ public class ProfilesFragment extends Fragment {
     private static final long TRAFFIC_REFRESH_INTERVAL_MS = 1_000L;
     private static final long REAL_DELAY_BYEDPI_START_TIMEOUT_MS = 5_000L;
     private static final String FILTER_ALL = "__all__";
+    private static final String FILTER_FAVORITES = "__favorites__";
     private static final String FILTER_NO_SUBSCRIPTION = "__manual__";
 
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
@@ -439,6 +441,8 @@ public class ProfilesFragment extends Fragment {
                 showProfileLongPressMenu(v, profile);
                 return true;
             });
+            applyFavoriteState(rowBinding, profile);
+            rowBinding.buttonProfileFavorite.setOnClickListener(v -> onFavoriteClicked(profile, rowBinding, v));
 
             ProfileRowViews views = new ProfileRowViews(profile, rowBinding, pingStateKey(profile));
             rowViews.put(profile.id, views);
@@ -515,6 +519,22 @@ public class ProfilesFragment extends Fragment {
     ) {
         LinkedHashMap<String, FilterSpec> result = new LinkedHashMap<>();
         result.put(FILTER_ALL, new FilterSpec(FILTER_ALL, context.getString(R.string.xray_profiles_filter_all)));
+        java.util.Set<String> favoriteIds = XrayStore.getFavoriteProfileIds(context);
+        boolean hasFavoriteProfile = false;
+        if (!favoriteIds.isEmpty()) {
+            for (XrayProfile profile : profiles) {
+                if (profile != null && favoriteIds.contains(profile.id)) {
+                    hasFavoriteProfile = true;
+                    break;
+                }
+            }
+        }
+        if (hasFavoriteProfile) {
+            result.put(
+                FILTER_FAVORITES,
+                new FilterSpec(FILTER_FAVORITES, context.getString(R.string.xray_profiles_filter_favorites))
+            );
+        }
         LinkedHashMap<String, FilterSpec> subscriptionFilters = new LinkedHashMap<>();
         if (subscriptions != null) {
             for (XraySubscription subscription : subscriptions) {
@@ -559,20 +579,41 @@ public class ProfilesFragment extends Fragment {
         binding.groupProfileFilters.removeAllViews();
         Context context = requireContext();
         for (FilterSpec filterSpec : filterSpecs.values()) {
-            TextView pill = new TextView(context);
             boolean selected = TextUtils.equals(filterSpec.id, activeFilterId);
-            pill.setText(filterSpec.title);
-            pill.setGravity(Gravity.CENTER);
-            pill.setMinHeight(dp(36));
-            pill.setPadding(dp(16), dp(8), dp(16), dp(8));
-            pill.setBackgroundResource(R.drawable.bg_profile_filter_chip);
-            pill.setTextAppearance(android.R.style.TextAppearance_DeviceDefault_Small);
-            pill.setTextSize(15f);
-            pill.setSelected(selected);
-            ColorStateList textColors = AppCompatResources.getColorStateList(context, R.color.profile_filter_text);
-            if (textColors != null) {
-                pill.setTextColor(textColors);
+            View pill;
+            if (TextUtils.equals(filterSpec.id, FILTER_FAVORITES)) {
+                ImageView iconPill = new ImageView(context);
+                iconPill.setBackgroundResource(R.drawable.bg_profile_filter_chip);
+                iconPill.setMinimumHeight(dp(36));
+                iconPill.setMinimumWidth(dp(44));
+                iconPill.setPadding(dp(10), dp(8), dp(10), dp(8));
+                iconPill.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                iconPill.setImageResource(R.drawable.ic_bookmark);
+                ColorStateList tint = AppCompatResources.getColorStateList(
+                    context,
+                    R.color.profile_filter_bookmark_tint
+                );
+                if (tint != null) {
+                    androidx.core.widget.ImageViewCompat.setImageTintList(iconPill, tint);
+                }
+                iconPill.setContentDescription(filterSpec.title);
+                pill = iconPill;
+            } else {
+                TextView textPill = new TextView(context);
+                textPill.setText(filterSpec.title);
+                textPill.setGravity(Gravity.CENTER);
+                textPill.setMinHeight(dp(36));
+                textPill.setBackgroundResource(R.drawable.bg_profile_filter_chip);
+                textPill.setTextAppearance(android.R.style.TextAppearance_DeviceDefault_Small);
+                textPill.setTextSize(15f);
+                textPill.setPadding(dp(16), dp(8), dp(16), dp(8));
+                ColorStateList textColors = AppCompatResources.getColorStateList(context, R.color.profile_filter_text);
+                if (textColors != null) {
+                    textPill.setTextColor(textColors);
+                }
+                pill = textPill;
             }
+            pill.setSelected(selected);
             pill.setOnClickListener(v -> onFilterSelected(filterSpec));
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -583,6 +624,44 @@ public class ProfilesFragment extends Fragment {
             }
             binding.groupProfileFilters.addView(pill, params);
         }
+    }
+
+    private void applyFavoriteState(wings.v.databinding.ItemProfileEntryBinding rowBinding, XrayProfile profile) {
+        boolean favorite = XrayStore.isProfileFavorite(requireContext(), profile.id);
+        rowBinding.buttonProfileFavorite.setImageResource(
+            favorite ? R.drawable.ic_star_filled : R.drawable.ic_star_outline
+        );
+        androidx.core.widget.ImageViewCompat.setImageTintList(
+            rowBinding.buttonProfileFavorite,
+            android.content.res.ColorStateList.valueOf(
+                androidx.core.content.ContextCompat.getColor(
+                    requireContext(),
+                    favorite ? R.color.wingsv_accent : android.R.color.darker_gray
+                )
+            )
+        );
+        rowBinding.buttonProfileFavorite.setContentDescription(
+            getString(
+                favorite
+                    ? R.string.xray_profile_favorite_remove
+                    : R.string.xray_profile_favorite_add
+            )
+        );
+    }
+
+    private void onFavoriteClicked(
+        XrayProfile profile,
+        wings.v.databinding.ItemProfileEntryBinding rowBinding,
+        View source
+    ) {
+        boolean wasFavorite = XrayStore.isProfileFavorite(requireContext(), profile.id);
+        XrayStore.setProfileFavorite(requireContext(), profile.id, !wasFavorite);
+        Haptics.softSelection(source);
+        applyFavoriteState(rowBinding, profile);
+        // Если активный фильтр - "Избранное" и мы убрали последний фаворит, или
+        // фильтра "Избранное" ещё нет в списке после добавления - надо пересобрать
+        // чипы фильтра. Полный refreshUi проще, чем точечная инвалидация.
+        refreshUi();
     }
 
     private void onFilterSelected(FilterSpec filterSpec) {
@@ -1324,6 +1403,16 @@ public class ProfilesFragment extends Fragment {
     private List<XrayProfile> filterProfiles(List<XrayProfile> profiles, String filterId) {
         if (TextUtils.equals(filterId, FILTER_ALL)) {
             return new ArrayList<>(profiles);
+        }
+        if (TextUtils.equals(filterId, FILTER_FAVORITES)) {
+            java.util.Set<String> favoriteIds = XrayStore.getFavoriteProfileIds(requireContext());
+            ArrayList<XrayProfile> favorites = new ArrayList<>();
+            for (XrayProfile profile : profiles) {
+                if (profile != null && favoriteIds.contains(profile.id)) {
+                    favorites.add(profile);
+                }
+            }
+            return favorites;
         }
         ArrayList<XrayProfile> filtered = new ArrayList<>();
         String subscriptionId = filterId.startsWith("sub:") ? filterId.substring("sub:".length()) : "";

@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import wings.v.qs.QuickSettingsTiles;
@@ -473,6 +474,33 @@ public final class XrayStore {
         if (changed) {
             writeProfilePingResults(context, current);
         }
+    }
+
+    public static Set<String> getFavoriteProfileIds(Context context) {
+        Set<String> stored = prefs(context).getStringSet(AppPrefs.KEY_XRAY_FAVORITE_PROFILE_IDS, null);
+        if (stored == null || stored.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+        return new LinkedHashSet<>(stored);
+    }
+
+    public static boolean isProfileFavorite(Context context, String profileId) {
+        if (TextUtils.isEmpty(profileId)) {
+            return false;
+        }
+        return getFavoriteProfileIds(context).contains(profileId);
+    }
+
+    public static void setProfileFavorite(Context context, String profileId, boolean favorite) {
+        if (TextUtils.isEmpty(profileId)) {
+            return;
+        }
+        Set<String> ids = getFavoriteProfileIds(context);
+        boolean changed = favorite ? ids.add(profileId) : ids.remove(profileId);
+        if (!changed) {
+            return;
+        }
+        prefs(context).edit().putStringSet(AppPrefs.KEY_XRAY_FAVORITE_PROFILE_IDS, new LinkedHashSet<>(ids)).commit();
     }
 
     public static String getActiveProfileId(Context context) {

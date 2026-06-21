@@ -388,6 +388,7 @@ public final class AutoSearchManager {
             if (availableProfiles.isEmpty()) {
                 throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_profiles));
             }
+            availableProfiles = sortFavoritesFirst(appContext, availableProfiles);
 
             preparedSearch = new PreparedSearch(
                 session,
@@ -1088,6 +1089,30 @@ public final class AutoSearchManager {
             profile.address,
             profile.port
         );
+    }
+
+    @NonNull
+    private static List<XrayProfile> sortFavoritesFirst(@NonNull Context context, @NonNull List<XrayProfile> profiles) {
+        java.util.Set<String> favoriteIds = XrayStore.getFavoriteProfileIds(context);
+        if (favoriteIds.isEmpty() || profiles.size() < 2) {
+            return profiles;
+        }
+        List<XrayProfile> favorites = new ArrayList<>();
+        List<XrayProfile> rest = new ArrayList<>();
+        for (XrayProfile profile : profiles) {
+            if (profile != null && favoriteIds.contains(profile.id)) {
+                favorites.add(profile);
+            } else {
+                rest.add(profile);
+            }
+        }
+        if (favorites.isEmpty()) {
+            return profiles;
+        }
+        List<XrayProfile> ordered = new ArrayList<>(profiles.size());
+        ordered.addAll(favorites);
+        ordered.addAll(rest);
+        return ordered;
     }
 
     @NonNull
