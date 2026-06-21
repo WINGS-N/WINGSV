@@ -238,6 +238,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        Preference uiSettingsPreference = findPreference("pref_open_ui_settings");
+        if (uiSettingsPreference != null) {
+            uiSettingsPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(wings.v.UiSettingsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         wings.v.guardian.MasterSwitchPreference guardianPreference = findPreference(AppPrefs.KEY_GUARDIAN_ENABLED);
         if (guardianPreference != null) {
             boolean configured = AppPrefs.isGuardianConfigured(requireContext());
