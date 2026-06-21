@@ -385,6 +385,9 @@ public final class AutoSearchManager {
             if (availableProfiles.isEmpty()) {
                 availableProfiles = new ArrayList<>(session.originalProfiles);
             }
+            if (!useBuiltInSubscription) {
+                availableProfiles = excludeAutosearchSubscription(availableProfiles);
+            }
             if (availableProfiles.isEmpty()) {
                 throw new IllegalStateException(appContext.getString(R.string.auto_search_failed_no_profiles));
             }
@@ -1089,6 +1092,21 @@ public final class AutoSearchManager {
             profile.address,
             profile.port
         );
+    }
+
+    @NonNull
+    private static List<XrayProfile> excludeAutosearchSubscription(@NonNull List<XrayProfile> profiles) {
+        if (profiles.isEmpty()) {
+            return profiles;
+        }
+        List<XrayProfile> filtered = new ArrayList<>(profiles.size());
+        for (XrayProfile profile : profiles) {
+            if (profile == null || TextUtils.equals(profile.subscriptionId, AUTOSEARCH_SUBSCRIPTION_ID)) {
+                continue;
+            }
+            filtered.add(profile);
+        }
+        return filtered;
     }
 
     @NonNull
