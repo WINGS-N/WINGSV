@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
     private int currentTabId = R.id.menu_home;
     private boolean hasProfilesTab;
     private boolean hasSharingTab;
+    private String lastAppliedNavbarSignature = "";
     private boolean pendingStartAfterOnboarding;
     private boolean pageSelectionReady;
     private SharedPreferences.OnSharedPreferenceChangeListener preferencesChangeListener;
@@ -157,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
         configureToolbar();
         configureBackHandling();
         inflateBottomTabMenu();
-        pagerAdapter = new MainPagerAdapter(this, hasProfilesTab, hasSharingTab);
+        pagerAdapter = new MainPagerAdapter(this, resolveOrderedPagerItemIds());
         binding.mainPager.setAdapter(pagerAdapter);
         binding.mainPager.setOffscreenPageLimit(pagerAdapter.getPageCount());
         binding.mainPager.registerOnPageChangeCallback(
@@ -196,11 +197,17 @@ public class MainActivity extends AppCompatActivity {
         if (!hasSharingTab && initialTabId == R.id.menu_sharing) {
             initialTabId = R.id.menu_home;
         }
+        java.util.Set<Long> visiblePagerItems = new java.util.LinkedHashSet<>(resolveOrderedPagerItemIds());
+        long initialPagerItem = pagerItemForTabId(initialTabId);
+        if (!visiblePagerItems.contains(initialPagerItem)) {
+            initialTabId = R.id.menu_home;
+        }
         currentTabId = initialTabId;
         binding.mainPager.setCurrentItem(positionForTabId(initialTabId), false);
         bottomTab().setSelectedItem(initialTabId);
         updateTitle();
         applyUpdateBadgeState(appUpdateManager.getState());
+        lastAppliedNavbarSignature = computeNavbarSignature(hasProfilesTab, hasSharingTab);
         pageSelectionReady = true;
 
         handleImportIntent(getIntent());
@@ -417,6 +424,10 @@ public class MainActivity extends AppCompatActivity {
         return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_HOME);
     }
 
+    private long pagerItemForTabId(int tabId) {
+        return NavbarItems.pagerItemIdForKey(NavbarItems.keyForMenuItemId(tabId));
+    }
+
     private int tabIdForPosition(int position) {
         long itemId = pagerAdapter.getItemAt(position);
         if (itemId == MainPagerAdapter.ITEM_PROFILES) {
@@ -557,18 +568,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void inflateBottomTabMenu() {
-        int menuResId;
-        if (hasProfilesTab && hasSharingTab) {
-            menuResId = R.menu.menu_bottom_tabs_xray_sharing;
-        } else if (hasProfilesTab) {
-            menuResId = R.menu.menu_bottom_tabs_xray;
-        } else if (hasSharingTab) {
-            menuResId = R.menu.menu_bottom_tabs_sharing;
+        java.util.List<NavbarItems.Item> items = NavbarItems.resolveVisibleItems(this, hasProfilesTab, hasSharingTab);
+        if (items.isEmpty()) {
+            bottomTab().inflateMenu(R.menu.menu_bottom_tab_home, bottomTabClickListener);
         } else {
-            menuResId = R.menu.menu_bottom_tabs_default;
+            for (NavbarItems.Item item : items) {
+                bottomTab().inflateMenu(item.menuResId, bottomTabClickListener);
+            }
         }
-        bottomTab().inflateMenu(menuResId, bottomTabClickListener);
         applyUpdateBadgeState(appUpdateManager != null ? appUpdateManager.getState() : null);
+    }
+
+    private java.util.List<Long> resolveOrderedPagerItemIds() {
+        java.util.List<NavbarItems.Item> items = NavbarItems.resolveVisibleItems(this, hasProfilesTab, hasSharingTab);
+        java.util.List<Long> result = new java.util.ArrayList<>(items.size());
+        for (NavbarItems.Item item : items) {
+            result.add(item.pagerItemId);
+        }
+        if (result.isEmpty()) {
+            result.add(MainPagerAdapter.ITEM_HOME);
+        }
+        return result;
     }
 
     private void applyUpdateBadgeState(@Nullable AppUpdateManager.UpdateState state) {
@@ -640,9 +660,24 @@ public class MainActivity extends AppCompatActivity {
         BackendType visibleBackendType = ProxyTunnelService.getVisibleBackendType(this);
         boolean nextHasProfilesTab = visibleBackendType != null && visibleBackendType.usesXrayCore();
         boolean nextHasSharingTab = AppPrefs.isRootModeEnabled(this) && SharingApiGuard.isSupported();
-        if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
+        String navbarSignature = computeNavbarSignature(nextHasProfilesTab, nextHasSharingTab);
+        if (
+            hasProfilesTab != nextHasProfilesTab ||
+            hasSharingTab != nextHasSharingTab ||
+            !navbarSignature.equals(lastAppliedNavbarSignature)
+        ) {
             rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
+            lastAppliedNavbarSignature = navbarSignature;
         }
+    }
+
+    private String computeNavbarSignature(boolean profilesTab, boolean sharingTab) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(profilesTab).append('|').append(sharingTab);
+        for (NavbarItems.Item item : NavbarItems.resolveVisibleItems(this, profilesTab, sharingTab)) {
+            builder.append('|').append(item.key);
+        }
+        return builder.toString();
     }
 
     private void rebuildNavigationStateInPlace(int targetTabId, boolean nextHasProfilesTab, boolean nextHasSharingTab) {
@@ -663,7 +698,7 @@ public class MainActivity extends AppCompatActivity {
 
         pageSelectionReady = false;
         replaceBottomTabLayout();
-        pagerAdapter = new MainPagerAdapter(this, hasProfilesTab, hasSharingTab);
+        pagerAdapter = new MainPagerAdapter(this, resolveOrderedPagerItemIds());
         binding.mainPager.setAdapter(pagerAdapter);
         binding.mainPager.setOffscreenPageLimit(pagerAdapter.getPageCount());
         inflateBottomTabMenu();

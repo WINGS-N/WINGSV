@@ -22,17 +22,16 @@ public class MainPagerAdapter extends FragmentStateAdapter {
 
     private final List<Long> items = new ArrayList<>();
 
-    public MainPagerAdapter(@NonNull AppCompatActivity activity, boolean hasProfilesTab, boolean hasSharingTab) {
+    public MainPagerAdapter(@NonNull AppCompatActivity activity, @NonNull List<Long> orderedPagerItemIds) {
         super(activity);
-        items.add(ITEM_HOME);
-        if (hasProfilesTab) {
-            items.add(ITEM_PROFILES);
+        for (Long itemId : orderedPagerItemIds) {
+            if (itemId != null && !items.contains(itemId)) {
+                items.add(itemId);
+            }
         }
-        items.add(ITEM_APPS);
-        if (hasSharingTab) {
-            items.add(ITEM_SHARING);
+        if (items.isEmpty()) {
+            items.add(ITEM_HOME);
         }
-        items.add(ITEM_SETTINGS);
     }
 
     public int getPageCount() {
