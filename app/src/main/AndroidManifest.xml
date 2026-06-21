@@ -171,6 +171,21 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".UiSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".NavbarSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".NotificationSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".VkTurnSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
