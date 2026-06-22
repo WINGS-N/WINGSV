@@ -46,6 +46,7 @@ import wings.v.service.ProxyTunnelService;
 public class ByeDpiStrategyTestActivity extends AppCompatActivity {
 
     private static final long RUNNER_START_TIMEOUT_MS = 4_000L;
+    private static final long RUNNER_SETTLE_MS = 500L;
 
     private ActivityByeDpiStrategyTestBinding binding;
     private ByeDpiStrategyResultAdapter adapter;
@@ -130,8 +131,11 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                 int totalRequests = Math.max(1, strategySettings.proxyTestRequests) * targets.size();
                 result.totalRequests = totalRequests;
 
+                ProxyTunnelService.writeRuntimeLogLine(
+                    "[byedpi-test] " + (index + 1) + "/" + results.size() + " start: " + result.command
+                );
                 try (ByeDpiLocalRunner runner = new ByeDpiLocalRunner()) {
-                    runner.start(strategySettings, null, RUNNER_START_TIMEOUT_MS);
+                    runner.start(strategySettings, null, RUNNER_START_TIMEOUT_MS, RUNNER_SETTLE_MS);
                     int successCount = ByeDpiSiteChecker.countSuccessfulRequests(
                         targets,
                         Math.max(1, strategySettings.proxyTestRequests),
@@ -143,8 +147,15 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                         strategySettings.proxyAuthEnabled ? strategySettings.resolveRuntimeProxyPassword() : ""
                     );
                     result.successCount = successCount;
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "[byedpi-test] " + result.command + " -> " + successCount + "/" + totalRequests + " ok"
+                    );
                 } catch (Exception error) {
                     result.successCount = 0;
+                    String reason = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "[byedpi-test] runner failed for " + result.command + ": " + reason
+                    );
                 }
 
                 result.completed = true;

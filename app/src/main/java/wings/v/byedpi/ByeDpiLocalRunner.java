@@ -49,6 +49,15 @@ public final class ByeDpiLocalRunner implements AutoCloseable {
 
     public synchronized void start(@NonNull ByeDpiSettings settings, @Nullable String protectPath, long timeoutMs)
         throws Exception {
+        start(settings, protectPath, timeoutMs, 0L);
+    }
+
+    public synchronized void start(
+        @NonNull ByeDpiSettings settings,
+        @Nullable String protectPath,
+        long timeoutMs,
+        long settleMs
+    ) throws Exception {
         stop();
         nativeProxy = new ByeDpiNative();
         dialHost = settings.resolveRuntimeDialHost();
@@ -56,6 +65,18 @@ public final class ByeDpiLocalRunner implements AutoCloseable {
         List<String> arguments = settings.buildRuntimeArguments(protectPath);
         task = executor.submit(() -> nativeProxy.startProxy(arguments.toArray(new String[0])));
         waitUntilReady(timeoutMs);
+        // The listen socket accepts the moment listen() runs, before the proxy
+        // can actually relay. Give it a settle window so the first requests do
+        // not land on a not-yet-ready proxy and score as failures. Mirrors the
+        // warm-up the auto-search uses. Re-check the worker did not exit during
+        // the settle, otherwise surface the same early-exit reason as readiness.
+        if (settleMs > 0L) {
+            Thread.sleep(settleMs);
+            Future<Integer> settledTask = task;
+            if (settledTask != null && settledTask.isDone()) {
+                throw buildEarlyExitException(settledTask);
+            }
+        }
     }
 
     public synchronized boolean isRunning() {
