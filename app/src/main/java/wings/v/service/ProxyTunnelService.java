@@ -772,24 +772,124 @@ public class ProxyTunnelService extends Service {
             return;
         }
         RuntimeStateStore.Snapshot snapshot = RuntimeStateStore.readSnapshot();
-        if (RuntimeStateStore.STATE_STOPPED.equals(snapshot.state)) {
-            return;
-        }
-        if (shouldAttemptRuntimeSync(appContext)) {
+        boolean cleanlyStopped = RuntimeStateStore.STATE_STOPPED.equals(snapshot.state);
+        if (!cleanlyStopped && shouldAttemptRuntimeSync(appContext)) {
             if (startRuntimeSync(appContext)) {
                 return;
             }
         }
-        // Skip the wipe only during the narrow window after a runtime-affecting
-        // pref toggle (KEY_ROOT_MODE, KEY_KERNEL_WIREGUARD). The toggle triggers
+        // Skip everything during the narrow window after a runtime-affecting pref
+        // toggle (KEY_ROOT_MODE, KEY_KERNEL_WIREGUARD). The toggle triggers
         // requestReconnect, then this app-start may see the process dead very
-        // briefly before the new instance comes up. Outside that window a dead
-        // process with state != STOPPED means the service actually crashed and
-        // the UI should not keep showing "connected".
+        // briefly before the new instance comes up.
         if (AppPrefs.wasRuntimeAffectingPrefRecentlyToggled(appContext, 30_000L)) {
             return;
         }
-        clearStalePersistedRuntimeState(appContext);
+        // No live runtime and not recovering: any kernel-WG interface WINGS V left
+        // behind is an orphan. Drop it on EVERY launch - an interface can linger
+        // across launches after the persisted state was already cleared, so this
+        // must not be gated behind state != STOPPED.
+        dropAbandonedKernelWgInterfaces(appContext);
+        if (!cleanlyStopped) {
+            // A dead process with state != STOPPED means the runtime actually
+            // crashed; clear the stale state so the UI stops showing "connected".
+            clearStalePersistedRuntimeState(appContext);
+        }
+    }
+
+    /**
+     * On startup, finds kernel-WireGuard interfaces that WINGS V created and that
+     * no live runtime owns anymore (left over after the tunnel process was killed)
+     * and deletes them. Runs off the main thread; no-op without root.
+     */
+    public static void dropAbandonedKernelWgInterfaces(Context context) {
+        if (context == null) {
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        if (hasLocalService() || isTunnelRuntimeProcessAlive(appContext)) {
+            // A live service/process still owns the interface - not abandoned.
+            return;
+        }
+        if (!RootUtils.isRootAccessGranted(appContext)) {
+            return;
+        }
+        Thread worker = new Thread(
+            () -> dropAbandonedKernelWgInterfacesBlocking(appContext),
+            "wingsv-drop-abandoned-wg"
+        );
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private static void dropAbandonedKernelWgInterfacesBlocking(Context appContext) {
+        try {
+            // Kernel WG (and tun) devices report link type 65534 (ARPHRD_NONE).
+            String enumerated = execRootCommandCapturing(
+                "for f in /sys/class/net/*/type; do " +
+                    "iface=${f%/type}; iface=${iface##*/}; " +
+                    "type=$(cat \"$f\" 2>/dev/null || true); " +
+                    "[ \"$type\" = \"65534\" ] || continue; " +
+                    "printf '%s\\n' \"$iface\"; " +
+                    "done",
+                4_000L
+            );
+            if (TextUtils.isEmpty(enumerated)) {
+                return;
+            }
+            List<String> orphans = new ArrayList<>();
+            StringBuilder dropScript = new StringBuilder();
+            for (String line : enumerated.split("\\R")) {
+                String name = line == null ? "" : line.trim();
+                // Only delete interfaces WINGS V actually manages (name template /
+                // legacy names), never a system tun or another app's wg device.
+                if (TextUtils.isEmpty(name) || !AppPrefs.matchesManagedRootWireGuardInterfaceName(appContext, name)) {
+                    continue;
+                }
+                orphans.add(name);
+                dropScript
+                    .append("ip link set dev ")
+                    .append(RootUtils.shellQuote(name))
+                    .append(" down >/dev/null 2>&1; ")
+                    .append("ip link delete dev ")
+                    .append(RootUtils.shellQuote(name))
+                    .append(" >/dev/null 2>&1; ");
+            }
+            if (orphans.isEmpty()) {
+                return;
+            }
+            execRootCommandCapturing(dropScript.append("true").toString(), 5_000L);
+            String message = "Dropped abandoned kernel-WG interface(s) left after kill: " + orphans;
+            RuntimeStateStore.appendRuntimeLog(message);
+            Log.i(TAG, message);
+        } catch (Exception ignored) {}
+    }
+
+    private static String execRootCommandCapturing(String command, long timeoutMs) throws Exception {
+        Process process = new ProcessBuilder("su", "-c", command).redirectErrorStream(true).start();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        Thread reader = new Thread(
+            () -> {
+                try (InputStream input = process.getInputStream()) {
+                    byte[] buffer = new byte[4096];
+                    int read = input.read(buffer);
+                    while (read != -1) {
+                        outputStream.write(buffer, 0, read);
+                        read = input.read(buffer);
+                    }
+                } catch (Exception ignored) {}
+            },
+            "wingsv-root-drop-read"
+        );
+        reader.setDaemon(true);
+        reader.start();
+        if (!process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)) {
+            process.destroyForcibly();
+            throw new IOException("Root command timed out");
+        }
+        reader.join(500L);
+        return new String(outputStream.toByteArray(), StandardCharsets.UTF_8).trim();
     }
 
     public static void requestRuntimeSyncIfNeeded(Context context) {
