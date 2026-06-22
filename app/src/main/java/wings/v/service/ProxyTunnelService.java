@@ -238,6 +238,9 @@ public class ProxyTunnelService extends Service {
     private static final long NON_XRAY_LIVENESS_STARTUP_GRACE_MS = 25_000L;
     private static final long USERSPACE_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS = 10_000L;
     private static final long USERSPACE_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS = 10_000L;
+    // Сколько ждём остановки мёртвого GoBackend VpnService в soft-recovery перед
+    // переподнятием. Дольше держать смысла нет - дальше fallback на reconnect.
+    private static final long SOFT_RECOVERY_SERVICE_STOP_TIMEOUT_MS = 1_500L;
     private static final long ROOT_WIREGUARD_WATCHDOG_STARTUP_GRACE_MS = 10_000L;
     private static final long ROOT_WIREGUARD_WATCHDOG_MISS_TIMEOUT_MS = 10_000L;
     private static final long NON_XRAY_LIVENESS_TIMEOUT_MS = 45_000L;
@@ -7907,7 +7910,9 @@ public class ProxyTunnelService extends Service {
         String watchdogReason = serviceAlive
             ? "Userspace WireGuard watchdog: runtime tunnel references lost"
             : "Userspace WireGuard watchdog: VPN service disappeared";
-        scheduleRuntimeReconnect(watchdogReason, RUNTIME_RECONNECT_DELAY_MS);
+        // preferSoftRecovery=true: для VK TURN userspace WG c живым vktp сперва
+        // пробуем переподнять VpnService без рестарта vktp, иначе обычный reconnect.
+        scheduleRuntimeReconnect(watchdogReason, RUNTIME_RECONNECT_DELAY_MS, false, true);
         return false;
     }
 
@@ -8041,8 +8046,17 @@ public class ProxyTunnelService extends Service {
         scheduleRuntimeReconnect(reason, delayMs, false);
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void scheduleRuntimeReconnect(String reason, long delayMs, boolean allowTunnelProcessRestart) {
+        scheduleRuntimeReconnect(reason, delayMs, allowTunnelProcessRestart, false);
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void scheduleRuntimeReconnect(
+        String reason,
+        long delayMs,
+        boolean allowTunnelProcessRestart,
+        boolean preferSoftRecovery
+    ) {
         final int scheduledGeneration = runtimeGeneration.get();
         if (sServiceState == ServiceState.STOPPED || !runtimeReconnectQueued.compareAndSet(false, true)) {
             return;
@@ -8066,7 +8080,14 @@ public class ProxyTunnelService extends Service {
                 if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
                     return;
                 }
-                performRuntimeReconnect(scheduledGeneration, reason, allowTunnelProcessRestart);
+                performRuntimeReconnect(
+                    scheduledGeneration,
+                    reason,
+                    activeBackendType,
+                    getConfiguredBackendType(),
+                    allowTunnelProcessRestart,
+                    preferSoftRecovery
+                );
             } finally {
                 runtimeReconnectQueued.set(false);
             }
@@ -8107,7 +8128,32 @@ public class ProxyTunnelService extends Service {
         @Nullable BackendType targetBackend,
         boolean allowTunnelProcessRestart
     ) {
+        performRuntimeReconnect(
+            scheduledGeneration,
+            reason,
+            backendToStop,
+            targetBackend,
+            allowTunnelProcessRestart,
+            false
+        );
+    }
+
+    private void performRuntimeReconnect(
+        int scheduledGeneration,
+        @Nullable String reason,
+        @Nullable BackendType backendToStop,
+        @Nullable BackendType targetBackend,
+        boolean allowTunnelProcessRestart,
+        boolean preferSoftRecovery
+    ) {
         if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+            return;
+        }
+        // Soft-recovery fast-path: VpnService умер, но vktp ещё жив (VK TURN
+        // userspace WG). Переподнимаем только VpnService + WG, не убивая vktp и
+        // не повторяя его дорогой warmup. При неудаче или неприменимости падаем
+        // в обычный полный reconnect ниже.
+        if (preferSoftRecovery && attemptUserspaceWireGuardSoftRecovery(scheduledGeneration, reason)) {
             return;
         }
         BackendType resolvedBackendToStop = backendToStop != null ? backendToStop : activeBackendType;
@@ -8154,6 +8200,95 @@ public class ProxyTunnelService extends Service {
             startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
         } catch (RuntimeException ignored) {}
         startWork(true);
+    }
+
+    // Soft-recovery для userspace WG (GoBackend) c VK TURN: VpnService отвалился,
+    // но vktp-процесс ещё жив и прогрет (DTLS/TURN/captcha). Переподнимаем только
+    // VpnService + wireguard-go, не убивая vktp и не повторяя его дорогой warmup.
+    // Возвращает true при успехе; false (в т.ч. при любой ошибке или
+    // неприменимости) - вызывающий делает обычный полный reconnect.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private boolean attemptUserspaceWireGuardSoftRecovery(int scheduledGeneration, @Nullable String reason) {
+        if (!usesUserspaceWireGuardRuntime() || !usesTurnProxyBackend(activeBackendType)) {
+            return false;
+        }
+        if (getConfiguredBackendType() != activeBackendType) {
+            // Пользователь переключает backend - пусть идёт полный reconnect.
+            return false;
+        }
+        Process proxy = proxyProcess;
+        if (proxy == null || !proxy.isAlive()) {
+            // vktp мёртв - сохранять нечего, дешевле обычный reconnect.
+            return false;
+        }
+        if (TextUtils.isEmpty(protectSocketName) || backend == null || currentTunnel == null || currentConfig == null) {
+            return false;
+        }
+        if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+            return false;
+        }
+        try {
+            appendRuntimeLogLine("Userspace WG soft-recovery (keeping vktp): " + firstNonEmpty(reason, ""));
+            setServiceState(ServiceState.CONNECTING);
+            // Снимаем мёртвый WG-туннель и VpnService. vktp и имя protect-сокета
+            // не трогаем - живой vktp знает его из -protect-sock.
+            synchronized (vpnBackendLock) {
+                try {
+                    backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
+                } catch (Exception ignored) {}
+            }
+            Context appContext = getApplicationContext();
+            GoBackendVpnAccess.stopService(appContext);
+            try {
+                GoBackendVpnAccess.waitForStopped(SOFT_RECOVERY_SERVICE_STOP_TIMEOUT_MS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+            if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
+                return false;
+            }
+            // Заново поднимаем VpnService + protect-bridge на ТОМ ЖЕ имени сокета,
+            // затем wireguard-go на свежем tun нового сервиса.
+            if (ensureWireGuardVpnServiceStarted() == null) {
+                return false;
+            }
+            reopenProtectBridgeForSoftRecovery(GoBackendVpnAccess::getServiceNow);
+            synchronized (vpnBackendLock) {
+                backend.setState(currentTunnel, Tunnel.State.UP, currentConfig);
+            }
+            applySplitTunnelLockdown("VK TURN VPN (WG soft-recovery)", findActiveUserspaceVpnTunInterface());
+            markUserspaceWireGuardWatchdogHealthy();
+            setServiceState(ServiceState.RUNNING);
+            sRunning = true;
+            AppPrefs.setExternalActionTransientLaunchPending(appContext, false);
+            requestPublicIpRefresh(true);
+            appendRuntimeLogLine("Userspace WG soft-recovery done (vktp reused)");
+            return true;
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                "Userspace WG soft-recovery failed, falling back to full reconnect: " +
+                    firstNonEmpty(error.getMessage(), error.toString())
+            );
+            return false;
+        }
+    }
+
+    // Пересоздаёт protect-bridge на УЖЕ существующем имени сокета (не генерит
+    // новое, как ensureProtectBridgeReady): запущенный vktp знает старое имя из
+    // -protect-sock, и менять его на лету нельзя.
+    private void reopenProtectBridgeForSoftRecovery(ProxyProtectBridgeServer.VpnServiceProvider provider)
+        throws Exception {
+        String name = protectSocketName;
+        if (TextUtils.isEmpty(name)) {
+            throw new IllegalStateException("no protect socket name to reuse");
+        }
+        if (protectBridgeServer != null) {
+            protectBridgeServer.close();
+            protectBridgeServer = null;
+        }
+        protectBridgeServer = new ProxyProtectBridgeServer(name, provider);
+        RuntimeStateStore.writeProtectSocketName(name);
     }
 
     private void restartTunnelProcessForActiveProbeSwitch(BackendType targetBackend, @Nullable String reason) {
