@@ -26,7 +26,9 @@ public final class XrayRoutingRule {
         GEOSITE("geosite"),
         DOMAIN("domain"),
         IP("ip"),
-        PORT("port");
+        PORT("port"),
+        NETWORK("network"),
+        PROTOCOL("protocol");
 
         public final String value;
 
@@ -46,6 +48,12 @@ public final class XrayRoutingRule {
             }
             if ("port".equalsIgnoreCase(value)) {
                 return PORT;
+            }
+            if ("network".equalsIgnoreCase(value)) {
+                return NETWORK;
+            }
+            if ("protocol".equalsIgnoreCase(value)) {
+                return PROTOCOL;
             }
             return GEOIP;
         }
@@ -124,6 +132,9 @@ public final class XrayRoutingRule {
         normalized = stripOwnPrefix(normalized, normalizedMatchType).trim();
         if (normalizedMatchType == MatchType.PORT) {
             return normalized.replaceAll("\\s*-\\s*", "-");
+        }
+        if (normalizedMatchType == MatchType.NETWORK || normalizedMatchType == MatchType.PROTOCOL) {
+            return normalized.toLowerCase(Locale.ROOT).replaceAll("[,\\s]+", ",").replaceAll("^,|,$", "");
         }
         return normalized.toLowerCase(Locale.ROOT);
     }

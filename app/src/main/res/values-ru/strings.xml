@@ -854,6 +854,8 @@
     <string name="xray_routing_match_domain">Домен</string>
     <string name="xray_routing_match_ip">IP</string>
     <string name="xray_routing_match_port">Порт</string>
+    <string name="xray_routing_match_network">Сеть</string>
+    <string name="xray_routing_match_protocol">Протокол</string>
     <string name="xray_routing_action_proxy">Через proxy</string>
     <string name="xray_routing_action_direct">Напрямую</string>
     <string name="xray_routing_action_block">Блокировать</string>
@@ -1438,6 +1440,8 @@
     <string name="xray_routing_dat_read_failed">Не удалось прочитать %1$s</string>
     <string name="xray_routing_code_not_found">Код не найден в %1$s</string>
     <string name="xray_routing_port_invalid">Порт должен быть 1-65535 или диапазоном</string>
+    <string name="xray_routing_network_invalid">Сеть: tcp, udp или tcp,udp</string>
+    <string name="xray_routing_protocol_invalid">Протокол: bittorrent, http, tls или quic</string>
     <string name="xray_routing_port_missing">Порт не задан</string>
     <string name="proxy_cleanup_backend_failed">Не удалось полностью очистить предыдущий backend перед reconnect</string>
     <string name="proxy_previous_vpn_backend_not_down_xray">Предыдущий VPN backend ещё не перешёл в DOWN; запуск Xray невозможен</string>

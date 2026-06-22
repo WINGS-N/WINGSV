@@ -253,10 +253,58 @@ public final class XrayRoutingStore {
         if (matchType == XrayRoutingRule.MatchType.PORT) {
             return validatePortRule(context, value);
         }
+        if (matchType == XrayRoutingRule.MatchType.NETWORK) {
+            return validateTokenRule(
+                context,
+                value,
+                NETWORK_VALUES,
+                matchType.value,
+                wings.v.R.string.xray_routing_network_invalid
+            );
+        }
+        if (matchType == XrayRoutingRule.MatchType.PROTOCOL) {
+            return validateTokenRule(
+                context,
+                value,
+                PROTOCOL_VALUES,
+                matchType.value,
+                wings.v.R.string.xray_routing_protocol_invalid
+            );
+        }
         if (!hasListValue(value)) {
             return new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_rule_value_missing));
         }
         return new ValidationResult(true, matchType.value);
+    }
+
+    private static final java.util.Set<String> NETWORK_VALUES = new java.util.HashSet<>(
+        java.util.Arrays.asList("tcp", "udp")
+    );
+    private static final java.util.Set<String> PROTOCOL_VALUES = new java.util.HashSet<>(
+        java.util.Arrays.asList("bittorrent", "http", "tls", "quic")
+    );
+
+    private static ValidationResult validateTokenRule(
+        Context context,
+        String value,
+        java.util.Set<String> allowed,
+        String successLabel,
+        int invalidMessageRes
+    ) {
+        boolean hasValue = false;
+        for (String token : value.split("[,\\s]+")) {
+            String normalized = trim(token).toLowerCase(java.util.Locale.ROOT);
+            if (TextUtils.isEmpty(normalized)) {
+                continue;
+            }
+            hasValue = true;
+            if (!allowed.contains(normalized)) {
+                return new ValidationResult(false, context.getString(invalidMessageRes));
+            }
+        }
+        return hasValue
+            ? new ValidationResult(true, successLabel)
+            : new ValidationResult(false, context.getString(wings.v.R.string.xray_routing_rule_value_missing));
     }
 
     private static ValidationResult validatePortRule(Context context, String value) {

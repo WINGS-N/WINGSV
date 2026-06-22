@@ -714,7 +714,46 @@ public final class XrayConfigFactory {
             routingRule.put("port", portRule);
             return true;
         }
+        if (rule.matchType == XrayRoutingRule.MatchType.NETWORK) {
+            // Xray "network" is a comma-joined string, e.g. "tcp", "udp", "tcp,udp".
+            String network = joinLowerTokens(rule.code);
+            if (TextUtils.isEmpty(network)) {
+                return false;
+            }
+            routingRule.put("network", network);
+            return true;
+        }
+        if (rule.matchType == XrayRoutingRule.MatchType.PROTOCOL) {
+            // Xray "protocol" is an array, e.g. ["bittorrent"]. Needs sniffing on.
+            JSONArray protocols = new JSONArray();
+            for (String token : rule.code.split("[,\\s]+")) {
+                String normalized = trim(token).toLowerCase(java.util.Locale.ROOT);
+                if (!TextUtils.isEmpty(normalized)) {
+                    protocols.put(normalized);
+                }
+            }
+            if (protocols.length() == 0) {
+                return false;
+            }
+            routingRule.put("protocol", protocols);
+            return true;
+        }
         return false;
+    }
+
+    private static String joinLowerTokens(String value) {
+        StringBuilder builder = new StringBuilder();
+        for (String token : value.split("[,\\s]+")) {
+            String normalized = trim(token).toLowerCase(java.util.Locale.ROOT);
+            if (TextUtils.isEmpty(normalized)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(',');
+            }
+            builder.append(normalized);
+        }
+        return builder.toString();
     }
 
     private static JSONArray buildRoutingValueArray(String value, boolean domainRule) {

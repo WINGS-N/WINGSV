@@ -854,6 +854,8 @@
     <string name="xray_routing_match_domain">Domain</string>
     <string name="xray_routing_match_ip">IP</string>
     <string name="xray_routing_match_port">Port</string>
+    <string name="xray_routing_match_network">Network</string>
+    <string name="xray_routing_match_protocol">Protocol</string>
     <string name="xray_routing_action_proxy">Via proxy</string>
     <string name="xray_routing_action_direct">Direct</string>
     <string name="xray_routing_action_block">Block</string>
@@ -1438,6 +1440,8 @@
     <string name="xray_routing_dat_read_failed">Failed to read %1$s</string>
     <string name="xray_routing_code_not_found">Code not found in %1$s</string>
     <string name="xray_routing_port_invalid">Port must be 1-65535 or a range</string>
+    <string name="xray_routing_network_invalid">Network must be tcp, udp or tcp,udp</string>
+    <string name="xray_routing_protocol_invalid">Protocol must be one of: bittorrent, http, tls, quic</string>
     <string name="xray_routing_port_missing">Port is not set</string>
     <string name="proxy_cleanup_backend_failed">Failed to fully clean up the previous backend before reconnect</string>
     <string name="proxy_previous_vpn_backend_not_down_xray">Previous VPN backend has not transitioned to DOWN yet; starting Xray is not possible</string>

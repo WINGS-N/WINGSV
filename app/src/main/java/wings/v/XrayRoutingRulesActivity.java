@@ -242,6 +242,8 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
             XrayRoutingRule.MatchType.DOMAIN,
             XrayRoutingRule.MatchType.IP,
             XrayRoutingRule.MatchType.PORT,
+            XrayRoutingRule.MatchType.NETWORK,
+            XrayRoutingRule.MatchType.PROTOCOL,
         };
         String[] options = new String[matchTypes.length];
         for (int index = 0; index < matchTypes.length; index++) {
@@ -304,6 +306,12 @@ public class XrayRoutingRulesActivity extends AppCompatActivity {
         }
         if (matchType == XrayRoutingRule.MatchType.PORT) {
             return getString(R.string.xray_routing_match_port);
+        }
+        if (matchType == XrayRoutingRule.MatchType.NETWORK) {
+            return getString(R.string.xray_routing_match_network);
+        }
+        if (matchType == XrayRoutingRule.MatchType.PROTOCOL) {
+            return getString(R.string.xray_routing_match_protocol);
         }
         return getString(R.string.xray_routing_match_geoip);
     }
