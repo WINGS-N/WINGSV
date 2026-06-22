@@ -1547,6 +1547,9 @@ public final class WingsImportParser {
         if (mode == AppRoutingMode.WHITELIST) {
             return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_WHITELIST;
         }
+        if (mode == AppRoutingMode.XBYPASS) {
+            return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_XBYPASS;
+        }
         return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_BYPASS;
     }
 
@@ -1557,9 +1560,10 @@ public final class WingsImportParser {
         if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_WHITELIST) {
             return AppRoutingMode.WHITELIST;
         }
-        // The proto has no XBypass; bypass imports land on the gVisor-direct default
-        // (degrades to plain bypass at runtime where gVisor is unavailable).
-        return AppRoutingMode.XBYPASS;
+        if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_XBYPASS) {
+            return AppRoutingMode.XBYPASS;
+        }
+        return AppRoutingMode.BYPASS;
     }
 
     private static WingsvProto.Xray buildXray(

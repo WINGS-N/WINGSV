@@ -246,8 +246,14 @@ message AppRouting {
 enum AppRoutingMode {
   APP_ROUTING_MODE_UNSPECIFIED = 0;
   APP_ROUTING_MODE_OFF = 1;
+  // BYPASS excludes the selected apps at the Android VpnService layer
+  // (addDisallowedApplication). XBYPASS keeps them inside the tunnel and diverts
+  // them to direct at the xray-core gVisor level (closes the unknown-UID leak);
+  // it falls back to plain BYPASS where the gVisor path is unavailable. Both
+  // share the bypass_packages list.
   APP_ROUTING_MODE_BYPASS = 2;
   APP_ROUTING_MODE_WHITELIST = 3;
+  APP_ROUTING_MODE_XBYPASS = 4;
 }
 
 message XrayRouting {
