@@ -136,6 +136,45 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/mode_item_xbypass"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_routing_mode_circle"
+                    android:duplicateParentState="true">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@null"
+                        android:duplicateParentState="true"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ic_routing_bypass"
+                        app:tint="@color/routing_mode_icon_tint" />
+                </FrameLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:duplicateParentState="true"
+                    android:text="@string/apps_mode_xbypass"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="@color/routing_mode_label_color" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/mode_item_whitelist"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

@@ -159,7 +159,7 @@ public final class XposedSecurityScore {
         }
 
         totalWeight += WEIGHT_BYPASS_RECOMMENDED;
-        if (AppPrefs.getAppRoutingMode(context) == AppRoutingMode.BYPASS) {
+        if (AppPrefs.getAppRoutingMode(context).isBypassFamily()) {
             Set<String> installedRecommendedBypass = intersectInstalled(
                 context,
                 RuStoreRecommendedAppsAsset.getPackageNames(context)

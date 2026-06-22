@@ -159,6 +159,9 @@ public final class AppPrefs {
     public static final String KEY_APP_ROUTING_MODE = "pref_app_routing_mode";
     public static final String KEY_APP_ROUTING_BYPASS_PACKAGES = "pref_app_routing_bypass_packages";
     public static final String KEY_APP_ROUTING_WHITELIST_PACKAGES = "pref_app_routing_whitelist_packages";
+    // One-time migration: the former single "bypass" mode becomes XBYPASS (gVisor-
+    // direct), preserving its leak-closed behavior; plain BYPASS (disallow) is new.
+    private static final String KEY_APP_ROUTING_XBYPASS_MIGRATED = "pref_app_routing_xbypass_migrated";
     public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
@@ -864,13 +867,30 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, true).apply();
     }
 
+    // Bypass and XBypass share the same selected-app list; whitelist has its own.
+    static String appRoutingPackagesKey(AppRoutingMode mode) {
+        return mode == AppRoutingMode.WHITELIST ? KEY_APP_ROUTING_WHITELIST_PACKAGES : KEY_APP_ROUTING_BYPASS_PACKAGES;
+    }
+
     public static AppRoutingMode getAppRoutingMode(Context context) {
         SharedPreferences prefs = prefs(context);
         String stored = prefs.getString(KEY_APP_ROUTING_MODE, null);
-        if (stored != null) {
-            return AppRoutingMode.fromPrefValue(stored);
+        AppRoutingMode mode = stored != null ? AppRoutingMode.fromPrefValue(stored) : migrateLegacyAppRouting(prefs);
+        if (!prefs.getBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, false)) {
+            // First run after the split: move existing "bypass" users to XBYPASS so
+            // their gVisor-direct behavior is preserved. Other modes are untouched.
+            if (mode == AppRoutingMode.BYPASS) {
+                mode = AppRoutingMode.XBYPASS;
+                prefs
+                    .edit()
+                    .putString(KEY_APP_ROUTING_MODE, mode.prefValue)
+                    .putBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, true)
+                    .commit();
+            } else {
+                prefs.edit().putBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, true).commit();
+            }
         }
-        return migrateLegacyAppRouting(prefs);
+        return mode;
     }
 
     public static void setAppRoutingMode(Context context, AppRoutingMode mode) {
@@ -887,8 +907,7 @@ public final class AppPrefs {
         editor.putString(KEY_APP_ROUTING_MODE, mode.prefValue);
         Set<String> legacyPackages = prefs.getStringSet(KEY_APP_ROUTING_PACKAGES, null);
         if (legacyPackages != null && !legacyPackages.isEmpty()) {
-            String targetKey =
-                mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+            String targetKey = appRoutingPackagesKey(mode);
             if (!prefs.contains(targetKey)) {
                 editor.putStringSet(targetKey, new LinkedHashSet<>(legacyPackages));
             }
@@ -905,8 +924,7 @@ public final class AppPrefs {
         if (mode == null || mode == AppRoutingMode.OFF) {
             return new LinkedHashSet<>();
         }
-        String key =
-            mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+        String key = appRoutingPackagesKey(mode);
         Set<String> stored = prefs(context).getStringSet(key, null);
         if (stored == null || stored.isEmpty()) {
             return new LinkedHashSet<>();
@@ -941,7 +959,7 @@ public final class AppPrefs {
         LinkedHashSet<String> packages = new LinkedHashSet<>(getAppRoutingPackages(context, mode));
         Set<String> hiddenVpnPackages = effectiveHiddenVpnPackages(context);
         if (!hiddenVpnPackages.isEmpty()) {
-            if (mode == AppRoutingMode.BYPASS) {
+            if (mode.isBypassFamily()) {
                 packages.addAll(hiddenVpnPackages);
             } else {
                 packages.removeAll(hiddenVpnPackages);
@@ -986,8 +1004,7 @@ public final class AppPrefs {
         } else {
             packages.remove(packageName);
         }
-        String key =
-            mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+        String key = appRoutingPackagesKey(mode);
         prefs(context).edit().putStringSet(key, new LinkedHashSet<>(packages)).commit();
     }
 
@@ -1007,8 +1024,7 @@ public final class AppPrefs {
                 }
             }
         }
-        String key =
-            mode == AppRoutingMode.BYPASS ? KEY_APP_ROUTING_BYPASS_PACKAGES : KEY_APP_ROUTING_WHITELIST_PACKAGES;
+        String key = appRoutingPackagesKey(mode);
         prefs(context).edit().putStringSet(key, normalizedPackages).commit();
     }
 

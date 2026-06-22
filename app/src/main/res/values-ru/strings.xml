@@ -183,9 +183,11 @@
     <string name="apps_mode_title">Режим маршрутизации</string>
     <string name="apps_mode_off">Off</string>
     <string name="apps_mode_bypass">Bypass</string>
+    <string name="apps_mode_xbypass">XBypass</string>
     <string name="apps_mode_whitelist">Whitelist</string>
     <string name="apps_mode_off_summary">Все приложения идут через VPN</string>
-    <string name="apps_mode_bypass_summary">Выбранные приложения идут в обход VPN, остальные — через него</string>
+    <string name="apps_mode_bypass_summary">Выбранные приложения исключаются из VPN на уровне Android и идут в сеть напрямую. Просто, но приложение теоретически может обойти туннель, привязавшись прямо к интерфейсу.</string>
+    <string name="apps_mode_xbypass_summary">Bypass, но через Xray (gVisor): весь трафик заходит в туннель, а выбранные приложения Xray уводит напрямую. Закрывает утечки и случай неопознанного UID. Только на Xray и VK TURN + Xray-WG.</string>
     <string name="apps_mode_whitelist_summary">Через VPN идут только выбранные приложения, остальные — напрямую</string>
     <string name="apps_reconnect_hint">Изменения применяются после переподключения</string>
     <string name="apps_count">Выбрано приложений: %1$d</string>

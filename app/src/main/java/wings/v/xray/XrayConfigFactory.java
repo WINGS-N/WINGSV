@@ -825,6 +825,17 @@ public final class XrayConfigFactory {
         if (context == null) {
             return;
         }
+        wings.v.core.AppRoutingMode routingMode = AppPrefs.getAppRoutingMode(context);
+        if (routingMode == wings.v.core.AppRoutingMode.BYPASS) {
+            // Plain Bypass excludes the selected apps at the VpnService layer
+            // (addDisallowedApplication); the gVisor TUN UID filter is only used by
+            // XBYPASS (divert) and WHITELIST (allowlist).
+            android.util.Log.i(
+                "WINGSV-Xray",
+                "applyTunUidFilter: plain BYPASS uses VpnService disallow, no gVisor filter"
+            );
+            return;
+        }
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(context);
         if (packages == null || packages.isEmpty()) {
             android.util.Log.i(
@@ -846,9 +857,8 @@ public final class XrayConfigFactory {
         if (uidArray.length() == 0) {
             return;
         }
-        boolean bypassMode = AppPrefs.getAppRoutingMode(context) != wings.v.core.AppRoutingMode.WHITELIST;
-        if (bypassMode) {
-            // Bypass mode: tag listed-UID connections with bypass_inbound_tag
+        if (routingMode == wings.v.core.AppRoutingMode.XBYPASS) {
+            // XBypass: tag listed-UID connections with bypass_inbound_tag
             // so xray routing diverts them to the freedom/direct outbound
             // (= underlying network via protect-bridge). Combined with the
             // VpnService running WITHOUT addDisallowedApplication, all apps'
@@ -875,7 +885,7 @@ public final class XrayConfigFactory {
         android.util.Log.i(
             "WINGSV-Xray",
             "applyTunUidFilter: mode=" +
-                (bypassMode ? "bypass" : "allowlist") +
+                (routingMode == wings.v.core.AppRoutingMode.XBYPASS ? "xbypass" : "allowlist") +
                 " uids=" +
                 uids +
                 " packages=" +

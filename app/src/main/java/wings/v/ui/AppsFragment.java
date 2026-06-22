@@ -40,8 +40,12 @@ import java.util.concurrent.Executors;
 import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppRoutingMode;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.ProxyRuntimeMode;
+import wings.v.core.RootUtils;
 import wings.v.core.RuStoreRecommendedAppsAsset;
+import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentAppsBinding;
 import wings.v.service.ProxyTunnelService;
 import wings.v.widget.ShimmerStrokeDrawable;
@@ -267,7 +271,32 @@ public class AppsFragment extends Fragment {
         if (searchShimmer != null) {
             searchShimmer.setRunning(true);
         }
+        adapter.setXbypassAvailable(isXBypassAvailable(requireContext()));
         loadApplications();
+    }
+
+    // XBypass (gVisor-direct) is only reachable on the xray-core TUN path: plain
+    // Xray (not TPROXY, not proxy-only) or VK TURN / WireGuard running over xray-WG
+    // with root off. On kernel WG, TPROXY and the native WG/Amnezia backends it is
+    // hidden and a stored XBYPASS selection degrades to plain Bypass.
+    private boolean isXBypassAvailable(Context context) {
+        BackendType backend = XrayStore.getBackendType(context);
+        if (backend == null) {
+            return false;
+        }
+        boolean rootMode = AppPrefs.isRootModeEnabled(context);
+        if (backend == BackendType.XRAY) {
+            boolean proxyOnly = XrayStore.getXraySettings(context).runtimeMode == ProxyRuntimeMode.PROXY;
+            boolean tproxy =
+                rootMode &&
+                AppPrefs.isXrayTproxyModeEnabled(context) &&
+                RootUtils.isXrayTproxySupported(context, false);
+            return !proxyOnly && !tproxy;
+        }
+        if (backend == BackendType.VK_TURN_WIREGUARD || backend == BackendType.WIREGUARD) {
+            return !rootMode;
+        }
+        return false;
     }
 
     @Override
@@ -298,7 +327,7 @@ public class AppsFragment extends Fragment {
         if (recommendedPackage) {
             if (enabled) {
                 AppPrefs.setAppRoutingRecommendedPackageDismissed(context, packageName, false);
-            } else if (mode == AppRoutingMode.BYPASS) {
+            } else if (mode.isBypassFamily()) {
                 AppPrefs.setAppRoutingRecommendedPackageDismissed(context, packageName, true);
             }
         }
@@ -319,7 +348,7 @@ public class AppsFragment extends Fragment {
         Context context = requireContext();
         AppPrefs.setAppRoutingMode(context, mode);
         appRoutingChanged = true;
-        if (mode == AppRoutingMode.BYPASS) {
+        if (mode.isBypassFamily()) {
             syncRecommendedPackages();
         }
         enabledPackages.clear();

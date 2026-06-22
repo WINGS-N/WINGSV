@@ -393,18 +393,20 @@ public class XrayVpnService extends VpnService implements DialerController {
                 for (String packageName : packages) {
                     builder.addAllowedApplication(packageName);
                 }
+            } else if (mode == AppRoutingMode.BYPASS) {
+                // Plain Bypass: exclude the selected apps at the Android layer.
+                // Simple and native, but a non-excluded app could still escape the
+                // tunnel by binding directly to the underlying interface.
+                for (String packageName : packages) {
+                    builder.addDisallowedApplication(packageName);
+                }
             }
-            // BYPASS mode: deliberately do NOT call addDisallowedApplication.
-            // If we exclude bypass apps from VPN routing at the Android layer,
-            // ConnectivityManager.getConnectionOwnerUid stops reporting them
-            // as VPN-tracked connections (their UID resolves to -1 inside
-            // xray's gVisor TUN UID lookup). With the per-app gating off,
-            // every app's traffic enters the tunnel, xray-core sees the UID,
-            // and the gVisor stack diverts bypass UIDs to the direct/freedom
-            // outbound via the bypass_inbound_tag tagging. The net effect is
-            // identical to Android-level disallow for cooperating apps and,
-            // crucially, also stops apps that bypass by binding directly to
-            // tun (curl --interface tun0).
+            // XBYPASS mode: deliberately do NOT touch the VpnService app list.
+            // Every app's traffic enters the tunnel, xray-core resolves the UID,
+            // and the gVisor stack diverts the selected UIDs to the direct/freedom
+            // outbound via the bypass_inbound_tag tagging (applyTunUidFilter). This
+            // also catches apps that try to bypass by binding directly to tun
+            // (curl --interface tun0), which a plain disallow cannot.
             // OFF mode: packages is empty above, so we never reach here.
         } catch (Exception error) {
             throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);

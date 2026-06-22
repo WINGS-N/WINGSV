@@ -5805,7 +5805,9 @@ public class ProxyTunnelService extends Service {
     }
 
     private Set<Integer> collectRootBypassUids() {
-        if (AppPrefs.getAppRoutingMode(getApplicationContext()) != wings.v.core.AppRoutingMode.BYPASS) {
+        // XBypass is unavailable on kernel WG and degrades to plain bypass here, so
+        // both bypass-family modes collect the same UIDs for the physical default.
+        if (!AppPrefs.getAppRoutingMode(getApplicationContext()).isBypassFamily()) {
             return new LinkedHashSet<>();
         }
         Set<Integer> result = new LinkedHashSet<>();

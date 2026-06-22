@@ -43,10 +43,28 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private final List<AppRoutingEntry> items = new ArrayList<>();
     private final Set<String> enabledPackages = new LinkedHashSet<>();
     private AppRoutingMode mode = AppRoutingMode.BYPASS;
+    private boolean xbypassAvailable;
 
     AppRoutingAdapter(Callback callback) {
         this.callback = callback;
         setHasStableIds(true);
+    }
+
+    void setXbypassAvailable(boolean available) {
+        if (this.xbypassAvailable == available) {
+            return;
+        }
+        this.xbypassAvailable = available;
+        notifyItemChanged(0);
+    }
+
+    // When XBypass is not available for the current backend it is hidden and an
+    // XBYPASS selection is shown as plain Bypass (it degrades to that at runtime).
+    private AppRoutingMode displayMode() {
+        if (!xbypassAvailable && mode == AppRoutingMode.XBYPASS) {
+            return AppRoutingMode.BYPASS;
+        }
+        return mode;
     }
 
     void replaceItems(List<AppRoutingEntry> entries, Set<String> enabled, AppRoutingMode mode) {
@@ -130,13 +148,18 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         void bind() {
             bindModeItem(binding.modeItemOff, AppRoutingMode.OFF);
             bindModeItem(binding.modeItemBypass, AppRoutingMode.BYPASS);
+            bindModeItem(binding.modeItemXbypass, AppRoutingMode.XBYPASS);
             bindModeItem(binding.modeItemWhitelist, AppRoutingMode.WHITELIST);
+            binding.modeItemXbypass.setVisibility(xbypassAvailable ? View.VISIBLE : View.GONE);
 
+            AppRoutingMode shown = displayMode();
             int summaryRes;
-            if (mode == AppRoutingMode.OFF) {
+            if (shown == AppRoutingMode.OFF) {
                 summaryRes = R.string.apps_mode_off_summary;
-            } else if (mode == AppRoutingMode.WHITELIST) {
+            } else if (shown == AppRoutingMode.WHITELIST) {
                 summaryRes = R.string.apps_mode_whitelist_summary;
+            } else if (shown == AppRoutingMode.XBYPASS) {
+                summaryRes = R.string.apps_mode_xbypass_summary;
             } else {
                 summaryRes = R.string.apps_mode_bypass_summary;
             }
@@ -163,7 +186,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
 
         private void bindModeItem(View item, AppRoutingMode value) {
-            item.setSelected(mode == value);
+            item.setSelected(displayMode() == value);
             item.setOnClickListener(view -> {
                 if (callback != null && mode != value) {
                     callback.onModeChanged(value, view);
