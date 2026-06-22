@@ -8,8 +8,10 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -66,6 +68,25 @@ public class SubscriptionsActivity extends AppCompatActivity {
     private boolean refreshingSubscriptions;
     private String refreshingSubscriptionId = "";
     private OnBackPressedCallback selectionBackCallback;
+    private String draggingSubscriptionId;
+    private View draggingRow;
+    private float dragStartRawY;
+    private float lastDragRawY;
+    private int dragStartScrollY;
+    private final Runnable autoScrollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (draggingRow == null || binding == null) {
+                return;
+            }
+            int dy = computeAutoScrollDelta(lastDragRawY);
+            if (dy != 0 && binding.scrollSubscriptions.canScrollVertically(dy > 0 ? 1 : -1)) {
+                binding.scrollSubscriptions.scrollBy(0, dy);
+                applyDragTranslation();
+            }
+            binding.scrollSubscriptions.postOnAnimation(this);
+        }
+    };
 
     public static Intent createIntent(Context context) {
         return new Intent(context, SubscriptionsActivity.class);
@@ -220,7 +241,11 @@ public class SubscriptionsActivity extends AppCompatActivity {
                 beginSelection(subscription.id);
                 return true;
             });
-            binding.containerSubscriptions.addView(rowBinding.getRoot());
+            View itemRoot = rowBinding.getRoot();
+            rowBinding.imageSubscriptionDragHandle.setOnTouchListener((view, event) ->
+                handleSubscriptionDragTouch(subscription.id, itemRoot, view, event)
+            );
+            binding.containerSubscriptions.addView(itemRoot);
             rowViews.put(subscription.id, new SubscriptionRowViews(subscription, rowBinding));
         }
         updateRefreshStateUi();
@@ -483,17 +508,162 @@ public class SubscriptionsActivity extends AppCompatActivity {
     }
 
     private void updateAllRowStates() {
+        boolean draggable = !selectionMode && currentSubscriptions.size() > 1;
         for (SubscriptionRowViews row : rowViews.values()) {
             boolean selected = selectedSubscriptionIds.contains(row.subscription.id);
             row.root.setActivated(selected);
             row.checkbox.setVisibility(selectionMode ? View.VISIBLE : View.GONE);
             row.checkbox.setChecked(selected);
+            row.dragHandle.setVisibility(draggable ? View.VISIBLE : View.GONE);
             row.progress.setVisibility(
                 refreshingSubscriptions && TextUtils.equals(refreshingSubscriptionId, row.subscription.id)
                     ? View.VISIBLE
                     : View.GONE
             );
         }
+    }
+
+    // Drag-to-reorder for the subscriptions list. The list lives inside a
+    // NestedScrollView, so instead of a RecyclerView/ItemTouchHelper (which fights
+    // the nested scroll) the dragged row floats under the finger and snaps to the
+    // dropped position on release. The new order is persisted to XrayStore; the
+    // profiles screen groups by subscription order, so it reorders to match.
+    private boolean handleSubscriptionDragTouch(String id, View itemRoot, View handle, MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                if (selectionMode || currentSubscriptions.size() < 2) {
+                    return false;
+                }
+                startSubscriptionDrag(id, itemRoot, handle, event.getRawY());
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                onSubscriptionDragMove(event.getRawY());
+                return true;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                finishSubscriptionDrag();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void startSubscriptionDrag(String id, View itemRoot, View handle, float rawY) {
+        draggingSubscriptionId = id;
+        draggingRow = itemRoot;
+        dragStartRawY = rawY;
+        lastDragRawY = rawY;
+        dragStartScrollY = binding.scrollSubscriptions.getScrollY();
+        float density = getResources().getDisplayMetrics().density;
+        itemRoot.setTranslationZ(8f * density);
+        itemRoot.setAlpha(0.95f);
+        ViewParent parent = itemRoot.getParent();
+        if (parent != null) {
+            parent.requestDisallowInterceptTouchEvent(true);
+        }
+        Haptics.softSliderStep(handle);
+        binding.scrollSubscriptions.postOnAnimation(autoScrollRunnable);
+    }
+
+    private void onSubscriptionDragMove(float rawY) {
+        lastDragRawY = rawY;
+        applyDragTranslation();
+    }
+
+    // Keeps the floating row under the finger even while the scroll view auto-scrolls:
+    // as the content scrolls, the row's layout slot stays put, so we add the scroll
+    // delta to its translation to track the finger in screen space.
+    private void applyDragTranslation() {
+        if (draggingRow == null || binding == null) {
+            return;
+        }
+        int scrollDelta = binding.scrollSubscriptions.getScrollY() - dragStartScrollY;
+        draggingRow.setTranslationY((lastDragRawY - dragStartRawY) + scrollDelta);
+    }
+
+    // Scroll speed when the finger is held within an edge band of the viewport, so a
+    // row can be dragged past the visible area of a long list. Returns px per frame
+    // (negative = up), 0 when the finger is away from the edges.
+    private int computeAutoScrollDelta(float rawY) {
+        if (binding == null) {
+            return 0;
+        }
+        int[] location = new int[2];
+        binding.scrollSubscriptions.getLocationOnScreen(location);
+        float top = location[1];
+        float bottom = location[1] + binding.scrollSubscriptions.getHeight();
+        float density = getResources().getDisplayMetrics().density;
+        float zone = 72f * density;
+        float maxStep = 18f * density;
+        if (rawY < top + zone) {
+            float fraction = Math.min(1f, (top + zone - rawY) / zone);
+            return -Math.max(1, (int) (fraction * maxStep));
+        }
+        if (rawY > bottom - zone) {
+            float fraction = Math.min(1f, (rawY - (bottom - zone)) / zone);
+            return Math.max(1, (int) (fraction * maxStep));
+        }
+        return 0;
+    }
+
+    private void finishSubscriptionDrag() {
+        View row = draggingRow;
+        String id = draggingSubscriptionId;
+        draggingRow = null;
+        draggingSubscriptionId = null;
+        if (binding != null) {
+            binding.scrollSubscriptions.removeCallbacks(autoScrollRunnable);
+        }
+        if (row == null) {
+            return;
+        }
+        float floatCenter = row.getTop() + row.getTranslationY() + row.getHeight() / 2f;
+        row.setTranslationY(0f);
+        row.setTranslationZ(0f);
+        row.setAlpha(1f);
+        reorderSubscriptionTo(id, floatCenter);
+    }
+
+    private void reorderSubscriptionTo(String id, float floatCenter) {
+        if (binding == null) {
+            return;
+        }
+        int oldIndex = indexOfSubscription(id);
+        if (oldIndex < 0 || oldIndex >= currentSubscriptions.size()) {
+            return;
+        }
+        int count = binding.containerSubscriptions.getChildCount();
+        int targetIndex = 0;
+        for (int k = 0; k < count; k++) {
+            if (k == oldIndex) {
+                continue;
+            }
+            View child = binding.containerSubscriptions.getChildAt(k);
+            float centerK = child.getTop() + child.getHeight() / 2f;
+            if (centerK < floatCenter) {
+                targetIndex++;
+            }
+        }
+        if (targetIndex == oldIndex) {
+            return;
+        }
+        ArrayList<XraySubscription> newOrder = new ArrayList<>(currentSubscriptions);
+        XraySubscription moved = newOrder.remove(oldIndex);
+        targetIndex = Math.max(0, Math.min(targetIndex, newOrder.size()));
+        newOrder.add(targetIndex, moved);
+        Haptics.softConfirm(binding.containerSubscriptions);
+        XrayStore.setSubscriptions(this, newOrder);
+        refreshUi();
+    }
+
+    private int indexOfSubscription(String id) {
+        for (int index = 0; index < currentSubscriptions.size(); index++) {
+            XraySubscription subscription = currentSubscriptions.get(index);
+            if (subscription != null && TextUtils.equals(subscription.id, id)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private void pruneSelection(List<XraySubscription> subscriptions) {
@@ -566,12 +736,14 @@ public class SubscriptionsActivity extends AppCompatActivity {
         final View root;
         final AppCompatCheckBox checkbox;
         final View progress;
+        final View dragHandle;
 
         SubscriptionRowViews(XraySubscription subscription, ItemSubscriptionEntryBinding binding) {
             this.subscription = subscription;
             this.root = binding.rowSubscriptionEntry;
             this.checkbox = binding.checkboxSubscriptionSelected;
             this.progress = binding.progressSubscriptionRefresh;
+            this.dragHandle = binding.imageSubscriptionDragHandle;
         }
     }
 

@@ -69,6 +69,15 @@
                     android:layout_gravity="center"
                     android:visibility="gone" />
             </FrameLayout>
+
+            <ImageView
+                android:id="@+id/image_subscription_drag_handle"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="8dp"
+                android:contentDescription="@string/ui_drag_handle"
+                android:padding="4dp"
+                android:src="@drawable/ic_drag_handle" />
         </LinearLayout>
     </FrameLayout>
 
