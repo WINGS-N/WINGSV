@@ -284,6 +284,10 @@ public class ProxyTunnelService extends Service {
     private static final String ROOT_TETHER_FORWARD_CHAIN = "wingsv_t_fwd";
     private static final String ROOT_TETHER_NAT_CHAIN = "wingsv_t_nat";
     private static final String ROOT_TETHER_DNS_CHAIN = "wingsv_t_dns";
+    // mangle chain that re-marks bypassed apps' packets with the underlying cellular
+    // netId fwmark, so they egress the physical default like the protected tunnel
+    // socket instead of being dropped for carrying the WG netId mark on cellular.
+    private static final String ROOT_BYPASS_MARK_CHAIN = "wingsv_bypass_mark";
     private static final String ROOT_TETHER_IPV6_CHAIN = "wingsv_t6_fwd";
     private static final String TAG = "WINGSV";
     private static final Pattern ACTIVE_TETHER_DUMPSYS_PATTERN = Pattern.compile(
@@ -5885,7 +5889,118 @@ public class ProxyTunnelService extends Service {
             priority++;
         }
 
+        appendBypassNetworkMarkCommands(script, routingState);
+
         runRootRoutingCommand(script.toString());
+    }
+
+    // Re-marks bypassed apps' egress packets with the underlying cellular netId
+    // fwmark. Without this the packets carry the WG netId mark and the cellular
+    // uplink drops them, so the route in ROOT_UPSTREAM_TABLE alone is not enough -
+    // they must look like the protected tunnel socket to leave by the physical
+    // default. No-op when the underlying mark cannot be resolved (keeps the old
+    // route-only behavior as a safe fallback).
+    private void appendBypassNetworkMarkCommands(StringBuilder script, RootRoutingState routingState) {
+        if (routingState == null || routingState.bypassUids.isEmpty()) {
+            return;
+        }
+        String iface = extractRouteInterface(routingState.ipv4Routes);
+        String mark = resolveUnderlyingNetworkMark(iface);
+        if (mark == null) {
+            appendRuntimeLogLine("Bypass mark: could not resolve underlying netId for " + iface + ", route-only");
+            return;
+        }
+        appendRuntimeLogLine("Bypass mark: re-marking bypass apps with " + mark + " (" + iface + ")");
+        for (String tool : new String[] { "iptables", "ip6tables" }) {
+            script
+                .append(tool)
+                .append(" -w -t mangle -N ")
+                .append(ROOT_BYPASS_MARK_CHAIN)
+                .append(" 2>/dev/null || true;");
+            script.append(tool).append(" -w -t mangle -F ").append(ROOT_BYPASS_MARK_CHAIN).append(" || true;");
+            for (Integer uid : routingState.bypassUids) {
+                if (uid == null || uid < 0) {
+                    continue;
+                }
+                script
+                    .append(tool)
+                    .append(" -w -t mangle -A ")
+                    .append(ROOT_BYPASS_MARK_CHAIN)
+                    .append(" -m owner --uid-owner ")
+                    .append(uid)
+                    .append(" -j MARK --set-xmark ")
+                    .append(mark)
+                    .append(" || true;");
+            }
+            script
+                .append(tool)
+                .append(" -w -t mangle -D OUTPUT -j ")
+                .append(ROOT_BYPASS_MARK_CHAIN)
+                .append(" 2>/dev/null || true;");
+            script
+                .append(tool)
+                .append(" -w -t mangle -A OUTPUT -j ")
+                .append(ROOT_BYPASS_MARK_CHAIN)
+                .append(" || true;");
+        }
+    }
+
+    // Pulls the interface name out of a sanitized default route line ("... dev X ...").
+    private static String extractRouteInterface(List<String> routes) {
+        if (routes == null) {
+            return null;
+        }
+        for (String route : routes) {
+            if (route == null) {
+                continue;
+            }
+            int idx = route.indexOf(" dev ");
+            if (idx < 0) {
+                continue;
+            }
+            String rest = route.substring(idx + 5).trim();
+            int space = rest.indexOf(' ');
+            String iface = space < 0 ? rest : rest.substring(0, space);
+            if (!iface.isEmpty()) {
+                return iface;
+            }
+        }
+        return null;
+    }
+
+    // Reads the underlying network's netId fwmark (e.g. "0x10076/0x1ffff") from the
+    // ip rule that routes that physical interface, so we can stamp bypass packets
+    // with it. Prefers the generic "iif lo" selector over uid-scoped rules.
+    private String resolveUnderlyingNetworkMark(String iface) {
+        if (TextUtils.isEmpty(iface)) {
+            return null;
+        }
+        String fallback = null;
+        try {
+            String output = execRootCommandCapturing("ip rule show", 5_000L);
+            if (output == null) {
+                return null;
+            }
+            for (String line : output.split("\n")) {
+                if (!line.contains("lookup " + iface) || !line.contains("fwmark ")) {
+                    continue;
+                }
+                int markIdx = line.indexOf("fwmark ") + "fwmark ".length();
+                String token = line.substring(markIdx).trim();
+                int space = token.indexOf(' ');
+                String mark = space < 0 ? token : token.substring(0, space);
+                if (!mark.contains("/")) {
+                    continue;
+                }
+                if (!line.contains("uidrange")) {
+                    return mark;
+                }
+                if (fallback == null) {
+                    fallback = mark;
+                }
+            }
+        } catch (Exception ignored) {}
+        return fallback;
     }
 
     private void clearRootRouting() {
@@ -5923,6 +6038,23 @@ public class ProxyTunnelService extends Service {
             .append("ip rule del iif lo uidrange 0-0 lookup 97 priority ")
             .append(ROOT_DHCP_WORKAROUND_PRIORITY)
             .append(" || true;");
+        for (String tool : new String[] { "iptables", "ip6tables" }) {
+            script
+                .append(tool)
+                .append(" -w -t mangle -D OUTPUT -j ")
+                .append(ROOT_BYPASS_MARK_CHAIN)
+                .append(" 2>/dev/null || true;");
+            script
+                .append(tool)
+                .append(" -w -t mangle -F ")
+                .append(ROOT_BYPASS_MARK_CHAIN)
+                .append(" 2>/dev/null || true;");
+            script
+                .append(tool)
+                .append(" -w -t mangle -X ")
+                .append(ROOT_BYPASS_MARK_CHAIN)
+                .append(" 2>/dev/null || true;");
+        }
     }
 
     private void syncRootAppTunnelRouting() {
