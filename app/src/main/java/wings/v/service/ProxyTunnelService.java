@@ -8412,9 +8412,11 @@ public class ProxyTunnelService extends Service {
                 UiFormatter.formatDurationShort(captchaLockoutRemainingMs)
             );
         }
-        if (sServiceState != ServiceState.RUNNING) {
-            // На любом не-RUNNING состоянии секции трафика/потоков скрываем,
-            // даже если пользователь их включил - значения не репрезентативны.
+        if (sServiceState != ServiceState.RUNNING && sServiceState != ServiceState.CONNECTING) {
+            // STOPPING/STOPPED: показываем только слово статуса, остальные
+            // секции не репрезентативны. На CONNECTING строим полный композит
+            // по пользовательской раскладке, чтобы в уведомлении была настроенная
+            // строка статуса, а не голое "Подключение...".
             return status;
         }
         java.util.List<String> order = wings.v.core.UiPrefs.getNotificationOrder(this);
