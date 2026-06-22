@@ -45,6 +45,8 @@ public final class RuntimeStateStore {
     private static final String KEY_RUNTIME_LOG_VERSION = "runtime_log_version";
     private static final String KEY_PROXY_LOG_VERSION = "proxy_log_version";
     private static final String KEY_PROTECT_SOCKET_NAME = "protect_socket_name";
+    private static final String KEY_CONNECTED_STREAMS = "connected_streams";
+    private static final String KEY_CONNECTING_STAGE = "connecting_stage";
 
     private static volatile Context appContext;
     private static volatile Snapshot cachedSnapshot;
@@ -88,7 +90,9 @@ public final class RuntimeStateStore {
                 readLong(properties, KEY_CAPTCHA_LOCKOUT_UNTIL),
                 readLong(properties, KEY_RUNTIME_LOG_VERSION),
                 readLong(properties, KEY_PROXY_LOG_VERSION),
-                emptyToNull(properties.getProperty(KEY_PROTECT_SOCKET_NAME))
+                emptyToNull(properties.getProperty(KEY_PROTECT_SOCKET_NAME)),
+                (int) readLong(properties, KEY_CONNECTED_STREAMS),
+                emptyToNull(properties.getProperty(KEY_CONNECTING_STAGE))
             );
             cachedSnapshot = snapshot;
             cachedSnapshotAtElapsedMs = now;
@@ -151,6 +155,13 @@ public final class RuntimeStateStore {
         updateProperties(properties -> setNullable(properties, KEY_PROTECT_SOCKET_NAME, socketName));
     }
 
+    static void writeStreamProgress(int connectedStreams, @Nullable String connectingStage) {
+        updateProperties(properties -> {
+            properties.setProperty(KEY_CONNECTED_STREAMS, String.valueOf(Math.max(0, connectedStreams)));
+            setNullable(properties, KEY_CONNECTING_STAGE, connectingStage);
+        });
+    }
+
     @Nullable
     static String readProtectSocketName() {
         return readSnapshot().protectSocketName;
@@ -174,6 +185,8 @@ public final class RuntimeStateStore {
             properties.setProperty(KEY_PUBLIC_IP_REFRESHING, "false");
             properties.setProperty(KEY_CAPTCHA_LOCKOUT_UNTIL, "0");
             properties.remove(KEY_PROTECT_SOCKET_NAME);
+            properties.setProperty(KEY_CONNECTED_STREAMS, "0");
+            properties.remove(KEY_CONNECTING_STAGE);
         });
     }
 
@@ -394,6 +407,8 @@ public final class RuntimeStateStore {
         final long runtimeLogVersion;
         final long proxyLogVersion;
         final String protectSocketName;
+        final int connectedStreams;
+        final String connectingStage;
 
         Snapshot(
             String state,
@@ -413,7 +428,9 @@ public final class RuntimeStateStore {
             long captchaLockoutUntilElapsedMs,
             long runtimeLogVersion,
             long proxyLogVersion,
-            String protectSocketName
+            String protectSocketName,
+            int connectedStreams,
+            String connectingStage
         ) {
             this.state = state;
             this.backendType = backendType;
@@ -433,6 +450,8 @@ public final class RuntimeStateStore {
             this.runtimeLogVersion = runtimeLogVersion;
             this.proxyLogVersion = proxyLogVersion;
             this.protectSocketName = protectSocketName;
+            this.connectedStreams = connectedStreams;
+            this.connectingStage = connectingStage;
         }
     }
 }

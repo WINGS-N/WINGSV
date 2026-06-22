@@ -84,11 +84,17 @@
     <string name="status_granted">Permission granted</string>
     <string name="status_missing">Permission not granted</string>
     <string name="service_on">Connected</string>
+    <string name="service_on_streams">Connected (%1$d/%2$d)</string>
     <string name="service_off">Disconnected</string>
     <string name="service_disconnect_action">Disconnect</string>
     <string name="service_notification_traffic_summary">%1$s · %2$s · %3$s</string>
     <string name="service_notification_lockout_summary">%1$s · waiting for captcha %2$s</string>
     <string name="service_connecting">Connecting…</string>
+    <string name="service_connecting_streams">Connecting (%1$d/%2$d)…</string>
+    <string name="service_connecting_stage">Connecting (%1$s)…</string>
+    <string name="connect_stage_captcha">captcha</string>
+    <string name="connect_stage_auth">TURN auth</string>
+    <string name="connect_stage_turn">TURN</string>
     <string name="service_stopping">Stopping…</string>
     <string name="service_stopping_xray">Stopping Xray…</string>
     <string name="service_stopping_vk_turn">Stopping vk-turn-proxy…</string>

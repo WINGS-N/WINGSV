@@ -180,7 +180,18 @@ public class HomeFragment extends Fragment {
         }
 
         if (connecting) {
-            setTextIfChanged(binding.textServiceState, getString(R.string.service_connecting));
+            int connectedStreams = vkTurnFillingStreams(settings, visibleBackendType);
+            String connectingText;
+            if (connectedStreams >= 0) {
+                Integer stageLabelRes = connectStageLabelRes(ProxyTunnelService.getConnectingStage());
+                connectingText =
+                    stageLabelRes != null
+                        ? getString(R.string.service_connecting_stage, getString(stageLabelRes))
+                        : getString(R.string.service_connecting_streams, connectedStreams, settings.threads);
+            } else {
+                connectingText = getString(R.string.service_connecting);
+            }
+            setTextIfChanged(binding.textServiceState, connectingText);
             long captchaLockoutRemainingMs = ProxyTunnelService.getProxyCaptchaLockoutRemainingMs();
             if (captchaLockoutRemainingMs > NO_DURATION_MS) {
                 setTextIfChanged(
@@ -204,7 +215,21 @@ public class HomeFragment extends Fragment {
             );
             setTextIfChanged(binding.textServiceHint, getString(R.string.service_stopping_hint));
         } else {
-            setTextIfChanged(binding.textServiceState, getString(running ? R.string.service_on : R.string.service_off));
+            String stateText;
+            if (running) {
+                // VK TURN brings the tunnel up after the first stream and keeps
+                // establishing the rest in the background. Keep showing the
+                // counter while streams are still filling (or one drops), so the
+                // progress is visible instead of jumping straight to "connected".
+                int connectedStreams = vkTurnFillingStreams(settings, visibleBackendType);
+                stateText =
+                    connectedStreams >= 0 && connectedStreams < settings.threads
+                        ? getString(R.string.service_on_streams, connectedStreams, settings.threads)
+                        : getString(R.string.service_on);
+            } else {
+                stateText = getString(R.string.service_off);
+            }
+            setTextIfChanged(binding.textServiceState, stateText);
             setTextIfChanged(
                 binding.textServiceHint,
                 getString(running ? R.string.tap_to_disconnect : R.string.tap_to_connect)
@@ -348,6 +373,36 @@ public class HomeFragment extends Fragment {
         lastRuntimeNoticeError = null;
         lastPowerGlowConnected = false;
         lastPowerGlowBytesPerSecond = Long.MIN_VALUE;
+    }
+
+    // Maps a connecting sub-stage token from the service to its label resource,
+    // or null when streams are already establishing (show the count instead).
+    private Integer connectStageLabelRes(String stage) {
+        if ("captcha".equals(stage)) {
+            return R.string.connect_stage_captcha;
+        }
+        if ("auth".equals(stage)) {
+            return R.string.connect_stage_auth;
+        }
+        if ("turn".equals(stage)) {
+            return R.string.connect_stage_turn;
+        }
+        return null;
+    }
+
+    // Returns the clamped count of connected VK TURN streams to show next to the
+    // status, or -1 when the active backend is not a VK TURN stream backend.
+    private int vkTurnFillingStreams(ProxySettings settings, BackendType backend) {
+        if (
+            settings == null ||
+            backend == null ||
+            !backend.usesTurnProxy() ||
+            backend.isWbStreamBackend() ||
+            settings.threads <= 0
+        ) {
+            return -1;
+        }
+        return Math.min(ProxyTunnelService.getProxyConnectedStreams(), settings.threads);
     }
 
     private String resolveConnectionSummary(ProxySettings settings) {

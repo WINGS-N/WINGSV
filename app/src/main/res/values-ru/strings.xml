@@ -84,11 +84,17 @@
     <string name="status_granted">Разрешение выдано</string>
     <string name="status_missing">Разрешение не выдано</string>
     <string name="service_on">Подключено</string>
+    <string name="service_on_streams">Подключено (%1$d/%2$d)</string>
     <string name="service_off">Отключено</string>
     <string name="service_disconnect_action">Отключить</string>
     <string name="service_notification_traffic_summary">%1$s · %2$s · %3$s</string>
     <string name="service_notification_lockout_summary">%1$s · ожидание капчи %2$s</string>
     <string name="service_connecting">Подключение…</string>
+    <string name="service_connecting_streams">Подключение (%1$d/%2$d)…</string>
+    <string name="service_connecting_stage">Подключение (%1$s)…</string>
+    <string name="connect_stage_captcha">капча</string>
+    <string name="connect_stage_auth">TURN auth</string>
+    <string name="connect_stage_turn">TURN</string>
     <string name="service_stopping">Остановка…</string>
     <string name="service_stopping_xray">Останавливаем Xray…</string>
     <string name="service_stopping_vk_turn">Останавливаем vk-turn-proxy…</string>

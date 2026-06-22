@@ -191,6 +191,7 @@ public class ProxyTunnelService extends Service {
     private static final String CAPTCHA_STATE_PENDING = "pending";
     private static final String CAPTCHA_STATE_REQUIRED = "required";
     private static final String CAPTCHA_STATE_SOLVED = "solved";
+    private static final String CAPTCHA_STATE_SOLVING = "solving";
     public static final String ACTION_START = "wings.v.action.START";
     public static final String ACTION_STOP = "wings.v.action.STOP";
     public static final String ACTION_REFRESH_IP = "wings.v.action.REFRESH_IP";
@@ -499,9 +500,19 @@ public class ProxyTunnelService extends Service {
     private volatile boolean proxyWarmupTurnReady;
     private volatile boolean proxyWarmupDtlsReady;
     private volatile boolean proxyWarmupAuthReady;
+    private volatile boolean proxyCaptchaInProgress;
     private volatile boolean procNetDevAccessDenied;
     private long lastProxyStartedAtElapsedMs;
     private volatile long lastProxyDtlsActivityAtElapsedMs;
+    // Number of VK TURN streams currently connected, reported by vktp telemetry.
+    // Shown on the home screen during connecting (connected/total threads).
+    private static volatile int sProxyConnectedStreams;
+    // Current connecting sub-stage shown next to the status (captcha / TURN auth /
+    // TURN before streams start filling). Empty once streams are establishing.
+    private static volatile String sConnectingStage = "";
+    static final String CONNECT_STAGE_CAPTCHA = "captcha";
+    static final String CONNECT_STAGE_AUTH = "auth";
+    static final String CONNECT_STAGE_TURN = "turn";
     private final AtomicBoolean wakeFastPathCheckQueued = new AtomicBoolean();
     private final AtomicBoolean xrayTproxyReapplyQueued = new AtomicBoolean();
 
@@ -996,6 +1007,45 @@ public class ProxyTunnelService extends Service {
             return RuntimeStateStore.readSnapshot().txBytesPerSecond;
         }
         return sTxBytesPerSecond;
+    }
+
+    public static int getProxyConnectedStreams() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().connectedStreams;
+        }
+        return sProxyConnectedStreams;
+    }
+
+    public static String getConnectingStage() {
+        if (!hasLocalService()) {
+            String stage = RuntimeStateStore.readSnapshot().connectingStage;
+            return stage != null ? stage : "";
+        }
+        return sConnectingStage;
+    }
+
+    private String computeConnectingStage() {
+        if (sServiceState != ServiceState.CONNECTING) {
+            return "";
+        }
+        if (
+            proxyCaptchaInProgress || !TextUtils.isEmpty(sPendingCaptchaUrl) || getProxyCaptchaLockoutRemainingMs() > 0L
+        ) {
+            return CONNECT_STAGE_CAPTCHA;
+        }
+        if (!proxyWarmupAuthReady) {
+            return CONNECT_STAGE_AUTH;
+        }
+        if (sProxyConnectedStreams <= 0) {
+            return CONNECT_STAGE_TURN;
+        }
+        return "";
+    }
+
+    private void persistConnectProgress() {
+        String stage = computeConnectingStage();
+        sConnectingStage = stage;
+        RuntimeStateStore.writeStreamProgress(sProxyConnectedStreams, stage);
     }
 
     public static String getPublicIp() {
@@ -3671,6 +3721,9 @@ public class ProxyTunnelService extends Service {
         proxyWarmupTurnReady = false;
         proxyWarmupDtlsReady = false;
         proxyWarmupAuthReady = false;
+        proxyCaptchaInProgress = false;
+        sProxyConnectedStreams = 0;
+        sConnectingStage = "";
     }
 
     private static void setPublicIpRefreshInProgress(boolean refreshing) {
@@ -3700,6 +3753,8 @@ public class ProxyTunnelService extends Service {
 
     private void noteProxyAuthReady() {
         proxyWarmupAuthReady = true;
+        proxyCaptchaInProgress = false;
+        persistConnectProgress();
         updateNotification();
     }
 
@@ -4310,6 +4365,7 @@ public class ProxyTunnelService extends Service {
         }
         if (PROXY_STATUS_TURN_READY.equals(marker)) {
             proxyWarmupTurnReady = true;
+            persistConnectProgress();
             updateNotification();
             return;
         }
@@ -4336,6 +4392,7 @@ public class ProxyTunnelService extends Service {
             markProxyDtlsActivity();
             clearProxyCaptchaLockoutState();
             clearLastError();
+            persistConnectProgress();
             updateNotification();
         }
     }
@@ -4368,6 +4425,13 @@ public class ProxyTunnelService extends Service {
             }
             if (PROXY_EVENT_CAPTCHA.equals(type)) {
                 String state = event.optString("state", "").trim().toLowerCase(Locale.US);
+                if (CAPTCHA_STATE_SOLVING.equals(state)) {
+                    // Auto-captcha solved by the proxy with no user interaction -
+                    // surface it as the captcha connect stage without any UI.
+                    proxyCaptchaInProgress = true;
+                    persistConnectProgress();
+                    return;
+                }
                 if (CAPTCHA_STATE_REQUIRED.equals(state) || CAPTCHA_STATE_PENDING.equals(state)) {
                     String url = trimToNull(event.optString("url", null));
                     if (url == null) {
@@ -4399,6 +4463,13 @@ public class ProxyTunnelService extends Service {
         }
         long connectedStreams = Math.max(0L, event.optLong("connectedStreams", 0L));
         long activeStreams = Math.max(0L, event.optLong("activeStreams", 0L));
+        sProxyConnectedStreams = (int) connectedStreams;
+        persistConnectProgress();
+        if (sServiceState == ServiceState.CONNECTING || sServiceState == ServiceState.RUNNING) {
+            // Refresh the notification so its stream counter (e.g. "2/12T") ticks
+            // up as streams connect - they keep filling after the tunnel is up.
+            updateNotification();
+        }
         if (connectedStreams > 0L || activeStreams > 0L) {
             markProxyDtlsActivity();
         }
@@ -4463,6 +4534,8 @@ public class ProxyTunnelService extends Service {
         if (prompt == null) {
             return;
         }
+        proxyCaptchaInProgress = true;
+        persistConnectProgress();
         if (!pending) {
             clearPendingCaptchaPrompt(getApplicationContext());
         }
@@ -4500,11 +4573,13 @@ public class ProxyTunnelService extends Service {
             return;
         }
         clearPendingCaptchaPrompt(getApplicationContext());
+        proxyCaptchaInProgress = false;
         if (CAPTCHA_STATE_SOLVED.equals(state)) {
             clearProxyCaptchaLockoutState();
             clearLastError();
-            updateNotification();
         }
+        persistConnectProgress();
+        updateNotification();
     }
 
     private @Nullable CaptchaPrompt parseCaptchaPrompt(String payload, CaptchaPromptSource defaultSource) {
@@ -8567,6 +8642,12 @@ public class ProxyTunnelService extends Service {
             if (threads <= 0) {
                 return "";
             }
+            // Show progress (connected/total) while streams are still filling or
+            // one dropped, e.g. "2/12T"; once all are up just the total, "12T".
+            int connected = Math.max(0, Math.min(sProxyConnectedStreams, threads));
+            if (connected < threads) {
+                return connected + "/" + threads + "T";
+            }
             return threads + "T";
         }
         if (wings.v.core.UiPrefs.NOTIF_DTLS_HEARTBEAT.equals(key)) {
@@ -8614,6 +8695,7 @@ public class ProxyTunnelService extends Service {
         syncTunnelNetworkObservers(state != ServiceState.STOPPED);
         syncTunnelNetworkLocks();
         ActiveProbingBackgroundScheduler.refresh(getApplicationContext());
+        persistConnectProgress();
         updateNotification();
         QuickSettingsTiles.requestRefresh(getApplicationContext());
     }
