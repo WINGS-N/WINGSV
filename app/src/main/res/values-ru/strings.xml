@@ -959,7 +959,9 @@
     <string name="captcha_notification_open">Открыть</string>
     <string name="settings_theme_title">Тема</string>
     <string name="settings_ui_title">Настройки UI</string>
-    <string name="settings_ui_summary">Порядок вкладок навбара и содержимое уведомления</string>
+    <string name="settings_ui_summary">Тема, навбар и уведомления</string>
+    <string name="settings_hide_ip_title">Скрывать IP адрес</string>
+    <string name="settings_hide_ip_summary">Маскировать IP адреса в интерфейсе. Реальное значение видно в поле ввода при открытии настройки на редактирование.</string>
     <string name="ui_settings_navbar_title">Нижний навбар</string>
     <string name="ui_settings_navbar_summary">Меняйте порядок вкладок и скрывайте лишние. Главная и Настройки остаются всегда.</string>
     <string name="ui_settings_notification_title">Уведомление о подключении</string>

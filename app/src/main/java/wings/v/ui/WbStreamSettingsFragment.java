@@ -64,6 +64,7 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         setPreferencesFromResource(R.xml.wb_stream_preferences, rootKey);
+        installIpMaskSummaries();
 
         EditTextPreference roomId = findPreference(AppPrefs.KEY_WB_STREAM_ROOM_ID);
         if (roomId != null) {
@@ -172,6 +173,32 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
     public void onPause() {
         super.onPause();
         getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(listener);
+    }
+
+    // Маскирует IP в summary endpoint/адресных полей при включённом тоггле
+    // "Скрывать IP адрес". DNS-поля не трогаем. Поле ввода показывает реальное.
+    private void installIpMaskSummaries() {
+        String[] ipKeys = {
+            AppPrefs.KEY_ENDPOINT,
+            AppPrefs.KEY_LOCAL_ENDPOINT,
+            AppPrefs.KEY_TURN_HOST,
+            AppPrefs.KEY_WG_ADDRESSES,
+            AppPrefs.KEY_WG_ALLOWED_IPS,
+        };
+        EditTextPreference.SimpleSummaryProvider simple = EditTextPreference.SimpleSummaryProvider.getInstance();
+        for (String key : ipKeys) {
+            EditTextPreference preference = findPreference(key);
+            if (preference == null) {
+                continue;
+            }
+            preference.setSummaryProvider(pref -> {
+                String value = ((EditTextPreference) pref).getText();
+                if (value == null || value.isEmpty()) {
+                    return simple.provideSummary((EditTextPreference) pref);
+                }
+                return wings.v.core.IpMask.apply(requireContext(), value);
+            });
+        }
     }
 
     private void applyVisibility() {

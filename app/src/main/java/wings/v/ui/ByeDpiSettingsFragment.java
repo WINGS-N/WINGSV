@@ -193,7 +193,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         bindNumeric(ByeDpiStore.KEY_PROXYTEST_LIMIT, false, R.string.proxytest_limit_desc);
         bindNumeric(ByeDpiStore.KEY_PROXYTEST_TIMEOUT, false, R.string.proxytest_timeout_desc);
 
-        bindSummary(ByeDpiStore.KEY_PROXY_IP, false);
+        bindSummary(ByeDpiStore.KEY_PROXY_IP, false, true);
         bindSummary(ByeDpiStore.KEY_PROXY_USERNAME, false);
         bindSummary(ByeDpiStore.KEY_PROXY_PASSWORD, false);
         bindSummary(ByeDpiStore.KEY_HOSTS_BLACKLIST, true);
@@ -270,6 +270,10 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void bindSummary(String key, boolean multiline) {
+        bindSummary(key, multiline, false);
+    }
+
+    private void bindSummary(String key, boolean multiline, boolean maskIp) {
         EditTextPreference preference = findPreference(key);
         if (preference == null) {
             return;
@@ -304,7 +308,10 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         });
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? getString(R.string.byedpi_value_not_set) : value;
+            if (TextUtils.isEmpty(value)) {
+                return getString(R.string.byedpi_value_not_set);
+            }
+            return maskIp ? wings.v.core.IpMask.apply(requireContext(), value) : value;
         });
     }
 

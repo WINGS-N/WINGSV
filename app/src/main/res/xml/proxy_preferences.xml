@@ -113,11 +113,6 @@
         android:title="Система" />
 
     <Preference
-        android:key="pref_theme_mode"
-        android:title="@string/settings_theme_title"
-        android:summary="@string/theme_mode_system" />
-
-    <Preference
         android:key="pref_open_ui_settings"
         android:title="@string/settings_ui_title"
         android:summary="@string/settings_ui_summary" />

@@ -102,11 +102,11 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME);
         bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_PASSWORD);
         bindNumeric(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT);
-        bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS);
+        bindSummary(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, true);
         bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_USERNAME);
         bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD);
         bindNumeric(AppPrefs.KEY_XRAY_HTTP_PROXY_PORT);
-        bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS);
+        bindSummary(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, true);
         syncFromStore();
     }
 
@@ -178,6 +178,10 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void bindSummary(String key) {
+        bindSummary(key, false);
+    }
+
+    private void bindSummary(String key, boolean maskIp) {
         EditTextPreference preference = findPreference(key);
         if (preference == null) {
             return;
@@ -203,7 +207,10 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         });
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
-            return TextUtils.isEmpty(value) ? getString(R.string.sharing_value_auto) : value;
+            if (TextUtils.isEmpty(value)) {
+                return getString(R.string.sharing_value_auto);
+            }
+            return maskIp ? wings.v.core.IpMask.apply(requireContext(), value) : value;
         });
     }
 

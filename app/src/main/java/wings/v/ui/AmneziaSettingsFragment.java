@@ -73,7 +73,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
 
         bindSummary(AppPrefs.KEY_AWG_QUICK_CONFIG, true);
         bindSummary(AmneziaStore.KEY_INTERFACE_PRIVATE_KEY, false);
-        bindSummary(AmneziaStore.KEY_INTERFACE_ADDRESSES, true);
+        bindIpSummary(AmneziaStore.KEY_INTERFACE_ADDRESSES, true);
         bindSummary(AmneziaStore.KEY_INTERFACE_DNS, true);
         bindSummary(AmneziaStore.KEY_INTERFACE_LISTEN_PORT, false);
         bindSummary(AmneziaStore.KEY_INTERFACE_MTU, false);
@@ -95,8 +95,8 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
         bindSummary(AmneziaStore.KEY_INTERFACE_I5, false);
         bindSummary(AmneziaStore.KEY_PEER_PUBLIC_KEY, false);
         bindSummary(AmneziaStore.KEY_PEER_PRESHARED_KEY, false);
-        bindSummary(AmneziaStore.KEY_PEER_ALLOWED_IPS, true);
-        bindSummary(AmneziaStore.KEY_PEER_ENDPOINT, false);
+        bindIpSummary(AmneziaStore.KEY_PEER_ALLOWED_IPS, true);
+        bindIpSummary(AmneziaStore.KEY_PEER_ENDPOINT, false);
         bindSummary(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE, false);
 
         syncFromPrefs();
@@ -209,6 +209,30 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             return TextUtils.isEmpty(value) ? getString(R.string.awg_settings_value_not_set) : value;
+        });
+    }
+
+    // Как bindSummary, но маскирует IP в summary при включённом тоггле
+    // "Скрывать IP адрес". Поле ввода в диалоге показывает реальное значение.
+    private void bindIpSummary(String key, boolean multiline) {
+        EditTextPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        if (multiline) {
+            preference.setOnBindEditTextListener(editText ->
+                editText.setInputType(
+                    InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_FLAG_MULTI_LINE |
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                )
+            );
+        }
+        preference.setSummaryProvider(pref -> {
+            String value = ((EditTextPreference) pref).getText();
+            return TextUtils.isEmpty(value)
+                ? getString(R.string.awg_settings_value_not_set)
+                : wings.v.core.IpMask.apply(requireContext(), value);
         });
     }
 

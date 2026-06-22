@@ -245,7 +245,10 @@ public class HomeFragment extends Fragment {
         updatePowerGlow(running, rxBytesPerSecond + txBytesPerSecond);
 
         String ip = firstNonEmpty(ProxyTunnelService.getPublicIp(), fallbackIpInfo != null ? fallbackIpInfo.ip : null);
-        setTextIfChanged(binding.textIp, TextUtils.isEmpty(ip) ? getString(R.string.ip_loading) : ip);
+        setTextIfChanged(
+            binding.textIp,
+            TextUtils.isEmpty(ip) ? getString(R.string.ip_loading) : wings.v.core.IpMask.apply(context, ip)
+        );
 
         String country = firstNonEmpty(
             ProxyTunnelService.getPublicCountry(),
@@ -268,7 +271,7 @@ public class HomeFragment extends Fragment {
         syncIpRefreshAnimation();
 
         String summary = resolveConnectionSummary(settings);
-        setTextIfChanged(binding.textConnectionSummary, summary);
+        setTextIfChanged(binding.textConnectionSummary, wings.v.core.IpMask.apply(context, summary));
     }
 
     private void applyServiceStateStyle(int backgroundResId, int textColor) {

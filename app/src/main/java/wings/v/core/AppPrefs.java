@@ -146,6 +146,7 @@ public final class AppPrefs {
     public static final String KEY_UI_NAVBAR_HIDDEN = "pref_ui_navbar_hidden";
     public static final String KEY_UI_NOTIFICATION_ORDER = "pref_ui_notification_order";
     public static final String KEY_UI_NOTIFICATION_HIDDEN = "pref_ui_notification_hidden";
+    public static final String KEY_UI_HIDE_IP_ADDRESS = "pref_ui_hide_ip_address";
     public static final String KEY_SUBSCRIPTION_HWID_ENABLED = "pref_subscription_hwid_enabled";
     public static final String KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED = "pref_subscription_hwid_manual_enabled";
     public static final String KEY_SUBSCRIPTION_HWID_VALUE = "pref_subscription_hwid_value";
@@ -259,6 +260,14 @@ public final class AppPrefs {
 
     public static boolean isOnboardingSeen(Context context) {
         return prefs(context).getBoolean(KEY_ONBOARDING_SEEN, false);
+    }
+
+    public static boolean isHideIpEnabled(Context context) {
+        return prefs(context).getBoolean(KEY_UI_HIDE_IP_ADDRESS, false);
+    }
+
+    public static void setHideIpEnabled(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_UI_HIDE_IP_ADDRESS, enabled).apply();
     }
 
     public static boolean isFirstLaunchExperienceSeen(Context context) {

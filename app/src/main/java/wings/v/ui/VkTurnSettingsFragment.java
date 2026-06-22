@@ -217,17 +217,17 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindRawConfigPreference();
         bindImportFromClipboardPreference();
 
-        bindSummaryPreference(AppPrefs.KEY_ENDPOINT);
+        bindIpSummaryPreference(AppPrefs.KEY_ENDPOINT);
         bindOpenVkLinksPreference();
-        bindSummaryPreference(AppPrefs.KEY_LOCAL_ENDPOINT);
-        bindSummaryPreference(AppPrefs.KEY_TURN_HOST);
+        bindIpSummaryPreference(AppPrefs.KEY_LOCAL_ENDPOINT);
+        bindIpSummaryPreference(AppPrefs.KEY_TURN_HOST);
         bindSummaryPreference(AppPrefs.KEY_TURN_PORT);
-        bindSummaryPreference(AppPrefs.KEY_WG_ADDRESSES);
+        bindIpSummaryPreference(AppPrefs.KEY_WG_ADDRESSES);
         bindSummaryPreference(AppPrefs.KEY_WG_DNS);
-        bindSummaryPreference(AppPrefs.KEY_WG_ALLOWED_IPS);
-        bindSummaryPreference(AppPrefs.KEY_WG_ENDPOINT);
+        bindIpSummaryPreference(AppPrefs.KEY_WG_ALLOWED_IPS);
+        bindIpSummaryPreference(AppPrefs.KEY_WG_ENDPOINT);
         bindSummaryPreference(AppPrefs.KEY_AWG_QUICK_CONFIG);
-        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_ADDRESSES);
+        bindIpSummaryPreference(AmneziaStore.KEY_INTERFACE_ADDRESSES);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_DNS);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_LISTEN_PORT);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_MTU);
@@ -247,8 +247,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_I3);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_I4);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_I5);
-        bindSummaryPreference(AmneziaStore.KEY_PEER_ALLOWED_IPS);
-        bindSummaryPreference(AmneziaStore.KEY_PEER_ENDPOINT);
+        bindIpSummaryPreference(AmneziaStore.KEY_PEER_ALLOWED_IPS);
+        bindIpSummaryPreference(AmneziaStore.KEY_PEER_ENDPOINT);
         bindSummaryPreference(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE);
 
         bindSwitchHaptics(AppPrefs.KEY_USE_UDP);
@@ -327,6 +327,21 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         preference.setSummaryProvider(pref -> {
             String value = ((EditTextPreference) pref).getText();
             return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : UiFormatter.truncate(value, 64);
+        });
+    }
+
+    // Как bindSummaryPreference, но маскирует IP в summary при включённом тоггле
+    // "Скрывать IP адрес". Поле ввода в диалоге показывает реальное значение.
+    private void bindIpSummaryPreference(String key) {
+        EditTextPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setSummaryProvider(pref -> {
+            String value = ((EditTextPreference) pref).getText();
+            return TextUtils.isEmpty(value)
+                ? getString(R.string.common_not_set)
+                : UiFormatter.truncate(wings.v.core.IpMask.apply(requireContext(), value), 64);
         });
     }
 
