@@ -21,6 +21,7 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.ProxyRuntimeMode;
+import wings.v.core.RootUtils;
 import wings.v.core.SocksAuthSecurity;
 import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
@@ -118,13 +119,24 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void applyTunUidPrefVisibility() {
-        // UID lookup timeout drives the /proc/net retry window that only kicks
-        // in under root TPROXY mode (SELinux blocks the read for unprivileged
-        // apps, so the value is dead weight otherwise). Hide it when the user
-        // has not opted into root mode to declutter the settings screen.
+        // Both settings only act inside the gVisor TUN inbound. In TPROXY mode the
+        // TUN is not built and UID matching is a synchronous kernel owner-match, so
+        // neither applies - hide them there. The UID lookup timeout drives the
+        // /proc/net retry window, which needs root to read /proc, so it stays root-
+        // only. Unknown UID Bypass is a user choice in both root and no-root TUN
+        // (whether an unresolved UID leaks direct after the timeout).
+        boolean rootMode = AppPrefs.isRootModeEnabled(requireContext());
+        boolean tproxyActive =
+            rootMode &&
+            AppPrefs.isXrayTproxyModeEnabled(requireContext()) &&
+            RootUtils.isXrayTproxySupported(requireContext(), false);
         androidx.preference.Preference timeoutPref = findPreference(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
         if (timeoutPref != null) {
-            timeoutPref.setVisible(AppPrefs.isRootModeEnabled(requireContext()));
+            timeoutPref.setVisible(rootMode && !tproxyActive);
+        }
+        androidx.preference.Preference unknownBypassPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS);
+        if (unknownBypassPref != null) {
+            unknownBypassPref.setVisible(!tproxyActive);
         }
     }
 
