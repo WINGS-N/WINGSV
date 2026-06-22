@@ -2042,13 +2042,28 @@ public class ProxyTunnelService extends Service {
         markUserspaceWireGuardWatchdogHealthy();
         markRootWireGuardWatchdogHealthy();
         if (kernelWireguardActive) {
+            // Kernel WG уже поднял интерфейс и wg-quick Table=auto маршрутизацию,
+            // трафик идёт через туннель (внешний IP уже сменился). Флипаем RUNNING
+            // сразу, а per-app split-tunnel routing и tether доводим следом: они
+            // только уточняют bypass-раскладку и не нужны для базовой связности, а
+            // до их применения весь трафик и так в туннеле (утечки нет). Иначе
+            // state висит в connecting, пока su-shell дочищает ip-rule/iptables.
+            setServiceState(ServiceState.RUNNING);
+            sRunning = true;
+            AppPrefs.setExternalActionTransientLaunchPending(getApplicationContext(), false);
             persistRootRuntimeState(usesTurnProxyBackend(activeBackendType) ? readRootProxyPid() : 0L);
-        } else {
-            clearPersistedRootRuntimeState();
-        }
-        if (kernelWireguardActive) {
             syncRootAppTunnelRouting();
+            if (rootModeActive && shouldInitializeRootSharing()) {
+                registerTetherReceiverIfNeeded();
+                registerTetherEventCallbackIfNeeded();
+                syncRootTetherRouting(null);
+            }
+            requestPublicIpRefresh(true);
+            restoreSharingOnBootIfNeeded();
+            startPolling();
+            return;
         }
+        clearPersistedRootRuntimeState();
         if (rootModeActive && shouldInitializeRootSharing()) {
             registerTetherReceiverIfNeeded();
             registerTetherEventCallbackIfNeeded();
