@@ -281,6 +281,10 @@ public class ProxyTunnelService extends Service {
     private static final int ROOT_TETHER_RULE_PRIORITY_BLOCK_SYSTEM = 17980;
     private static final int ROOT_APP_TUNNEL_PRIORITY = 12128;
     private static final int ROOT_DHCP_WORKAROUND_PRIORITY = 11000;
+    // Routes the WG DNS server back through the tunnel above the bypass rules
+    // (12000+), so bypassed apps still resolve via wgDns instead of having their
+    // DNS dragged out to the physical network where wgDns is unreachable.
+    private static final int ROOT_BYPASS_DNS_PRIORITY = 11950;
     private static final String ROOT_TETHER_FORWARD_CHAIN = "wingsv_t_fwd";
     private static final String ROOT_TETHER_NAT_CHAIN = "wingsv_t_nat";
     private static final String ROOT_TETHER_DNS_CHAIN = "wingsv_t_dns";
@@ -6139,6 +6143,64 @@ public class ProxyTunnelService extends Service {
                 "Kernel-WG multi-user routing failed: " + firstNonEmpty(error.getMessage(), error.toString())
             );
         }
+        applyBypassDnsTunnelRoute(tunnelTableLookup);
+    }
+
+    // Keeps DNS working for bypassed apps on kernel WG. The system resolver points
+    // at wgDns (set by wg-quick), which lives behind the tunnel; the bypass rules
+    // (12001+) would drag DNS queries out to the physical network where wgDns is
+    // unreachable, so name resolution dies while raw IP traffic still flows. We add
+    // a rule above the bypass priority that routes anything addressed to wgDns back
+    // into the tunnel - it matches by destination, so it catches the query whether
+    // netd or the app itself sends it. App data keeps bypassing as before.
+    private void applyBypassDnsTunnelRoute(String tunnelTableLookup) {
+        if (TextUtils.isEmpty(tunnelTableLookup)) {
+            return;
+        }
+        String dnsCsv = AppPrefs.getSettings(getApplicationContext()).wgDns;
+        if (TextUtils.isEmpty(dnsCsv)) {
+            return;
+        }
+        StringBuilder script = new StringBuilder();
+        appendBypassDnsRuleCleanup(script);
+        String quotedTable = RootUtils.shellQuote(tunnelTableLookup);
+        boolean any = false;
+        for (String token : dnsCsv.split("[,\\s]+")) {
+            String dns = token.trim();
+            if (dns.isEmpty()) {
+                continue;
+            }
+            String ipCmd = dns.contains(":") ? "ip -6" : "ip";
+            script
+                .append(ipCmd)
+                .append(" rule add to ")
+                .append(dns)
+                .append(" lookup ")
+                .append(quotedTable)
+                .append(" pref ")
+                .append(ROOT_BYPASS_DNS_PRIORITY)
+                .append(" || true;");
+            any = true;
+        }
+        if (!any) {
+            return;
+        }
+        try {
+            runRootRoutingCommand(script.toString());
+            appendRuntimeLogLine("Bypass DNS routed via tunnel (" + dnsCsv + " -> " + tunnelTableLookup + ")");
+        } catch (Exception error) {
+            appendRuntimeLogLine(
+                "Bypass DNS tunnel route failed: " + firstNonEmpty(error.getMessage(), error.toString())
+            );
+        }
+    }
+
+    private void appendBypassDnsRuleCleanup(StringBuilder script) {
+        script.append("while ip rule del pref ").append(ROOT_BYPASS_DNS_PRIORITY).append(" 2>/dev/null; do :; done;");
+        script
+            .append("while ip -6 rule del pref ")
+            .append(ROOT_BYPASS_DNS_PRIORITY)
+            .append(" 2>/dev/null; do :; done;");
     }
 
     private void clearRootAppTunnelRouting() {
@@ -6148,6 +6210,7 @@ public class ProxyTunnelService extends Service {
                 StringBuilder script = new StringBuilder();
                 script.append("ip rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
                 script.append("ip -6 rule del pref ").append(ROOT_APP_TUNNEL_PRIORITY).append(" || true;");
+                appendBypassDnsRuleCleanup(script);
                 runRootRoutingCommand(script.toString());
             } catch (Exception ignored) {}
         }
