@@ -18,7 +18,19 @@ public final class GuardianRunner {
     private GuardianRunner() {}
 
     public static void applyMode(Context context) {
-        applyMode(context, false);
+        // Reapply honoring the actual app foreground state, so a guardian setting
+        // changed while the app is open still brings the foreground WS up (and a
+        // boot/background trigger still falls back to the periodic worker).
+        reapply(context);
+    }
+
+    public static void reapply(Context context) {
+        if (context == null) return;
+        if (wings.v.WingsApplication.isUiForeground()) {
+            onAppForeground(context);
+        } else {
+            onAppBackground(context);
+        }
     }
 
     /**
@@ -53,6 +65,40 @@ public final class GuardianRunner {
                 startForegroundService(app);
                 break;
         }
+    }
+
+    /**
+     * The whole app entered the foreground (first Activity started, not just
+     * MainActivity). In FOREGROUND_ONLY/PERIODIC this holds a live WS via
+     * {@link GuardianForegroundClient} and cancels the periodic worker, so the
+     * connection survives navigating between activities instead of dropping on
+     * every screen change.
+     */
+    public static void onAppForeground(Context context) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        applyMode(app, true);
+        if (!AppPrefs.isGuardianEnabled(app) || !AppPrefs.isGuardianConfigured(app)) {
+            return;
+        }
+        String mode = AppPrefs.getGuardianSyncMode(app);
+        if (
+            AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(mode) ||
+            AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC.equals(mode)
+        ) {
+            GuardianForegroundClient.start(app);
+        }
+    }
+
+    /**
+     * The whole app left the foreground (last Activity stopped). Drops the
+     * foreground WS and falls back to the periodic worker for the relevant modes.
+     */
+    public static void onAppBackground(Context context) {
+        if (context == null) return;
+        Context app = context.getApplicationContext();
+        GuardianForegroundClient.stop();
+        applyMode(app, false);
     }
 
     public static void stopAll(Context context) {

@@ -56,7 +56,12 @@ public class WingsApplication extends Application {
 
                 @Override
                 public void onActivityStarted(@NonNull Activity activity) {
-                    STARTED_ACTIVITY_COUNT.incrementAndGet();
+                    if (STARTED_ACTIVITY_COUNT.incrementAndGet() == 1) {
+                        // App entered foreground (any activity). Hold a live guardian
+                        // WS across the whole app, not just MainActivity, so it does
+                        // not drop when navigating into other screens.
+                        wings.v.guardian.GuardianRunner.onAppForeground(activity.getApplicationContext());
+                    }
                 }
 
                 @Override
@@ -68,8 +73,11 @@ public class WingsApplication extends Application {
                 @Override
                 public void onActivityStopped(@NonNull Activity activity) {
                     int value = STARTED_ACTIVITY_COUNT.decrementAndGet();
-                    if (value < 0) {
+                    if (value <= 0) {
                         STARTED_ACTIVITY_COUNT.set(0);
+                        // App left foreground: drop the foreground WS and fall back
+                        // to the periodic worker for FOREGROUND_ONLY/PERIODIC.
+                        wings.v.guardian.GuardianRunner.onAppBackground(activity.getApplicationContext());
                     }
                 }
 

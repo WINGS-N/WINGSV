@@ -254,7 +254,9 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager.registerListener(updateStateListener);
         appUpdateManager.checkForUpdatesIfStale();
         wings.v.guardian.GuardianStateBroadcast.register(guardianStateListener);
-        maybeStartGuardianOnLaunch();
+        // Guardian foreground/background is driven app-wide by WingsApplication's
+        // started-activity counter (onAppForeground/onAppBackground), so it stays
+        // connected across all activities instead of only MainActivity.
     }
 
     @Override
@@ -262,29 +264,7 @@ public class MainActivity extends AppCompatActivity {
         unregisterPreferencesListener();
         appUpdateManager.unregisterListener(updateStateListener);
         wings.v.guardian.GuardianStateBroadcast.unregister(guardianStateListener);
-        wings.v.guardian.GuardianForegroundClient.stop();
-        // Reapply руннер с activityForeground=false: в FOREGROUND_ONLY это
-        // запустит WorkManager periodic, чтобы фоновая синхра шла раз в N
-        // минут (раньше при уходе в фон сервер вообще не слышал клиента).
-        // PERIODIC ведёт себя так же.
-        if (AppPrefs.isGuardianEnabled(this) && AppPrefs.isGuardianConfigured(this)) {
-            wings.v.guardian.GuardianRunner.applyMode(getApplicationContext(), false);
-        }
         super.onStop();
-    }
-
-    private void maybeStartGuardianOnLaunch() {
-        if (!AppPrefs.isGuardianEnabled(this) || !AppPrefs.isGuardianConfigured(this)) {
-            return;
-        }
-        wings.v.guardian.GuardianRunner.applyMode(getApplicationContext(), true);
-        String syncMode = AppPrefs.getGuardianSyncMode(this);
-        if (
-            AppPrefs.GUARDIAN_SYNC_MODE_FOREGROUND_ONLY.equals(syncMode) ||
-            AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC.equals(syncMode)
-        ) {
-            wings.v.guardian.GuardianForegroundClient.start(getApplicationContext());
-        }
     }
 
     private final wings.v.guardian.GuardianStateBroadcast.Listener guardianStateListener = (connected, host) -> {
