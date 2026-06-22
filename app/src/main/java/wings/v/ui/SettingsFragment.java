@@ -332,7 +332,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             xraySettingsPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 BackendType backendType = XrayStore.getBackendType(requireContext());
-                if (backendType == null || !backendType.usesXrayCore()) {
+                if (!usesXrayEngine(backendType)) {
                     return true;
                 }
                 startActivity(XraySettingsActivity.createIntent(requireContext()));
@@ -590,6 +590,19 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
+    // Xray-core is the engine for plain Xray and also for the userspace xray-WG
+    // path (VK TURN / WireGuard with root off), so the Xray settings (DNS, routing,
+    // sniffing) are reachable in both cases.
+    private boolean usesXrayEngine(@Nullable BackendType backendType) {
+        if (backendType == null) {
+            return false;
+        }
+        if (backendType.usesXrayCore()) {
+            return true;
+        }
+        return backendType.usesUserspaceXrayWireGuard() && !AppPrefs.isRootModeEnabled(requireContext());
+    }
+
     private void configureXrayPreferences(@Nullable BackendType backendType) {
         boolean xrayBackend = backendType != null && backendType.usesXrayCore();
         XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
@@ -602,8 +615,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             subscriptionsPreference.setVisible(xrayBackend);
         }
         if (xraySettingsPreference != null) {
-            xraySettingsPreference.setVisible(xrayBackend);
-            xraySettingsPreference.setEnabled(xrayBackend);
+            boolean xrayEngine = usesXrayEngine(backendType);
+            xraySettingsPreference.setVisible(xrayEngine);
+            xraySettingsPreference.setEnabled(xrayEngine);
             xraySettingsPreference.setSummary(getString(R.string.drawer_xray_settings_summary));
         }
         if (vkTurnSettingsPreference != null) {
