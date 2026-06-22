@@ -6270,11 +6270,17 @@ public class ProxyTunnelService extends Service {
         }
         RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
-        // Xray-VPN userspace stack (gVisor) gets bypass UIDs into the tun and
-        // redirects them at the stack level. iptables must NOT reject them on
-        // tun egress in that mode, otherwise gVisor never sees the packets and
-        // bypass apps lose internet entirely.
-        boolean bypassEntersTun = usesXrayBackend(activeBackendType) && !activeXrayTproxyMode && !activeXrayProxyOnly;
+        // Only XBYPASS routes bypass UIDs THROUGH the tun and diverts them at the
+        // gVisor level, so iptables must not reject them on tun egress there. Plain
+        // BYPASS excludes them at the VpnService layer (addDisallowedApplication):
+        // they never enter the tun, and the filter must instead kick them OFF the
+        // tun (block 1) while still rejecting tunneled UIDs' direct egress (block 2),
+        // so SO_BINDTODEVICE / Network.bindSocket leaks are blocked with root.
+        boolean bypassEntersTun =
+            usesXrayBackend(activeBackendType) &&
+            !activeXrayTproxyMode &&
+            !activeXrayProxyOnly &&
+            AppPrefs.getAppRoutingMode(appContext) == wings.v.core.AppRoutingMode.XBYPASS;
         try {
             RootMultiUserRouter.applyFilterOnly(
                 appContext,
