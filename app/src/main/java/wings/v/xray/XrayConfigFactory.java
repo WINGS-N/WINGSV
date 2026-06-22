@@ -1,9 +1,14 @@
 package wings.v.xray;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.Network;
 import android.text.TextUtils;
+import androidx.annotation.Nullable;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -15,6 +20,7 @@ import wings.v.R;
 import wings.v.WingsApplication;
 import wings.v.core.AppPrefs;
 import wings.v.core.ByeDpiSettings;
+import wings.v.core.DirectNetworkConnection;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
 import wings.v.core.XrayRoutingRule;
@@ -201,16 +207,22 @@ public final class XrayConfigFactory {
         effectiveXraySettings.directDns = dnsServers;
         JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
 
+        // Domains explicitly routed direct must resolve via the provider DNS on
+        // the physical network so the answer matches the direct egress and does
+        // not hang on the (mobile-flaky) tunnel. Everything else keeps resolving
+        // through the tunnel resolver (anti-poisoning default).
+        DirectDnsPlan directDnsPlan = computeDirectDnsPlan(context);
+
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context, "info"));
-        root.put("dns", buildDns(effectiveXraySettings));
+        root.put("dns", buildDns(effectiveXraySettings, directDnsPlan));
         root.put("inbounds", buildInbounds(context, effectiveXraySettings, true, 0));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
         // For TURN/WG flavors route xray's internal DNS resolver through
         // the WG outbound so DNS queries ride the tunnel instead of leaking
         // out via direct/freedom on the underlying physical network.
         String internalDnsOutbound = turnFlavor ? PROXY_TAG : DIRECT_TAG;
-        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, internalDnsOutbound));
+        root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, internalDnsOutbound, directDnsPlan));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
@@ -397,9 +409,31 @@ public final class XrayConfigFactory {
     }
 
     private static JSONObject buildDns(XraySettings settings) throws Exception {
+        return buildDns(settings, null);
+    }
+
+    private static JSONObject buildDns(XraySettings settings, @Nullable DirectDnsPlan directPlan) throws Exception {
         JSONObject dns = new JSONObject();
         dns.put("tag", DNS_TAG);
         JSONArray servers = new JSONArray();
+        // Direct-routed domains first: one provider-DNS server per resolver IP,
+        // scoped to those domains so they are resolved on the physical network
+        // (the query itself is sent direct by a routing rule in buildRouting that
+        // matches these resolver IPs). No skipFallback: if the provider resolver
+        // is unreachable (e.g. stale after a Wi-Fi -> mobile switch) the tunnel
+        // resolver still answers, degrading gracefully instead of failing.
+        if (directPlan != null) {
+            JSONArray directDomains = new JSONArray();
+            for (String domain : directPlan.domains) {
+                directDomains.put(domain);
+            }
+            for (String resolver : directPlan.dnsServers) {
+                JSONObject directServer = new JSONObject();
+                directServer.put("address", resolver);
+                directServer.put("domains", directDomains);
+                servers.put(directServer);
+            }
+        }
         addDnsServer(servers, settings.remoteDns);
         addDnsServer(servers, settings.directDns);
         if (servers.length() > 0) {
@@ -589,6 +623,17 @@ public final class XrayConfigFactory {
         int tproxyPort,
         String internalDnsOutboundTag
     ) throws Exception {
+        return buildRouting(context, settings, includeTunInbound, tproxyPort, internalDnsOutboundTag, null);
+    }
+
+    private static JSONObject buildRouting(
+        Context context,
+        XraySettings settings,
+        boolean includeTunInbound,
+        int tproxyPort,
+        String internalDnsOutboundTag,
+        @Nullable DirectDnsPlan directPlan
+    ) throws Exception {
         JSONObject routing = new JSONObject();
         routing.put("domainStrategy", settings.ipv6 ? "AsIs" : "IPIfNonMatch");
         JSONArray rules = new JSONArray();
@@ -612,6 +657,22 @@ public final class XrayConfigFactory {
         dnsRule.put("port", "53");
         dnsRule.put("outboundTag", DNS_OUT_TAG);
         rules.put(dnsRule);
+
+        // Send internal-DNS queries aimed at the provider resolvers out direct, so
+        // direct-routed domains resolve on the physical network. Must precede the
+        // catch-all internal-DNS rule below (which sends the rest to the tunnel).
+        if (directPlan != null) {
+            JSONObject directDnsRule = new JSONObject();
+            directDnsRule.put("type", "field");
+            directDnsRule.put("inboundTag", new JSONArray().put(DNS_TAG));
+            JSONArray resolverIps = new JSONArray();
+            for (String resolver : directPlan.dnsServers) {
+                resolverIps.put(resolver);
+            }
+            directDnsRule.put("ip", resolverIps);
+            directDnsRule.put("outboundTag", DIRECT_TAG);
+            rules.put(directDnsRule);
+        }
 
         JSONObject internalDnsRule = new JSONObject();
         internalDnsRule.put("type", "field");
@@ -804,6 +865,94 @@ public final class XrayConfigFactory {
             return BLOCK_TAG;
         }
         return PROXY_TAG;
+    }
+
+    /**
+     * Plan for resolving direct-routed domains via the provider DNS on the
+     * physical network. Null when there are no direct domain rules or no usable
+     * physical resolver (then everything keeps resolving through the tunnel).
+     */
+    @Nullable
+    private static DirectDnsPlan computeDirectDnsPlan(Context context) {
+        List<String> domains = directRoutedDomainMatchers(context);
+        if (domains.isEmpty()) {
+            return null;
+        }
+        List<String> dnsServers = physicalDnsServers(context);
+        if (dnsServers.isEmpty()) {
+            return null;
+        }
+        return new DirectDnsPlan(domains, dnsServers);
+    }
+
+    private static List<String> directRoutedDomainMatchers(Context context) {
+        List<String> matchers = new ArrayList<>();
+        try {
+            for (XrayRoutingRule rule : XrayRoutingStore.getValidRules(context)) {
+                if (rule == null || !rule.enabled || rule.action != XrayRoutingRule.Action.DIRECT) {
+                    continue;
+                }
+                if (rule.matchType == XrayRoutingRule.MatchType.GEOSITE) {
+                    if (!TextUtils.isEmpty(rule.code)) {
+                        matchers.add("geosite:" + rule.code);
+                    }
+                } else if (rule.matchType == XrayRoutingRule.MatchType.DOMAIN) {
+                    JSONArray domainRules = buildRoutingValueArray(rule.code, true);
+                    for (int index = 0; index < domainRules.length(); index++) {
+                        String matcher = domainRules.optString(index);
+                        if (!TextUtils.isEmpty(matcher)) {
+                            matchers.add(matcher);
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return matchers;
+    }
+
+    private static List<String> physicalDnsServers(Context context) {
+        List<String> result = new ArrayList<>();
+        try {
+            ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(
+                Context.CONNECTIVITY_SERVICE
+            );
+            if (connectivityManager == null) {
+                return result;
+            }
+            Network network = DirectNetworkConnection.findUsablePhysicalNetwork(context);
+            if (network == null) {
+                return result;
+            }
+            LinkProperties linkProperties = connectivityManager.getLinkProperties(network);
+            if (linkProperties == null) {
+                return result;
+            }
+            for (InetAddress address : linkProperties.getDnsServers()) {
+                String host = address == null ? "" : address.getHostAddress();
+                if (TextUtils.isEmpty(host) || host.contains("%")) {
+                    continue;
+                }
+                String lower = host.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("fe80") || lower.startsWith("127.") || "::1".equals(lower)) {
+                    continue;
+                }
+                if (!result.contains(host)) {
+                    result.add(host);
+                }
+            }
+        } catch (RuntimeException ignored) {}
+        return result;
+    }
+
+    private static final class DirectDnsPlan {
+
+        private final List<String> domains;
+        private final List<String> dnsServers;
+
+        DirectDnsPlan(List<String> domains, List<String> dnsServers) {
+            this.domains = domains;
+            this.dnsServers = dnsServers;
+        }
     }
 
     private static JSONObject buildSniffing(XraySettings settings) throws Exception {
