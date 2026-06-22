@@ -45,9 +45,25 @@ public final class RootMultiUserRouter {
     // per-app override sits ABOVE the broad per-user rule. Both stay above
     // netd's typical app-rule range (10500-13000) but below default catch-all
     // (~32000), which puts them in the right place to take effect.
+    //
+    // Каждое underlying-направление (трафик мимо туннеля) ставится двумя
+    // правилами: сначала lookup main (connected/LAN-маршруты), затем fallback
+    // в BYPASS_TABLE с зеркалом физического default'а. Поэтому у override и у
+    // per-user диапазона по две полосы приоритетов - primary и fallback - и
+    // fallback идёт НИЖЕ primary, но ВЫШЕ wg-правила, чтобы провалившийся из
+    // main пакет ловил физический default раньше, чем wg-диапазон утащит его
+    // в туннель (где его потом режет OUTPUT-фильтр).
     private static final int APP_OVERRIDE_PRIORITY_BASE = 17000;
+    private static final int APP_OVERRIDE_FALLBACK_BASE = 17200;
     private static final int USER_RANGE_PRIORITY_BASE = 17500;
+    private static final int USER_RANGE_FALLBACK_BASE = 17700;
     private static final int PRIORITY_BLOCK_END = 18000;
+
+    // Выделенная таблица для bypass-направления. Слать его просто в "main"
+    // ненадёжно: на части прошивок в main нет default-маршрута, lookup main
+    // проваливается, и пакет утекает в wg-таблицу. Зеркалируем физический
+    // default сюда (тот же приём, что и tether-upstream) и держим как fallback.
+    private static final int BYPASS_TABLE = 54100;
 
     // App-UID range inside one Android user. System/core UIDs (0-9999) are
     // intentionally skipped: routing system_server / netd / radio through wg
@@ -92,7 +108,9 @@ public final class RootMultiUserRouter {
         @NonNull String tunnelIface,
         @NonNull Mode mode,
         @NonNull Set<String> selectedPackages,
-        @NonNull List<Integer> systemProxyPorts
+        @NonNull List<Integer> systemProxyPorts,
+        @NonNull List<String> ipv4PhysicalRoutes,
+        @NonNull List<String> ipv6PhysicalRoutes
     ) throws Exception {
         if (TextUtils.isEmpty(tunnelTable)) {
             throw new IllegalArgumentException("tunnelTable required");
@@ -102,20 +120,51 @@ public final class RootMultiUserRouter {
         List<Integer> userIds = listAndroidUserIds(context);
         Set<Integer> selectedAppIds = resolveAppIds(context, effectivePackages);
         int ownUid = context.getApplicationInfo().uid;
+        // Если физический default удалось зеркалировать - bypass-направление
+        // получает fallback в BYPASS_TABLE под lookup main. Без маршрутов
+        // (ничего не нашли) деградируем к прежнему поведению с одним lookup main.
+        boolean haveBypassTable = !ipv4PhysicalRoutes.isEmpty() || !ipv6PhysicalRoutes.isEmpty();
         StringBuilder script = new StringBuilder();
         appendClear(script);
+        if (haveBypassTable) {
+            appendBypassTable(script, ipv4PhysicalRoutes, ipv6PhysicalRoutes);
+        }
         for (int i = 0; i < userIds.size(); i++) {
             int userId = userIds.get(i);
             int rangeMin = userId * PER_USER_UID_STRIDE + APP_UID_MIN_OFFSET;
             int rangeMax = userId * PER_USER_UID_STRIDE + APP_UID_MAX_OFFSET;
-            int userPriority = USER_RANGE_PRIORITY_BASE + i;
-            String userTable = effectiveMode == Mode.BYPASS ? tunnelTable : "main";
-            appendAddRule(script, userPriority, rangeMin, rangeMax, userTable);
-            int overridePriority = APP_OVERRIDE_PRIORITY_BASE + i;
-            String overrideTable = effectiveMode == Mode.BYPASS ? "main" : tunnelTable;
-            for (int appId : selectedAppIds) {
-                int uid = userId * PER_USER_UID_STRIDE + appId;
-                appendAddRule(script, overridePriority, uid, uid, overrideTable);
+            if (effectiveMode == Mode.BYPASS) {
+                // Весь диапазон - в туннель; wg-таблица всегда несёт default,
+                // так что fallback ей не нужен.
+                appendAddRule(script, USER_RANGE_PRIORITY_BASE + i, rangeMin, rangeMax, tunnelTable);
+                // Выбранные приложения - мимо туннеля, на физическую сеть.
+                for (int appId : selectedAppIds) {
+                    int uid = userId * PER_USER_UID_STRIDE + appId;
+                    appendUnderlyingRules(
+                        script,
+                        APP_OVERRIDE_PRIORITY_BASE + i,
+                        APP_OVERRIDE_FALLBACK_BASE + i,
+                        uid,
+                        uid,
+                        haveBypassTable
+                    );
+                }
+            } else {
+                // ONLY_SELECTED: весь диапазон - мимо туннеля (выше wg-правила).
+                appendUnderlyingRules(
+                    script,
+                    USER_RANGE_PRIORITY_BASE + i,
+                    USER_RANGE_FALLBACK_BASE + i,
+                    rangeMin,
+                    rangeMax,
+                    haveBypassTable
+                );
+                // Выбранные приложения - в туннель; override выше range-правила,
+                // чтобы их не перехватил диапазон.
+                for (int appId : selectedAppIds) {
+                    int uid = userId * PER_USER_UID_STRIDE + appId;
+                    appendAddRule(script, APP_OVERRIDE_PRIORITY_BASE + i, uid, uid, tunnelTable);
+                }
             }
         }
         if (!TextUtils.isEmpty(tunnelIface) || !systemProxyPorts.isEmpty()) {
@@ -207,7 +256,60 @@ public final class RootMultiUserRouter {
         script.append("while ip rule del pref $p 2>/dev/null; do :; done; ");
         script.append("while ip -6 rule del pref $p 2>/dev/null; do :; done; ");
         script.append("done; ");
+        script.append("ip route flush table ").append(BYPASS_TABLE).append(" 2>/dev/null || true; ");
+        script.append("ip -6 route flush table ").append(BYPASS_TABLE).append(" 2>/dev/null || true; ");
         appendFilterTeardown(script);
+    }
+
+    // Зеркалирует физический default-маршрут в BYPASS_TABLE. Маршруты приходят
+    // уже отобранными (ProxyTunnelService резолвит их так же, как upstream для
+    // tether: main -> полный дамп -> ConnectivityManager).
+    private static void appendBypassTable(
+        StringBuilder script,
+        List<String> ipv4PhysicalRoutes,
+        List<String> ipv6PhysicalRoutes
+    ) {
+        script.append("ip route flush table ").append(BYPASS_TABLE).append(" 2>/dev/null || true; ");
+        script.append("ip -6 route flush table ").append(BYPASS_TABLE).append(" 2>/dev/null || true; ");
+        for (String route : ipv4PhysicalRoutes) {
+            if (TextUtils.isEmpty(route)) {
+                continue;
+            }
+            script
+                .append("ip route add table ")
+                .append(BYPASS_TABLE)
+                .append(' ')
+                .append(route)
+                .append(" 2>/dev/null || true; ");
+        }
+        for (String route : ipv6PhysicalRoutes) {
+            if (TextUtils.isEmpty(route)) {
+                continue;
+            }
+            script
+                .append("ip -6 route add table ")
+                .append(BYPASS_TABLE)
+                .append(' ')
+                .append(route)
+                .append(" 2>/dev/null || true; ");
+        }
+    }
+
+    // Underlying-направление: primary lookup main (connected/LAN), затем, если
+    // main промахнулся, fallback в BYPASS_TABLE с физическим default'ом. Оба
+    // правила выше wg-правила, поэтому пакет не проваливается в туннель.
+    private static void appendUnderlyingRules(
+        StringBuilder script,
+        int mainPref,
+        int fallbackPref,
+        int uidMin,
+        int uidMax,
+        boolean haveBypassTable
+    ) {
+        appendAddRule(script, mainPref, uidMin, uidMax, "main");
+        if (haveBypassTable) {
+            appendAddRule(script, fallbackPref, uidMin, uidMax, Integer.toString(BYPASS_TABLE));
+        }
     }
 
     private static void appendFilterTeardown(StringBuilder script) {

@@ -4856,39 +4856,117 @@ public class ProxyTunnelService extends Service {
     }
 
     private RootRoutingState captureRootRoutingState() throws Exception {
-        String upstreamOverride = AppPrefs.getSharingUpstreamInterface(getApplicationContext());
-        String fallbackOverride = AppPrefs.getSharingFallbackUpstreamInterface(getApplicationContext());
-
-        List<String> ipv4MainRoutes = readDefaultRouteLinesAsRoot("ip route show table main");
-        List<String> ipv6MainRoutes = readDefaultRouteLinesAsRoot("ip -6 route show table main");
-        List<String> ipv4AllRoutes = new ArrayList<>(ipv4MainRoutes);
-        List<String> ipv6AllRoutes = new ArrayList<>(ipv6MainRoutes);
-        if (ipv4AllRoutes.isEmpty()) {
-            ipv4AllRoutes.addAll(readDefaultRouteLinesAsRoot("ip route show"));
-        }
-        if (ipv6AllRoutes.isEmpty()) {
-            ipv6AllRoutes.addAll(readDefaultRouteLinesAsRoot("ip -6 route show"));
-        }
-
-        List<String> ipv4Routes = selectPreferredDefaultRoutes(
-            ipv4MainRoutes,
-            ipv4AllRoutes,
-            upstreamOverride,
-            fallbackOverride
-        );
-        List<String> ipv6Routes = selectPreferredDefaultRoutes(
-            ipv6MainRoutes,
-            ipv6AllRoutes,
-            upstreamOverride,
-            fallbackOverride
-        );
-        if (ipv4Routes.isEmpty() && ipv6Routes.isEmpty()) {
-            appendActiveNetworkDefaultRoutes(ipv4Routes, ipv6Routes);
-        }
-        if (ipv4Routes.isEmpty() && ipv6Routes.isEmpty()) {
+        UnderlyingRoutes routes = resolveUnderlyingDefaultRoutes();
+        if (routes.ipv4Routes.isEmpty() && routes.ipv6Routes.isEmpty()) {
             throw new IllegalStateException(getString(R.string.proxy_upstream_route_not_found));
         }
-        return new RootRoutingState(ipv4Routes, ipv6Routes, collectRootBypassUids());
+        return new RootRoutingState(routes.ipv4Routes, routes.ipv6Routes, collectRootBypassUids());
+    }
+
+    /**
+     * Resolves the underlying physical default routes (main table, then full
+     * route dump, then ConnectivityManager fallback). Shared by the tether
+     * upstream table and by the kernel-WG bypass table so both reach the
+     * physical network the same way. Returns empty lists on failure - callers
+     * decide whether that is fatal (tether) or a graceful fallback (bypass).
+     */
+    private UnderlyingRoutes resolveUnderlyingDefaultRoutes() {
+        List<String> ipv4Routes = new ArrayList<>();
+        List<String> ipv6Routes = new ArrayList<>();
+        try {
+            String upstreamOverride = AppPrefs.getSharingUpstreamInterface(getApplicationContext());
+            String fallbackOverride = AppPrefs.getSharingFallbackUpstreamInterface(getApplicationContext());
+
+            List<String> ipv4MainRoutes = readDefaultRouteLinesAsRoot("ip route show table main");
+            List<String> ipv6MainRoutes = readDefaultRouteLinesAsRoot("ip -6 route show table main");
+            List<String> ipv4AllRoutes = new ArrayList<>(ipv4MainRoutes);
+            List<String> ipv6AllRoutes = new ArrayList<>(ipv6MainRoutes);
+            if (ipv4AllRoutes.isEmpty()) {
+                ipv4AllRoutes.addAll(readDefaultRouteLinesAsRoot("ip route show"));
+            }
+            if (ipv6AllRoutes.isEmpty()) {
+                ipv6AllRoutes.addAll(readDefaultRouteLinesAsRoot("ip -6 route show"));
+            }
+
+            ipv4Routes = selectPreferredDefaultRoutes(
+                ipv4MainRoutes,
+                ipv4AllRoutes,
+                upstreamOverride,
+                fallbackOverride
+            );
+            ipv6Routes = selectPreferredDefaultRoutes(
+                ipv6MainRoutes,
+                ipv6AllRoutes,
+                upstreamOverride,
+                fallbackOverride
+            );
+            if (ipv4Routes.isEmpty() && ipv6Routes.isEmpty()) {
+                appendActiveNetworkDefaultRoutes(ipv4Routes, ipv6Routes);
+            }
+        } catch (Exception error) {
+            Log.w(TAG, "resolveUnderlyingDefaultRoutes failed", error);
+        }
+        // На сотовой сети дефолт обычно приходит из RA с атрибутами (proto ra,
+        // expires Nsec, pref, hoplimit), которые ip route add не принимает, и
+        // зеркало физического default'а молча не встаёт. Сводим строку к
+        // addable-форме default [via GW] dev IFACE [metric N].
+        return new UnderlyingRoutes(sanitizeDefaultRouteLines(ipv4Routes), sanitizeDefaultRouteLines(ipv6Routes));
+    }
+
+    private static List<String> sanitizeDefaultRouteLines(List<String> routes) {
+        List<String> cleaned = new ArrayList<>();
+        if (routes == null) {
+            return cleaned;
+        }
+        for (String route : routes) {
+            String line = sanitizeDefaultRouteLine(route);
+            if (!TextUtils.isEmpty(line) && !cleaned.contains(line)) {
+                cleaned.add(line);
+            }
+        }
+        return cleaned;
+    }
+
+    private static String sanitizeDefaultRouteLine(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return null;
+        }
+        String[] tokens = raw.trim().split("\\s+");
+        if (tokens.length == 0 || !"default".equals(tokens[0])) {
+            return null;
+        }
+        String via = null;
+        String dev = null;
+        String metric = null;
+        for (int i = 1; i < tokens.length - 1; i++) {
+            switch (tokens[i]) {
+                case "via":
+                    via = tokens[i + 1];
+                    break;
+                case "dev":
+                    dev = tokens[i + 1];
+                    break;
+                case "metric":
+                    metric = tokens[i + 1];
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (TextUtils.isEmpty(via) && TextUtils.isEmpty(dev)) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder("default");
+        if (!TextUtils.isEmpty(via)) {
+            builder.append(" via ").append(via);
+        }
+        if (!TextUtils.isEmpty(dev)) {
+            builder.append(" dev ").append(dev);
+        }
+        if (!TextUtils.isEmpty(metric)) {
+            builder.append(" metric ").append(metric);
+        }
+        return builder.toString();
     }
 
     private void syncRootTetherRouting(@Nullable Intent tetherIntent) {
@@ -5700,6 +5778,9 @@ public class ProxyTunnelService extends Service {
         RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
+        // Зеркало физического default'а для bypass-таблицы: без него lookup main
+        // на части прошивок промахивается и bypass-приложения остаются без сети.
+        UnderlyingRoutes bypassRoutes = resolveUnderlyingDefaultRoutes();
         try {
             RootMultiUserRouter.apply(
                 appContext,
@@ -5707,7 +5788,9 @@ public class ProxyTunnelService extends Service {
                 activeTunnelName,
                 mode,
                 packages,
-                systemProxyPorts
+                systemProxyPorts,
+                bypassRoutes.ipv4Routes,
+                bypassRoutes.ipv6Routes
             );
             lastSplitTunnelLockdownTunIface = activeTunnelName;
             lastSplitTunnelLockdownBackendLabel = "Kernel-WG";
@@ -5718,6 +5801,10 @@ public class ProxyTunnelService extends Service {
                     activeTunnelName +
                     ", system_proxy_ports=" +
                     systemProxyPorts +
+                    ", bypass_routes_v4=" +
+                    bypassRoutes.ipv4Routes +
+                    ", bypass_routes_v6=" +
+                    bypassRoutes.ipv6Routes +
                     ", " +
                     RootMultiUserRouter.describeFromPrefs(appContext) +
                     ")"
@@ -8804,6 +8891,17 @@ public class ProxyTunnelService extends Service {
             this.ipv4Routes = ipv4Routes != null ? ipv4Routes : new ArrayList<>();
             this.ipv6Routes = ipv6Routes != null ? ipv6Routes : new ArrayList<>();
             this.bypassUids = bypassUids != null ? bypassUids : new LinkedHashSet<>();
+        }
+    }
+
+    private static final class UnderlyingRoutes {
+
+        private final List<String> ipv4Routes;
+        private final List<String> ipv6Routes;
+
+        private UnderlyingRoutes(List<String> ipv4Routes, List<String> ipv6Routes) {
+            this.ipv4Routes = ipv4Routes != null ? ipv4Routes : new ArrayList<>();
+            this.ipv6Routes = ipv6Routes != null ? ipv6Routes : new ArrayList<>();
         }
     }
 
