@@ -160,7 +160,7 @@
                         android:contentDescription="@null"
                         android:duplicateParentState="true"
                         android:importantForAccessibility="no"
-                        android:src="@drawable/ic_routing_bypass"
+                        android:src="@drawable/ic_routing_xbypass"
                         app:tint="@color/routing_mode_icon_tint" />
                 </FrameLayout>
 
