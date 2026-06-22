@@ -15,6 +15,11 @@ public final class GuardianForegroundClient {
 
     private GuardianForegroundClient() {}
 
+    /** True while an in-activity foreground connection owns the guardian socket. */
+    public static synchronized boolean isActive() {
+        return client != null;
+    }
+
     public static synchronized void start(Context context) {
         if (context == null) return;
         Context app = context.getApplicationContext();

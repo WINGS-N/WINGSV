@@ -31,6 +31,13 @@ public final class GuardianSyncWorker extends Worker {
         if (!AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC.equals(AppPrefs.getGuardianSyncMode(app))) {
             return Result.success();
         }
+        // The in-app foreground client owns a stable connection while the app is
+        // open. Opening a second socket here would make the panel replace one with
+        // the other (same client id) and then drop it after the 30s budget - the
+        // churn the user sees in PERIODIC mode while inside the app. Skip entirely.
+        if (GuardianForegroundClient.isActive()) {
+            return Result.success();
+        }
         CountDownLatch done = new CountDownLatch(1);
         GuardianClient client = new GuardianClient(
             app,
@@ -71,7 +78,15 @@ public final class GuardianSyncWorker extends Worker {
         );
         client.start();
         try {
-            done.await(QUICK_SYNC_BUDGET_MS, TimeUnit.MILLISECONDS);
+            long deadline = System.currentTimeMillis() + QUICK_SYNC_BUDGET_MS;
+            // Poll the budget instead of one long await so we release the socket
+            // promptly if the work is cancelled or the app comes to the foreground
+            // (its foreground client takes over), avoiding two live connections.
+            while (System.currentTimeMillis() < deadline && !isStopped() && !GuardianForegroundClient.isActive()) {
+                if (done.await(1_000L, TimeUnit.MILLISECONDS)) {
+                    break;
+                }
+            }
         } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
         } finally {
