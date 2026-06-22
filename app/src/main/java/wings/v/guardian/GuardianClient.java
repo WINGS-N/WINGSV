@@ -66,6 +66,10 @@ public final class GuardianClient {
     private final Listener listener;
 
     private WebSocket socket;
+    // The socket whose ClientHello has already been enqueued. sendFrame() only
+    // writes once socket == readySocket, so no frame can slip ahead of the
+    // hello while OkHttp is still buffering pre-handshake sends.
+    private volatile WebSocket readySocket;
     private boolean phyBindActive;
     private int phyFailureStreak;
     private boolean tunnelFallbackActive;
@@ -154,6 +158,7 @@ public final class GuardianClient {
                 socket.cancel();
                 socket = null;
             }
+            readySocket = null;
             unregisterNetworkCallback();
             listener.onDisconnected();
         });
@@ -161,7 +166,12 @@ public final class GuardianClient {
 
     public void sendFrame(@NonNull GuardianProto.Frame frame) {
         WebSocket ws = socket;
-        if (ws == null) {
+        // Drop the frame until this socket's ClientHello has gone out first.
+        // OkHttp buffers send() calls made before the WS handshake completes
+        // and flushes them in order, so a state report / log chunk enqueued in
+        // the gap between newWebSocket() and onOpen() would land ahead of the
+        // hello and the panel would reject the connection with expected_hello.
+        if (ws == null || ws != readySocket) {
             return;
         }
         ws.send(ByteString.of(frame.toByteArray()));
@@ -204,6 +214,7 @@ public final class GuardianClient {
             socket.cancel();
             socket = null;
         }
+        readySocket = null;
         connectedAtMs = 0L;
         lastFrameAtMs = 0L;
         OkHttpClient client = buildClientForAttempt();
@@ -452,7 +463,13 @@ public final class GuardianClient {
             lastFrameAtMs = connectedAtMs;
             Log.i(TAG, "ws open");
             ProxyTunnelService.writeRuntimeLogLine("[guardian] ws open, sending hello (phy=" + phyBindActive + ")");
-            sendFrame(GuardianProto.Frame.newBuilder().setClientHello(buildHello()).build());
+            // Write the ClientHello straight onto this socket, then open the
+            // gate: only after the hello is enqueued may sendFrame() flush any
+            // other frame, guaranteeing the hello is always the first frame.
+            webSocket.send(
+                ByteString.of(GuardianProto.Frame.newBuilder().setClientHello(buildHello()).build().toByteArray())
+            );
+            readySocket = webSocket;
             scheduleHeartbeat();
             scheduleWatchdog();
             String host = "";
@@ -609,6 +626,7 @@ public final class GuardianClient {
             }
         }
         socket = null;
+        readySocket = null;
         mainHandler.post(listener::onDisconnected);
         if (!stopped) {
             scheduleReconnect();
