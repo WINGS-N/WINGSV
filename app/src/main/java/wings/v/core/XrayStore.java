@@ -33,7 +33,7 @@ public final class XrayStore {
     private static final String RUNTIME_PREFS_NAME = "wingsv_xray_runtime";
     private static final int DEFAULT_LOCAL_PROXY_PORT = 10808;
     private static final int DEFAULT_HTTP_PROXY_PORT = 10809;
-    private static final int DEFAULT_TUN_UID_LOOKUP_TIMEOUT_MS = 50;
+    private static final int DEFAULT_TUN_UID_LOOKUP_TIMEOUT_MS = 150;
     private static final int MAX_TUN_UID_LOOKUP_TIMEOUT_MS = 1000;
     private static final String DEFAULT_LOCAL_LISTEN_ADDRESS = "127.0.0.1";
     private static final String DEFAULT_SUBSCRIPTION_URL =

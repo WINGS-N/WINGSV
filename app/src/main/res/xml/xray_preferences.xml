@@ -33,7 +33,7 @@
         android:key="pref_xray_tun_uid_lookup_timeout_ms"
         android:title="@string/xray_settings_tun_uid_lookup_timeout_title"
         android:summary="@string/xray_settings_tun_uid_lookup_timeout_summary"
-        android:defaultValue="50"
+        android:defaultValue="150"
         android:inputType="number" />
 
     <SwitchPreferenceCompat

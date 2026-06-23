@@ -790,7 +790,7 @@
     <string name="xray_settings_sniffing_title">Sniffing</string>
     <string name="xray_settings_sniffing_summary">Destination detection via traffic sniffing for transparent mode</string>
     <string name="xray_settings_tun_uid_lookup_timeout_title">UID lookup timeout (ms)</string>
-    <string name="xray_settings_tun_uid_lookup_timeout_summary">Grace window for resolving the UID of a new TCP/UDP connection via /proc/net before the per-app filter drops it. Helps Tor/SSH that open many sockets per second by giving the kernel time to publish them. 0 disables the retry. Recommended: 50</string>
+    <string name="xray_settings_tun_uid_lookup_timeout_summary">Grace window for resolving the UID of a new TCP/UDP connection via /proc/net before the per-app filter drops it. Helps Tor/SSH that open many sockets per second by giving the kernel time to publish them. 0 disables the retry. Recommended: 150</string>
     <string name="xray_settings_tun_unknown_uid_bypass_title">Pass unknown-UID packets to direct</string>
     <string name="xray_settings_tun_unknown_uid_bypass_summary">Closes leaks from apps that bind tun0 directly.</string>
     <string name="xray_settings_proxy_quic_title">Proxy QUIC traffic</string>
