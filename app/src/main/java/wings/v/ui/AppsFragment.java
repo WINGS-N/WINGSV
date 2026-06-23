@@ -560,7 +560,7 @@ public class AppsFragment extends Fragment {
             // RuStore recommendations are meant for BYPASS, so the equivalent for
             // whitelist is "everything except those" - i.e. apps that should be
             // routed through VPN are the ones NOT in the recommended-bypass list.
-            boolean whitelist = AppPrefs.getAppRoutingMode(requireContext()) == AppRoutingMode.WHITELIST;
+            boolean whitelist = AppPrefs.getAppRoutingMode(requireContext()).isWhitelistFamily();
             return whitelist != entry.recommendedApp;
         }
         if (TextUtils.equals(activeAppTypeFilter, FILTER_USER)) {

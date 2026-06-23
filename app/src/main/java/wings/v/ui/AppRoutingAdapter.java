@@ -58,11 +58,17 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         notifyItemChanged(0);
     }
 
-    // When XBypass is not available for the current backend it is hidden and an
-    // XBYPASS selection is shown as plain Bypass (it degrades to that at runtime).
+    // When the xray gVisor divert is not available for the current backend the
+    // XBypass/XWhitelist options are hidden and a selected X-mode is shown as its
+    // plain equivalent (it degrades to that at runtime).
     private AppRoutingMode displayMode() {
-        if (!xbypassAvailable && mode == AppRoutingMode.XBYPASS) {
-            return AppRoutingMode.BYPASS;
+        if (!xbypassAvailable) {
+            if (mode == AppRoutingMode.XBYPASS) {
+                return AppRoutingMode.BYPASS;
+            }
+            if (mode == AppRoutingMode.XWHITELIST) {
+                return AppRoutingMode.WHITELIST;
+            }
         }
         return mode;
     }
@@ -150,7 +156,9 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
             bindModeItem(binding.modeItemBypass, AppRoutingMode.BYPASS);
             bindModeItem(binding.modeItemXbypass, AppRoutingMode.XBYPASS);
             bindModeItem(binding.modeItemWhitelist, AppRoutingMode.WHITELIST);
+            bindModeItem(binding.modeItemXwhitelist, AppRoutingMode.XWHITELIST);
             binding.modeItemXbypass.setVisibility(xbypassAvailable ? View.VISIBLE : View.GONE);
+            binding.modeItemXwhitelist.setVisibility(xbypassAvailable ? View.VISIBLE : View.GONE);
 
             AppRoutingMode shown = displayMode();
             int summaryRes;
@@ -158,6 +166,8 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
                 summaryRes = R.string.apps_mode_off_summary;
             } else if (shown == AppRoutingMode.WHITELIST) {
                 summaryRes = R.string.apps_mode_whitelist_summary;
+            } else if (shown == AppRoutingMode.XWHITELIST) {
+                summaryRes = R.string.apps_mode_xwhitelist_summary;
             } else if (shown == AppRoutingMode.XBYPASS) {
                 summaryRes = R.string.apps_mode_xbypass_summary;
             } else {

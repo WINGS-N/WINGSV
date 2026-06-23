@@ -185,10 +185,12 @@
     <string name="apps_mode_bypass">Bypass</string>
     <string name="apps_mode_xbypass">XBypass</string>
     <string name="apps_mode_whitelist">Whitelist</string>
+    <string name="apps_mode_xwhitelist">XWhitelist</string>
     <string name="apps_mode_off_summary">All apps go through the VPN</string>
     <string name="apps_mode_bypass_summary">Selected apps are excluded from the VPN at the Android level and use the network directly. Simple, but an app could still escape the tunnel by binding straight to the interface.</string>
     <string name="apps_mode_xbypass_summary">Bypass, but through Xray (gVisor): all traffic enters the tunnel and Xray sends the selected apps out directly. Closes leaks and the unresolved-UID case. Only on Xray and VK TURN + Xray-WG.</string>
     <string name="apps_mode_whitelist_summary">Only selected apps go through the VPN; everything else stays direct</string>
+    <string name="apps_mode_xwhitelist_summary">Whitelist, but through Xray (gVisor): all traffic enters the tunnel and Xray tunnels only the selected apps, sending everything else out directly. Closes leaks for the non-tunneled apps. Only on Xray and VK TURN + Xray-WG.</string>
     <string name="apps_reconnect_hint">Changes take effect after reconnect</string>
     <string name="apps_count">Selected apps: %1$d</string>
     <string name="apps_count_zero">Selected apps: 0</string>
