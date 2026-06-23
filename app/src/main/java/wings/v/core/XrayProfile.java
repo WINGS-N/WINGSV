@@ -46,9 +46,49 @@ public final class XrayProfile {
 
     public String stableDedupKey() {
         if (!TextUtils.isEmpty(rawLink)) {
-            return rawLink.trim().toLowerCase(Locale.ROOT);
+            return normalizeLinkForDedup(rawLink);
         }
         return (address + ":" + port + ":" + title).trim().toLowerCase(Locale.ROOT);
+    }
+
+    // Builds the dedup/identity key from the link with the volatile Reality
+    // parameters removed. Some subscription servers rotate the Reality shortId
+    // (sid) and spiderX (spx) on every fetch; keeping them in the key gave the
+    // profile a brand-new identity on each subscription update, which is why it
+    // dropped out of favorites and lost its active selection. Stripping them
+    // keeps the key stable across those rotations while the uuid/address/port
+    // still distinguish different servers.
+    static String normalizeLinkForDedup(String link) {
+        String trimmed = link.trim();
+        int fragmentIndex = trimmed.indexOf('#');
+        String fragment = fragmentIndex >= 0 ? trimmed.substring(fragmentIndex) : "";
+        String base = fragmentIndex >= 0 ? trimmed.substring(0, fragmentIndex) : trimmed;
+        int queryIndex = base.indexOf('?');
+        if (queryIndex < 0) {
+            return trimmed.toLowerCase(Locale.ROOT);
+        }
+        String prefix = base.substring(0, queryIndex);
+        String query = base.substring(queryIndex + 1);
+        StringBuilder kept = new StringBuilder();
+        for (String pair : query.split("&")) {
+            if (pair.isEmpty()) {
+                continue;
+            }
+            int equalsIndex = pair.indexOf('=');
+            String name = (equalsIndex >= 0 ? pair.substring(0, equalsIndex) : pair).toLowerCase(Locale.ROOT);
+            if (isVolatileDedupParam(name)) {
+                continue;
+            }
+            if (kept.length() > 0) {
+                kept.append('&');
+            }
+            kept.append(pair);
+        }
+        return (prefix + "?" + kept + fragment).toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isVolatileDedupParam(String name) {
+        return "sid".equals(name) || "spx".equals(name);
     }
 
     public boolean usesXtlsVisionFlow() {
