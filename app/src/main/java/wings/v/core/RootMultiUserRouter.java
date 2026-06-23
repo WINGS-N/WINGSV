@@ -83,7 +83,7 @@ public final class RootMultiUserRouter {
         if (mode == AppRoutingMode.OFF) {
             return Mode.OFF;
         }
-        if (mode == AppRoutingMode.WHITELIST) {
+        if (mode.isWhitelistFamily()) {
             return Mode.ONLY_SELECTED;
         }
         return Mode.BYPASS;

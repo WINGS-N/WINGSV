@@ -1518,7 +1518,7 @@ public final class WingsImportParser {
         WingsvProto.AppRouting.Builder builder = WingsvProto.AppRouting.newBuilder()
             .setMode(toProtoAppRoutingMode(mode))
             // legacy bypass field for backward-compatible import on older clients
-            .setBypass(mode != AppRoutingMode.WHITELIST);
+            .setBypass(!mode.isWhitelistFamily());
         Set<String> bypassPackages = AppPrefs.getAppRoutingPackages(context, AppRoutingMode.BYPASS);
         for (String packageName : bypassPackages) {
             if (!TextUtils.isEmpty(value(packageName))) {
@@ -1547,6 +1547,9 @@ public final class WingsImportParser {
         if (mode == AppRoutingMode.WHITELIST) {
             return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_WHITELIST;
         }
+        if (mode == AppRoutingMode.XWHITELIST) {
+            return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_XWHITELIST;
+        }
         if (mode == AppRoutingMode.XBYPASS) {
             return WingsvProto.AppRoutingMode.APP_ROUTING_MODE_XBYPASS;
         }
@@ -1559,6 +1562,9 @@ public final class WingsImportParser {
         }
         if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_WHITELIST) {
             return AppRoutingMode.WHITELIST;
+        }
+        if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_XWHITELIST) {
+            return AppRoutingMode.XWHITELIST;
         }
         if (mode == WingsvProto.AppRoutingMode.APP_ROUTING_MODE_XBYPASS) {
             return AppRoutingMode.XBYPASS;
@@ -2419,7 +2425,7 @@ public final class WingsImportParser {
         if (legacyPackages.isEmpty()) {
             return;
         }
-        if (mode == AppRoutingMode.WHITELIST) {
+        if (mode.isWhitelistFamily()) {
             importedConfig.appRoutingWhitelistPackages = legacyPackages;
         } else {
             importedConfig.appRoutingBypassPackages = legacyPackages;

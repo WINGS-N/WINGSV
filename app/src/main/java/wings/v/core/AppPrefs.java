@@ -867,9 +867,10 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, true).apply();
     }
 
-    // Bypass and XBypass share the same selected-app list; whitelist has its own.
+    // The bypass family (bypass/xbypass) shares one selected-app list; the
+    // whitelist family (whitelist/xwhitelist) shares its own.
     static String appRoutingPackagesKey(AppRoutingMode mode) {
-        return mode == AppRoutingMode.WHITELIST ? KEY_APP_ROUTING_WHITELIST_PACKAGES : KEY_APP_ROUTING_BYPASS_PACKAGES;
+        return mode.isWhitelistFamily() ? KEY_APP_ROUTING_WHITELIST_PACKAGES : KEY_APP_ROUTING_BYPASS_PACKAGES;
     }
 
     public static AppRoutingMode getAppRoutingMode(Context context) {

@@ -254,6 +254,11 @@ enum AppRoutingMode {
   APP_ROUTING_MODE_BYPASS = 2;
   APP_ROUTING_MODE_WHITELIST = 3;
   APP_ROUTING_MODE_XBYPASS = 4;
+  // XWHITELIST is the inverse of XBYPASS: it keeps every app inside the tunnel
+  // but tunnels only the selected apps and diverts the rest to direct at the
+  // xray-core gVisor level. It falls back to plain WHITELIST where the gVisor
+  // path is unavailable. Shares the whitelist_packages list with WHITELIST.
+  APP_ROUTING_MODE_XWHITELIST = 5;
 }
 
 message XrayRouting {

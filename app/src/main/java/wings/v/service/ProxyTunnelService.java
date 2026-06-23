@@ -2004,7 +2004,7 @@ public class ProxyTunnelService extends Service {
             wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(getApplicationContext());
             if (routedPackages == null || routedPackages.isEmpty()) {
                 tproxyAppMode = XrayTproxyRouter.AppRoutingMode.NONE;
-            } else if (appMode == wings.v.core.AppRoutingMode.WHITELIST) {
+            } else if (appMode.isWhitelistFamily()) {
                 tproxyAppMode = XrayTproxyRouter.AppRoutingMode.ONLY_SELECTED;
             } else {
                 tproxyAppMode = XrayTproxyRouter.AppRoutingMode.BYPASS;
@@ -5557,7 +5557,7 @@ public class ProxyTunnelService extends Service {
                 wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(getApplicationContext());
                 if (packages == null || packages.isEmpty()) {
                     mode = XrayTproxyRouter.AppRoutingMode.NONE;
-                } else if (appMode == wings.v.core.AppRoutingMode.WHITELIST) {
+                } else if (appMode.isWhitelistFamily()) {
                     mode = XrayTproxyRouter.AppRoutingMode.ONLY_SELECTED;
                 } else {
                     mode = XrayTproxyRouter.AppRoutingMode.BYPASS;
@@ -6270,17 +6270,18 @@ public class ProxyTunnelService extends Service {
         }
         RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
-        // Only XBYPASS routes bypass UIDs THROUGH the tun and diverts them at the
-        // gVisor level, so iptables must not reject them on tun egress there. Plain
-        // BYPASS excludes them at the VpnService layer (addDisallowedApplication):
-        // they never enter the tun, and the filter must instead kick them OFF the
-        // tun (block 1) while still rejecting tunneled UIDs' direct egress (block 2),
-        // so SO_BINDTODEVICE / Network.bindSocket leaks are blocked with root.
+        // The gVisor-divert modes (XBYPASS / XWHITELIST) route every app THROUGH
+        // the tun and divert the relevant UIDs at the gVisor level, so iptables
+        // must not reject them on tun egress there. Plain BYPASS excludes apps at
+        // the VpnService layer (addDisallowedApplication): they never enter the
+        // tun, and the filter must instead kick them OFF the tun (block 1) while
+        // still rejecting tunneled UIDs' direct egress (block 2), so
+        // SO_BINDTODEVICE / Network.bindSocket leaks are blocked with root.
         boolean bypassEntersTun =
             usesXrayBackend(activeBackendType) &&
             !activeXrayTproxyMode &&
             !activeXrayProxyOnly &&
-            AppPrefs.getAppRoutingMode(appContext) == wings.v.core.AppRoutingMode.XBYPASS;
+            AppPrefs.getAppRoutingMode(appContext).isGvisorDivert();
         try {
             RootMultiUserRouter.applyFilterOnly(
                 appContext,

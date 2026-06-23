@@ -1027,18 +1027,28 @@ public final class XrayConfigFactory {
             if (xraySettings != null && xraySettings.tunUnknownUidBypass) {
                 tunSettings.put("bypassUnknownUid", true);
             }
+        } else if (routingMode == wings.v.core.AppRoutingMode.XWHITELIST) {
+            // XWhitelist (inverse of XBypass): keep every app inside the tunnel
+            // but tunnel ONLY the listed UIDs; divert the rest to direct at the
+            // gVisor level. allowedUids restricts the tunnel to the listed UIDs,
+            // and bypass_inbound_tag makes the core re-route the non-listed (and,
+            // when opted-in, unknown) UIDs to the direct/freedom outbound instead
+            // of dropping them - so non-selected apps keep working while the
+            // SO_BINDTODEVICE escape path is still closed.
+            tunSettings.put("allowedUids", uidArray);
+            tunSettings.put("bypassInboundTag", TUN_BYPASS_TAG);
+            if (xraySettings != null && xraySettings.tunUnknownUidBypass) {
+                tunSettings.put("bypassUnknownUid", true);
+            }
         } else {
-            // Allowlist mode: only listed packages are tunneled, drop everyone else.
+            // Plain Whitelist: only listed packages are tunneled. The VpnService
+            // addAllowedApplication already keeps the rest out of the tunnel, so
+            // the gVisor allowlist only needs to drop anything that still slips in.
             tunSettings.put("allowedUids", uidArray);
         }
         android.util.Log.i(
             "WINGSV-Xray",
-            "applyTunUidFilter: mode=" +
-                (routingMode == wings.v.core.AppRoutingMode.XBYPASS ? "xbypass" : "allowlist") +
-                " uids=" +
-                uids +
-                " packages=" +
-                packages
+            "applyTunUidFilter: mode=" + routingMode.prefValue + " uids=" + uids + " packages=" + packages
         );
         // Unresolved /proc/net UID is now always treated as a filter failure
         // and the connection is dropped, closing the SO_BINDTODEVICE escape

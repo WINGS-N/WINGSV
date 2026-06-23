@@ -243,7 +243,7 @@ public final class ImportConfigSummary {
             String modeLabel;
             if (cfg.appRoutingMode == AppRoutingMode.OFF) {
                 modeLabel = "Off";
-            } else if (cfg.appRoutingMode == AppRoutingMode.WHITELIST) {
+            } else if (cfg.appRoutingMode.isWhitelistFamily()) {
                 modeLabel = context.getString(R.string.import_summary_mode_only_apps);
             } else {
                 modeLabel = "Bypass";

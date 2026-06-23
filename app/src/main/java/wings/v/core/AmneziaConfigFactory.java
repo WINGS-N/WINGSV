@@ -56,7 +56,7 @@ public final class AmneziaConfigFactory {
         Set<String> appRoutingPackages = AppPrefs.getEffectiveAppRoutingPackages(context);
         if (!appRoutingPackages.isEmpty()) {
             AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
-            if (mode == AppRoutingMode.WHITELIST) {
+            if (mode.isWhitelistFamily()) {
                 ifaceBuilder.includeApplications(appRoutingPackages);
             } else {
                 ifaceBuilder.excludeApplications(appRoutingPackages);

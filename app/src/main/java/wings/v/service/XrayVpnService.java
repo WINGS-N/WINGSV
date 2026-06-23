@@ -401,11 +401,13 @@ public class XrayVpnService extends VpnService implements DialerController {
                     builder.addDisallowedApplication(packageName);
                 }
             }
-            // XBYPASS mode: deliberately do NOT touch the VpnService app list.
-            // Every app's traffic enters the tunnel, xray-core resolves the UID,
-            // and the gVisor stack diverts the selected UIDs to the direct/freedom
-            // outbound via the bypass_inbound_tag tagging (applyTunUidFilter). This
-            // also catches apps that try to bypass by binding directly to tun
+            // XBYPASS / XWHITELIST modes: deliberately do NOT touch the
+            // VpnService app list. Every app's traffic enters the tunnel,
+            // xray-core resolves the UID, and the gVisor stack diverts the
+            // relevant UIDs to the direct/freedom outbound via the
+            // bypass_inbound_tag tagging (applyTunUidFilter) - the selected
+            // apps for xbypass, the non-selected apps for xwhitelist. This also
+            // catches apps that try to bypass by binding directly to tun
             // (curl --interface tun0), which a plain disallow cannot.
             // OFF mode: packages is empty above, so we never reach here.
         } catch (Exception error) {

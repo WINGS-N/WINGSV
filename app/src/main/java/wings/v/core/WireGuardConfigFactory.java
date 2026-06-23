@@ -46,7 +46,7 @@ public final class WireGuardConfigFactory {
             if (!routedPackages.isEmpty()) {
                 String joinedPackages = String.join(", ", routedPackages);
                 AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
-                if (mode == AppRoutingMode.WHITELIST) {
+                if (mode.isWhitelistFamily()) {
                     builder.append("IncludedApplications = ").append(joinedPackages).append('\n');
                 } else {
                     builder.append("ExcludedApplications = ").append(joinedPackages).append('\n');
