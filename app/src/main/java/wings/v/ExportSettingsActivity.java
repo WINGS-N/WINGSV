@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import dev.oneuiproject.oneui.layout.ToolbarLayout;
+import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.core.WingsImportParser;
 
@@ -102,6 +103,7 @@ public class ExportSettingsActivity extends AppCompatActivity {
 
         @Override
         public void onCreatePreferences(@Nullable final Bundle savedInstanceState, @Nullable final String rootKey) {
+            getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
             setPreferencesFromResource(R.xml.export_settings_preferences, rootKey);
             bindExportPreference("pref_export_all_settings", ExportAction.ALL);
             bindExportPreference("pref_export_xray_settings", ExportAction.XRAY);

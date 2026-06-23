@@ -21,6 +21,7 @@ public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.guardian_preferences, rootKey);
 
         SwitchPreferenceCompat master = findPreference(AppPrefs.KEY_GUARDIAN_ENABLED);

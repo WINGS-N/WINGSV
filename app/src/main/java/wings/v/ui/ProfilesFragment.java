@@ -28,7 +28,6 @@ import androidx.appcompat.widget.PopupMenu;
 import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
-import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.RoundedLinearLayout;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -233,7 +232,7 @@ public class ProfilesFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        PreferenceManager.getDefaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(
+        AppPrefs.defaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(
             preferencesListener
         );
         refreshUi();
@@ -243,7 +242,7 @@ public class ProfilesFragment extends Fragment {
     @Override
     public void onPause() {
         stopTrafficRefresh();
-        PreferenceManager.getDefaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(
+        AppPrefs.defaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(
             preferencesListener
         );
         clearSelectionMode();

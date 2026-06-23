@@ -133,7 +133,7 @@ public final class UiPrefs {
     }
 
     private static SharedPreferences prefs(Context context) {
-        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context.getApplicationContext());
     }
 
     private static List<String> readOrderedList(SharedPreferences prefs, String key, List<String> defaults) {

@@ -21,7 +21,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatSpinner;
 import androidx.appcompat.widget.SeslArrayAdapter;
-import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.CardItemView;
 import dev.oneuiproject.oneui.widget.SwitchItemView;
 import java.net.NetworkInterface;
@@ -155,7 +154,7 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).registerOnSharedPreferenceChangeListener(
+        AppPrefs.defaultSharedPreferences(getApplicationContext()).registerOnSharedPreferenceChangeListener(
             preferenceChangeListener
         );
         refreshUi();
@@ -163,9 +162,9 @@ public class SharingTargetSettingsActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        PreferenceManager.getDefaultSharedPreferences(
-            getApplicationContext()
-        ).unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
+        AppPrefs.defaultSharedPreferences(getApplicationContext()).unregisterOnSharedPreferenceChangeListener(
+            preferenceChangeListener
+        );
         super.onPause();
     }
 

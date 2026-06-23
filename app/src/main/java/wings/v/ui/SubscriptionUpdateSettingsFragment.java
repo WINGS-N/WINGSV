@@ -25,6 +25,7 @@ public class SubscriptionUpdateSettingsFragment extends PreferenceFragmentCompat
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.subscription_update_preferences, rootKey);
         configurePreferences();
     }

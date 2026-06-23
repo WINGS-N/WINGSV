@@ -7,7 +7,6 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.PreferenceManager;
 import wings.v.R;
 import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
@@ -18,6 +17,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.root_interface_preferences, rootKey);
         bindWireGuardInterfacePreference();
         updateSummaries();
@@ -55,7 +55,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
             String rawValue = newValue == null ? "" : String.valueOf(newValue);
             if (TextUtils.isEmpty(rawValue.trim())) {
                 String normalizedDefault = normalizer.normalize("");
-                PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
+                AppPrefs.defaultSharedPreferences(requireContext().getApplicationContext())
                     .edit()
                     .putString(key, normalizedDefault)
                     .commit();
@@ -74,7 +74,7 @@ public class RootInterfaceSettingsFragment extends PreferenceFragmentCompat {
             }
             String normalized = normalizer.normalize(rawValue);
             if (!TextUtils.equals(normalized, rawValue)) {
-                PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
+                AppPrefs.defaultSharedPreferences(requireContext().getApplicationContext())
                     .edit()
                     .putString(key, normalized)
                     .commit();

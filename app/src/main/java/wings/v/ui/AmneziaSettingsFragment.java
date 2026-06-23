@@ -39,6 +39,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.amnezia_preferences, rootKey);
         configurePreferences();
     }
@@ -240,7 +241,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
         if (preferencesChangeListener != null) {
             return;
         }
-        SharedPreferences sharedPreferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences sharedPreferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (sharedPreferences == null) {
             return;
         }
@@ -265,7 +266,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void unregisterPreferencesListener() {
-        SharedPreferences sharedPreferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences sharedPreferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (sharedPreferences != null && preferencesChangeListener != null) {
             sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         }
@@ -273,7 +274,7 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void syncFromPrefs() {
-        SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+        SharedPreferences prefs = AppPrefs.defaultSharedPreferences(requireContext());
         if (prefs == null) {
             return;
         }

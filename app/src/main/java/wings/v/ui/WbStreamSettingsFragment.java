@@ -63,6 +63,7 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.wb_stream_preferences, rootKey);
         installIpMaskSummaries();
 
@@ -165,14 +166,14 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onResume() {
         super.onResume();
-        getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(listener);
+        AppPrefs.defaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(listener);
         applyVisibility();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(listener);
+        AppPrefs.defaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(listener);
     }
 
     // Маскирует IP в summary endpoint/адресных полей при включённом тоггле

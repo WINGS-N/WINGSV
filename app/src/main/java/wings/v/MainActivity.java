@@ -28,7 +28,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.res.ResourcesCompat;
-import androidx.preference.PreferenceManager;
 import androidx.viewpager2.widget.ViewPager2;
 import dev.oneuiproject.oneui.layout.Badge;
 import dev.oneuiproject.oneui.qr.app.QrScanActivity;
@@ -989,18 +988,14 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(this::syncNavigationState);
             }
         };
-        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(
-            preferencesChangeListener
-        );
+        AppPrefs.defaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(preferencesChangeListener);
     }
 
     private void unregisterPreferencesListener() {
         if (preferencesChangeListener == null) {
             return;
         }
-        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(
-            preferencesChangeListener
-        );
+        AppPrefs.defaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         preferencesChangeListener = null;
     }
 

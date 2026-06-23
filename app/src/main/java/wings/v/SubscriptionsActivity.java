@@ -20,7 +20,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.AppCompatCheckBox;
-import androidx.preference.PreferenceManager;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -149,17 +148,13 @@ public class SubscriptionsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(
-            preferencesListener
-        );
+        AppPrefs.defaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(preferencesListener);
         refreshUi();
     }
 
     @Override
     protected void onPause() {
-        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(
-            preferencesListener
-        );
+        AppPrefs.defaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(preferencesListener);
         clearSelectionMode();
         super.onPause();
     }
@@ -291,7 +286,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         binding.switchSubscriptionHwid.setChecked(settings.enabled);
         binding.switchSubscriptionHwid.setOnCheckedChangeListener((buttonView, isChecked) -> {
             Haptics.softSliderStep(buttonView);
-            PreferenceManager.getDefaultSharedPreferences(this)
+            AppPrefs.defaultSharedPreferences(this)
                 .edit()
                 .putBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_ENABLED, isChecked)
                 .apply();

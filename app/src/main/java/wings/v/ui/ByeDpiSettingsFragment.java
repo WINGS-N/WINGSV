@@ -142,6 +142,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.byedpi_preferences, rootKey);
         configurePreferences();
     }
@@ -236,7 +237,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
             if (shouldWarnBeforeDisablingSocksAuth(key, preference, newValue)) {
                 showWarningBeforeApplying(
                     () -> {
-                        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+                        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(requireContext());
                         if (preferences != null) {
                             preferences.edit().putBoolean(key, false).commit();
                         }
@@ -292,7 +293,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 showWarningBeforeApplying(
                     () -> {
-                        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+                        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(requireContext());
                         if (preferences != null) {
                             preferences
                                 .edit()
@@ -358,7 +359,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         if (preferencesChangeListener != null) {
             return;
         }
-        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (preferences == null) {
             return;
         }
@@ -381,7 +382,7 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void unregisterPreferencesListener() {
-        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (preferences != null && preferencesChangeListener != null) {
             preferences.unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         }

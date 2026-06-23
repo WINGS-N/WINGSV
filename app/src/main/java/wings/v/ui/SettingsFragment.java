@@ -108,6 +108,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
         appUpdateManager = AppUpdateManager.getInstance(requireContext());
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.proxy_preferences, rootKey);
         configurePreferences();
     }
@@ -437,7 +438,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         // unknown UID к фейл-open поведению.
         boolean rootOn = AppPrefs.isRootModeEnabled(context);
         boolean targetBypass = !rootOn;
-        android.content.SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+        android.content.SharedPreferences prefs = AppPrefs.defaultSharedPreferences(requireContext());
         if (prefs == null) {
             return;
         }
@@ -792,18 +793,18 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
             requestRuntimeReconnectIfNeeded(key);
         };
-        getPreferenceManager()
-            .getSharedPreferences()
-            .registerOnSharedPreferenceChangeListener(preferencesChangeListener);
+        AppPrefs.defaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(
+            preferencesChangeListener
+        );
     }
 
     private void unregisterPreferencesListener() {
         if (preferencesChangeListener == null) {
             return;
         }
-        getPreferenceManager()
-            .getSharedPreferences()
-            .unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
+        AppPrefs.defaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(
+            preferencesChangeListener
+        );
         preferencesChangeListener = null;
     }
 

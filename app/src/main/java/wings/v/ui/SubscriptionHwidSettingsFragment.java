@@ -31,6 +31,7 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         AppPrefs.ensureDefaults(requireContext());
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.subscription_hwid_preferences, rootKey);
         configurePreferences();
     }
@@ -83,9 +84,10 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
         if (!isAdded()) {
             return "";
         }
-        boolean manualValues = getPreferenceManager()
-            .getSharedPreferences()
-            .getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
+        boolean manualValues = AppPrefs.defaultSharedPreferences(requireContext()).getBoolean(
+            AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED,
+            false
+        );
         String displayedValue = SubscriptionHwidStore.getDisplayedValue(requireContext(), key);
         if (TextUtils.isEmpty(displayedValue)) {
             return getString(R.string.subscription_hwid_value_not_set);
@@ -100,7 +102,7 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
         if (preferencesChangeListener != null) {
             return;
         }
-        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (preferences == null) {
             return;
         }
@@ -115,7 +117,7 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void unregisterPreferencesListener() {
-        SharedPreferences preferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences preferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (preferences != null && preferencesChangeListener != null) {
             preferences.unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         }
@@ -137,9 +139,10 @@ public class SubscriptionHwidSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void refreshAvailability() {
-        boolean manualValues = getPreferenceManager()
-            .getSharedPreferences()
-            .getBoolean(AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED, false);
+        boolean manualValues = AppPrefs.defaultSharedPreferences(requireContext()).getBoolean(
+            AppPrefs.KEY_SUBSCRIPTION_HWID_MANUAL_ENABLED,
+            false
+        );
         setEnabled(AppPrefs.KEY_SUBSCRIPTION_HWID_VALUE, manualValues);
         setEnabled(AppPrefs.KEY_SUBSCRIPTION_HWID_DEVICE_OS, manualValues);
         setEnabled(AppPrefs.KEY_SUBSCRIPTION_HWID_VER_OS, manualValues);

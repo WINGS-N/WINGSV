@@ -6,7 +6,6 @@ import android.net.Uri;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.preference.PreferenceManager;
 import java.security.SecureRandom;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -133,7 +132,7 @@ public final class VkOAuthAuth {
     }
 
     private static SharedPreferences prefs(@NonNull Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return AppPrefs.defaultSharedPreferences(context.getApplicationContext());
     }
 
     private static boolean isExpired(long expiresAtSeconds) {

@@ -15,7 +15,6 @@ import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.PreferenceManager;
 import androidx.preference.SwitchPreferenceCompat;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -192,6 +191,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.vk_turn_preferences, rootKey);
         bindNumericPreference(AppPrefs.KEY_THREADS);
         bindNumericPreference(AppPrefs.KEY_CREDS_GROUP_SIZE);
@@ -386,7 +386,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 String normalizedValue = normalizeTurnSessionMode(newValue);
                 suppressPreferenceSync = true;
                 try {
-                    PreferenceManager.getDefaultSharedPreferences(requireContext().getApplicationContext())
+                    AppPrefs.defaultSharedPreferences(requireContext().getApplicationContext())
                         .edit()
                         .putString(key, normalizedValue)
                         .commit();
@@ -454,7 +454,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 hex.append(String.format("%02x", b & 0xff));
             }
             String hexKey = hex.toString();
-            PreferenceManager.getDefaultSharedPreferences(requireContext())
+            AppPrefs.defaultSharedPreferences(requireContext())
                 .edit()
                 .putString(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX, hexKey)
                 .apply();
@@ -674,7 +674,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         if (preferencesChangeListener != null) {
             return;
         }
-        SharedPreferences sharedPreferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences sharedPreferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (sharedPreferences == null) {
             return;
         }
@@ -712,7 +712,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void unregisterPreferencesListener() {
-        SharedPreferences sharedPreferences = getPreferenceManager().getSharedPreferences();
+        SharedPreferences sharedPreferences = AppPrefs.defaultSharedPreferences(requireContext());
         if (sharedPreferences != null && preferencesChangeListener != null) {
             sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferencesChangeListener);
         }
@@ -766,9 +766,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void syncAmneziaStructuredPrefs() {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
-            requireContext().getApplicationContext()
-        );
+        SharedPreferences prefs = AppPrefs.defaultSharedPreferences(requireContext().getApplicationContext());
         syncEditTextPreference(AppPrefs.KEY_AWG_QUICK_CONFIG, prefs.getString(AppPrefs.KEY_AWG_QUICK_CONFIG, ""));
         syncEditTextPreference(
             AmneziaStore.KEY_INTERFACE_PRIVATE_KEY,

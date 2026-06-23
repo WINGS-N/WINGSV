@@ -24,7 +24,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.AppCompatSpinner;
 import androidx.appcompat.widget.SeslArrayAdapter;
 import androidx.fragment.app.Fragment;
-import androidx.preference.PreferenceManager;
 import dev.oneuiproject.oneui.widget.CardItemView;
 import dev.oneuiproject.oneui.widget.SwitchItemView;
 import java.net.NetworkInterface;
@@ -206,7 +205,7 @@ public class SharingFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        PreferenceManager.getDefaultSharedPreferences(
+        AppPrefs.defaultSharedPreferences(
             requireContext().getApplicationContext()
         ).registerOnSharedPreferenceChangeListener(preferenceChangeListener);
         registerTetherReceiver();
@@ -253,7 +252,7 @@ public class SharingFragment extends Fragment {
     @Override
     public void onStop() {
         super.onStop();
-        PreferenceManager.getDefaultSharedPreferences(
+        AppPrefs.defaultSharedPreferences(
             requireContext().getApplicationContext()
         ).unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
         unregisterTetherReceiver();

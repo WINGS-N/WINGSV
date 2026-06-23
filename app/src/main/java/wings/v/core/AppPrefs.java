@@ -2107,13 +2107,15 @@ public final class AppPrefs {
         return array.toString();
     }
 
-    @SuppressWarnings("deprecation")
     public static SharedPreferences defaultSharedPreferences(Context context) {
-        Context appContext = context.getApplicationContext();
-        return appContext.getSharedPreferences(
-            appContext.getPackageName() + "_preferences",
-            Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS
-        );
+        return MmkvPrefs.mainPrefs(context);
+    }
+
+    // PreferenceDataStore that PreferenceFragmentCompat screens install so their
+    // widgets read and write the MMKV-backed main store instead of the legacy
+    // XML SharedPreferences. Must be set before setPreferencesFromResource.
+    public static androidx.preference.PreferenceDataStore mainPreferenceDataStore(Context context) {
+        return MmkvPrefs.mainDataStore(context);
     }
 
     private static SharedPreferences runtimePrefs(Context context) {

@@ -80,6 +80,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.xray_preferences, rootKey);
         bindSwitch(AppPrefs.KEY_XRAY_ALLOW_LAN);
         bindSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE);
@@ -151,10 +152,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             if (authDisableWarning != null) {
                 showWarningBeforeApplying(
                     () -> {
-                        androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
-                            .edit()
-                            .putBoolean(key, false)
-                            .commit();
+                        AppPrefs.defaultSharedPreferences(requireContext()).edit().putBoolean(key, false).commit();
                         requestRuntimeReconnectIfActive(key);
                     },
                     authDisableWarning
@@ -165,10 +163,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             if (enableWarning != null) {
                 showWarningBeforeApplying(
                     () -> {
-                        androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
-                            .edit()
-                            .putBoolean(key, true)
-                            .commit();
+                        AppPrefs.defaultSharedPreferences(requireContext()).edit().putBoolean(key, true).commit();
                         requestRuntimeReconnectIfActive(key);
                     },
                     enableWarning
@@ -204,7 +199,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 showWarningBeforeApplying(
                     () -> {
-                        androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
+                        AppPrefs.defaultSharedPreferences(requireContext())
                             .edit()
                             .putString(key, newValue == null ? "" : String.valueOf(newValue))
                             .commit();
@@ -412,7 +407,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSelection(getListView() != null ? getListView() : requireView());
             if (ProxyRuntimeMode.fromPrefValue(String.valueOf(newValue)).isProxyOnly()) {
-                androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext())
+                AppPrefs.defaultSharedPreferences(requireContext())
                     .edit()
                     .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, true)
                     .commit();
