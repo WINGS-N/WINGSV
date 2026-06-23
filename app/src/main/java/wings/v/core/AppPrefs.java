@@ -490,11 +490,11 @@ public final class AppPrefs {
     }
 
     public static long getGuardianTunnelFallbackUntilMs(Context context) {
-        return prefs(context).getLong(KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS, 0L);
+        return runtimePrefs(context).getLong(KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS, 0L);
     }
 
     public static void setGuardianTunnelFallbackUntilMs(Context context, long untilMs) {
-        prefs(context).edit().putLong(KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS, Math.max(0L, untilMs)).apply();
+        runtimePrefs(context).edit().putLong(KEY_GUARDIAN_TUNNEL_FALLBACK_UNTIL_MS, Math.max(0L, untilMs)).apply();
     }
 
     public static String getRootWireGuardInterfaceNameTemplate(Context context) {
@@ -1947,11 +1947,11 @@ public final class AppPrefs {
     }
 
     public static long getGuardianLastAppliedConfigVersion(Context context) {
-        return prefs(context).getLong(KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION, 0L);
+        return runtimePrefs(context).getLong(KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION, 0L);
     }
 
     public static void setGuardianLastAppliedConfigVersion(Context context, long version) {
-        prefs(context).edit().putLong(KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION, version).apply();
+        runtimePrefs(context).edit().putLong(KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION, version).apply();
     }
 
     /**
