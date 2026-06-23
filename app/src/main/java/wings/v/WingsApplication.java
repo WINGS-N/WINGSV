@@ -44,6 +44,7 @@ public class WingsApplication extends Application {
     public void onCreate() {
         super.onCreate();
         sAppContext = getApplicationContext();
+        wings.v.core.MmkvPrefs.ensureInitialized(this);
         RuntimeStateStore.initialize(this);
         if (!isMainProcess()) {
             return;

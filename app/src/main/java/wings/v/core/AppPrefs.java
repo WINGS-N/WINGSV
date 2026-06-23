@@ -2116,11 +2116,8 @@ public final class AppPrefs {
         );
     }
 
-    @SuppressWarnings("deprecation")
     private static SharedPreferences runtimePrefs(Context context) {
-        return context
-            .getApplicationContext()
-            .getSharedPreferences(RUNTIME_PREFS_NAME, Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS);
+        return MmkvPrefs.multiProcess(context, RUNTIME_PREFS_NAME, RUNTIME_PREFS_NAME);
     }
 
     private static int parseInt(String rawValue, int fallback) {

@@ -716,6 +716,7 @@ dependencies {
     implementation(libs.sesl.pickerBasic)
     implementation(libs.protobuf.javalite)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.tencent:mmkv:1.3.9")
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
     implementation(libs.mpandroidchart)
