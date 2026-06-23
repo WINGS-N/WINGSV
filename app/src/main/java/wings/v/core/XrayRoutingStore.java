@@ -4,11 +4,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -424,50 +422,13 @@ public final class XrayRoutingStore {
     }
 
     private static void replaceFile(File source, File target) throws Exception {
-        File parent = target.getParentFile();
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs();
-        }
-        if (target.exists()) {
-            target.delete();
-        }
-        try (
-            FileInputStream inputStream = new FileInputStream(source);
-            FileOutputStream outputStream = new FileOutputStream(target, false)
-        ) {
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int read = inputStream.read(buffer);
-            while (read >= 0) {
-                if (read == 0) {
-                    read = inputStream.read(buffer);
-                    continue;
-                }
-                outputStream.write(buffer, 0, read);
-                read = inputStream.read(buffer);
-            }
+        try (FileInputStream inputStream = new FileInputStream(source)) {
+            AtomicFiles.replaceFrom(inputStream, target);
         }
     }
 
     private static void writeStreamToFile(InputStream source, File target) throws Exception {
-        File parent = target.getParentFile();
-        if (parent != null && !parent.exists()) {
-            parent.mkdirs();
-        }
-        try (
-            BufferedInputStream inputStream = new BufferedInputStream(source);
-            BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(target, false))
-        ) {
-            byte[] buffer = new byte[BUFFER_SIZE];
-            int read = inputStream.read(buffer);
-            while (read >= 0) {
-                if (read == 0) {
-                    read = inputStream.read(buffer);
-                    continue;
-                }
-                outputStream.write(buffer, 0, read);
-                read = inputStream.read(buffer);
-            }
-        }
+        AtomicFiles.replaceFrom(source, target);
     }
 
     private static String readFile(File file) throws Exception {
