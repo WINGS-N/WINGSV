@@ -112,7 +112,20 @@ public final class XrayStore {
                 DEFAULT_TUN_UID_LOOKUP_TIMEOUT_MS
             )
         );
-        settings.tunUnknownUidBypass = prefs.getBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS, true);
+        if (
+            !prefs.contains(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER) &&
+            prefs.contains(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS)
+        ) {
+            // One-time migration of the legacy bypass boolean: direct=true, drop=false.
+            boolean legacyDirect = prefs.getBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS, true);
+            prefs
+                .edit()
+                .putBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER, true)
+                .putString(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY, legacyDirect ? "direct" : "drop")
+                .apply();
+        }
+        settings.tunUnknownUidRouter = prefs.getBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER, true);
+        settings.tunUnknownUidPolicy = prefs.getString(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY, "direct");
         settings.proxyQuicEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, false);
         settings.restartOnNetworkChange = prefs.getBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, false);
         settings.runtimeMode = ProxyRuntimeMode.fromPrefValue(
@@ -175,7 +188,8 @@ public final class XrayStore {
                 AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS,
                 String.valueOf(clampTunUidLookupTimeoutMs(value.tunUidLookupTimeoutMs))
             )
-            .putBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS, value.tunUnknownUidBypass)
+            .putBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER, value.tunUnknownUidRouter)
+            .putString(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY, value.tunUnknownUidPolicy)
             .putBoolean(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED, value.proxyQuicEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE, value.restartOnNetworkChange)
             .putString(

@@ -54,7 +54,8 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
-        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER);
+        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_RUNTIME_MODE);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_TRANSPORT_MODE);
@@ -91,7 +92,8 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         bindSwitch(AppPrefs.KEY_XRAY_IPV6_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_SNIFFING_ENABLED);
         bindNumeric(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
-        bindSwitch(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS);
+        bindSwitch(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER);
+        bindUnknownUidPolicy(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY);
         applyTunUidPrefVisibility();
         bindSwitch(AppPrefs.KEY_XRAY_PROXY_QUIC_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_RESTART_ON_NETWORK_CHANGE);
@@ -135,9 +137,13 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         if (timeoutPref != null) {
             timeoutPref.setVisible(rootMode && !tproxyActive);
         }
-        androidx.preference.Preference unknownBypassPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS);
-        if (unknownBypassPref != null) {
-            unknownBypassPref.setVisible(!tproxyActive);
+        androidx.preference.Preference unknownRouterPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER);
+        if (unknownRouterPref != null) {
+            unknownRouterPref.setVisible(!tproxyActive);
+        }
+        androidx.preference.Preference unknownPolicyPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY);
+        if (unknownPolicyPref != null) {
+            unknownPolicyPref.setVisible(!tproxyActive);
         }
     }
 
@@ -363,6 +369,22 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         }
     }
 
+    private void bindUnknownUidPolicy(String key) {
+        DropDownPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setSummaryProvider(pref -> {
+            CharSequence entry = ((DropDownPreference) pref).getEntry();
+            return TextUtils.isEmpty(entry) ? getString(R.string.xray_settings_tun_unknown_uid_policy_summary) : entry;
+        });
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            Haptics.softSelection(getListView() != null ? getListView() : requireView());
+            requestRuntimeReconnectAfterPersist(key);
+            return true;
+        });
+    }
+
     private void bindTransportMode(String key) {
         DropDownPreference preference = findPreference(key);
         if (preference == null) {
@@ -428,12 +450,12 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         if (TextUtils.equals(key, AppPrefs.KEY_XRAY_HTTP_PROXY_AUTH_ENABLED)) {
             return getString(R.string.warning_http_auth_disable);
         }
-        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS)) {
-            // С root-режимом iptables OUTPUT-фильтр (applyFilterOnly block-2)
-            // уже блокирует tunneled UID на underlying network, так что drop
-            // unknown UID в gVisor не открывает дыру - только режет race-cases
-            // у приложений, которые быстро открывают много сокетов. Warning о
-            // деанонимизации в этом сценарии не релевантен.
+        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER)) {
+            // Disabling the router lets unresolved-UID connections fall straight
+            // into the tunnel, reopening the SO_BINDTODEVICE escape path. With
+            // root the iptables OUTPUT filter (applyFilterOnly block-2) already
+            // blocks tunneled UIDs on the underlying network, so the warning is
+            // not relevant there.
             if (AppPrefs.isRootModeEnabled(requireContext())) {
                 return null;
             }

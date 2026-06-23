@@ -117,7 +117,10 @@ public final class AppPrefs {
     public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
     public static final String KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS = "pref_xray_tun_uid_lookup_timeout_ms";
+    // Legacy boolean (direct=true / drop=false); migrated into the router+policy pair below.
     public static final String KEY_XRAY_TUN_UNKNOWN_UID_BYPASS = "pref_xray_tun_unknown_uid_bypass";
+    public static final String KEY_XRAY_TUN_UNKNOWN_UID_ROUTER = "pref_xray_tun_unknown_uid_router";
+    public static final String KEY_XRAY_TUN_UNKNOWN_UID_POLICY = "pref_xray_tun_unknown_uid_policy";
     public static final String KEY_XRAY_PROXY_QUIC_ENABLED = "pref_xray_proxy_quic_enabled";
     public static final String KEY_XRAY_RESTART_ON_NETWORK_CHANGE = "pref_xray_restart_on_network_change";
     public static final String KEY_XRAY_RUNTIME_MODE = "pref_xray_runtime_mode";

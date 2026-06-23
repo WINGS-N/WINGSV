@@ -37,10 +37,19 @@
         android:inputType="number" />
 
     <SwitchPreferenceCompat
-        android:key="pref_xray_tun_unknown_uid_bypass"
-        android:title="@string/xray_settings_tun_unknown_uid_bypass_title"
-        android:summary="@string/xray_settings_tun_unknown_uid_bypass_summary"
+        android:key="pref_xray_tun_unknown_uid_router"
+        android:title="@string/xray_settings_tun_unknown_uid_router_title"
+        android:summary="@string/xray_settings_tun_unknown_uid_router_summary"
         android:defaultValue="true" />
+
+    <androidx.preference.DropDownPreference
+        android:key="pref_xray_tun_unknown_uid_policy"
+        android:title="@string/xray_settings_tun_unknown_uid_policy_title"
+        android:summary="@string/xray_settings_tun_unknown_uid_policy_summary"
+        android:defaultValue="direct"
+        android:entries="@array/xray_unknown_uid_policy_entries"
+        android:entryValues="@array/xray_unknown_uid_policy_values"
+        android:dependency="pref_xray_tun_unknown_uid_router" />
 
     <SwitchPreferenceCompat
         android:key="pref_xray_proxy_quic_enabled"

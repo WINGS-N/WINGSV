@@ -793,6 +793,12 @@
     <string name="xray_settings_tun_uid_lookup_timeout_summary">Grace window for resolving the UID of a new TCP/UDP connection via /proc/net before the per-app filter drops it. Helps Tor/SSH that open many sockets per second by giving the kernel time to publish them. 0 disables the retry. Recommended: 150</string>
     <string name="xray_settings_tun_unknown_uid_bypass_title">Pass unknown-UID packets to direct</string>
     <string name="xray_settings_tun_unknown_uid_bypass_summary">Closes leaks from apps that bind tun0 directly.</string>
+    <string name="xray_settings_tun_unknown_uid_router_title">Unknown UID router</string>
+    <string name="xray_settings_tun_unknown_uid_router_summary">Route connections whose UID could not be resolved per the policy below. Off: let them into the tunnel unchanged.</string>
+    <string name="xray_settings_tun_unknown_uid_policy_title">Unknown UID routing</string>
+    <string name="xray_settings_tun_unknown_uid_policy_summary">What to do with an unresolved-UID connection: send it Direct, or Drop it.</string>
+    <string name="xray_unknown_uid_policy_direct">DIRECT</string>
+    <string name="xray_unknown_uid_policy_drop">DROP</string>
     <string name="xray_settings_proxy_quic_title">Proxy QUIC traffic</string>
     <string name="xray_settings_proxy_quic_summary">Allow UDP/443 to be sent through Xray. If disabled, QUIC is blocked and apps fall back to TCP</string>
     <string name="xray_settings_restart_on_network_change_title">Restart Xray when network interface changes</string>

@@ -793,6 +793,12 @@
     <string name="xray_settings_tun_uid_lookup_timeout_summary">Время ожидания публикации UID нового TCP/UDP соединения в /proc/net, прежде чем фильтр по приложениям его дропнет. Помогает Tor/SSH, открывающим много сокетов за секунду — даёт ядру время их зарегистрировать. 0 отключает retry. Рекомендуется: 150</string>
     <string name="xray_settings_tun_unknown_uid_bypass_title">Пропускать пакеты с неизвестным UID напрямую</string>
     <string name="xray_settings_tun_unknown_uid_bypass_summary">Закрывает утечки от приложений, которые биндятся к tun0 напрямую.</string>
+    <string name="xray_settings_tun_unknown_uid_router_title">Маршрутизатор Unknown UID</string>
+    <string name="xray_settings_tun_unknown_uid_router_summary">Обрабатывать соединения с неразрешённым UID по политике ниже. Выкл: впускать их в туннель без изменений.</string>
+    <string name="xray_settings_tun_unknown_uid_policy_title">Маршрутизация Unknown UID</string>
+    <string name="xray_settings_tun_unknown_uid_policy_summary">Что делать с соединением без UID: пускать напрямую (Direct) или дропать (Drop).</string>
+    <string name="xray_unknown_uid_policy_direct">DIRECT</string>
+    <string name="xray_unknown_uid_policy_drop">DROP</string>
     <string name="xray_settings_proxy_quic_title">Проксировать QUIC-трафик</string>
     <string name="xray_settings_proxy_quic_summary">Разрешить отправку UDP/443 через Xray. Если выключено, QUIC блокируется и приложения откатываются на TCP</string>
     <string name="xray_settings_restart_on_network_change_title">Перезапускать Xray при смене сетевого интерфейса</string>

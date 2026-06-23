@@ -25,7 +25,11 @@ public final class XraySettings {
     public boolean proxyQuicEnabled;
     public boolean restartOnNetworkChange;
     public int tunUidLookupTimeoutMs;
-    public boolean tunUnknownUidBypass;
+    // Unknown-UID router: when enabled the gVisor TUN filter applies tunUnknownUidPolicy
+    // ("direct" or "drop") to connections whose UID could not be resolved; when disabled
+    // such connections are let into the tunnel unchanged.
+    public boolean tunUnknownUidRouter = true;
+    public String tunUnknownUidPolicy = "direct";
     public ProxyRuntimeMode runtimeMode = ProxyRuntimeMode.VPN;
     public XrayTransportMode transportMode = XrayTransportMode.DIRECT;
     public String wakeProbeMode = WakeProbeMode.PROCESS;
@@ -68,7 +72,8 @@ public final class XraySettings {
         copy.proxyQuicEnabled = proxyQuicEnabled;
         copy.restartOnNetworkChange = restartOnNetworkChange;
         copy.tunUidLookupTimeoutMs = tunUidLookupTimeoutMs;
-        copy.tunUnknownUidBypass = tunUnknownUidBypass;
+        copy.tunUnknownUidRouter = tunUnknownUidRouter;
+        copy.tunUnknownUidPolicy = tunUnknownUidPolicy;
         copy.runtimeMode = runtimeMode;
         copy.transportMode = transportMode;
         copy.wakeProbeMode = wakeProbeMode;
@@ -98,7 +103,8 @@ public final class XraySettings {
             proxyQuicEnabled == that.proxyQuicEnabled &&
             restartOnNetworkChange == that.restartOnNetworkChange &&
             tunUidLookupTimeoutMs == that.tunUidLookupTimeoutMs &&
-            tunUnknownUidBypass == that.tunUnknownUidBypass &&
+            tunUnknownUidRouter == that.tunUnknownUidRouter &&
+            java.util.Objects.equals(tunUnknownUidPolicy, that.tunUnknownUidPolicy) &&
             runtimeMode == that.runtimeMode &&
             transportMode == that.transportMode &&
             Objects.equals(wakeProbeMode, that.wakeProbeMode) &&
@@ -137,7 +143,8 @@ public final class XraySettings {
             proxyQuicEnabled,
             restartOnNetworkChange,
             tunUidLookupTimeoutMs,
-            tunUnknownUidBypass,
+            tunUnknownUidRouter,
+            tunUnknownUidPolicy,
             runtimeMode,
             transportMode,
             wakeProbeMode

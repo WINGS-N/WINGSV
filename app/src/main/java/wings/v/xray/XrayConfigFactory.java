@@ -969,6 +969,21 @@ public final class XrayConfigFactory {
     // xray and drop it when it does not match. See
     // external/Xray-core/proxy/tun/uid_lookup_linux.go for the lookup, and
     // proxy/tun/stack_gvisor.go for the enforcement point.
+    // Maps the unknown-UID router/policy settings onto the gVisor TUN filter
+    // flags: router off -> let unresolved-UID connections fall through to the
+    // tunnel; router on + "direct" -> divert them to the bypass inbound (direct);
+    // router on + "drop" -> leave both flags unset so the filter drops them.
+    private static void applyUnknownUidPolicy(JSONObject tunSettings, XraySettings xraySettings) throws Exception {
+        if (xraySettings == null) {
+            return;
+        }
+        if (!xraySettings.tunUnknownUidRouter) {
+            tunSettings.put("tunnelUnknownUid", true);
+        } else if ("direct".equals(xraySettings.tunUnknownUidPolicy)) {
+            tunSettings.put("bypassUnknownUid", true);
+        }
+    }
+
     private static void applyTunUidFilter(Context context, JSONObject tunSettings, XraySettings xraySettings)
         throws Exception {
         if (context == null) {
@@ -1024,9 +1039,7 @@ public final class XrayConfigFactory {
             // because Android never registered the connection as VPN-tracked).
             // Closes the deliberate-leak path at the cost of also routing
             // system services that happen to not have a UID through direct.
-            if (xraySettings != null && xraySettings.tunUnknownUidBypass) {
-                tunSettings.put("bypassUnknownUid", true);
-            }
+            applyUnknownUidPolicy(tunSettings, xraySettings);
         } else if (routingMode == wings.v.core.AppRoutingMode.XWHITELIST) {
             // XWhitelist (inverse of XBypass): keep every app inside the tunnel
             // but tunnel ONLY the listed UIDs; divert the rest to direct at the
@@ -1037,9 +1050,7 @@ public final class XrayConfigFactory {
             // SO_BINDTODEVICE escape path is still closed.
             tunSettings.put("allowedUids", uidArray);
             tunSettings.put("bypassInboundTag", TUN_BYPASS_TAG);
-            if (xraySettings != null && xraySettings.tunUnknownUidBypass) {
-                tunSettings.put("bypassUnknownUid", true);
-            }
+            applyUnknownUidPolicy(tunSettings, xraySettings);
         } else {
             // Plain Whitelist: only listed packages are tunneled. The VpnService
             // addAllowedApplication already keeps the rest out of the tunnel, so
