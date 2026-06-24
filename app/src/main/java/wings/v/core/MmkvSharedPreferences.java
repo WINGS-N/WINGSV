@@ -1,6 +1,8 @@
 package wings.v.core;
 
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.tencent.mmkv.MMKV;
@@ -21,10 +23,12 @@ import java.util.WeakHashMap;
 //
 // MMKV itself implements SharedPreferences but does NOT support change
 // listeners; this wrapper adds in-process OnSharedPreferenceChangeListener
-// support (listeners fire on the thread that calls apply()/commit(), matching
-// SharedPreferences). Cross-process change callbacks are not delivered - that
-// matched the old MODE_MULTI_PROCESS behaviour, which never fired listeners
-// across processes either.
+// support. Listeners are always dispatched on the main thread (matching the
+// SharedPreferences contract), so a write from a background thread does not run
+// the UI listeners off-main - doing so raced the Fragment lifecycle and crashed
+// with "Fragment not attached to a context". Cross-process change callbacks are
+// not delivered - that matched the old MODE_MULTI_PROCESS behaviour, which never
+// fired listeners across processes either.
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AvoidSynchronizedAtMethodLevel", "PMD.GodClass" })
 public final class MmkvSharedPreferences implements SharedPreferences {
 
@@ -32,6 +36,7 @@ public final class MmkvSharedPreferences implements SharedPreferences {
 
     private final MMKV kv;
     private final Map<OnSharedPreferenceChangeListener, Object> listeners = new WeakHashMap<>();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     MmkvSharedPreferences(@NonNull MMKV kv) {
         this.kv = kv;
@@ -113,12 +118,20 @@ public final class MmkvSharedPreferences implements SharedPreferences {
             }
             snapshot = new ArrayList<>(listeners.keySet());
         }
+        boolean onMain = Looper.myLooper() == Looper.getMainLooper();
         for (OnSharedPreferenceChangeListener listener : snapshot) {
             if (listener == null) {
                 continue;
             }
             for (String key : changedKeys) {
-                listener.onSharedPreferenceChanged(this, key);
+                if (onMain) {
+                    listener.onSharedPreferenceChanged(this, key);
+                } else {
+                    // SharedPreferences guarantees listeners run on the main thread.
+                    // A write off the main thread (e.g. the root su probe) must not
+                    // run UI listeners on the worker thread.
+                    mainHandler.post(() -> listener.onSharedPreferenceChanged(this, key));
+                }
             }
         }
     }
