@@ -238,7 +238,7 @@
                         android:contentDescription="@null"
                         android:duplicateParentState="true"
                         android:importantForAccessibility="no"
-                        android:src="@drawable/ic_routing_whitelist"
+                        android:src="@drawable/ic_routing_xwhitelist"
                         app:tint="@color/routing_mode_icon_tint" />
                 </FrameLayout>
 
