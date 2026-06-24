@@ -426,29 +426,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         configureRootPreferences(XrayStore.getBackendType(context));
     }
 
-    private void syncTunUnknownUidPolicyToRootMode() {
-        Context context = getContext();
-        if (context == null) {
-            return;
-        }
-        // Связка: root режим включает iptables OUTPUT block-2, который сам ловит
-        // utечки tunneled UID через underlying network. В таком сценарии drop
-        // unknown-UID в gVisor безопасен. Без root - наоборот, drop лишает
-        // приложения интернета и не добавляет защиты, поэтому возвращаем policy
-        // unknown UID к direct (фейл-open).
-        boolean rootOn = AppPrefs.isRootModeEnabled(context);
-        String targetPolicy = rootOn ? "drop" : "direct";
-        android.content.SharedPreferences prefs = AppPrefs.defaultSharedPreferences(requireContext());
-        if (prefs == null) {
-            return;
-        }
-        String currentPolicy = prefs.getString(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY, "direct");
-        if (targetPolicy.equals(currentPolicy)) {
-            return;
-        }
-        prefs.edit().putString(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY, targetPolicy).apply();
-    }
-
     private void configureRootPreferences(@Nullable BackendType backendType) {
         Context context = getContext();
         if (context == null) {
@@ -771,7 +748,6 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             // Hide/show root sub-options live when the master toggle flips.
             if (AppPrefs.KEY_ROOT_MODE.equals(key)) {
                 configureRootPreferences();
-                syncTunUnknownUidPolicyToRootMode();
             }
             // Sync the master Guardian switch in the parent settings list with
             // toggles done from inside GuardianActivity.
