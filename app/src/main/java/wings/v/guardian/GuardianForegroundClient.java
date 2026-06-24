@@ -43,9 +43,9 @@ public final class GuardianForegroundClient {
 
                 @Override
                 public void onCommand(GuardianProto.Command command) {
-                    GuardianCommandHandler.handle(app, command, ack -> {
+                    GuardianCommandHandler.handle(app, command, frame -> {
                         if (client != null) {
-                            client.sendFrame(GuardianProto.Frame.newBuilder().setCommandAck(ack).build());
+                            client.sendFrame(frame);
                         }
                     });
                 }

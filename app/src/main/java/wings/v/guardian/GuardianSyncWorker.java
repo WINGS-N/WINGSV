@@ -6,6 +6,7 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import wings.v.core.AppPrefs;
 
 /**
@@ -39,6 +40,18 @@ public final class GuardianSyncWorker extends Worker {
             return Result.success();
         }
         CountDownLatch done = new CountDownLatch(1);
+        // The listener fires command callbacks before doWork() finishes wiring
+        // up the client reference, so route responses through a holder that the
+        // client assignment below populates. Without a live responder here the
+        // worker only ever shipped the ClientHello and silently dropped every
+        // command ack / REPORT_NOW snapshot in PERIODIC background sync.
+        AtomicReference<GuardianClient> clientRef = new AtomicReference<>();
+        GuardianCommandHandler.Responder responder = frame -> {
+            GuardianClient live = clientRef.get();
+            if (live != null) {
+                live.sendFrame(frame);
+            }
+        };
         GuardianClient client = new GuardianClient(
             app,
             new GuardianClient.Listener() {
@@ -54,7 +67,7 @@ public final class GuardianSyncWorker extends Worker {
 
                 @Override
                 public void onCommand(wings.v.proto.GuardianProto.Command command) {
-                    GuardianCommandHandler.handle(app, command, null);
+                    GuardianCommandHandler.handle(app, command, responder);
                 }
 
                 @Override
@@ -76,6 +89,7 @@ public final class GuardianSyncWorker extends Worker {
                 public void requestStateReport() {}
             }
         );
+        clientRef.set(client);
         client.start();
         try {
             long deadline = System.currentTimeMillis() + QUICK_SYNC_BUDGET_MS;
