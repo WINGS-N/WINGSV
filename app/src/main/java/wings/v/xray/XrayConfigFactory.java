@@ -1056,6 +1056,19 @@ public final class XrayConfigFactory {
             // addAllowedApplication already keeps the rest out of the tunnel, so
             // the gVisor allowlist only needs to drop anything that still slips in.
             tunSettings.put("allowedUids", uidArray);
+            // Let connections whose UID cannot be resolved fall through to the
+            // tunnel instead of being dropped. addAllowedApplication already
+            // confines the tunnel to the selected apps, so the only traffic that
+            // reaches tun with an unresolvable UID is the platform itself (the
+            // system DoT / Private DNS resolver and similar netd/network-stack
+            // connections that getConnectionOwnerUid cannot attribute). The core
+            // started dropping unknown-UID connections once a UID filter is
+            // active, which black-holed the system DoT resolver and broke
+            // Private DNS in Whitelist mode; matching the pre-filter behaviour
+            // here keeps the per-app whitelist intact while restoring system DoT.
+            // (XBypass/XWhitelist use bypassInboundTag + the unknown-uid policy
+            // instead, so they are unaffected and untouched.)
+            tunSettings.put("tunnelUnknownUid", true);
         }
         android.util.Log.i(
             "WINGSV-Xray",
