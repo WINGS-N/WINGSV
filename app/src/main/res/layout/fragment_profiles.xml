@@ -20,32 +20,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?android:colorBackground"
-                android:orientation="vertical"
-                android:padding="20dp"
-                app:roundedCorners="all">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/xray_profiles_header_title"
-                    android:textAppearance="?android:attr/textAppearanceMedium"
-                    android:textColor="?android:textColorPrimary"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/text_profiles_header_summary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="@string/xray_profiles_header_summary"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
-            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
-
             <dev.oneuiproject.oneui.widget.Separator
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

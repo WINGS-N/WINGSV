@@ -143,6 +143,8 @@ public class ProfilesFragment extends Fragment {
     private boolean selectionMode;
     private boolean refreshingSubscriptions;
     private boolean connectionTestRunning;
+    private long lastSubscriptionsRefreshAt;
+    private String lastSubscriptionsError;
     private boolean pageAppendRunning;
     private int connectionTestGeneration;
     private int renderGeneration;
@@ -338,7 +340,9 @@ public class ProfilesFragment extends Fragment {
         profileTrafficStats.putAll(XrayStore.getProfileTrafficStatsMap(requireContext()));
         pruneSelection(uiModel.profiles);
         syncPingStates(uiModel.profiles);
-        updateHeaderSummary(uiModel.lastRefreshAt, uiModel.lastError);
+        lastSubscriptionsRefreshAt = uiModel.lastRefreshAt;
+        lastSubscriptionsError = uiModel.lastError;
+        updateActionRows();
         renderFilterChips();
         if (contentChanged) {
             startPagedRender(uiModel);
@@ -480,21 +484,20 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    private void updateHeaderSummary(long refreshedAt, String lastError) {
-        if (TextUtils.isEmpty(lastError)) {
-            if (refreshedAt > 0L) {
-                binding.textProfilesHeaderSummary.setText(
-                    getString(
-                        R.string.xray_profiles_header_last_refresh,
-                        DateFormat.getDateTimeInstance().format(refreshedAt)
-                    )
-                );
-            } else {
-                binding.textProfilesHeaderSummary.setText(R.string.xray_profiles_header_summary);
-            }
-            return;
+    private String refreshSubscriptionsSummary() {
+        if (refreshingSubscriptions) {
+            return getString(R.string.xray_profiles_refresh_subscriptions_running);
         }
-        binding.textProfilesHeaderSummary.setText(getString(R.string.xray_profiles_header_error, lastError));
+        if (!TextUtils.isEmpty(lastSubscriptionsError)) {
+            return getString(R.string.xray_profiles_header_error, lastSubscriptionsError);
+        }
+        if (lastSubscriptionsRefreshAt > 0L) {
+            return getString(
+                R.string.xray_profiles_header_last_refresh,
+                DateFormat.getDateTimeInstance().format(lastSubscriptionsRefreshAt)
+            );
+        }
+        return getString(R.string.xray_profiles_refresh_subscriptions_summary);
     }
 
     private void updateEmptyState() {
@@ -880,11 +883,7 @@ public class ProfilesFragment extends Fragment {
             return;
         }
         binding.rowRefreshSubscriptions.setEnabled(!refreshingSubscriptions && !connectionTestRunning);
-        binding.rowRefreshSubscriptions.setSummary(
-            refreshingSubscriptions
-                ? getString(R.string.xray_profiles_refresh_subscriptions_running)
-                : getString(R.string.xray_profiles_refresh_subscriptions_summary)
-        );
+        binding.rowRefreshSubscriptions.setSummary(refreshSubscriptionsSummary());
         binding.progressRefreshSubscriptions.setVisibility(refreshingSubscriptions ? View.VISIBLE : View.GONE);
 
         binding.rowTcppingActiveProfile.setEnabled(!connectionTestRunning && !refreshingSubscriptions);
