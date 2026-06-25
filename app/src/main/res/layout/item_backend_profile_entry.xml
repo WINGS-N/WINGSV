@@ -17,7 +17,7 @@
         android:orientation="horizontal"
         android:paddingStart="18dp"
         android:paddingTop="10dp"
-        android:paddingEnd="6dp"
+        android:paddingEnd="18dp"
         android:paddingBottom="10dp">
 
         <ImageView
@@ -109,19 +109,6 @@
             android:padding="8dp"
             android:scaleType="centerInside"
             android:src="@drawable/ic_star_outline"
-            app:tint="?android:textColorSecondary" />
-
-        <ImageView
-            android:id="@+id/button_backend_profile_overflow"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:contentDescription="@string/backend_profiles_action_edit"
-            android:focusable="true"
-            android:padding="8dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_more_vert"
             app:tint="?android:textColorSecondary" />
     </LinearLayout>
 

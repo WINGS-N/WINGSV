@@ -11,6 +11,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -108,7 +109,7 @@ public class BackendProfilesFragment extends Fragment {
         binding.rowBackendSelector.setTitle(getString(R.string.backend_profiles_selector_title));
         binding.rowBackendSelector.setOnClickListener(v -> {
             Haptics.softSelection(v);
-            showBackendSelectorMenu(v);
+            showBackendSelectorMenu();
         });
         binding.rowBackendAddProfile.setTitle(getString(R.string.backend_profiles_add_title));
         binding.rowBackendAddProfile.setSummary(getString(R.string.backend_profiles_add_summary));
@@ -147,54 +148,77 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Backend selector dropdown (top-level + sub-backend), mirroring settings.
+    // Backend selector, mirroring the settings screen's backend dropdown. The
+    // settings screen uses an androidx ListPreference (pref_backend_top) backed by
+    // the backend_top_entries / backend_top_values arrays, which renders a
+    // single-choice dialog with a CHECKMARK on the active entry. This fragment is a
+    // plain Fragment (not a PreferenceFragmentCompat), so we reproduce the same UX
+    // with an AlertDialog.setSingleChoiceItems (identical single-choice list with a
+    // radio mark on the active top-level), driven by the SAME arrays and values, and
+    // the SAME wb_stream "unavailable" behavior. vk_turn and wb_stream additionally
+    // offer the sub-backend single-choice dialog (tunnel_mode_entries / values).
 
-    private void showBackendSelectorMenu(View anchor) {
-        PopupMenu menu = new PopupMenu(requireContext(), anchor);
-        menu.getMenu().add(0, 0, 0, R.string.backend_xray_title);
-        menu.getMenu().add(0, 1, 1, R.string.backend_top_vk_turn_title);
-        menu.getMenu().add(0, 2, 2, R.string.backend_top_wireguard_title);
-        menu.getMenu().add(0, 3, 3, R.string.backend_top_amneziawg_title);
-        menu.setOnMenuItemClickListener(item -> {
-            switch (item.getItemId()) {
-                case 0:
-                    selectTopLevel("xray");
-                    return true;
-                case 1:
-                    showVkTurnSubBackendMenu(anchor);
-                    return true;
-                case 2:
-                    selectTopLevel("wireguard");
-                    return true;
-                case 3:
-                    selectTopLevel("amneziawg");
-                    return true;
-                default:
-                    return false;
-            }
-        });
-        menu.show();
+    private void showBackendSelectorMenu() {
+        Context context = requireContext();
+        String[] entries = getResources().getStringArray(R.array.backend_top_entries);
+        String[] values = getResources().getStringArray(R.array.backend_top_values);
+        String activeTop = XrayStore.getBackendType(context).topLevelGroup();
+        int checkedIndex = indexOf(values, activeTop);
+        new AlertDialog.Builder(context)
+            .setTitle(R.string.backend_profiles_selector_title)
+            .setSingleChoiceItems(entries, checkedIndex, (dialog, which) -> {
+                dialog.dismiss();
+                onTopLevelChosen(values[which]);
+            })
+            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
+            .show();
     }
 
-    private void showVkTurnSubBackendMenu(View anchor) {
-        PopupMenu menu = new PopupMenu(requireContext(), anchor);
-        menu.getMenu().add(0, 0, 0, R.string.backend_profiles_sub_backend_wireguard);
-        menu.getMenu().add(0, 1, 1, R.string.backend_profiles_sub_backend_amneziawg);
-        menu.setOnMenuItemClickListener(item -> {
-            TunnelMode mode = item.getItemId() == 1 ? TunnelMode.AMNEZIAWG : TunnelMode.WIREGUARD;
-            AppPrefs.setVkTurnTunnelMode(requireContext(), mode);
-            applyBackend(BackendType.fromTopLevelAndSub("vk_turn", mode));
-            return true;
-        });
-        menu.show();
-    }
-
-    private void selectTopLevel(String topLevel) {
-        TunnelMode subMode = TunnelMode.WIREGUARD;
-        if ("vk_turn".equals(topLevel)) {
-            subMode = AppPrefs.getVkTurnTunnelMode(requireContext());
+    private void onTopLevelChosen(String topLevel) {
+        Context context = requireContext();
+        if ("wb_stream".equals(topLevel)) {
+            // Match the settings dropdown: WB Stream is listed but unavailable.
+            Toast.makeText(context, R.string.backend_top_wb_stream_unavailable_toast, Toast.LENGTH_SHORT).show();
+            return;
         }
-        applyBackend(BackendType.fromTopLevelAndSub(topLevel, subMode));
+        if ("vk_turn".equals(topLevel)) {
+            showSubBackendMenu("vk_turn");
+            return;
+        }
+        applyBackend(BackendType.fromTopLevelAndSub(topLevel, TunnelMode.WIREGUARD));
+    }
+
+    private void showSubBackendMenu(String topLevel) {
+        Context context = requireContext();
+        String[] entries = getResources().getStringArray(R.array.tunnel_mode_entries);
+        String[] values = getResources().getStringArray(R.array.tunnel_mode_values);
+        TunnelMode current = "wb_stream".equals(topLevel)
+            ? AppPrefs.getWbStreamTunnelMode(context)
+            : AppPrefs.getVkTurnTunnelMode(context);
+        int checkedIndex = indexOf(values, current.prefValue);
+        new AlertDialog.Builder(context)
+            .setTitle(R.string.sub_backend_title)
+            .setSingleChoiceItems(entries, checkedIndex, (dialog, which) -> {
+                dialog.dismiss();
+                TunnelMode mode = TunnelMode.fromPrefValue(values[which]);
+                if ("wb_stream".equals(topLevel)) {
+                    AppPrefs.setWbStreamTunnelMode(context, mode);
+                } else {
+                    AppPrefs.setVkTurnTunnelMode(context, mode);
+                }
+                applyBackend(BackendType.fromTopLevelAndSub(topLevel, mode));
+            })
+            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
+            .show();
+    }
+
+    private static int indexOf(String[] values, String target) {
+        for (int index = 0; index < values.length; index++) {
+            if (TextUtils.equals(values[index], target)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private void applyBackend(BackendType nextBackend) {
@@ -226,7 +250,15 @@ public class BackendProfilesFragment extends Fragment {
     // Xray: embed the existing ProfilesFragment unchanged.
 
     private void showXrayList() {
-        binding.scrollSimpleProfiles.setVisibility(View.GONE);
+        // Xray manages its own import/add affordance and its own scrolling profile
+        // list inside the embedded fragment. Here the shared Actions section keeps
+        // only the backend selector (add-profile and the Profiles list section are
+        // hidden), and the scroll wraps its content so the embedded Xray fragment
+        // takes the remaining space below it.
+        binding.rowBackendAddProfile.setVisibility(View.GONE);
+        binding.sectionBackendProfilesList.setVisibility(View.GONE);
+        setSimpleScrollFills(false);
+        binding.scrollSimpleProfiles.setVisibility(View.VISIBLE);
         binding.containerXrayProfiles.setVisibility(View.VISIBLE);
         if (getChildFragmentManager().findFragmentByTag(XRAY_CHILD_TAG) == null) {
             getChildFragmentManager()
@@ -234,6 +266,28 @@ public class BackendProfilesFragment extends Fragment {
                 .replace(R.id.container_xray_profiles, new ProfilesFragment(), XRAY_CHILD_TAG)
                 .commit();
         }
+    }
+
+    // Toggles whether the simple-profiles scroll fills the remaining space (the
+    // WireGuard / AmneziaWG / VK TURN list case) or wraps its content so the
+    // embedded Xray fragment below can take the rest (the Xray case). The bottom
+    // padding clears the bottom navigation only when the list scrolls here.
+    private void setSimpleScrollFills(boolean fills) {
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) binding.scrollSimpleProfiles.getLayoutParams();
+        params.height = fills ? 0 : ViewGroup.LayoutParams.WRAP_CONTENT;
+        params.weight = fills ? 1f : 0f;
+        binding.scrollSimpleProfiles.setLayoutParams(params);
+        int bottomPadding = fills ? dpToPx(104) : dpToPx(4);
+        binding.scrollSimpleProfiles.setPadding(
+            binding.scrollSimpleProfiles.getPaddingLeft(),
+            binding.scrollSimpleProfiles.getPaddingTop(),
+            binding.scrollSimpleProfiles.getPaddingRight(),
+            bottomPadding
+        );
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
     private void removeXrayChildIfPresent() {
@@ -247,7 +301,10 @@ public class BackendProfilesFragment extends Fragment {
 
     private void showSimpleList(BackendType backendType) {
         removeXrayChildIfPresent();
+        binding.rowBackendAddProfile.setVisibility(View.VISIBLE);
+        binding.sectionBackendProfilesList.setVisibility(View.VISIBLE);
         binding.containerXrayProfiles.setVisibility(View.GONE);
+        setSimpleScrollFills(true);
         binding.scrollSimpleProfiles.setVisibility(View.VISIBLE);
 
         Context context = requireContext();
@@ -300,14 +357,17 @@ public class BackendProfilesFragment extends Fragment {
         applyFavoriteState(rowBinding, backendType, profile.id);
 
         rowBinding.rowBackendProfileEntry.setOnClickListener(v -> onProfileSelected(backendType, profile.id));
+        // Mirror the Xray profile list: tap selects, long-press opens the action
+        // menu (PopupMenu anchored on the row). No per-row overflow button.
+        rowBinding.rowBackendProfileEntry.setOnLongClickListener(v -> {
+            Haptics.softSelection(v);
+            showProfileMenu(v, backendType, profile);
+            return true;
+        });
         rowBinding.buttonBackendProfileFavorite.setOnClickListener(v -> {
             Haptics.softSelection(v);
             toggleFavorite(backendType, profile.id);
             refreshUi();
-        });
-        rowBinding.buttonBackendProfileOverflow.setOnClickListener(v -> {
-            Haptics.softSelection(v);
-            showProfileMenu(v, backendType, profile);
         });
     }
 
@@ -334,6 +394,11 @@ public class BackendProfilesFragment extends Fragment {
     private void onProfileSelected(BackendType backendType, String profileId) {
         Context context = requireContext();
         if (TextUtils.equals(activeProfileId(context, backendType), profileId)) {
+            // Re-tapping the already-active profile: still re-project it onto the
+            // flat keys so KEY_ENDPOINT (and the rest) reflect this profile even
+            // when it was made active by migration/startup and never applied. This
+            // is idempotent and runs no reconnect / toast.
+            applyActiveToPrefs(context, backendType);
             refreshUi();
             return;
         }
@@ -345,13 +410,17 @@ public class BackendProfilesFragment extends Fragment {
         Toast.makeText(context, R.string.backend_profiles_selected, Toast.LENGTH_SHORT).show();
     }
 
+    // Long-press action menu, mirroring the Xray profile list's long-press
+    // PopupMenu. Order: make active, rename, edit, share, reset traffic stats,
+    // delete (the WG/AWG transport rows fold a cascade-delete confirmation into
+    // the delete action).
     private void showProfileMenu(View anchor, BackendType backendType, SimpleProfile profile) {
         PopupMenu menu = new PopupMenu(requireContext(), anchor);
         menu.getMenu().add(0, 0, 0, R.string.backend_profiles_action_select);
         menu.getMenu().add(0, 1, 1, R.string.backend_profiles_action_rename);
-        menu.getMenu().add(0, 2, 2, R.string.backend_profiles_action_reset_stats);
+        menu.getMenu().add(0, 2, 2, R.string.backend_profiles_action_edit);
         menu.getMenu().add(0, 3, 3, R.string.backend_profiles_action_share);
-        menu.getMenu().add(0, 4, 4, R.string.backend_profiles_action_edit);
+        menu.getMenu().add(0, 4, 4, R.string.backend_profiles_action_reset_stats);
         menu.getMenu().add(0, 5, 5, R.string.backend_profiles_action_delete);
         menu.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -362,13 +431,13 @@ public class BackendProfilesFragment extends Fragment {
                     showRenameDialog(backendType, profile);
                     return true;
                 case 2:
-                    resetStats(backendType, profile.id);
+                    editProfile(backendType, profile);
                     return true;
                 case 3:
                     shareProfile(backendType, profile);
                     return true;
                 case 4:
-                    editProfile(backendType, profile);
+                    resetStats(backendType, profile.id);
                     return true;
                 case 5:
                     confirmDelete(backendType, profile);
@@ -499,7 +568,7 @@ public class BackendProfilesFragment extends Fragment {
     // reconstructs on a device where the transport id does not exist.
     private void shareProfile(BackendType backendType, SimpleProfile profile) {
         Context context = requireContext();
-        if (backendType.usesAmneziaSettings() || backendType == BackendType.WIREGUARD) {
+        if (!isVkTurn(backendType)) {
             CharSequence[] items = {
                 getString(R.string.backend_profile_share_choice_link),
                 getString(R.string.backend_profile_share_choice_text),
@@ -534,7 +603,7 @@ public class BackendProfilesFragment extends Fragment {
         Context context = requireContext();
         try {
             String link;
-            if (backendType.usesAmneziaSettings()) {
+            if (backendType == BackendType.AMNEZIAWG_PLAIN) {
                 AmneziaProfile amnezia = AmneziaProfileStore.getProfileById(context, profile.id);
                 if (amnezia == null) {
                     throw new IllegalArgumentException("AmneziaWG profile not found");
@@ -556,7 +625,7 @@ public class BackendProfilesFragment extends Fragment {
     private void shareTransportText(BackendType backendType, SimpleProfile profile) {
         Context context = requireContext();
         String text;
-        if (backendType.usesAmneziaSettings()) {
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             AmneziaProfile amnezia = AmneziaProfileStore.getProfileById(context, profile.id);
             text = amnezia == null ? "" : amnezia.quickConfig;
         } else {
@@ -588,10 +657,10 @@ public class BackendProfilesFragment extends Fragment {
     // editor" button). WireGuard / AmneziaWG offer a small chooser between the
     // wg-quick / awg-quick TEXT editor and the structured UI settings editor.
     private void editProfile(BackendType backendType, SimpleProfile profile) {
-        // The list dispatch: usesAmneziaSettings() and WIREGUARD map to a WG/AWG
-        // transport profile row (text + UI chooser); everything else here is a
-        // VkTurnProfile row (the VK TURN form editor).
-        if (backendType.usesAmneziaSettings() || backendType == BackendType.WIREGUARD) {
+        // The list dispatch: the two plain backends (WIREGUARD, AMNEZIAWG_PLAIN)
+        // map to a WG/AWG transport profile row (text + UI chooser); the two VK
+        // TURN variants map to a VkTurnProfile row (the VK TURN form editor).
+        if (!isVkTurn(backendType)) {
             showBackendEditChooser(backendType, profile);
             return;
         }
@@ -631,12 +700,12 @@ public class BackendProfilesFragment extends Fragment {
     }
 
     private void updateActiveFromFlatPrefs(Context context, BackendType backendType) {
-        if (backendType.usesAmneziaSettings()) {
-            AmneziaProfileStore.updateActiveFromFlatPrefs(context);
-        } else if (backendType == BackendType.WIREGUARD) {
-            WireGuardProfileStore.updateActiveFromFlatPrefs(context);
-        } else {
+        if (isVkTurn(backendType)) {
             VkTurnProfileStore.updateActiveFromFlatPrefs(context);
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            AmneziaProfileStore.updateActiveFromFlatPrefs(context);
+        } else {
+            WireGuardProfileStore.updateActiveFromFlatPrefs(context);
         }
     }
 
@@ -669,109 +738,127 @@ public class BackendProfilesFragment extends Fragment {
     }
 
     // Store dispatch helpers. Each maps a non-Xray BackendType to its store.
+    //
+    // The simple list serves four BackendType values: plain WireGuard
+    // (WIREGUARD), plain AmneziaWG (AMNEZIAWG_PLAIN), and the two VK TURN
+    // variants VK_TURN_WIREGUARD (WG transport) and AMNEZIAWG (AWG transport).
+    // Both VK TURN variants share topLevelGroup() == "vk_turn" and must route to
+    // VkTurnProfileStore; only the two plain backends route to the transport
+    // stores. Keying on usesAmneziaSettings() would mis-route AMNEZIAWG (a VK TURN
+    // backend) to AmneziaProfileStore, which never projects the VK TURN endpoint
+    // onto KEY_ENDPOINT and would show the wrong list.
+
+    private static boolean isVkTurn(BackendType backendType) {
+        return "vk_turn".equals(backendType.topLevelGroup());
+    }
 
     private List<SimpleProfile> loadProfiles(Context context, BackendType backendType) {
         ArrayList<SimpleProfile> result = new ArrayList<>();
-        if (backendType.usesAmneziaSettings()) {
+        if (isVkTurn(backendType)) {
+            for (VkTurnProfile profile : VkTurnProfileStore.getProfiles(context)) {
+                result.add(SimpleProfile.fromVkTurn(profile));
+            }
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             for (AmneziaProfile profile : AmneziaProfileStore.getProfiles(context)) {
                 result.add(SimpleProfile.fromAmnezia(profile));
             }
-        } else if (backendType == BackendType.WIREGUARD) {
+        } else {
             for (WireGuardProfile profile : WireGuardProfileStore.getProfiles(context)) {
                 result.add(SimpleProfile.fromWireGuard(profile));
-            }
-        } else {
-            for (VkTurnProfile profile : VkTurnProfileStore.getProfiles(context)) {
-                result.add(SimpleProfile.fromVkTurn(profile));
             }
         }
         return result;
     }
 
     private String activeProfileId(Context context, BackendType backendType) {
-        if (backendType.usesAmneziaSettings()) {
+        if (isVkTurn(backendType)) {
+            return VkTurnProfileStore.getActiveProfileId(context);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             return AmneziaProfileStore.getActiveProfileId(context);
         }
-        if (backendType == BackendType.WIREGUARD) {
-            return WireGuardProfileStore.getActiveProfileId(context);
-        }
-        return VkTurnProfileStore.getActiveProfileId(context);
+        return WireGuardProfileStore.getActiveProfileId(context);
     }
 
     private void setActiveProfileId(Context context, BackendType backendType, String profileId) {
-        if (backendType.usesAmneziaSettings()) {
-            AmneziaProfileStore.setActiveProfileId(context, profileId);
-        } else if (backendType == BackendType.WIREGUARD) {
-            WireGuardProfileStore.setActiveProfileId(context, profileId);
-        } else {
+        if (isVkTurn(backendType)) {
             VkTurnProfileStore.setActiveProfileId(context, profileId);
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            AmneziaProfileStore.setActiveProfileId(context, profileId);
+        } else {
+            WireGuardProfileStore.setActiveProfileId(context, profileId);
         }
     }
 
     private void applyActiveToPrefs(Context context, BackendType backendType) {
-        if (backendType.usesAmneziaSettings()) {
-            AmneziaProfileStore.applyActiveToPrefs(context);
-        } else if (backendType == BackendType.WIREGUARD) {
-            WireGuardProfileStore.applyActiveToPrefs(context);
-        } else {
+        if (isVkTurn(backendType)) {
             VkTurnProfileStore.applyActiveToPrefs(context);
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            AmneziaProfileStore.applyActiveToPrefs(context);
+        } else {
+            WireGuardProfileStore.applyActiveToPrefs(context);
         }
     }
 
     private Map<String, XrayStore.ProfileTrafficStats> trafficStatsMap(Context context, BackendType backendType) {
-        if (backendType.usesAmneziaSettings()) {
+        if (isVkTurn(backendType)) {
+            return VkTurnProfileStore.getProfileTrafficStatsMap(context);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             return AmneziaProfileStore.getProfileTrafficStatsMap(context);
         }
-        if (backendType == BackendType.WIREGUARD) {
-            return WireGuardProfileStore.getProfileTrafficStatsMap(context);
-        }
-        return VkTurnProfileStore.getProfileTrafficStatsMap(context);
+        return WireGuardProfileStore.getProfileTrafficStatsMap(context);
     }
 
     private void resetProfileTrafficStats(Context context, BackendType backendType, List<String> ids) {
-        if (backendType.usesAmneziaSettings()) {
-            AmneziaProfileStore.resetProfileTrafficStats(context, ids);
-        } else if (backendType == BackendType.WIREGUARD) {
-            WireGuardProfileStore.resetProfileTrafficStats(context, ids);
-        } else {
+        if (isVkTurn(backendType)) {
             VkTurnProfileStore.resetProfileTrafficStats(context, ids);
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            AmneziaProfileStore.resetProfileTrafficStats(context, ids);
+        } else {
+            WireGuardProfileStore.resetProfileTrafficStats(context, ids);
         }
     }
 
     private boolean isFavorite(Context context, BackendType backendType, String id) {
-        if (backendType.usesAmneziaSettings()) {
+        if (isVkTurn(backendType)) {
+            return VkTurnProfileStore.isFavorite(context, id);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             return AmneziaProfileStore.isFavorite(context, id);
         }
-        if (backendType == BackendType.WIREGUARD) {
-            return WireGuardProfileStore.isFavorite(context, id);
-        }
-        return VkTurnProfileStore.isFavorite(context, id);
+        return WireGuardProfileStore.isFavorite(context, id);
     }
 
     private void toggleFavorite(BackendType backendType, String id) {
         Context context = requireContext();
-        if (backendType.usesAmneziaSettings()) {
-            AmneziaProfileStore.toggleFavorite(context, id);
-        } else if (backendType == BackendType.WIREGUARD) {
-            WireGuardProfileStore.toggleFavorite(context, id);
-        } else {
+        if (isVkTurn(backendType)) {
             VkTurnProfileStore.toggleFavorite(context, id);
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            AmneziaProfileStore.toggleFavorite(context, id);
+        } else {
+            WireGuardProfileStore.toggleFavorite(context, id);
         }
     }
 
     private boolean deleteProfile(Context context, BackendType backendType, String id) {
-        if (backendType.usesAmneziaSettings()) {
+        if (isVkTurn(backendType)) {
+            return VkTurnProfileStore.deleteProfile(context, id);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             return AmneziaProfileStore.deleteProfile(context, id);
         }
-        if (backendType == BackendType.WIREGUARD) {
-            return WireGuardProfileStore.deleteProfile(context, id);
-        }
-        return VkTurnProfileStore.deleteProfile(context, id);
+        return WireGuardProfileStore.deleteProfile(context, id);
     }
 
     private void renameProfile(BackendType backendType, SimpleProfile profile, String newTitle) {
         Context context = requireContext();
-        if (backendType.usesAmneziaSettings()) {
+        if (isVkTurn(backendType)) {
+            VkTurnProfile current = VkTurnProfileStore.getProfileById(context, profile.id);
+            if (current != null) {
+                VkTurnProfileStore.replaceProfile(context, renamedVkTurn(current, newTitle));
+            }
+        } else if (backendType == BackendType.AMNEZIAWG_PLAIN) {
             AmneziaProfile current = AmneziaProfileStore.getProfileById(context, profile.id);
             if (current != null) {
                 AmneziaProfileStore.replaceProfile(
@@ -779,7 +866,7 @@ public class BackendProfilesFragment extends Fragment {
                     new AmneziaProfile(current.id, newTitle, current.quickConfig)
                 );
             }
-        } else if (backendType == BackendType.WIREGUARD) {
+        } else {
             WireGuardProfile current = WireGuardProfileStore.getProfileById(context, profile.id);
             if (current != null) {
                 WireGuardProfileStore.replaceProfile(
@@ -797,11 +884,6 @@ public class BackendProfilesFragment extends Fragment {
                         current.endpoint
                     )
                 );
-            }
-        } else {
-            VkTurnProfile current = VkTurnProfileStore.getProfileById(context, profile.id);
-            if (current != null) {
-                VkTurnProfileStore.replaceProfile(context, renamedVkTurn(current, newTitle));
             }
         }
     }
