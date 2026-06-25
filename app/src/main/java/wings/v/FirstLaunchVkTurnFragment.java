@@ -70,6 +70,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
     private AppCompatCheckBox useUdpCheckBox;
     private AppCompatCheckBox noObfuscationCheckBox;
     private AppCompatCheckBox manualCaptchaCheckBox;
+    private AppCompatCheckBox vkAccountAuthCheckBox;
     private boolean applyingValues;
     private boolean validationAttempted;
 
@@ -107,6 +108,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         useUdpCheckBox = null;
         noObfuscationCheckBox = null;
         manualCaptchaCheckBox = null;
+        vkAccountAuthCheckBox = null;
         binding = null;
         super.onDestroyView();
     }
@@ -126,6 +128,7 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         useUdpCheckBox = addCheckBox(container, R.string.first_launch_vk_turn_use_udp);
         noObfuscationCheckBox = addCheckBox(container, R.string.first_launch_vk_turn_no_obfuscation);
         manualCaptchaCheckBox = addCheckBox(container, R.string.manual_captcha_title);
+        vkAccountAuthCheckBox = addCheckBox(container, R.string.vk_account_auth_title);
         addSectionLabel(container, R.string.first_launch_vk_turn_wireguard_interface);
         addInput(container, AppPrefs.KEY_WG_PRIVATE_KEY, R.string.first_launch_vk_turn_wg_private_key, true, false);
         addInput(container, AppPrefs.KEY_WG_ADDRESSES, R.string.first_launch_vk_turn_wg_addresses, true, false);
@@ -340,6 +343,9 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         if (noObfuscationCheckBox != null) {
             noObfuscationCheckBox.setChecked(settings.noObfuscation);
         }
+        if (vkAccountAuthCheckBox != null) {
+            vkAccountAuthCheckBox.setChecked(AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(settings.vkAuthMode));
+        }
         if (manualCaptchaCheckBox != null) {
             manualCaptchaCheckBox.setChecked(settings.manualCaptcha);
         }
@@ -484,6 +490,10 @@ public class FirstLaunchVkTurnFragment extends Fragment {
         settings.useUdp = useUdpCheckBox == null || useUdpCheckBox.isChecked();
         settings.noObfuscation = noObfuscationCheckBox != null && noObfuscationCheckBox.isChecked();
         settings.manualCaptcha = manualCaptchaCheckBox != null && manualCaptchaCheckBox.isChecked();
+        settings.vkAuthMode =
+            vkAccountAuthCheckBox != null && vkAccountAuthCheckBox.isChecked()
+                ? AppPrefs.VK_AUTH_MODE_ACCOUNT
+                : AppPrefs.VK_AUTH_MODE_ANONYMOUS;
         settings.captchaAutoSolver = AppPrefs.getSettings(requireContext()).captchaAutoSolver;
         settings.turnSessionMode = "auto";
         settings.localEndpoint = "127.0.0.1:9000";

@@ -62,6 +62,12 @@
         android:entryValues="@array/captcha_auto_solver_values" />
 
     <SwitchPreferenceCompat
+        android:key="pref_vk_auth_mode"
+        android:title="@string/vk_account_auth_title"
+        android:summary="@string/vk_account_auth_summary"
+        android:defaultValue="false" />
+
+    <SwitchPreferenceCompat
         android:key="pref_vk_turn_restart_on_network_change"
         android:title="@string/vk_turn_settings_restart_on_network_change_title"
         android:summary="@string/vk_turn_settings_restart_on_network_change_summary"

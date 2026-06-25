@@ -103,6 +103,14 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".VkAuthBrowserActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:taskAffinity=":vkAuth"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".WarningConfirmActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

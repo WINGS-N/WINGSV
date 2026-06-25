@@ -52,6 +52,9 @@ public final class AppPrefs {
     public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
     public static final String KEY_CAPTCHA_AUTO_SOLVER = "pref_captcha_auto_solver";
     public static final String CAPTCHA_AUTO_SOLVER_DEFAULT = "v2";
+    public static final String KEY_VK_AUTH_MODE = "pref_vk_auth_mode";
+    public static final String VK_AUTH_MODE_ACCOUNT = "account";
+    public static final String VK_AUTH_MODE_ANONYMOUS = "anonymous";
     public static final String KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE = "pref_vk_turn_restart_on_network_change";
     public static final String KEY_VK_TURN_RUNTIME_MODE = "pref_vk_turn_runtime_mode";
     public static final String KEY_VK_TURN_USER_DNS = "pref_vk_turn_user_dns";
@@ -1154,6 +1157,7 @@ public final class AppPrefs {
         settings.captchaAutoSolver = normalizeCaptchaAutoSolver(
             prefs.getString(KEY_CAPTCHA_AUTO_SOLVER, CAPTCHA_AUTO_SOLVER_DEFAULT)
         );
+        settings.vkAuthMode = prefs.getBoolean(KEY_VK_AUTH_MODE, false) ? VK_AUTH_MODE_ACCOUNT : VK_AUTH_MODE_ANONYMOUS;
         settings.vkTurnRestartOnNetworkChange = prefs.getBoolean(KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, true);
         settings.vkTurnRuntimeMode = ProxyRuntimeMode.fromPrefValue(
             prefs.getString(KEY_VK_TURN_RUNTIME_MODE, ProxyRuntimeMode.VPN.prefValue)
@@ -1709,6 +1713,7 @@ public final class AppPrefs {
             .putBoolean(KEY_NO_OBFUSCATION, settings.noObfuscation)
             .putBoolean(KEY_MANUAL_CAPTCHA, settings.manualCaptcha)
             .putString(KEY_CAPTCHA_AUTO_SOLVER, normalizeCaptchaAutoSolver(settings.captchaAutoSolver))
+            .putBoolean(KEY_VK_AUTH_MODE, VK_AUTH_MODE_ACCOUNT.equals(normalizeVkAuthMode(settings.vkAuthMode)))
             .putBoolean(KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, settings.vkTurnRestartOnNetworkChange)
             .putString(
                 KEY_VK_TURN_RUNTIME_MODE,
@@ -2158,6 +2163,14 @@ public final class AppPrefs {
             return normalized;
         }
         return CAPTCHA_AUTO_SOLVER_DEFAULT;
+    }
+
+    public static String normalizeVkAuthMode(String value) {
+        String normalized = trim(value).toLowerCase(java.util.Locale.ROOT);
+        if (VK_AUTH_MODE_ACCOUNT.equals(normalized)) {
+            return VK_AUTH_MODE_ACCOUNT;
+        }
+        return VK_AUTH_MODE_ANONYMOUS;
     }
 
     public static String normalizeWrapMode(String value) {

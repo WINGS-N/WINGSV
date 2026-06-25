@@ -39,6 +39,10 @@ public class ProxySettings {
     public boolean noObfuscation;
     public boolean manualCaptcha;
     public String captchaAutoSolver = "v2";
+    /** VK account auth mode for vk-turn-proxy TURN creds.
+     *  "account" = obtain TURN creds via a logged-in VK web session WebView;
+     *  "anonymous" = default behaviour (relay uses its own anonymous flow). */
+    public String vkAuthMode = "anonymous";
     public boolean vkTurnRestartOnNetworkChange = true;
     public ProxyRuntimeMode vkTurnRuntimeMode = ProxyRuntimeMode.VPN;
     /** WRAP per-packet obfuscation mode: "off" / "preferred" / "required". */

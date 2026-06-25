@@ -44,6 +44,7 @@ public class WingsApplication extends Application {
     public void onCreate() {
         super.onCreate();
         sAppContext = getApplicationContext();
+        applyWebViewDataDirectorySuffix();
         wings.v.core.MmkvPrefs.ensureInitialized(this);
         RuntimeStateStore.initialize(this);
         if (!isMainProcess()) {
@@ -95,6 +96,31 @@ public class WingsApplication extends Application {
         AppUpdateBackgroundScheduler.schedule(this);
         ActiveProbingBackgroundScheduler.refresh(this);
         XraySubscriptionBackgroundScheduler.refresh(this);
+    }
+
+    // Android forbids a WebView in two processes sharing one data directory
+    // (https://crbug.com/558377). All real WebView work runs in the main
+    // process, but give every process its own suffix as a defensive guard so a
+    // stray WebView init in :tunnel (or any helper process) can never take the
+    // main process data-dir lock and crash it.
+    private void applyWebViewDataDirectorySuffix() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return;
+        }
+        try {
+            String processName = getCurrentProcessName();
+            String suffix;
+            if (TextUtils.isEmpty(processName) || getPackageName().equals(processName)) {
+                suffix = "main";
+            } else {
+                int colon = processName.indexOf(':');
+                String tail = colon >= 0 ? processName.substring(colon + 1) : processName;
+                suffix = TextUtils.isEmpty(tail) ? "proc" : tail.replaceAll("[^A-Za-z0-9_]", "_");
+            }
+            android.webkit.WebView.setDataDirectorySuffix(suffix);
+        } catch (Exception ignored) {
+            // Best effort; never let this crash app startup.
+        }
     }
 
     private boolean isMainProcess() {

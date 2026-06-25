@@ -52,6 +52,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
         AppPrefs.KEY_VK_TURN_USER_DNS,
+        AppPrefs.KEY_VK_AUTH_MODE,
     };
     private static final String[] VK_TURN_RELAY_PREFERENCE_KEYS = {
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
@@ -71,6 +72,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_TURN_PORT,
         AppPrefs.KEY_VK_TURN_USER_DNS,
         AppPrefs.KEY_DNS_MODE,
+        AppPrefs.KEY_VK_AUTH_MODE,
     };
     private static final String[] WIREGUARD_PREFERENCE_KEYS = {
         AppPrefs.KEY_WG_PRIVATE_KEY,
@@ -254,6 +256,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(AppPrefs.KEY_USE_UDP);
         bindSwitchHaptics(AppPrefs.KEY_NO_OBFUSCATION);
         bindSwitchHaptics(AppPrefs.KEY_MANUAL_CAPTCHA);
+        bindSwitchHaptics(AppPrefs.KEY_VK_AUTH_MODE);
         bindSwitchHaptics(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE);
 
         bindSecretPreference(AppPrefs.KEY_WG_PRIVATE_KEY);

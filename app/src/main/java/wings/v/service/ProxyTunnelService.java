@@ -22,12 +22,15 @@ import android.net.TrafficStats;
 import android.net.VpnService;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
@@ -89,6 +92,7 @@ import org.json.JSONObject;
 import wings.v.CaptchaBrowserActivity;
 import wings.v.MainActivity;
 import wings.v.R;
+import wings.v.VkAuthBrowserActivity;
 import wings.v.byedpi.ByeDpiNative;
 import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.ActiveProbingManager;
@@ -188,6 +192,9 @@ public class ProxyTunnelService extends Service {
     private static final String PROXY_EVENT_LOCKOUT = "lockout";
     private static final String PROXY_EVENT_STATUS = "status";
     private static final String PROXY_EVENT_TELEMETRY = "telemetry";
+    private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_REQUIRED = "vk_account_auth_required";
+    private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_COMPLETE = "vk_account_auth_complete";
+    private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_FAILED = "vk_account_auth_failed";
     private static final String CAPTCHA_STATE_PENDING = "pending";
     private static final String CAPTCHA_STATE_REQUIRED = "required";
     private static final String CAPTCHA_STATE_SOLVED = "solved";
@@ -199,12 +206,22 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
+    // Delivers intercepted VK TURN credentials (or a cancel) from
+    // VkAuthBrowserActivity (main process) to this service (:tunnel); the service
+    // writes one vk_account_creds JSON line to the relay process stdin.
+    public static final String ACTION_VK_ACCOUNT_CREDS = "wings.v.action.VK_ACCOUNT_CREDS";
+    public static final String EXTRA_VK_LINK = "wings.v.extra.VK_LINK";
+    public static final String EXTRA_VK_USERNAME = "wings.v.extra.VK_USERNAME";
+    public static final String EXTRA_VK_CREDENTIAL = "wings.v.extra.VK_CREDENTIAL";
+    public static final String EXTRA_VK_URLS = "wings.v.extra.VK_URLS";
+    public static final String EXTRA_VK_CANCEL = "wings.v.extra.VK_CANCEL";
     private static final String EXTRA_TARGET_BACKEND = "wings.v.extra.TARGET_BACKEND";
     private static final String EXTRA_TARGET_XRAY_PROFILE_ID = "wings.v.extra.TARGET_XRAY_PROFILE_ID";
     private static final String NOTIFICATION_CHANNEL_ID = "wingsv_tunnel";
     private static final String CAPTCHA_NOTIFICATION_CHANNEL_ID = "wingsv_captcha";
     private static final int SERVICE_NOTIFICATION_ID = 1;
     private static final int CAPTCHA_NOTIFICATION_ID = 2;
+    private static final int VK_ACCOUNT_AUTH_NOTIFICATION_ID = 3;
     private static final int TUNNEL_PROCESS_RESTART_REQUEST_CODE = 4242;
     private static final long NETWORK_READY_POLL_MS = 250L;
     private static final long PROXY_START_GRACE_MS = 1_500L;
@@ -425,6 +442,16 @@ public class ProxyTunnelService extends Service {
     private org.amnezia.awg.config.Config awgConfig;
     private org.amnezia.awg.backend.Tunnel awgTunnel;
     private Process proxyProcess;
+    // Serializes writes to the relay process stdin (vk_account_creds lines).
+    private final Object proxyStdinLock = new Object();
+    // True while the running relay was launched with VK account-auth mode and
+    // its stdin is writable (non-root ProcessBuilder path only). Used to gate
+    // the VK_ACCOUNT_AUTH_REQUIRED handling and stdin writes.
+    private volatile boolean vkAccountAuthActive;
+    // The local relay URL of an in-flight account-auth request (browser launched
+    // / notification posted, awaiting complete or failed). Non-null means do not
+    // start another activity/notification; the relay re-emits the event.
+    private volatile String vkAccountAuthInFlightUrl;
     private ProxyProtectBridgeServer protectBridgeServer;
     private String protectSocketName;
     private ByeDpiNative byeDpiNative;
@@ -1419,6 +1446,14 @@ public class ProxyTunnelService extends Service {
             action = shouldAttemptRootRuntimeRecovery() ? ACTION_SYNC_RUNTIME : ACTION_START;
         }
         if (ACTION_STOP.equals(action)) {
+            // requestStop falls back to startForegroundService when a plain
+            // startService is blocked (app backgrounded). The system then REQUIRES
+            // startForeground within ~5s or it throws
+            // ForegroundServiceDidNotStartInTimeException. The stop path only ever
+            // calls stopForeground/stopSelf (asynchronously), so promote to
+            // foreground first to satisfy the contract; stopWork/abortConnectingNow
+            // tear the notification right back down.
+            ensureStartedForeground();
             if (isConnecting()) {
                 abortConnectingNow(true);
                 return START_NOT_STICKY;
@@ -1458,6 +1493,10 @@ public class ProxyTunnelService extends Service {
             requestPublicIpRefresh(true);
             return START_STICKY;
         }
+        if (ACTION_VK_ACCOUNT_CREDS.equals(action)) {
+            handleVkAccountCredsIntent(intent);
+            return isActive() ? START_STICKY : START_NOT_STICKY;
+        }
         if (ACTION_RECONNECT.equals(action)) {
             BackendType requestedBackend = parseRequestedBackend(intent);
             String requestedXrayProfileId = parseRequestedXrayProfileId(intent);
@@ -1491,6 +1530,9 @@ public class ProxyTunnelService extends Service {
                 !AppPrefs.isRootModeEnabled(getApplicationContext()) ||
                 !AppPrefs.hasRootRuntimeHint(getApplicationContext())
             ) {
+                // Launched via startForegroundService (see syncRuntime); promote to
+                // foreground before stopping so the FGS-start contract is honoured.
+                ensureStartedForeground();
                 stopSelf();
                 return START_NOT_STICKY;
             }
@@ -1661,9 +1703,24 @@ public class ProxyTunnelService extends Service {
             } catch (InterruptedException error) {
                 appendRuntimeLogLine("Runtime start cancelled: " + firstNonEmpty(error.getMessage(), "interrupted"));
             } catch (Exception error) {
-                boolean userInitiatedStop = stopping;
+                // A stop/abort that raced in (cancel of an in-flight VK account
+                // auth, STOP button) flips `stopping` and bumps the runtime
+                // generation via invalidateRuntimeOperations(). If that happened
+                // while this start was unwinding, treat it as a user stop: do NOT
+                // fall through to the retry path, which would reset stopping=false
+                // and write CONNECTING back over the abort's STOPPING/STOPPED and
+                // leave the UI stuck in "Starting".
+                boolean abortRaced = generation != runtimeGeneration.get();
+                boolean userInitiatedStop = stopping || abortRaced;
                 if (!userInitiatedStop) {
                     setLastError(error.getMessage());
+                }
+                if (abortRaced) {
+                    // abortConnectingNow/forceAbortNow already run
+                    // stopWorkInternal()+stopSelf() on their own thread; bail out
+                    // without touching service state so we do not regress it back
+                    // to CONNECTING and leave the UI stuck in "Starting".
+                    return;
                 }
                 if (userInitiatedStop) {
                     stopWorkInternal();
@@ -1687,8 +1744,12 @@ public class ProxyTunnelService extends Service {
                         "s"
                 );
                 stopWorkInternalForReconnect(activeBackendType, false);
-                if (sServiceState == ServiceState.STOPPED) {
-                    stopSelf();
+                // Re-check after the teardown: a stop/abort may have landed during
+                // the cleanup window above. If so, do not resurrect CONNECTING.
+                if (sServiceState == ServiceState.STOPPED || stopping || generation != runtimeGeneration.get()) {
+                    if (sServiceState == ServiceState.STOPPED) {
+                        stopSelf();
+                    }
                     return;
                 }
                 stopping = false;
@@ -2605,7 +2666,13 @@ public class ProxyTunnelService extends Service {
         releaseSharingWifiLocks();
 
         if (proxyProcess != null) {
-            proxyProcess.destroy();
+            // Forcibly kill (SIGKILL) the vk-turn-proxy helper rather than a
+            // graceful destroy(): during VK account auth the relay is blocked in
+            // its fetchAccountVkCreds wait (up to ~5 min) and a polite SIGTERM can
+            // be slow to land. A hard kill closes its stdout/stdin immediately so
+            // any app thread parked on the relay output unblocks at once and the
+            // stop completes without hanging in "Starting".
+            proxyProcess.destroyForcibly();
             proxyProcess = null;
         }
 
@@ -2927,7 +2994,10 @@ public class ProxyTunnelService extends Service {
             new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded),
             new CleanupTask("Proxy process destroy", () -> {
                 if (proxyProcessToDestroy != null) {
-                    proxyProcessToDestroy.destroy();
+                    // Hard kill: the relay can be parked in a long account-auth
+                    // creds wait that ignores a graceful stop; SIGKILL unblocks any
+                    // app thread reading its output immediately.
+                    proxyProcessToDestroy.destroyForcibly();
                 }
             })
         );
@@ -3440,6 +3510,31 @@ public class ProxyTunnelService extends Service {
         }
         command.add("-captcha-solver");
         command.add(captchaSolver);
+        // VK account-auth mode. The relay will request TURN creds
+        // per VK link over stdout and we feed them back over stdin. This needs
+        // a writable stdin, which only the non-root ProcessBuilder path
+        // provides; the root "su -c" path does not expose a usable stdin, so we
+        // gate the flag to the non-root path and log when it is unsupported.
+        boolean vkAccountModeRequested = AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(
+            AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
+        );
+        vkAccountAuthActive = false;
+        // Fresh relay launch: drop any stale in-flight guard from a prior run.
+        vkAccountAuthInFlightUrl = null;
+        if (vkAccountModeRequested) {
+            if (kernelWireguardActive) {
+                Log.w(
+                    TAG,
+                    "VK account auth requested but root/kernel-WG path has no writable relay stdin; " +
+                        "staying anonymous"
+                );
+                RuntimeStateStore.appendRuntimeLog("VK account auth unsupported on root path; relay stays anonymous");
+            } else {
+                command.add("-vk-auth");
+                command.add("account");
+                vkAccountAuthActive = true;
+            }
+        }
         if (xrayTurnProxyEnabled) {
             command.add("-session-mode");
             command.add("mainline");
@@ -4367,6 +4462,280 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // The relay needs the user to sign in to VK to obtain TURN credentials. It
+    // emits this event with a direct https://vk.com/call/join/<hash> URL. This
+    // service runs in the :tunnel process, where a WebView cannot be created
+    // (Android forbids WebView in two processes sharing one data dir,
+    // crbug.com/558377), so we launch VkAuthBrowserActivity in the MAIN process.
+    // That activity loads vk.com directly, intercepts the turn_server creds from
+    // VK's own fetch/XHR responses via injected JS, and delivers them back here
+    // (ACTION_VK_ACCOUNT_CREDS), which we write to the relay process stdin. The
+    // relay drives completion via vk_account_auth_complete / vk_account_auth_failed.
+    // True while a VK account-auth request is awaiting the user to sign in via
+    // VkAuthBrowserActivity. During this window the relay legitimately cannot
+    // establish connectivity (it is waiting to intercept the creds), so the
+    // runtime watchdog / active-probing restart-on-no-connectivity must be
+    // suspended; otherwise we would tear down the tunnel mid-auth.
+    private boolean isVkAccountAuthInFlight() {
+        return vkAccountAuthInFlightUrl != null;
+    }
+
+    // Re-arm the watchdog timing baselines after the VK account auth window
+    // clears. The auth wait can elapse for minutes, so the grace/miss windows
+    // would be stale and fire immediately on the next supervisor tick. Reset
+    // every baseline the watchdogs compare against to "now" so each grace window
+    // restarts from a clean slate.
+    private void rearmRuntimeWatchdogTimingBaselines() {
+        long now = SystemClock.elapsedRealtime();
+        lastUnderlyingConnectivityEventAtElapsedMs = now;
+        lastProxyStartedAtElapsedMs = now;
+        if (lastRunningStateAtElapsedMs > 0L) {
+            lastRunningStateAtElapsedMs = now;
+        }
+        if (lastUserspaceWireGuardHealthyAtElapsedMs > 0L) {
+            lastUserspaceWireGuardHealthyAtElapsedMs = now;
+        }
+        if (lastRootWireGuardHealthyAtElapsedMs > 0L) {
+            lastRootWireGuardHealthyAtElapsedMs = now;
+        }
+    }
+
+    private void handleVkAccountAuthRequired(final String url) {
+        Log.i(TAG, "VK account auth required event received (url=" + url + ")");
+        if (!vkAccountAuthActive) {
+            // Should not happen unless the relay emits this without the flag.
+            Log.w(TAG, "VK account auth not active; ignoring required event");
+            return;
+        }
+        if (TextUtils.isEmpty(url)) {
+            Log.w(TAG, "VK account auth required with empty url; ignoring");
+            return;
+        }
+        // In-flight dedupe: the relay re-emits vk_account_auth_required
+        // repeatedly. Once we have launched the browser / posted the
+        // notification for a url, ignore further events until complete/failed
+        // comes back (cleared in handleVkAccountAuthDone). This stops the browser
+        // from being re-launched and the notification from flooding.
+        if (vkAccountAuthInFlightUrl != null) {
+            Log.i(
+                TAG,
+                "VK account auth already in flight (" + vkAccountAuthInFlightUrl + "); ignoring (url=" + url + ")"
+            );
+            return;
+        }
+        vkAccountAuthInFlightUrl = url;
+        boolean foreground = isApplicationInForeground();
+        // Only post the high-priority notification when backgrounded: Android
+        // 10+ silently no-ops background Activity starts from a service, so the
+        // notification provides the user gesture that opens the activity. In the
+        // foreground the direct startActivity works, so skip the notification to
+        // avoid spamming the user while the browser is already open.
+        if (!foreground) {
+            postVkAccountAuthNotification(url);
+        }
+        try {
+            Intent intent = VkAuthBrowserActivity.createIntent(this, url).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
+            );
+            startActivity(intent);
+            Log.i(TAG, "VK auth browser launched (foreground=" + foreground + ", url=" + url + ")");
+        } catch (Exception error) {
+            // Expected when started from the background; the notification above
+            // is the user-facing path in that case.
+            Log.w(TAG, "VK account: direct startActivity blocked, relying on notification", error);
+            if (foreground) {
+                // We suppressed the notification on the foreground assumption but
+                // the start was blocked; post it so the user is not stuck.
+                postVkAccountAuthNotification(url);
+            }
+        }
+    }
+
+    // The relay finished the VK account-auth flow (complete or failed). Clear the
+    // in-flight guard, dismiss the notification and close the browser across the
+    // process boundary by re-launching VkAuthBrowserActivity with a FINISH
+    // action that its onNewIntent handles (the activity lives in the MAIN
+    // process; this service runs in :tunnel). A null reason means success.
+    private void handleVkAccountAuthDone(@Nullable String reason) {
+        Log.i(TAG, "VK account auth done (reason=" + reason + ")");
+        vkAccountAuthInFlightUrl = null;
+        // Auth window cleared: re-arm watchdog timing so the grace windows
+        // restart cleanly instead of firing on the (possibly minutes-long)
+        // elapsed time accumulated while the user was signing in.
+        rearmRuntimeWatchdogTimingBaselines();
+        cancelVkAccountAuthNotification();
+        if (reason != null) {
+            new Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(
+                    getApplicationContext(),
+                    R.string.vk_auth_browser_status_failed,
+                    Toast.LENGTH_SHORT
+                ).show()
+            );
+        }
+        try {
+            startActivity(
+                VkAuthBrowserActivity.createFinishIntent(this).addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            );
+        } catch (Exception error) {
+            // The browser may already be gone; nothing to close.
+            Log.w(TAG, "VK account: failed to signal browser finish", error);
+        }
+        // Auth failed (relay reported vk_account_auth_failed: its creds-wait
+        // timeout, an explicit cancel, or an upstream error) with no usable
+        // connection coming. While the auth window was open the runtime parked in
+        // CONNECTING ("Starting") and the watchdog reconnect was suppressed, so if
+        // we just clear the in-flight guard nothing tears the half-started runtime
+        // down and the UI stays stuck in "Starting". Proactively stop it to a
+        // terminal STOPPED state. A success (reason == null) leaves the runtime
+        // alone so it can finish coming up. The explicit Cancel button already
+        // routes through requestStop -> abortConnectingNow; this also covers the
+        // relay-side timeout/error where no stop intent is sent.
+        if (reason != null && !stopping && isActive()) {
+            appendRuntimeLogLine("VK account auth failed; aborting connecting runtime");
+            forceAbortNow(true);
+        }
+    }
+
+    // Relay the intercepted VK TURN credentials (or a cancel) from
+    // VkAuthBrowserActivity to the relay process stdin as one vk_account_creds
+    // JSON line. Only the non-root ProcessBuilder path exposes a writable stdin,
+    // so this is gated on vkAccountAuthActive (set only on that path).
+    private void handleVkAccountCredsIntent(@Nullable Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        String link = trimToNull(intent.getStringExtra(EXTRA_VK_LINK));
+        boolean cancel = intent.getBooleanExtra(EXTRA_VK_CANCEL, false);
+        if (cancel) {
+            writeVkAccountCancelLine(link);
+            return;
+        }
+        String username = intent.getStringExtra(EXTRA_VK_USERNAME);
+        String credential = intent.getStringExtra(EXTRA_VK_CREDENTIAL);
+        ArrayList<String> urls = intent.getStringArrayListExtra(EXTRA_VK_URLS);
+        writeVkAccountCredsLine(link, username, credential, urls);
+    }
+
+    private void writeVkAccountCredsLine(
+        @Nullable String link,
+        @Nullable String username,
+        @Nullable String credential,
+        @Nullable List<String> urls
+    ) {
+        if (TextUtils.isEmpty(username) || TextUtils.isEmpty(credential) || urls == null || urls.isEmpty()) {
+            Log.w(TAG, "VK account creds delivery missing fields; ignoring");
+            return;
+        }
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("type", "vk_account_creds");
+            if (link != null) {
+                payload.put("link", link);
+            }
+            payload.put("username", username);
+            payload.put("credential", credential);
+            JSONArray urlsArray = new JSONArray();
+            for (String url : urls) {
+                if (!TextUtils.isEmpty(url)) {
+                    urlsArray.put(url);
+                }
+            }
+            payload.put("urls", urlsArray);
+            writeProxyStdinLine(payload.toString());
+        } catch (JSONException error) {
+            Log.w(TAG, "Failed to build vk_account_creds payload", error);
+        }
+    }
+
+    private void writeVkAccountCancelLine(@Nullable String link) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("type", "vk_account_creds");
+            if (link != null) {
+                payload.put("link", link);
+            }
+            payload.put("cancel", true);
+            writeProxyStdinLine(payload.toString());
+        } catch (JSONException error) {
+            Log.w(TAG, "Failed to build vk_account_creds cancel payload", error);
+        }
+    }
+
+    private void writeProxyStdinLine(String line) {
+        if (!vkAccountAuthActive) {
+            Log.w(TAG, "VK account auth not active; dropping stdin line");
+            return;
+        }
+        synchronized (proxyStdinLock) {
+            Process process = proxyProcess;
+            if (process == null) {
+                Log.w(TAG, "Relay process not running; dropping vk_account_creds line");
+                return;
+            }
+            java.io.OutputStream stdin = process.getOutputStream();
+            if (stdin == null) {
+                Log.w(TAG, "Relay process stdin not writable; dropping vk_account_creds line");
+                return;
+            }
+            try {
+                stdin.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                stdin.flush();
+                Log.i(TAG, "Wrote vk_account_creds line to relay stdin");
+            } catch (IOException error) {
+                Log.w(TAG, "Failed to write vk_account_creds line to relay stdin", error);
+            }
+        }
+    }
+
+    private void postVkAccountAuthNotification(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return;
+        }
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        if (notificationManager == null) {
+            return;
+        }
+        Intent openIntent = VkAuthBrowserActivity.createIntent(this, url).addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
+        );
+        PendingIntent openPendingIntent = PendingIntent.getActivity(
+            this,
+            301,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CAPTCHA_NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_power)
+            .setContentTitle(getString(R.string.vk_account_auth_notification_title))
+            .setContentText(getString(R.string.vk_account_auth_notification_text))
+            .setStyle(
+                new NotificationCompat.BigTextStyle().bigText(getString(R.string.vk_account_auth_notification_text))
+            )
+            .setAutoCancel(true)
+            .setContentIntent(openPendingIntent)
+            .setFullScreenIntent(openPendingIntent, true)
+            .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH);
+        try {
+            notificationManager.notify(VK_ACCOUNT_AUTH_NOTIFICATION_ID, builder.build());
+            Log.i(TAG, "VK account auth notification posted (url=" + url + ")");
+        } catch (Exception error) {
+            Log.w(TAG, "Failed to post VK account auth notification", error);
+        }
+    }
+
+    private void cancelVkAccountAuthNotification() {
+        NotificationManager notificationManager = getSystemService(NotificationManager.class);
+        if (notificationManager != null) {
+            try {
+                notificationManager.cancel(VK_ACCOUNT_AUTH_NOTIFICATION_ID);
+            } catch (Exception ignored) {}
+        }
+    }
+
     private void handleProxyStatusMarker(String marker) {
         if (TextUtils.isEmpty(marker)) {
             return;
@@ -4459,6 +4828,18 @@ public class ProxyTunnelService extends Service {
             }
             if (PROXY_EVENT_TELEMETRY.equals(type)) {
                 handleStructuredProxyTelemetry(event);
+                return;
+            }
+            if (PROXY_EVENT_VK_ACCOUNT_AUTH_REQUIRED.equals(type)) {
+                handleVkAccountAuthRequired(event.optString("link", "").trim());
+                return;
+            }
+            if (PROXY_EVENT_VK_ACCOUNT_AUTH_COMPLETE.equals(type)) {
+                handleVkAccountAuthDone(null);
+                return;
+            }
+            if (PROXY_EVENT_VK_ACCOUNT_AUTH_FAILED.equals(type)) {
+                handleVkAccountAuthDone(trimToNull(event.optString("reason", null)));
             }
         } catch (JSONException error) {
             appendRuntimeLogLine("Failed to parse structured proxy event: " + error.getMessage());
@@ -8451,6 +8832,20 @@ public class ProxyTunnelService extends Service {
         boolean allowTunnelProcessRestart,
         boolean preferSoftRecovery
     ) {
+        // VK account auth in flight: the relay is intentionally not connecting
+        // while the user signs in via VkAuthBrowserActivity (can take minutes).
+        // Suppress every watchdog / active-probing restart-on-no-connectivity so
+        // the tunnel is not torn down mid-auth. Timing baselines are re-armed in
+        // handleVkAccountAuthDone when the window clears, so the supervisor does
+        // not immediately fire on the stale elapsed time once auth completes.
+        // Manual cancel still works: the browser Cancel calls requestStop, which
+        // does not route through here.
+        if (isVkAccountAuthInFlight()) {
+            appendRuntimeLogLine(
+                "Suppressing runtime reconnect during VK account auth: " + firstNonEmpty(reason, "unknown reason")
+            );
+            return;
+        }
         final int scheduledGeneration = runtimeGeneration.get();
         if (sServiceState == ServiceState.STOPPED || !runtimeReconnectQueued.compareAndSet(false, true)) {
             return;
@@ -8873,6 +9268,22 @@ public class ProxyTunnelService extends Service {
 
     private android.app.Notification buildNotification() {
         return baseNotificationBuilder().build();
+    }
+
+    // Promote the service to the foreground immediately. Used by the ACTION_STOP
+    // path: requestStop falls back to startForegroundService when the app is
+    // backgrounded, and Android then requires startForeground within ~5s or it
+    // throws ForegroundServiceDidNotStartInTimeException. The stop path otherwise
+    // only stops the service, so call this first to honour the contract; the
+    // ensuing stopForeground/stopSelf tears the notification right back down.
+    // Best effort: startForeground itself can throw under FGS-start restrictions,
+    // which we swallow because we are about to stop anyway.
+    private void ensureStartedForeground() {
+        try {
+            startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
+        } catch (RuntimeException error) {
+            Log.w(TAG, "startForeground for stop path failed", error);
+        }
     }
 
     private void setServiceState(ServiceState state) {
