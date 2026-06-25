@@ -124,6 +124,27 @@ public final class AmneziaStore {
         return trim(prefs(context).getString(KEY_INTERFACE_DNS, ""));
     }
 
+    // Derives a stable identity key for a raw awg-quick config by parsing out the
+    // first peer's public key and endpoint. Falls back to a hash of the trimmed
+    // raw text when the config cannot be parsed (e.g. partial paste). Used by
+    // AmneziaProfile so the same upstream config keeps a stable dedup identity.
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public static String dedupKeyFromRawConfig(String rawConfig) {
+        String normalized = normalize(rawConfig);
+        if (TextUtils.isEmpty(normalized)) {
+            return "";
+        }
+        try {
+            StructuredConfig structured = parseRawConfig(normalized);
+            String peerPublicKey = trim(structured.peerPublicKey);
+            String peerEndpoint = trim(structured.peerEndpoint);
+            if (!TextUtils.isEmpty(peerPublicKey) || !TextUtils.isEmpty(peerEndpoint)) {
+                return (peerPublicKey + "|" + peerEndpoint).toLowerCase(java.util.Locale.ROOT);
+            }
+        } catch (Exception ignored) {}
+        return "hash:" + Integer.toHexString(normalized.hashCode());
+    }
+
     public static boolean isStructuredPreferenceKey(String key) {
         return (
             KEY_INTERFACE_PRIVATE_KEY.equals(key) ||

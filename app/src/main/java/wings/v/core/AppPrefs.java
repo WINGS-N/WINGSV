@@ -140,6 +140,25 @@ public final class AppPrefs {
     public static final String KEY_XRAY_PROFILE_TCPING_JSON = "pref_xray_profile_tcping_json";
     public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
     public static final String KEY_XRAY_ACTIVE_PROFILE_RAW_LINK = "pref_xray_active_profile_raw_link";
+    // Multi-profile foundation for the WireGuard / AmneziaWG / VK TURN backends.
+    // These mirror the Xray profile keys above; phase 1 only persists the data
+    // model plus a one-time migration. The flat KEY_WG_* / KEY_AWG_QUICK_CONFIG /
+    // KEY_ENDPOINT keys remain the source of truth for the running tunnel.
+    public static final String KEY_WG_PROFILES_JSON = "pref_wg_profiles_json";
+    public static final String KEY_WG_ACTIVE_PROFILE_ID = "pref_wg_active_profile_id";
+    public static final String KEY_WG_FAVORITE_PROFILE_IDS = "pref_wg_favorite_profile_ids";
+    public static final String KEY_WG_PROFILE_TRAFFIC_JSON = "pref_wg_profile_traffic_json";
+    public static final String KEY_WG_PROFILES_MIGRATED = "pref_wg_profiles_migrated";
+    public static final String KEY_AWG_PROFILES_JSON = "pref_awg_profiles_json";
+    public static final String KEY_AWG_ACTIVE_PROFILE_ID = "pref_awg_active_profile_id";
+    public static final String KEY_AWG_FAVORITE_PROFILE_IDS = "pref_awg_favorite_profile_ids";
+    public static final String KEY_AWG_PROFILE_TRAFFIC_JSON = "pref_awg_profile_traffic_json";
+    public static final String KEY_AWG_PROFILES_MIGRATED = "pref_awg_profiles_migrated";
+    public static final String KEY_VK_TURN_PROFILES_JSON = "pref_vk_turn_profiles_json";
+    public static final String KEY_VK_TURN_ACTIVE_PROFILE_ID = "pref_vk_turn_active_profile_id";
+    public static final String KEY_VK_TURN_FAVORITE_PROFILE_IDS = "pref_vk_turn_favorite_profile_ids";
+    public static final String KEY_VK_TURN_PROFILE_TRAFFIC_JSON = "pref_vk_turn_profile_traffic_json";
+    public static final String KEY_VK_TURN_PROFILES_MIGRATED = "pref_vk_turn_profiles_migrated";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES = "pref_xray_subscriptions_refresh_minutes";
     public static final String KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED =
@@ -252,6 +271,17 @@ public final class AppPrefs {
         XposedModulePrefs.ensureDefaults(context);
         migrateFirstLaunchExperienceReset300(context);
         XrayRoutingStore.ensureGeoFilesBootstrap(context);
+        migrateBackendProfiles(context);
+    }
+
+    // One-time seeding of the WireGuard / AmneziaWG / VK TURN multi-profile
+    // stores from the legacy flat keys. WG and AWG run first so that VK TURN can
+    // reference the same transport profile they seed rather than duplicating it.
+    // Each step is idempotent and gated by its own _PROFILES_MIGRATED flag.
+    private static void migrateBackendProfiles(Context context) {
+        WireGuardProfileStore.migrateFromFlatPrefs(context);
+        AmneziaProfileStore.migrateFromFlatPrefs(context);
+        VkTurnProfileStore.migrateFromFlatPrefs(context);
     }
 
     private static void migrateFirstLaunchExperienceReset300(Context context) {
