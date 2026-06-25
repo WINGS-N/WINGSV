@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <dev.oneuiproject.oneui.widget.Separator
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:text="@string/backend_profiles_selector_section" />
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            app:roundedCorners="all">
+
+            <dev.oneuiproject.oneui.widget.CardItemView
+                android:id="@+id/row_backend_selector"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                app:showTopDivider="false"
+                app:showBottomDivider="false" />
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+        <!-- Host for the existing Xray profiles fragment (Xray backend only). -->
+        <FrameLayout
+            android:id="@+id/container_xray_profiles"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
+        <!-- Simple list for WireGuard / AmneziaWG / VK TURN backends. -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/scroll_simple_profiles"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:fillViewport="true"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="104dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <dev.oneuiproject.oneui.widget.Separator
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/backend_profiles_list_section" />
+
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    app:roundedCorners="all">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/row_backend_add_profile"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                        app:showTopDivider="false"
+                        app:showBottomDivider="false" />
+                </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+                <TextView
+                    android:id="@+id/text_backend_profiles_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:paddingHorizontal="6dp"
+                    android:text="@string/backend_profiles_empty"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    android:textColor="?android:textColorSecondary"
+                    android:visibility="gone" />
+
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                    android:id="@+id/container_backend_profiles"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    app:roundedCorners="all" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </LinearLayout>
+
+</FrameLayout>

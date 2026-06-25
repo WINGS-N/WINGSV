@@ -7,8 +7,8 @@ import androidx.viewpager2.adapter.FragmentStateAdapter;
 import java.util.ArrayList;
 import java.util.List;
 import wings.v.ui.AppsFragment;
+import wings.v.ui.BackendProfilesFragment;
 import wings.v.ui.HomeFragment;
-import wings.v.ui.ProfilesFragment;
 import wings.v.ui.SettingsFragment;
 import wings.v.ui.SharingFragment;
 
@@ -59,7 +59,7 @@ public class MainPagerAdapter extends FragmentStateAdapter {
     public Fragment createFragment(int position) {
         long itemId = getItemId(position);
         if (itemId == ITEM_PROFILES) {
-            return new ProfilesFragment();
+            return new BackendProfilesFragment();
         }
         if (itemId == ITEM_APPS) {
             return new AppsFragment();
