@@ -376,6 +376,7 @@ public class SharingFragment extends Fragment {
             return;
         }
         Haptics.softSliderStep(sourceView);
+        setToggleIntent(type, enabled);
         operationInFlight = true;
         refreshUi();
         Context appContext = requireContext().getApplicationContext();
@@ -394,6 +395,23 @@ public class SharingFragment extends Fragment {
                 verifyRequestedState(type, enabled, finalHelperError);
             });
         });
+    }
+
+    // The user's sharing toggle intent: which tether types the user enabled via
+    // this screen. Persisted separately from the routing's last-active-types so
+    // the toggles do not follow a system hotspot toggled outside the app.
+    private void setToggleIntent(TetherType type, boolean enabled) {
+        Context context = requireContext();
+        Set<TetherType> stored = AppPrefs.getSharingUserToggleTypes(context);
+        Set<TetherType> intent = (stored == null || stored.isEmpty())
+            ? EnumSet.noneOf(TetherType.class)
+            : EnumSet.copyOf(stored);
+        if (enabled) {
+            intent.add(type);
+        } else {
+            intent.remove(type);
+        }
+        AppPrefs.setSharingUserToggleTypes(context, intent);
     }
 
     private void onCleanRoutesRequested() {
@@ -434,6 +452,9 @@ public class SharingFragment extends Fragment {
                 if (System.currentTimeMillis() - startedAt >= VERIFY_TIMEOUT_MS) {
                     operationInFlight = false;
                     verificationRunnable = null;
+                    // Requested change did not take effect; revert the toggle
+                    // intent to the actual tether state.
+                    setToggleIntent(type, enabledTypes.contains(type));
                     refreshUi();
                     String message = helperError;
                     if (message == null || message.isEmpty()) {
@@ -506,7 +527,10 @@ public class SharingFragment extends Fragment {
     }
 
     private void updateTetherToggle(SwitchItemView itemView, TetherType type, boolean rootModeReady) {
-        boolean enabled = enabledTypes.contains(type);
+        // Reflect the user's own toggle intent, not the live system tether, so a
+        // system hotspot toggled outside the app does not move this switch. The
+        // intent is a pref separate from the routing's last-active-types.
+        boolean enabled = AppPrefs.getSharingUserToggleTypes(requireContext()).contains(type);
         boolean interactive = rootModeReady && !operationInFlight;
         itemView.setChecked(enabled);
         itemView.setEnabled(interactive);
