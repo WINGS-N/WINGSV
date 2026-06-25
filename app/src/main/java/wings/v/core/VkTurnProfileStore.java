@@ -497,6 +497,22 @@ public final class VkTurnProfileStore {
      * given. Returns the active profile, or null when the endpoint is empty.
      */
     public static VkTurnProfile importActiveFromFlatPrefs(Context context, String title) {
+        return importActiveFromFlatPrefs(context, title, "", "");
+    }
+
+    /**
+     * Import-as-profile entry point that also threads the transport titles carried
+     * by a single VK TURN profile share link. wireGuardTitle / amneziaTitle are
+     * used (when non-empty) for the embedded transport profile instead of a
+     * generic "WireGuard" / "AmneziaWG" placeholder. Both fall back to the
+     * placeholder when empty, preserving the legacy behavior.
+     */
+    public static VkTurnProfile importActiveFromFlatPrefs(
+        Context context,
+        String title,
+        String wireGuardTitle,
+        String amneziaTitle
+    ) {
         SharedPreferences prefs = ProfileStoreSupport.prefs(context);
         String endpoint = ProfileStoreSupport.trim(prefs.getString(AppPrefs.KEY_ENDPOINT, ""));
         if (TextUtils.isEmpty(endpoint)) {
@@ -504,7 +520,7 @@ public final class VkTurnProfileStore {
         }
         boolean awg = AppPrefs.getVkTurnTunnelMode(context) == TunnelMode.AMNEZIAWG;
         String transportKind = awg ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
-        String transportProfileId = importTransportProfileId(context, awg);
+        String transportProfileId = importTransportProfileId(context, awg, wireGuardTitle, amneziaTitle);
 
         String resolvedTitle = TextUtils.isEmpty(ProfileStoreSupport.trim(title))
             ? synthesizeTitle(context, endpoint)
@@ -520,13 +536,28 @@ public final class VkTurnProfileStore {
     }
 
     // Imports (deduped) the WG/AWG transport sub-config that the importer wrote to
-    // the flat keys and returns the stored transport id to reference.
-    private static String importTransportProfileId(Context context, boolean awg) {
+    // the flat keys and returns the stored transport id to reference. The title
+    // args carry the transport name from a single-profile share link; empty falls
+    // back to the generic placeholder.
+    private static String importTransportProfileId(
+        Context context,
+        boolean awg,
+        String wireGuardTitle,
+        String amneziaTitle
+    ) {
         if (awg) {
-            AmneziaProfile transport = AmneziaProfileStore.importActiveFromFlatPrefs(context, "AmneziaWG");
+            String amneziaName = ProfileStoreSupport.trim(amneziaTitle);
+            AmneziaProfile transport = AmneziaProfileStore.importActiveFromFlatPrefs(
+                context,
+                TextUtils.isEmpty(amneziaName) ? "AmneziaWG" : amneziaName
+            );
             return transport == null ? "" : transport.id;
         }
-        WireGuardProfile transport = WireGuardProfileStore.importActiveFromFlatPrefs(context, "WireGuard");
+        String wireGuardName = ProfileStoreSupport.trim(wireGuardTitle);
+        WireGuardProfile transport = WireGuardProfileStore.importActiveFromFlatPrefs(
+            context,
+            TextUtils.isEmpty(wireGuardName) ? "WireGuard" : wireGuardName
+        );
         return transport == null ? "" : transport.id;
     }
 

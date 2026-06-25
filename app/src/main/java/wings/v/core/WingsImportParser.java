@@ -313,6 +313,154 @@ public final class WingsImportParser {
         return encodeConfig(config.build());
     }
 
+    /**
+     * Single-profile share link for a saved WireGuard profile. Mirrors the Xray
+     * single-profile link: builds a Config carrying just the WireGuard message
+     * (plus a title field) and encodes it proto+deflate+base64. On import the
+     * existing VK / WireGuard parse path reconstructs an equivalent profile and
+     * AppPrefs.applyImportedConfig adds it to the WireGuard profile list.
+     */
+    public static String buildWireGuardProfileLink(WireGuardProfile profile) throws Exception {
+        if (profile == null || profile.isEmpty()) {
+            throw new IllegalArgumentException("No WireGuard profile to export");
+        }
+        ProxySettings settings = wireGuardProfileToSettings(profile);
+        WingsvProto.WireGuard.Builder wg = buildWireGuard(settings, false).toBuilder();
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            wg.setTitle(value(profile.title));
+        }
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_WIREGUARD)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_VK)
+            .setWg(wg.build())
+            .build();
+        return encodeConfig(config);
+    }
+
+    /**
+     * Single-profile share link for a saved AmneziaWG profile. Carries the
+     * awg-quick config plus a title. On import the AmneziaWG parse path
+     * reconstructs an equivalent profile.
+     */
+    public static String buildAmneziaProfileLink(AmneziaProfile profile) throws Exception {
+        if (profile == null || profile.isEmpty()) {
+            throw new IllegalArgumentException("No AmneziaWG profile to export");
+        }
+        WingsvProto.AmneziaWG.Builder awg = WingsvProto.AmneziaWG.newBuilder().setAwgQuickConfig(
+            value(profile.quickConfig)
+        );
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            awg.setTitle(value(profile.title));
+        }
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_PLAIN)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG)
+            .setAwg(awg.build())
+            .build();
+        return encodeConfig(config);
+    }
+
+    /**
+     * Single-profile share link for a saved VK TURN profile. The link MUST carry
+     * the referenced transport (the WG or AWG sub-config + endpoint) so the
+     * importer can fully reconstruct it on a device where the transport id does
+     * not exist. The Config therefore carries Turn (with title + tunnel_mode)
+     * AND the embedded transport message (wg OR awg). Resolution of the transport
+     * reference happens here against the matching transport store.
+     */
+    public static String buildTurnProfileLink(Context context, VkTurnProfile profile) throws Exception {
+        if (context == null) {
+            throw new IllegalArgumentException("Context is required");
+        }
+        if (profile == null || TextUtils.isEmpty(value(profile.vkTurnEndpoint))) {
+            throw new IllegalArgumentException("No VK TURN profile to export");
+        }
+        ProxySettings settings = vkTurnProfileToSettings(profile);
+        WingsvProto.Turn.Builder turn = buildTurn(settings, false).toBuilder();
+        // tunnel_mode tells the importer whether the transport below is WG or AWG.
+        turn.setTunnelMode(
+            profile.usesAmneziaTransport()
+                ? WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG
+                : WingsvProto.TunnelMode.TUNNEL_MODE_WIREGUARD
+        );
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            turn.setTitle(value(profile.title));
+        }
+
+        WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_VK_TURN_WIREGUARD)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_VK_TURN_PROFILE)
+            .setTurn(turn.build());
+
+        if (profile.usesAmneziaTransport()) {
+            AmneziaProfile transport = AmneziaProfileStore.getProfileById(context, profile.transportProfileId);
+            if (transport == null || transport.isEmpty()) {
+                throw new IllegalArgumentException("VK TURN transport (AmneziaWG) not found");
+            }
+            WingsvProto.AmneziaWG.Builder awg = WingsvProto.AmneziaWG.newBuilder().setAwgQuickConfig(
+                value(transport.quickConfig)
+            );
+            if (!TextUtils.isEmpty(value(transport.title))) {
+                awg.setTitle(value(transport.title));
+            }
+            config.setAwg(awg.build());
+        } else {
+            WireGuardProfile transport = WireGuardProfileStore.getProfileById(context, profile.transportProfileId);
+            if (transport == null || transport.isEmpty()) {
+                throw new IllegalArgumentException("VK TURN transport (WireGuard) not found");
+            }
+            ProxySettings transportSettings = wireGuardProfileToSettings(transport);
+            WingsvProto.WireGuard.Builder wg = buildWireGuard(transportSettings, false).toBuilder();
+            if (!TextUtils.isEmpty(value(transport.title))) {
+                wg.setTitle(value(transport.title));
+            }
+            config.setWg(wg.build());
+        }
+        return encodeConfig(config.build());
+    }
+
+    private static ProxySettings wireGuardProfileToSettings(WireGuardProfile profile) {
+        ProxySettings settings = new ProxySettings();
+        settings.backendType = BackendType.WIREGUARD;
+        settings.endpoint = value(profile.endpoint);
+        settings.wgPrivateKey = value(profile.privateKey);
+        settings.wgAddresses = value(profile.addresses);
+        settings.wgDns = value(profile.dns);
+        settings.wgMtu = profile.mtu;
+        settings.wgPublicKey = value(profile.publicKey);
+        settings.wgPresharedKey = value(profile.presharedKey);
+        settings.wgAllowedIps = value(profile.allowedIps);
+        return settings;
+    }
+
+    private static ProxySettings vkTurnProfileToSettings(VkTurnProfile profile) {
+        ProxySettings settings = new ProxySettings();
+        settings.backendType = profile.usesAmneziaTransport() ? BackendType.AMNEZIAWG : BackendType.VK_TURN_WIREGUARD;
+        settings.endpoint = value(profile.vkTurnEndpoint);
+        settings.threads = profile.threads;
+        settings.credsGroupSize = profile.credsGroupSize;
+        settings.useUdp = profile.useUdp;
+        settings.noObfuscation = profile.noObfuscation;
+        settings.manualCaptcha = profile.manualCaptcha;
+        settings.captchaAutoSolver = value(profile.captchaAutoSolver);
+        settings.vkAuthMode = value(profile.vkAuthMode);
+        settings.turnSessionMode = value(profile.turnSessionMode);
+        settings.vkTurnUserDns = value(profile.userDns);
+        settings.vkTurnRuntimeMode = ProxyRuntimeMode.fromPrefValue(profile.runtimeMode);
+        settings.vkTurnRestartOnNetworkChange = profile.restartOnNetworkChange;
+        settings.vkTurnWrapMode = value(profile.wrapMode);
+        settings.vkTurnWrapCipher = value(profile.wrapCipher);
+        settings.vkTurnWrapKeyHex = value(profile.wrapKeyHex);
+        settings.vkTurnWrapSendKey = profile.wrapSendKey;
+        settings.localEndpoint = value(profile.localEndpoint);
+        settings.turnHost = value(profile.turnHost);
+        settings.turnPort = value(profile.turnPort);
+        return settings;
+    }
+
     public static String buildXraySubscriptionsLink(Context context, List<XraySubscription> subscriptions)
         throws Exception {
         if (context == null) {
@@ -1972,6 +2120,29 @@ public final class WingsImportParser {
             return importedConfig;
         }
 
+        // Single VK TURN profile share link: Turn (with title + tunnel_mode) plus
+        // the embedded transport (wg OR awg). The transport choice follows
+        // tunnel_mode so importTransportProfileId picks the matching store.
+        if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_VK_TURN_PROFILE) {
+            boolean awgTransport =
+                config.hasTurn() && config.getTurn().getTunnelMode() == WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG;
+            importedConfig.backendType = awgTransport ? BackendType.AMNEZIAWG : BackendType.VK_TURN_WIREGUARD;
+            if (config.hasTurn()) {
+                parseTurn(config.getTurn(), importedConfig);
+            }
+            if (config.hasAwg()) {
+                importedConfig.hasAmneziaSettings = true;
+                importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
+                if (!TextUtils.isEmpty(value(config.getAwg().getTitle()))) {
+                    importedConfig.importedAmneziaTitle = value(config.getAwg().getTitle());
+                }
+            }
+            if (config.hasWg()) {
+                parseWireGuard(config.getWg(), importedConfig);
+            }
+            return importedConfig;
+        }
+
         if (
             allSettings ||
             config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_XRAY ||
@@ -2003,6 +2174,9 @@ public final class WingsImportParser {
             if (config.hasAwg()) {
                 importedConfig.hasAmneziaSettings = true;
                 importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
+                if (!TextUtils.isEmpty(value(config.getAwg().getTitle()))) {
+                    importedConfig.importedAmneziaTitle = value(config.getAwg().getTitle());
+                }
             }
             handled = true;
             if (!allSettings) {
@@ -2129,6 +2303,9 @@ public final class WingsImportParser {
 
     private static void parseTurn(WingsvProto.Turn turn, ImportedConfig importedConfig) {
         importedConfig.hasTurnSettings = true;
+        if (!TextUtils.isEmpty(value(turn.getTitle()))) {
+            importedConfig.importedVkTurnTitle = value(turn.getTitle());
+        }
         importedConfig.endpoint = turn.hasEndpoint() ? formatEndpoint(turn.getEndpoint()) : "";
         importedConfig.link = value(turn.getLink());
         importedConfig.links = new java.util.ArrayList<>();
@@ -2278,6 +2455,9 @@ public final class WingsImportParser {
 
     private static void parseWireGuard(WingsvProto.WireGuard wg, ImportedConfig importedConfig) throws Exception {
         importedConfig.hasWireGuardSettings = true;
+        if (!TextUtils.isEmpty(value(wg.getTitle()))) {
+            importedConfig.importedWireGuardTitle = value(wg.getTitle());
+        }
         importedConfig.wgEndpoint = wg.hasEndpoint() ? formatEndpoint(wg.getEndpoint()) : "";
         if (wg.hasIface()) {
             WingsvProto.Interface iface = wg.getIface();
@@ -2932,6 +3112,12 @@ public final class WingsImportParser {
         public String wgPresharedKey;
         public String wgAllowedIps;
         public String awgQuickConfig;
+        // Profile titles carried by single-profile share links (empty otherwise).
+        // applyImportedConfig prefers these over a synthesized title when adding
+        // the imported config as a backend profile.
+        public String importedWireGuardTitle;
+        public String importedAmneziaTitle;
+        public String importedVkTurnTitle;
         public String activeXrayProfileId;
         public final List<XrayProfile> xrayProfiles = new ArrayList<>();
         public final List<XraySubscription> xraySubscriptions = new ArrayList<>();

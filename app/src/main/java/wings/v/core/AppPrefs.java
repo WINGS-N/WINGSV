@@ -1365,15 +1365,30 @@ public final class AppPrefs {
         if (importedConfig.hasTurnSettings && backendType.usesTurnProxy()) {
             // VK TURN: the transport (WG/AWG) sub-config is imported as its own
             // profile inside importActiveFromFlatPrefs, then referenced by id.
-            VkTurnProfileStore.importActiveFromFlatPrefs(context, "");
+            // A single-profile share link carries the VK TURN and transport
+            // titles; prefer them over a synthesized one when present.
+            VkTurnProfileStore.importActiveFromFlatPrefs(
+                context,
+                trim(importedConfig.importedVkTurnTitle),
+                trim(importedConfig.importedWireGuardTitle),
+                trim(importedConfig.importedAmneziaTitle)
+            );
             return;
         }
         if (importedConfig.hasWireGuardSettings && backendType == BackendType.WIREGUARD) {
-            WireGuardProfileStore.importActiveFromFlatPrefs(context, synthesizeWireGuardTitle(context, importedConfig));
+            String title = trim(importedConfig.importedWireGuardTitle);
+            WireGuardProfileStore.importActiveFromFlatPrefs(
+                context,
+                TextUtils.isEmpty(title) ? synthesizeWireGuardTitle(context, importedConfig) : title
+            );
             return;
         }
         if (importedConfig.hasAmneziaSettings && backendType == BackendType.AMNEZIAWG_PLAIN) {
-            AmneziaProfileStore.importActiveFromFlatPrefs(context, synthesizeAmneziaTitle(context));
+            String title = trim(importedConfig.importedAmneziaTitle);
+            AmneziaProfileStore.importActiveFromFlatPrefs(
+                context,
+                TextUtils.isEmpty(title) ? synthesizeAmneziaTitle(context) : title
+            );
         }
     }
 
