@@ -56,6 +56,25 @@
                         app:showTopDivider="false"
                         app:showBottomDivider="false" />
 
+                    <androidx.appcompat.widget.AppCompatSpinner
+                        android:id="@+id/spinner_backend_top"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:visibility="invisible" />
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/row_backend_sub_selector"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:drawableEnd="@drawable/ic_selected_apps_disclosure"
+                        app:showBottomDivider="false" />
+
+                    <androidx.appcompat.widget.AppCompatSpinner
+                        android:id="@+id/spinner_backend_sub"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:visibility="invisible" />
+
                     <dev.oneuiproject.oneui.widget.CardItemView
                         android:id="@+id/row_backend_add_profile"
                         android:layout_width="match_parent"
@@ -69,6 +88,27 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
+
+                    <dev.oneuiproject.oneui.widget.Separator
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/xray_profiles_filters_section" />
+
+                    <HorizontalScrollView
+                        android:id="@+id/scroll_backend_profile_filters"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:fillViewport="false"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/group_backend_profile_filters"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:paddingHorizontal="2dp" />
+                    </HorizontalScrollView>
 
                     <dev.oneuiproject.oneui.widget.Separator
                         android:layout_width="match_parent"

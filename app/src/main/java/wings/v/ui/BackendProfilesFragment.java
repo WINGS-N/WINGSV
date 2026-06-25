@@ -7,23 +7,33 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.widget.AppCompatSpinner;
 import androidx.appcompat.widget.PopupMenu;
+import androidx.appcompat.widget.SeslArrayAdapter;
 import androidx.core.content.ContextCompat;
 import androidx.core.widget.ImageViewCompat;
 import androidx.fragment.app.Fragment;
+import dev.oneuiproject.oneui.widget.CardItemView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import wings.v.ExternalActions;
 import wings.v.R;
 import wings.v.core.AmneziaProfile;
@@ -83,6 +93,8 @@ import wings.v.databinding.ItemBackendProfileEntryBinding;
 public class BackendProfilesFragment extends Fragment {
 
     private static final String XRAY_CHILD_TAG = "embedded_xray_profiles";
+    private static final String FILTER_ALL = "__all__";
+    private static final String FILTER_FAVORITES = "__favorites__";
 
     private FragmentBackendProfilesBinding binding;
 
@@ -91,6 +103,8 @@ public class BackendProfilesFragment extends Fragment {
     // active profile so the profile stays in sync with what the user changed.
     @Nullable
     private BackendType pendingUiEditBackend;
+
+    private String activeBackendFilterId = FILTER_ALL;
 
     @Nullable
     @Override
@@ -107,10 +121,23 @@ public class BackendProfilesFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         binding.rowBackendSelector.setTitle(getString(R.string.backend_profiles_selector_title));
-        binding.rowBackendSelector.setOnClickListener(v -> {
-            Haptics.softSelection(v);
-            showBackendSelectorMenu();
-        });
+        bindBackendDropdown(
+            binding.rowBackendSelector,
+            binding.spinnerBackendTop,
+            R.array.backend_top_entries,
+            R.array.backend_top_values,
+            () -> XrayStore.getBackendType(requireContext()).topLevelGroup(),
+            this::onTopLevelChosen
+        );
+        binding.rowBackendSubSelector.setTitle(getString(R.string.sub_backend_title));
+        bindBackendDropdown(
+            binding.rowBackendSubSelector,
+            binding.spinnerBackendSub,
+            R.array.tunnel_mode_entries,
+            R.array.tunnel_mode_values,
+            () -> AppPrefs.getVkTurnTunnelMode(requireContext()).prefValue,
+            this::onSubBackendChosen
+        );
         binding.rowBackendAddProfile.setTitle(getString(R.string.backend_profiles_add_title));
         binding.rowBackendAddProfile.setSummary(getString(R.string.backend_profiles_add_summary));
         binding.rowBackendAddProfile.setOnClickListener(v -> {
@@ -139,8 +166,14 @@ public class BackendProfilesFragment extends Fragment {
         if (binding == null || !isAdded()) {
             return;
         }
-        BackendType backendType = XrayStore.getBackendType(requireContext());
+        Context context = requireContext();
+        BackendType backendType = XrayStore.getBackendType(context);
         binding.rowBackendSelector.setSummary(backendSelectorSummary(backendType));
+        boolean vkTurn = "vk_turn".equals(backendType.topLevelGroup());
+        binding.rowBackendSubSelector.setVisibility(vkTurn ? View.VISIBLE : View.GONE);
+        if (vkTurn) {
+            binding.rowBackendSubSelector.setSummary(subBackendSummary(backendType));
+        }
         if (backendType.usesXrayCore()) {
             showXrayList();
         } else {
@@ -148,30 +181,61 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Backend selector, mirroring the settings screen's backend dropdown. The
-    // settings screen uses an androidx ListPreference (pref_backend_top) backed by
-    // the backend_top_entries / backend_top_values arrays, which renders a
-    // single-choice dialog with a CHECKMARK on the active entry. This fragment is a
-    // plain Fragment (not a PreferenceFragmentCompat), so we reproduce the same UX
-    // with an AlertDialog.setSingleChoiceItems (identical single-choice list with a
-    // radio mark on the active top-level), driven by the SAME arrays and values, and
-    // the SAME wb_stream "unavailable" behavior. vk_turn and wb_stream additionally
-    // offer the sub-backend single-choice dialog (tunnel_mode_entries / values).
+    // Backend selector, mirroring the settings screen's backend dropdown exactly.
+    // Settings uses a oneui DropDownPreference (pref_backend_top plus a sub-backend
+    // DropDownPreference for VK TURN). A plain Fragment cannot host a Preference, so
+    // we reproduce the SAME OneUI spinner dropdown (with a checkmark on the active
+    // entry) via a CardItemView row backed by a hidden AppCompatSpinner +
+    // SeslArrayAdapter, driven by the SAME arrays/values. The sub-backend row is
+    // shown only for VK TURN, exactly like the settings sub-backend dropdown.
 
-    private void showBackendSelectorMenu() {
+    private void bindBackendDropdown(
+        CardItemView row,
+        AppCompatSpinner spinner,
+        int entriesRes,
+        int valuesRes,
+        Supplier<String> getter,
+        Consumer<String> setter
+    ) {
         Context context = requireContext();
-        String[] entries = getResources().getStringArray(R.array.backend_top_entries);
-        String[] values = getResources().getStringArray(R.array.backend_top_values);
-        String activeTop = XrayStore.getBackendType(context).topLevelGroup();
-        int checkedIndex = indexOf(values, activeTop);
-        new AlertDialog.Builder(context)
-            .setTitle(R.string.backend_profiles_selector_title)
-            .setSingleChoiceItems(entries, checkedIndex, (dialog, which) -> {
-                dialog.dismiss();
-                onTopLevelChosen(values[which]);
-            })
-            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
-            .show();
+        CharSequence[] entries = getResources().getTextArray(entriesRes);
+        String[] values = getResources().getStringArray(valuesRes);
+        SeslArrayAdapter adapter = new SeslArrayAdapter(
+            context,
+            androidx.appcompat.R.layout.support_simple_spinner_dropdown_item
+        );
+        for (CharSequence entry : entries) {
+            adapter.add(entry.toString());
+        }
+        spinner.setAdapter(adapter);
+        spinner.setSoundEffectsEnabled(false);
+        spinner.setSelection(indexOf(values, getter.get()));
+        spinner.setOnItemSelectedListener(
+            new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    if (position < 0 || position >= values.length) {
+                        return;
+                    }
+                    String newValue = values[position];
+                    if (TextUtils.equals(newValue, getter.get())) {
+                        return;
+                    }
+                    Haptics.softSelection(parent);
+                    setter.accept(newValue);
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {
+                    // noop
+                }
+            }
+        );
+        row.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            spinner.setSelection(indexOf(values, getter.get()));
+            spinner.performClick();
+        });
     }
 
     private void onTopLevelChosen(String topLevel) {
@@ -179,37 +243,20 @@ public class BackendProfilesFragment extends Fragment {
         if ("wb_stream".equals(topLevel)) {
             // Match the settings dropdown: WB Stream is listed but unavailable.
             Toast.makeText(context, R.string.backend_top_wb_stream_unavailable_toast, Toast.LENGTH_SHORT).show();
+            refreshUi();
             return;
         }
         if ("vk_turn".equals(topLevel)) {
-            showSubBackendMenu("vk_turn");
+            applyBackend(BackendType.fromTopLevelAndSub("vk_turn", AppPrefs.getVkTurnTunnelMode(context)));
             return;
         }
         applyBackend(BackendType.fromTopLevelAndSub(topLevel, TunnelMode.WIREGUARD));
     }
 
-    private void showSubBackendMenu(String topLevel) {
-        Context context = requireContext();
-        String[] entries = getResources().getStringArray(R.array.tunnel_mode_entries);
-        String[] values = getResources().getStringArray(R.array.tunnel_mode_values);
-        TunnelMode current = "wb_stream".equals(topLevel)
-            ? AppPrefs.getWbStreamTunnelMode(context)
-            : AppPrefs.getVkTurnTunnelMode(context);
-        int checkedIndex = indexOf(values, current.prefValue);
-        new AlertDialog.Builder(context)
-            .setTitle(R.string.sub_backend_title)
-            .setSingleChoiceItems(entries, checkedIndex, (dialog, which) -> {
-                dialog.dismiss();
-                TunnelMode mode = TunnelMode.fromPrefValue(values[which]);
-                if ("wb_stream".equals(topLevel)) {
-                    AppPrefs.setWbStreamTunnelMode(context, mode);
-                } else {
-                    AppPrefs.setVkTurnTunnelMode(context, mode);
-                }
-                applyBackend(BackendType.fromTopLevelAndSub(topLevel, mode));
-            })
-            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
-            .show();
+    private void onSubBackendChosen(String subValue) {
+        TunnelMode mode = TunnelMode.fromPrefValue(subValue);
+        AppPrefs.setVkTurnTunnelMode(requireContext(), mode);
+        applyBackend(BackendType.fromTopLevelAndSub("vk_turn", mode));
     }
 
     private static int indexOf(String[] values, String target) {
@@ -231,13 +278,7 @@ public class BackendProfilesFragment extends Fragment {
             case "xray":
                 return getString(R.string.backend_xray_title);
             case "vk_turn":
-                return (
-                    getString(R.string.backend_top_vk_turn_title) +
-                    " " +
-                    (backendType == BackendType.AMNEZIAWG
-                        ? getString(R.string.backend_profiles_vk_turn_transport_awg)
-                        : getString(R.string.backend_profiles_vk_turn_transport_wg))
-                );
+                return getString(R.string.backend_top_vk_turn_title);
             case "wireguard":
                 return getString(R.string.backend_top_wireguard_title);
             case "amneziawg":
@@ -245,6 +286,12 @@ public class BackendProfilesFragment extends Fragment {
             default:
                 return getString(R.string.backend_profiles_selector_summary);
         }
+    }
+
+    private String subBackendSummary(BackendType backendType) {
+        return backendType == BackendType.AMNEZIAWG
+            ? getString(R.string.backend_profiles_vk_turn_transport_awg)
+            : getString(R.string.backend_profiles_vk_turn_transport_wg);
     }
 
     // Xray: embed the existing ProfilesFragment unchanged.
@@ -309,6 +356,17 @@ public class BackendProfilesFragment extends Fragment {
 
         Context context = requireContext();
         List<SimpleProfile> profiles = loadProfiles(context, backendType);
+        Set<String> favorites = favoriteIds(context, backendType);
+        renderBackendFilterChips(favorites);
+        if (FILTER_FAVORITES.equals(activeBackendFilterId)) {
+            List<SimpleProfile> favoritesOnly = new ArrayList<>();
+            for (SimpleProfile candidate : profiles) {
+                if (favorites.contains(candidate.id)) {
+                    favoritesOnly.add(candidate);
+                }
+            }
+            profiles = favoritesOnly;
+        }
         String activeId = activeProfileId(context, backendType);
         Map<String, XrayStore.ProfileTrafficStats> traffic = trafficStatsMap(context, backendType);
 
@@ -839,6 +897,78 @@ public class BackendProfilesFragment extends Fragment {
         } else {
             WireGuardProfileStore.toggleFavorite(context, id);
         }
+    }
+
+    private Set<String> favoriteIds(Context context, BackendType backendType) {
+        if (isVkTurn(backendType)) {
+            return VkTurnProfileStore.getFavoriteProfileIds(context);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+            return AmneziaProfileStore.getFavoriteProfileIds(context);
+        }
+        return WireGuardProfileStore.getFavoriteProfileIds(context);
+    }
+
+    // Mirror the Xray profile list filters: an "All" text chip and, when any
+    // profile is favorited, a bookmark icon chip that narrows the list to
+    // favorites. No subscription filters apply to WG / AWG / VK TURN.
+    private void renderBackendFilterChips(Set<String> favorites) {
+        binding.groupBackendProfileFilters.removeAllViews();
+        Context context = requireContext();
+        if (favorites.isEmpty() && FILTER_FAVORITES.equals(activeBackendFilterId)) {
+            activeBackendFilterId = FILTER_ALL;
+        }
+        addFilterChip(context, FILTER_ALL, getString(R.string.xray_profiles_filter_all), false);
+        if (!favorites.isEmpty()) {
+            addFilterChip(context, FILTER_FAVORITES, getString(R.string.xray_profiles_filter_favorites), true);
+        }
+    }
+
+    private void addFilterChip(Context context, String filterId, String title, boolean bookmarkIcon) {
+        boolean selected = TextUtils.equals(filterId, activeBackendFilterId);
+        View pill;
+        if (bookmarkIcon) {
+            ImageView iconPill = new ImageView(context);
+            iconPill.setBackgroundResource(R.drawable.bg_profile_filter_chip);
+            iconPill.setMinimumHeight(dpToPx(36));
+            iconPill.setMinimumWidth(dpToPx(44));
+            iconPill.setPadding(dpToPx(10), dpToPx(8), dpToPx(10), dpToPx(8));
+            iconPill.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            iconPill.setImageResource(R.drawable.ic_bookmark);
+            ColorStateList tint = ContextCompat.getColorStateList(context, R.color.profile_filter_bookmark_tint);
+            if (tint != null) {
+                ImageViewCompat.setImageTintList(iconPill, tint);
+            }
+            iconPill.setContentDescription(title);
+            pill = iconPill;
+        } else {
+            TextView textPill = new TextView(context);
+            textPill.setText(title);
+            textPill.setGravity(Gravity.CENTER);
+            textPill.setMinHeight(dpToPx(36));
+            textPill.setBackgroundResource(R.drawable.bg_profile_filter_chip);
+            textPill.setTextSize(15f);
+            textPill.setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8));
+            ColorStateList textColors = ContextCompat.getColorStateList(context, R.color.profile_filter_text);
+            if (textColors != null) {
+                textPill.setTextColor(textColors);
+            }
+            pill = textPill;
+        }
+        pill.setSelected(selected);
+        pill.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            activeBackendFilterId = filterId;
+            refreshUi();
+        });
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        if (binding.groupBackendProfileFilters.getChildCount() > 0) {
+            params.setMarginStart(dpToPx(8));
+        }
+        binding.groupBackendProfileFilters.addView(pill, params);
     }
 
     private boolean deleteProfile(Context context, BackendType backendType, String id) {
