@@ -73,6 +73,12 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_VK_TURN_USER_DNS,
         AppPrefs.KEY_DNS_MODE,
         AppPrefs.KEY_VK_AUTH_MODE,
+        "pref_inset_before_wrap",
+        "pref_category_vk_turn_wrap",
+        "pref_vk_turn_wrap_mode",
+        "pref_vk_turn_wrap_cipher",
+        "pref_vk_turn_wrap_key_hex",
+        "pref_vk_turn_wrap_generate",
     };
     private static final String[] WIREGUARD_PREFERENCE_KEYS = {
         AppPrefs.KEY_WG_PRIVATE_KEY,
