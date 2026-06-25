@@ -1273,6 +1273,11 @@ public final class AppPrefs {
             } catch (Exception ignored) {}
         }
 
+        // Import-as-profile: the flat keys above hold the imported config; ADD it
+        // to the matching backend's profile list (deduped), make it active and
+        // re-project it onto the flat keys, mirroring Xray's add-don't-replace.
+        applyImportedBackendProfile(context, importedConfig, backendType);
+
         if (importedConfig.hasXraySettings) {
             applyImportedXraySettings(context, importedConfig);
         }
@@ -1341,6 +1346,55 @@ public final class AppPrefs {
             ActiveProbingManager.clearRestoreBackend(context);
             XrayStore.setBackendType(context, backendType);
         }
+    }
+
+    // Routes an imported WG / AmneziaWG / VK TURN config into the matching
+    // backend's profile list as a NEW active profile (deduped), instead of only
+    // overwriting the flat keys. The importer already wrote the flat keys above;
+    // each store's importActiveFromFlatPrefs reads them into a profile, dedups,
+    // sets it active and re-projects it back onto the flat keys (runtime path
+    // unchanged). WB stream backends and the anonymous/Xray flows are untouched.
+    private static void applyImportedBackendProfile(
+        Context context,
+        WingsImportParser.ImportedConfig importedConfig,
+        BackendType backendType
+    ) {
+        if (backendType.isWbStreamBackend()) {
+            return;
+        }
+        if (importedConfig.hasTurnSettings && backendType.usesTurnProxy()) {
+            // VK TURN: the transport (WG/AWG) sub-config is imported as its own
+            // profile inside importActiveFromFlatPrefs, then referenced by id.
+            VkTurnProfileStore.importActiveFromFlatPrefs(context, "");
+            return;
+        }
+        if (importedConfig.hasWireGuardSettings && backendType == BackendType.WIREGUARD) {
+            WireGuardProfileStore.importActiveFromFlatPrefs(context, synthesizeWireGuardTitle(context, importedConfig));
+            return;
+        }
+        if (importedConfig.hasAmneziaSettings && backendType == BackendType.AMNEZIAWG_PLAIN) {
+            AmneziaProfileStore.importActiveFromFlatPrefs(context, synthesizeAmneziaTitle(context));
+        }
+    }
+
+    private static String synthesizeWireGuardTitle(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        String endpoint = trim(importedConfig.wgEndpoint);
+        if (TextUtils.isEmpty(endpoint)) {
+            endpoint = trim(importedConfig.endpoint);
+        }
+        String host = endpoint;
+        int colon = host.indexOf(':');
+        if (colon > 0) {
+            host = host.substring(0, colon);
+        }
+        if (TextUtils.isEmpty(host)) {
+            host = "WireGuard";
+        }
+        return host + " #" + (WireGuardProfileStore.getProfiles(context).size() + 1);
+    }
+
+    private static String synthesizeAmneziaTitle(Context context) {
+        return "AmneziaWG #" + (AmneziaProfileStore.getProfiles(context).size() + 1);
     }
 
     private static void applyImportedTurnSettings(

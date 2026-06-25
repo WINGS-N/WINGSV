@@ -96,6 +96,28 @@ public final class VkTurnProfileStore {
         return true;
     }
 
+    /**
+     * Adds an imported VK TURN profile to the list, deduped by stableDedupKey
+     * (transport kind + transport id + endpoint): when an identical profile
+     * already exists it is reused (and returned) instead of duplicating;
+     * otherwise the supplied profile is appended. Returns the stored profile
+     * (existing or newly added), or null when the candidate id is empty. Mirrors
+     * Xray's add-don't-replace import; does not change the active id.
+     */
+    public static VkTurnProfile addImportedProfile(Context context, VkTurnProfile profile) {
+        if (profile == null || TextUtils.isEmpty(profile.id)) {
+            return null;
+        }
+        ArrayList<VkTurnProfile> profiles = new ArrayList<>(getProfiles(context));
+        VkTurnProfile existing = findByDedupKey(profiles, profile.stableDedupKey());
+        if (existing != null) {
+            return existing;
+        }
+        profiles.add(profile);
+        setProfiles(context, profiles);
+        return profile;
+    }
+
     public static VkTurnProfile getProfileById(Context context, String profileId) {
         if (TextUtils.isEmpty(ProfileStoreSupport.trim(profileId))) {
             return null;
@@ -142,10 +164,26 @@ public final class VkTurnProfileStore {
      * still points at, since composition is by reference.
      */
     public static boolean isTransportReferenced(Context context, String transportKind, String transportProfileId) {
+        return !findVkTurnProfilesReferencing(context, transportKind, transportProfileId).isEmpty();
+    }
+
+    /**
+     * All stored VkTurnProfiles that reference the given transport (a
+     * WireGuardProfile when kind is "wg", an AmneziaProfile when kind is "awg")
+     * by id. The cascade-delete helpers on WireGuardProfileStore /
+     * AmneziaProfileStore use this to remove every dependent VK TURN profile
+     * before the shared transport is deleted.
+     */
+    public static List<VkTurnProfile> findVkTurnProfilesReferencing(
+        Context context,
+        String transportKind,
+        String transportProfileId
+    ) {
+        ArrayList<VkTurnProfile> result = new ArrayList<>();
         String normalizedKind = VkTurnProfile.normalizeTransportKind(transportKind);
         String normalizedId = ProfileStoreSupport.trim(transportProfileId);
         if (TextUtils.isEmpty(normalizedId)) {
-            return false;
+            return result;
         }
         for (VkTurnProfile profile : getProfiles(context)) {
             if (
@@ -153,10 +191,10 @@ public final class VkTurnProfileStore {
                 TextUtils.equals(profile.transportKind, normalizedKind) &&
                 TextUtils.equals(profile.transportProfileId, normalizedId)
             ) {
-                return true;
+                result.add(profile);
             }
         }
-        return false;
+        return result;
     }
 
     public static String getActiveProfileId(Context context) {
@@ -307,17 +345,40 @@ public final class VkTurnProfileStore {
             prefs.edit().putBoolean(AppPrefs.KEY_VK_TURN_PROFILES_MIGRATED, true).commit();
             return null;
         }
-        TunnelMode tunnelMode = AppPrefs.getVkTurnTunnelMode(context);
-        boolean awg = tunnelMode == TunnelMode.AMNEZIAWG;
+        boolean awg = AppPrefs.getVkTurnTunnelMode(context) == TunnelMode.AMNEZIAWG;
         String transportKind = awg ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
         String transportProfileId = resolveTransportProfileId(context, awg);
 
-        VkTurnProfile profile = new VkTurnProfile(
+        VkTurnProfile profile = readFlatProfile(context, "VK TURN", transportKind, transportProfileId);
+
+        ArrayList<VkTurnProfile> profiles = new ArrayList<>(getProfiles(context));
+        VkTurnProfile existing = findByDedupKey(profiles, profile.stableDedupKey());
+        VkTurnProfile seeded = existing != null ? existing : profile;
+        if (existing == null) {
+            profiles.add(profile);
+            setProfiles(context, profiles);
+        }
+        setActiveProfileId(context, seeded.id);
+        prefs.edit().putBoolean(AppPrefs.KEY_VK_TURN_PROFILES_MIGRATED, true).commit();
+        return seeded;
+    }
+
+    // Reads the flat KEY_ENDPOINT + VK TURN proxy keys into a VkTurnProfile that
+    // references the given transport. Shared by the migration and the importer so
+    // the two stay in lockstep.
+    static VkTurnProfile readFlatProfile(
+        Context context,
+        String title,
+        String transportKind,
+        String transportProfileId
+    ) {
+        SharedPreferences prefs = ProfileStoreSupport.prefs(context);
+        return new VkTurnProfile(
             null,
-            "VK TURN",
+            title,
             transportKind,
             transportProfileId,
-            endpoint,
+            ProfileStoreSupport.trim(prefs.getString(AppPrefs.KEY_ENDPOINT, "")),
             parseInt(prefs.getString(AppPrefs.KEY_THREADS, "24"), 24),
             parseInt(prefs.getString(AppPrefs.KEY_CREDS_GROUP_SIZE, "12"), 12),
             prefs.getBoolean(AppPrefs.KEY_USE_UDP, true),
@@ -344,17 +405,61 @@ public final class VkTurnProfileStore {
             ProfileStoreSupport.trim(prefs.getString(AppPrefs.KEY_TURN_HOST, "")),
             ProfileStoreSupport.trim(prefs.getString(AppPrefs.KEY_TURN_PORT, ""))
         );
+    }
 
-        ArrayList<VkTurnProfile> profiles = new ArrayList<>(getProfiles(context));
-        VkTurnProfile existing = findByDedupKey(profiles, profile.stableDedupKey());
-        VkTurnProfile seeded = existing != null ? existing : profile;
-        if (existing == null) {
-            profiles.add(profile);
-            setProfiles(context, profiles);
+    /**
+     * Import-as-profile entry point: the importer has already written the flat
+     * VK TURN keys plus the WG/AWG transport sub-config. This first imports that
+     * transport as its own profile (deduped, made active in its backend), then
+     * builds a VkTurnProfile referencing that transport id from the flat VK TURN
+     * keys, adds it deduped, makes it active and re-projects everything back onto
+     * the flat keys. The title is synthesized from the endpoint when none is
+     * given. Returns the active profile, or null when the endpoint is empty.
+     */
+    public static VkTurnProfile importActiveFromFlatPrefs(Context context, String title) {
+        SharedPreferences prefs = ProfileStoreSupport.prefs(context);
+        String endpoint = ProfileStoreSupport.trim(prefs.getString(AppPrefs.KEY_ENDPOINT, ""));
+        if (TextUtils.isEmpty(endpoint)) {
+            return null;
         }
-        setActiveProfileId(context, seeded.id);
-        prefs.edit().putBoolean(AppPrefs.KEY_VK_TURN_PROFILES_MIGRATED, true).commit();
-        return seeded;
+        boolean awg = AppPrefs.getVkTurnTunnelMode(context) == TunnelMode.AMNEZIAWG;
+        String transportKind = awg ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
+        String transportProfileId = importTransportProfileId(context, awg);
+
+        String resolvedTitle = TextUtils.isEmpty(ProfileStoreSupport.trim(title))
+            ? synthesizeTitle(context, endpoint)
+            : title;
+        VkTurnProfile profile = readFlatProfile(context, resolvedTitle, transportKind, transportProfileId);
+        VkTurnProfile stored = addImportedProfile(context, profile);
+        if (stored == null) {
+            return null;
+        }
+        setActiveProfileId(context, stored.id);
+        applyActiveToPrefs(context);
+        return stored;
+    }
+
+    // Imports (deduped) the WG/AWG transport sub-config that the importer wrote to
+    // the flat keys and returns the stored transport id to reference.
+    private static String importTransportProfileId(Context context, boolean awg) {
+        if (awg) {
+            AmneziaProfile transport = AmneziaProfileStore.importActiveFromFlatPrefs(context, "AmneziaWG");
+            return transport == null ? "" : transport.id;
+        }
+        WireGuardProfile transport = WireGuardProfileStore.importActiveFromFlatPrefs(context, "WireGuard");
+        return transport == null ? "" : transport.id;
+    }
+
+    private static String synthesizeTitle(Context context, String endpoint) {
+        String host = ProfileStoreSupport.trim(endpoint);
+        int colon = host.indexOf(':');
+        if (colon > 0) {
+            host = host.substring(0, colon);
+        }
+        if (TextUtils.isEmpty(host)) {
+            host = "VK TURN";
+        }
+        return host + " #" + (getProfiles(context).size() + 1);
     }
 
     // Resolves (and seeds if necessary) the transport profile id that the VK TURN

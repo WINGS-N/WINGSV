@@ -87,6 +87,28 @@ public final class WireGuardProfileStore {
         return true;
     }
 
+    /**
+     * Adds an imported profile to the list, deduped by stableDedupKey: when an
+     * identical profile already exists it is reused (and returned) instead of
+     * duplicating; otherwise the supplied profile is appended. Returns the
+     * stored profile (existing or newly added), or null when the candidate is
+     * empty. Mirrors Xray's add-don't-replace import; does not change the active
+     * id.
+     */
+    public static WireGuardProfile addImportedProfile(Context context, WireGuardProfile profile) {
+        if (profile == null || profile.isEmpty()) {
+            return null;
+        }
+        ArrayList<WireGuardProfile> profiles = new ArrayList<>(getProfiles(context));
+        WireGuardProfile existing = findByDedupKey(profiles, profile.stableDedupKey());
+        if (existing != null) {
+            return existing;
+        }
+        profiles.add(profile);
+        setProfiles(context, profiles);
+        return profile;
+    }
+
     public static WireGuardProfile getProfileById(Context context, String profileId) {
         if (TextUtils.isEmpty(ProfileStoreSupport.trim(profileId))) {
             return null;
@@ -128,6 +150,38 @@ public final class WireGuardProfileStore {
             ensureActivePresent(context);
         }
         return true;
+    }
+
+    /**
+     * Explicit opt-in cascade delete for a transport that VK TURN profiles
+     * reference. Plain deleteProfile refuses to remove a referenced transport
+     * (the safe default); this variant first deletes every VkTurnProfile that
+     * points at this WireGuardProfile, then deletes the transport itself. Used by
+     * the UI after the user confirms a delete-with-warning modal. If a deleted
+     * VK TURN profile or this transport was the active one, a new active is
+     * chosen and the flat keys are re-projected via applyActiveToPrefs.
+     */
+    public static boolean deleteProfileCascade(Context context, String wgProfileId) {
+        String trimmedId = ProfileStoreSupport.trim(wgProfileId);
+        if (TextUtils.isEmpty(trimmedId)) {
+            return false;
+        }
+        boolean removedDependents = false;
+        for (VkTurnProfile dependent : VkTurnProfileStore.findVkTurnProfilesReferencing(
+            context,
+            VkTurnProfile.TRANSPORT_KIND_WG,
+            trimmedId
+        )) {
+            if (dependent != null && VkTurnProfileStore.deleteProfile(context, dependent.id)) {
+                removedDependents = true;
+            }
+        }
+        if (removedDependents) {
+            VkTurnProfileStore.ensureActivePresent(context);
+            VkTurnProfileStore.applyActiveToPrefs(context);
+        }
+        // The transport is no longer referenced, so plain deleteProfile succeeds.
+        return deleteProfile(context, trimmedId);
     }
 
     public static String getActiveProfileId(Context context) {
@@ -221,6 +275,23 @@ public final class WireGuardProfileStore {
                     : ProfileStoreSupport.trim(profile.allowedIps)
             )
             .commit();
+    }
+
+    /**
+     * Import-as-profile entry point: reads the flat KEY_WG_* keys (just written
+     * by the importer) into a new profile, adds it deduped, makes it active and
+     * re-projects it back onto the flat keys. Returns the active profile, or
+     * null when the flat config is empty. Mirrors Xray's add-as-active import.
+     */
+    public static WireGuardProfile importActiveFromFlatPrefs(Context context, String title) {
+        WireGuardProfile flat = readFlatProfile(context, title);
+        WireGuardProfile stored = addImportedProfile(context, flat);
+        if (stored == null) {
+            return null;
+        }
+        setActiveProfileId(context, stored.id);
+        applyActiveToPrefs(context);
+        return stored;
     }
 
     static WireGuardProfile readFlatProfile(Context context, String title) {

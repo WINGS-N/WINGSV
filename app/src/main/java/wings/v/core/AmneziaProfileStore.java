@@ -84,6 +84,28 @@ public final class AmneziaProfileStore {
         return true;
     }
 
+    /**
+     * Adds an imported profile to the list, deduped by stableDedupKey: when an
+     * identical profile already exists it is reused (and returned) instead of
+     * duplicating; otherwise the supplied profile is appended. Returns the
+     * stored profile (existing or newly added), or null when the candidate is
+     * empty. Mirrors Xray's add-don't-replace import; does not change the active
+     * id.
+     */
+    public static AmneziaProfile addImportedProfile(Context context, AmneziaProfile profile) {
+        if (profile == null || profile.isEmpty()) {
+            return null;
+        }
+        ArrayList<AmneziaProfile> profiles = new ArrayList<>(getProfiles(context));
+        AmneziaProfile existing = findByDedupKey(profiles, profile.stableDedupKey());
+        if (existing != null) {
+            return existing;
+        }
+        profiles.add(profile);
+        setProfiles(context, profiles);
+        return profile;
+    }
+
     public static AmneziaProfile getProfileById(Context context, String profileId) {
         if (TextUtils.isEmpty(ProfileStoreSupport.trim(profileId))) {
             return null;
@@ -123,6 +145,38 @@ public final class AmneziaProfileStore {
             ensureActivePresent(context);
         }
         return true;
+    }
+
+    /**
+     * Explicit opt-in cascade delete for a transport that VK TURN profiles
+     * reference. Plain deleteProfile refuses to remove a referenced transport
+     * (the safe default); this variant first deletes every VkTurnProfile that
+     * points at this AmneziaProfile, then deletes the transport itself. Used by
+     * the UI after the user confirms a delete-with-warning modal. If a deleted
+     * VK TURN profile or this transport was the active one, a new active is
+     * chosen and the flat keys are re-projected via applyActiveToPrefs.
+     */
+    public static boolean deleteProfileCascade(Context context, String awgProfileId) {
+        String trimmedId = ProfileStoreSupport.trim(awgProfileId);
+        if (TextUtils.isEmpty(trimmedId)) {
+            return false;
+        }
+        boolean removedDependents = false;
+        for (VkTurnProfile dependent : VkTurnProfileStore.findVkTurnProfilesReferencing(
+            context,
+            VkTurnProfile.TRANSPORT_KIND_AWG,
+            trimmedId
+        )) {
+            if (dependent != null && VkTurnProfileStore.deleteProfile(context, dependent.id)) {
+                removedDependents = true;
+            }
+        }
+        if (removedDependents) {
+            VkTurnProfileStore.ensureActivePresent(context);
+            VkTurnProfileStore.applyActiveToPrefs(context);
+        }
+        // The transport is no longer referenced, so plain deleteProfile succeeds.
+        return deleteProfile(context, trimmedId);
     }
 
     public static String getActiveProfileId(Context context) {
@@ -205,6 +259,24 @@ public final class AmneziaProfileStore {
         try {
             AmneziaStore.applyRawConfig(context, profile.quickConfig);
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * Import-as-profile entry point: reads the effective awg-quick config (just
+     * written by the importer) into a new profile, adds it deduped, makes it
+     * active and re-projects it back onto the flat config. Returns the active
+     * profile, or null when the config is empty. Mirrors Xray's add-as-active
+     * import.
+     */
+    public static AmneziaProfile importActiveFromFlatPrefs(Context context, String title) {
+        AmneziaProfile flat = new AmneziaProfile(null, title, AmneziaStore.getEffectiveQuickConfig(context));
+        AmneziaProfile stored = addImportedProfile(context, flat);
+        if (stored == null) {
+            return null;
+        }
+        setActiveProfileId(context, stored.id);
+        applyActiveToPrefs(context);
+        return stored;
     }
 
     /**
