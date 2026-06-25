@@ -328,6 +328,86 @@ public final class VkTurnProfileStore {
     }
 
     /**
+     * Updates the active VK TURN profile in place from the flat keys, keeping its
+     * id, title and transport reference (kind + transportProfileId stay stable).
+     * The referenced transport's own edits in the flat WG/AWG keys are folded
+     * back into that transport profile as well, since the settings screen edits
+     * the composed flat keys. Used by the UI editor on return from settings.
+     * Returns the updated profile, or null when there is no active profile or the
+     * endpoint is empty.
+     */
+    public static VkTurnProfile updateActiveFromFlatPrefs(Context context) {
+        VkTurnProfile active = getActiveProfile(context);
+        if (active == null) {
+            return null;
+        }
+        // Fold the transport's flat-key edits back into the referenced transport
+        // profile (id stays stable) so the composition keeps pointing at it.
+        if (active.usesAmneziaTransport()) {
+            AmneziaProfile transport = AmneziaProfileStore.getProfileById(context, active.transportProfileId);
+            if (transport != null) {
+                AmneziaProfileStore.replaceProfile(
+                    context,
+                    new AmneziaProfile(transport.id, transport.title, AmneziaStore.getEffectiveQuickConfig(context))
+                );
+            }
+        } else {
+            WireGuardProfile transport = WireGuardProfileStore.getProfileById(context, active.transportProfileId);
+            if (transport != null) {
+                WireGuardProfile flat = WireGuardProfileStore.readFlatProfile(context, transport.title);
+                if (!flat.isEmpty()) {
+                    WireGuardProfileStore.replaceProfile(
+                        context,
+                        new WireGuardProfile(
+                            transport.id,
+                            transport.title,
+                            flat.privateKey,
+                            flat.addresses,
+                            flat.dns,
+                            flat.mtu,
+                            flat.publicKey,
+                            flat.presharedKey,
+                            flat.allowedIps,
+                            flat.endpoint
+                        )
+                    );
+                }
+            }
+        }
+        VkTurnProfile updated = readFlatProfile(context, active.title, active.transportKind, active.transportProfileId);
+        VkTurnProfile merged = new VkTurnProfile(
+            active.id,
+            active.title,
+            active.transportKind,
+            active.transportProfileId,
+            updated.vkTurnEndpoint,
+            updated.threads,
+            updated.credsGroupSize,
+            updated.useUdp,
+            updated.noObfuscation,
+            updated.manualCaptcha,
+            updated.captchaAutoSolver,
+            updated.vkAuthMode,
+            updated.turnSessionMode,
+            updated.dnsMode,
+            updated.userDns,
+            updated.runtimeMode,
+            updated.restartOnNetworkChange,
+            updated.wrapMode,
+            updated.wrapCipher,
+            updated.wrapKeyHex,
+            updated.wrapSendKey,
+            updated.localEndpoint,
+            updated.turnHost,
+            updated.turnPort
+        );
+        if (!replaceProfile(context, merged)) {
+            return null;
+        }
+        return merged;
+    }
+
+    /**
      * One-time migration: seeds a single profile from the legacy flat
      * KEY_ENDPOINT + VK TURN proxy keys when the endpoint is non-empty. The
      * transport is chosen from the current VK TURN sub-backend (TunnelMode wg vs

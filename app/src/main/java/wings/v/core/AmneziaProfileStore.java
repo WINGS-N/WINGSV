@@ -280,6 +280,30 @@ public final class AmneziaProfileStore {
     }
 
     /**
+     * Updates the active profile in place from the effective awg-quick config in
+     * the flat keys, keeping its id and title (and therefore its stats and
+     * favorite flag). Used by the UI editor: the settings screen edits the flat
+     * structured / raw keys for the active profile, and on return this folds
+     * those edits back into the stored profile. Returns the updated profile, or
+     * null when there is no active profile or the config is empty.
+     */
+    public static AmneziaProfile updateActiveFromFlatPrefs(Context context) {
+        AmneziaProfile active = getActiveProfile(context);
+        if (active == null) {
+            return null;
+        }
+        AmneziaProfile updated = new AmneziaProfile(
+            active.id,
+            active.title,
+            AmneziaStore.getEffectiveQuickConfig(context)
+        );
+        if (updated.isEmpty() || !replaceProfile(context, updated)) {
+            return null;
+        }
+        return updated;
+    }
+
+    /**
      * One-time migration: seeds a single profile from the effective awg-quick
      * config when it is non-empty. Idempotent and gated by the
      * KEY_AWG_PROFILES_MIGRATED flag. Returns the seeded (or pre-existing

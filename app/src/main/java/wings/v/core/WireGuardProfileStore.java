@@ -294,6 +294,42 @@ public final class WireGuardProfileStore {
         return stored;
     }
 
+    /**
+     * Updates the active profile in place from the flat KEY_WG_* keys, keeping
+     * its id and title (and therefore its stats and favorite flag). Used by the
+     * UI editor: the settings screen edits the flat keys for the active profile,
+     * and on return this folds those edits back into the stored profile rather
+     * than leaving the flat keys and the profile out of sync. Returns the updated
+     * profile, or null when there is no active profile or the flat config is
+     * empty.
+     */
+    public static WireGuardProfile updateActiveFromFlatPrefs(Context context) {
+        WireGuardProfile active = getActiveProfile(context);
+        if (active == null) {
+            return null;
+        }
+        WireGuardProfile updated = readFlatProfile(context, active.title);
+        if (updated.isEmpty()) {
+            return null;
+        }
+        WireGuardProfile merged = new WireGuardProfile(
+            active.id,
+            active.title,
+            updated.privateKey,
+            updated.addresses,
+            updated.dns,
+            updated.mtu,
+            updated.publicKey,
+            updated.presharedKey,
+            updated.allowedIps,
+            updated.endpoint
+        );
+        if (!replaceProfile(context, merged)) {
+            return null;
+        }
+        return merged;
+    }
+
     static WireGuardProfile readFlatProfile(Context context, String title) {
         android.content.SharedPreferences prefs = ProfileStoreSupport.prefs(context);
         return new WireGuardProfile(
