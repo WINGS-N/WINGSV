@@ -82,6 +82,12 @@ public class BackendProfilesFragment extends Fragment {
 
     private FragmentBackendProfilesBinding binding;
 
+    // Set when we open the per-backend settings screen as a UI editor for a
+    // specific profile; on return we fold the flat-key edits back into that
+    // active profile so the profile stays in sync with what the user changed.
+    @Nullable
+    private BackendType pendingUiEditBackend;
+
     @Nullable
     @Override
     public View onCreateView(
@@ -112,6 +118,10 @@ public class BackendProfilesFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (pendingUiEditBackend != null && isAdded()) {
+            updateActiveFromFlatPrefs(requireContext(), pendingUiEditBackend);
+            pendingUiEditBackend = null;
+        }
         refreshUi();
     }
 
@@ -355,7 +365,7 @@ public class BackendProfilesFragment extends Fragment {
                     shareProfileStub(backendType, profile);
                     return true;
                 case 4:
-                    editProfileStub(backendType, profile);
+                    editProfile(backendType, profile);
                     return true;
                 case 5:
                     confirmDelete(backendType, profile);
@@ -486,10 +496,61 @@ public class BackendProfilesFragment extends Fragment {
         Toast.makeText(requireContext(), R.string.backend_profiles_share_stub, Toast.LENGTH_SHORT).show();
     }
 
-    private void editProfileStub(BackendType backendType, SimpleProfile profile) {
-        // TODO: open the dedicated per-backend editor scoped to this profile once
-        // that component lands.
-        Toast.makeText(requireContext(), R.string.backend_profiles_edit_stub, Toast.LENGTH_SHORT).show();
+    // Opens the per-backend editor for this profile. VK TURN goes straight to its
+    // form editor (which offers the endpoint + transport reference and an "open UI
+    // editor" button). WireGuard / AmneziaWG offer a small chooser between the
+    // wg-quick / awg-quick TEXT editor and the structured UI settings editor.
+    private void editProfile(BackendType backendType, SimpleProfile profile) {
+        // The list dispatch: usesAmneziaSettings() and WIREGUARD map to a WG/AWG
+        // transport profile row (text + UI chooser); everything else here is a
+        // VkTurnProfile row (the VK TURN form editor).
+        if (backendType.usesAmneziaSettings() || backendType == BackendType.WIREGUARD) {
+            showBackendEditChooser(backendType, profile);
+            return;
+        }
+        startActivity(wings.v.VkTurnProfileEditorActivity.createIntent(requireContext(), profile.id));
+    }
+
+    private void showBackendEditChooser(BackendType backendType, SimpleProfile profile) {
+        Context context = requireContext();
+        CharSequence[] items = {
+            getString(R.string.backend_profile_edit_choice_text),
+            getString(R.string.backend_profile_edit_choice_ui),
+        };
+        new AlertDialog.Builder(context)
+            .setTitle(R.string.backend_profiles_action_edit)
+            .setItems(items, (dialog, which) -> {
+                if (which == 0) {
+                    startActivity(wings.v.BackendProfileEditorActivity.createIntent(context, backendType, profile.id));
+                } else {
+                    openUiSettingsForProfile(backendType, profile);
+                }
+            })
+            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
+            .show();
+    }
+
+    // UI editor entry point for WG / AWG: make the profile active, project it onto
+    // the flat keys and open the per-backend settings screen. Folding the flat
+    // edits back into the active profile happens in the settings screen path on
+    // its next select/apply; here we only ensure the settings open scoped to this
+    // profile's values.
+    private void openUiSettingsForProfile(BackendType backendType, SimpleProfile profile) {
+        Context context = requireContext();
+        setActiveProfileId(context, backendType, profile.id);
+        applyActiveToPrefs(context, backendType);
+        pendingUiEditBackend = backendType;
+        startActivity(wings.v.VkTurnSettingsActivity.createIntent(context));
+    }
+
+    private void updateActiveFromFlatPrefs(Context context, BackendType backendType) {
+        if (backendType.usesAmneziaSettings()) {
+            AmneziaProfileStore.updateActiveFromFlatPrefs(context);
+        } else if (backendType == BackendType.WIREGUARD) {
+            WireGuardProfileStore.updateActiveFromFlatPrefs(context);
+        } else {
+            VkTurnProfileStore.updateActiveFromFlatPrefs(context);
+        }
     }
 
     // Import path: route a clipboard config through the existing importer which

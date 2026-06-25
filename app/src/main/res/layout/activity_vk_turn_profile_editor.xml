@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/vk_turn_profile_editor_title">
+
+    <ScrollView
+        android:id="@+id/editor_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:padding="10dp">
+
+        <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?android:colorBackground"
+            android:orientation="vertical"
+            android:padding="16dp"
+            app:roundedCorners="all">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/vk_turn_profile_editor_endpoint_label"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorPrimary"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatEditText
+                android:id="@+id/edit_vk_turn_endpoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:hint="@string/vk_turn_profile_editor_endpoint_hint"
+                android:inputType="textUri|textNoSuggestions"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="@string/vk_turn_profile_editor_transport_kind_label"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorPrimary"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_transport_kind"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="start|center_vertical"
+                android:minWidth="0dp"
+                android:textAllCaps="false" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="@string/vk_turn_profile_editor_transport_profile_label"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorPrimary"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_transport_profile"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="start|center_vertical"
+                android:minWidth="0dp"
+                android:textAllCaps="false" />
+
+            <TextView
+                android:id="@+id/text_transport_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/vk_turn_profile_editor_transport_hint"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/button_open_ui_editor"
+                    style="?attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="@string/backend_profile_editor_open_ui"
+                    android:textAllCaps="false" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/button_save_profile_editor"
+                    style="?attr/borderlessButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:minWidth="0dp"
+                    android:text="@string/xray_profile_editor_save"
+                    android:textAllCaps="false" />
+            </LinearLayout>
+        </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+    </ScrollView>
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

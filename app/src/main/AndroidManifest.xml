@@ -225,6 +225,18 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".BackendProfileEditorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".VkTurnProfileEditorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".ActiveProbingSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

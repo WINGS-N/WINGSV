@@ -766,6 +766,21 @@
     <string name="backend_profiles_dialog_ok">ОК</string>
     <string name="backend_profiles_vk_turn_transport_wg">через WireGuard</string>
     <string name="backend_profiles_vk_turn_transport_awg">через AmneziaWG</string>
+    <!-- Per-backend profile editors -->
+    <string name="backend_profile_editor_title">Изменить профиль</string>
+    <string name="backend_profile_editor_mode_quick">Конфиг wg-quick</string>
+    <string name="backend_profile_editor_mode_awg_quick">Конфиг awg-quick</string>
+    <string name="backend_profile_editor_open_ui">Редактор UI</string>
+    <string name="backend_profile_edit_choice_text">Изменить текст конфига</string>
+    <string name="backend_profile_edit_choice_ui">Изменить в настройках</string>
+    <string name="vk_turn_profile_editor_title">Изменить профиль VK TURN</string>
+    <string name="vk_turn_profile_editor_endpoint_label">Эндпоинт VK TURN</string>
+    <string name="vk_turn_profile_editor_endpoint_hint">хост:порт</string>
+    <string name="vk_turn_profile_editor_transport_kind_label">Транспорт</string>
+    <string name="vk_turn_profile_editor_transport_profile_label">Профиль транспорта</string>
+    <string name="vk_turn_profile_editor_transport_hint">Конфиг транспорта редактируется через его собственный профиль WireGuard или AmneziaWG.</string>
+    <string name="vk_turn_profile_editor_transport_not_set">Не выбран</string>
+    <string name="vk_turn_profile_editor_no_transport">Пока нет профилей транспорта этого типа</string>
     <string name="xray_subscriptions_title">Подписки</string>
     <string name="xray_subscriptions_header_title">Источники подписок</string>
     <string name="xray_subscriptions_header_summary">Добавьте URL подписок и обновляйте список профилей вручную или по расписанию</string>
