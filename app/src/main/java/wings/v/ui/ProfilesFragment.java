@@ -196,6 +196,7 @@ public class ProfilesFragment extends Fragment {
             Haptics.softSelection(v);
             showConnectionTestMenu(v);
         });
+        setupEmbeddedBackendSelector();
         binding.buttonProfileSelectAll.setOnClickListener(v -> {
             Haptics.softSelection(v);
             selectAllProfilesInCurrentFilter();
@@ -482,6 +483,28 @@ public class ProfilesFragment extends Fragment {
         } else {
             updatePageLoader();
         }
+    }
+
+    // When this fragment is embedded as the Xray backend view inside
+    // BackendProfilesFragment, show the active-backend selector as the first row
+    // of the Actions card (so it scrolls together with the subscription actions)
+    // and switch backends via the shared binder, asking the host to re-render.
+    private void setupEmbeddedBackendSelector() {
+        Fragment parent = getParentFragment();
+        if (!(parent instanceof BackendProfilesFragment)) {
+            return;
+        }
+        BackendProfilesFragment host = (BackendProfilesFragment) parent;
+        binding.rowXrayBackendSelector.setVisibility(View.VISIBLE);
+        BackendSelectorBinder.bind(
+            this,
+            binding.rowXrayBackendSelector,
+            binding.spinnerXrayBackendTop,
+            binding.rowXrayBackendSub,
+            binding.spinnerXrayBackendSub,
+            host::onEmbeddedBackendSwitched
+        );
+        BackendSelectorBinder.refresh(requireContext(), binding.rowXrayBackendSelector, binding.rowXrayBackendSub);
     }
 
     private String refreshSubscriptionsSummary() {

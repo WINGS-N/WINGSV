@@ -162,6 +162,13 @@ public class BackendProfilesFragment extends Fragment {
         super.onDestroyView();
     }
 
+    // Called by the embedded Xray ProfilesFragment when the user switches the
+    // active backend from its in-card selector, so the host swaps to the new
+    // backend's view.
+    public void onEmbeddedBackendSwitched() {
+        refreshUi();
+    }
+
     private void refreshUi() {
         if (binding == null || !isAdded()) {
             return;
@@ -297,15 +304,12 @@ public class BackendProfilesFragment extends Fragment {
     // Xray: embed the existing ProfilesFragment unchanged.
 
     private void showXrayList() {
-        // Xray manages its own import/add affordance and its own scrolling profile
-        // list inside the embedded fragment. Here the shared Actions section keeps
-        // only the backend selector (add-profile and the Profiles list section are
-        // hidden), and the scroll wraps its content so the embedded Xray fragment
-        // takes the remaining space below it.
-        binding.rowBackendAddProfile.setVisibility(View.GONE);
-        binding.sectionBackendProfilesList.setVisibility(View.GONE);
-        setSimpleScrollFills(false);
-        binding.scrollSimpleProfiles.setVisibility(View.VISIBLE);
+        // The Xray backend view is the embedded ProfilesFragment, which carries
+        // its own Actions card (with the backend selector as the first row) and
+        // its own scrolling profile list. The shared simple-profiles scroll
+        // (selector + add + list) is hidden entirely so there is no duplicate
+        // selector pinned above the embedded fragment.
+        binding.scrollSimpleProfiles.setVisibility(View.GONE);
         binding.containerXrayProfiles.setVisibility(View.VISIBLE);
         if (getChildFragmentManager().findFragmentByTag(XRAY_CHILD_TAG) == null) {
             getChildFragmentManager()
