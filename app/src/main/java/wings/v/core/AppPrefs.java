@@ -202,6 +202,7 @@ public final class AppPrefs {
     public static final String KEY_AUTO_START_ON_BOOT = "pref_auto_start_on_boot";
     public static final String KEY_SHARING_AUTO_START_ON_BOOT = "pref_sharing_auto_start_on_boot";
     public static final String KEY_SHARING_LAST_ACTIVE_TYPES = "pref_sharing_last_active_types";
+    public static final String KEY_SHARING_USER_TOGGLE_TYPES = "pref_sharing_user_toggle_types";
     public static final String KEY_SHARING_UPSTREAM_INTERFACE = "pref_sharing_upstream_interface";
     public static final String KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE = "pref_sharing_fallback_upstream_interface";
     public static final String KEY_SHARING_MASQUERADE_MODE = "pref_sharing_masquerade_mode";
@@ -790,6 +791,40 @@ public final class AppPrefs {
             }
         }
         prefs(context).edit().putStringSet(KEY_SHARING_LAST_ACTIVE_TYPES, values).apply();
+    }
+
+    // The user's sharing-toggle intent (which tether types the user enabled in
+    // the sharing screen). Kept separate from the routing's last-active-types so
+    // the UI toggles do not follow a system hotspot toggled outside the app. When
+    // never set yet (null), falls back to the last-active-types so the toggles
+    // are accurate on first show after upgrade.
+    public static Set<TetherType> getSharingUserToggleTypes(Context context) {
+        Set<String> stored = prefs(context).getStringSet(KEY_SHARING_USER_TOGGLE_TYPES, null);
+        if (stored == null) {
+            return getSharingLastActiveTypes(context);
+        }
+        Set<TetherType> result = new LinkedHashSet<>();
+        for (String rawValue : stored) {
+            if (TextUtils.isEmpty(rawValue)) {
+                continue;
+            }
+            try {
+                result.add(TetherType.fromCommandName(rawValue.trim()));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return result;
+    }
+
+    public static void setSharingUserToggleTypes(Context context, Set<TetherType> types) {
+        Set<String> values = new LinkedHashSet<>();
+        if (types != null) {
+            for (TetherType type : types) {
+                if (type != null) {
+                    values.add(type.commandName);
+                }
+            }
+        }
+        prefs(context).edit().putStringSet(KEY_SHARING_USER_TOGGLE_TYPES, values).apply();
     }
 
     public static String getSharingUpstreamInterface(Context context) {
