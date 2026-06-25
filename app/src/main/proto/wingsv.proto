@@ -43,6 +43,11 @@ enum ConfigType {
   CONFIG_TYPE_WB_STREAM = 7;
   CONFIG_TYPE_XPOSED = 8;
   CONFIG_TYPE_GUARDIAN = 9;
+  // Single VK TURN profile share link: carries Turn (with title + tunnel_mode)
+  // plus the referenced transport sub-config (wg OR awg) embedded in the same
+  // Config so the importer can fully reconstruct the profile on a device where
+  // the original transport id does not exist.
+  CONFIG_TYPE_VK_TURN_PROFILE = 10;
 }
 
 message Guardian {
@@ -110,6 +115,10 @@ message WbStream {
 
 message AmneziaWG {
   string awg_quick_config = 1;
+  // Optional profile title carried by single-profile share links (built from a
+  // saved AmneziaWG profile). Empty in legacy / full-settings exports; the
+  // importer synthesizes a title when this is empty.
+  string title = 2;
 }
 
 message Endpoint {
@@ -162,6 +171,11 @@ message Turn {
   // По умолчанию (UNSPECIFIED) — true. ON_FALSE отключает передачу
   // (сервер обязан иметь preset).
   WrapKeyDelivery wrap_key_delivery = 22;
+  // Optional profile title carried by single-profile share links (built from a
+  // saved VK TURN profile). Empty in legacy / full-settings exports; the
+  // importer synthesizes a title when this is empty. The referenced transport
+  // (WG or AWG sub-config) travels in the same Config alongside this Turn.
+  string title = 23;
 }
 
 enum WrapKeyDelivery {
@@ -205,6 +219,10 @@ message WireGuard {
   Interface iface = 1;
   Peer peer = 2;
   Endpoint endpoint = 3;
+  // Optional profile title carried by single-profile share links (built from a
+  // saved WireGuard profile). Empty in legacy / full-settings exports; the
+  // importer synthesizes a title when this is empty.
+  string title = 4;
 }
 
 message Interface {
