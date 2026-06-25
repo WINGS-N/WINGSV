@@ -755,7 +755,9 @@
     <string name="backend_profiles_action_delete">Удалить</string>
     <string name="backend_profiles_rename_title">Переименовать профиль</string>
     <string name="backend_profiles_rename_done">Профиль переименован</string>
-    <string name="backend_profiles_share_stub">Шеринг для этого бэкенда скоро появится</string>
+    <string name="backend_profiles_share_failed">Не удалось сформировать ссылку для этого профиля</string>
+    <string name="backend_profile_share_choice_link">Поделиться ссылкой (wingsv://)</string>
+    <string name="backend_profile_share_choice_text">Поделиться текстом конфига</string>
     <string name="backend_profiles_edit_stub">Редактирование для этого бэкенда скоро появится</string>
     <string name="backend_profiles_delete_confirm_title">Удалить профиль</string>
     <string name="backend_profiles_delete_confirm_message">Удалить профиль \"%1$s\"?</string>

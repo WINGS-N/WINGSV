@@ -3,6 +3,7 @@ package wings.v.ui;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -35,6 +36,7 @@ import wings.v.core.VkTurnProfile;
 import wings.v.core.VkTurnProfileStore;
 import wings.v.core.WingsImportParser;
 import wings.v.core.WireGuardProfile;
+import wings.v.core.WireGuardProfileEditorCodec;
 import wings.v.core.WireGuardProfileStore;
 import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentBackendProfilesBinding;
@@ -48,8 +50,9 @@ import wings.v.databinding.ItemBackendProfileEntryBinding;
  *
  * For Xray the existing ProfilesFragment is embedded unchanged. For WireGuard,
  * AmneziaWG and VK TURN a simple list backed by the matching per-profile store is
- * rendered with select/favorite/stats/delete-with-cascade-modal and an import
- * entry. Sharing and editing are stubbed pending dedicated follow-up components.
+ * rendered with select/favorite/stats/delete-with-cascade-modal, sharing
+ * (wingsv:// link, plus raw wg-quick / awg-quick text for WG / AWG), editing and
+ * an import entry.
  */
 @SuppressWarnings(
     {
@@ -71,8 +74,8 @@ import wings.v.databinding.ItemBackendProfileEntryBinding;
         "PMD.AvoidLiteralsInIfCondition",
         "PMD.AvoidDuplicateLiterals",
         "PMD.ConfusingTernary",
-        // shareProfileStub / editProfileStub keep their params for the dedicated
-        // share + editor follow-up components that will consume them.
+        // Some per-backend helpers keep a backendType / profile param for symmetry
+        // across the WG / AWG / VK TURN dispatch even when one branch ignores it.
         "PMD.UnusedFormalParameter",
     }
 )
@@ -362,7 +365,7 @@ public class BackendProfilesFragment extends Fragment {
                     resetStats(backendType, profile.id);
                     return true;
                 case 3:
-                    shareProfileStub(backendType, profile);
+                    shareProfile(backendType, profile);
                     return true;
                 case 4:
                     editProfile(backendType, profile);
@@ -488,12 +491,96 @@ public class BackendProfilesFragment extends Fragment {
         ).show();
     }
 
-    // Sharing and editing are separate follow-up components. Buttons are present
-    // and wired to TODO stubs here so the list mirrors the Xray actions.
+    // Per-backend sharing, mirroring the Xray share flow (proto+deflate+base64
+    // wingsv:// link via the ACTION_SEND share sheet). WG / AWG additionally offer
+    // sharing the raw wg-quick / awg-quick TEXT, which is portable to other
+    // clients. VK TURN offers only the wingsv:// link (the layered endpoint is not
+    // meaningful as raw text), and the link embeds the referenced transport so it
+    // reconstructs on a device where the transport id does not exist.
+    private void shareProfile(BackendType backendType, SimpleProfile profile) {
+        Context context = requireContext();
+        if (backendType.usesAmneziaSettings() || backendType == BackendType.WIREGUARD) {
+            CharSequence[] items = {
+                getString(R.string.backend_profile_share_choice_link),
+                getString(R.string.backend_profile_share_choice_text),
+            };
+            new AlertDialog.Builder(context)
+                .setTitle(R.string.backend_profiles_action_share)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) {
+                        shareTransportLink(backendType, profile);
+                    } else {
+                        shareTransportText(backendType, profile);
+                    }
+                })
+                .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
+                .show();
+            return;
+        }
+        // VK TURN: link only.
+        VkTurnProfile vkTurn = VkTurnProfileStore.getProfileById(context, profile.id);
+        if (vkTurn == null) {
+            Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            sendShareText(WingsImportParser.buildTurnProfileLink(context, vkTurn));
+        } catch (Exception ignored) {
+            Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
 
-    private void shareProfileStub(BackendType backendType, SimpleProfile profile) {
-        // TODO: wire the per-backend share-link builder once that component lands.
-        Toast.makeText(requireContext(), R.string.backend_profiles_share_stub, Toast.LENGTH_SHORT).show();
+    private void shareTransportLink(BackendType backendType, SimpleProfile profile) {
+        Context context = requireContext();
+        try {
+            String link;
+            if (backendType.usesAmneziaSettings()) {
+                AmneziaProfile amnezia = AmneziaProfileStore.getProfileById(context, profile.id);
+                if (amnezia == null) {
+                    throw new IllegalArgumentException("AmneziaWG profile not found");
+                }
+                link = WingsImportParser.buildAmneziaProfileLink(amnezia);
+            } else {
+                WireGuardProfile wireGuard = WireGuardProfileStore.getProfileById(context, profile.id);
+                if (wireGuard == null) {
+                    throw new IllegalArgumentException("WireGuard profile not found");
+                }
+                link = WingsImportParser.buildWireGuardProfileLink(wireGuard);
+            }
+            sendShareText(link);
+        } catch (Exception ignored) {
+            Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void shareTransportText(BackendType backendType, SimpleProfile profile) {
+        Context context = requireContext();
+        String text;
+        if (backendType.usesAmneziaSettings()) {
+            AmneziaProfile amnezia = AmneziaProfileStore.getProfileById(context, profile.id);
+            text = amnezia == null ? "" : amnezia.quickConfig;
+        } else {
+            WireGuardProfile wireGuard = WireGuardProfileStore.getProfileById(context, profile.id);
+            text = wireGuard == null ? "" : WireGuardProfileEditorCodec.toEditableQuickConfig(wireGuard);
+        }
+        if (TextUtils.isEmpty(text)) {
+            Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        sendShareText(text);
+    }
+
+    private void sendShareText(String sharedText) {
+        Context context = requireContext();
+        Intent sendIntent = new Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, sharedText);
+        Intent chooserIntent = Intent.createChooser(sendIntent, getString(R.string.xray_profiles_share_chooser));
+        if (chooserIntent.resolveActivity(context.getPackageManager()) == null) {
+            Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        startActivity(chooserIntent);
     }
 
     // Opens the per-backend editor for this profile. VK TURN goes straight to its

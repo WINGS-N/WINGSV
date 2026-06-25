@@ -755,7 +755,9 @@
     <string name="backend_profiles_action_delete">Delete</string>
     <string name="backend_profiles_rename_title">Rename profile</string>
     <string name="backend_profiles_rename_done">Profile renamed</string>
-    <string name="backend_profiles_share_stub">Sharing for this backend is coming soon</string>
+    <string name="backend_profiles_share_failed">Failed to build a share link for this profile</string>
+    <string name="backend_profile_share_choice_link">Share link (wingsv://)</string>
+    <string name="backend_profile_share_choice_text">Share config text</string>
     <string name="backend_profiles_edit_stub">Editing for this backend is coming soon</string>
     <string name="backend_profiles_delete_confirm_title">Delete profile</string>
     <string name="backend_profiles_delete_confirm_message">Delete the profile \"%1$s\"?</string>
