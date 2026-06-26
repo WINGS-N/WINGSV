@@ -1563,13 +1563,8 @@
     <string name="proxy_amneziawg_protect_bridge_start_failed">Failed to start AmneziaWG protect bridge</string>
     <string name="proxy_previous_vpn_backend_not_down_protect_bridge">Previous VPN backend has not transitioned to DOWN yet; starting protect bridge is not possible</string>
     <string name="proxy_upstream_route_not_found">Failed to determine the upstream route for root mode: default route not found</string>
-    <string name="proxy_root_tether_no_live_tunnel">Root tether routing skipped: live root tunnel not found</string>
     <string name="proxy_tproxy_config_dir_failed">Failed to create the TPROXY config directory</string>
-    <string name="proxy_tproxy_config_permissions_failed">Failed to restrict permissions on the TPROXY config</string>
     <string name="proxy_xray_tproxy_listener_timeout">Xray TPROXY listener did not open on 0.0.0.0:%1$d in time</string>
-    <string name="proxy_xray_tproxy_runtime_started">Xray TPROXY runtime started under root, listener on :%1$d</string>
-    <string name="proxy_root_app_tunnel_table_missing">Root app tunnel routing skipped: table for %1$s not found</string>
-    <string name="proxy_root_tether_nat_fallback_netd">Root tether NAT fallback: iptables nat unavailable, switching to netd</string>
     <string name="proxy_userspace_vpn_not_down_xray">Userspace VPN backend has not transitioned to DOWN yet; starting Xray is not possible</string>
     <string name="proxy_previous_userspace_vpn_not_down">Previous userspace VPN backend has not transitioned to DOWN yet; start is not possible</string>
     <string name="proxy_previous_vpn_backend_not_down_named">Previous VPN backend has not transitioned to DOWN yet; starting %1$s is not possible</string>

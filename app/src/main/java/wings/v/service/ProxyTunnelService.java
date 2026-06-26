@@ -5577,7 +5577,7 @@ public class ProxyTunnelService extends Service {
                     : resolveRecoveryTunnelName();
             if (TextUtils.isEmpty(liveTunnelName)) {
                 AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
-                appendRuntimeLogLine(getString(R.string.proxy_root_tether_no_live_tunnel));
+                appendRuntimeLogLine("Root tether routing skipped: live root tunnel not found");
                 return;
             }
             activeTunnelName = liveTunnelName;
@@ -5726,7 +5726,7 @@ public class ProxyTunnelService extends Service {
             writer.write(configJson);
         }
         if (!configFile.setReadable(false, false) || !configFile.setReadable(true, true)) {
-            appendRuntimeLogLine(getString(R.string.proxy_tproxy_config_permissions_failed));
+            appendRuntimeLogLine("Failed to restrict permissions on the TPROXY config");
         }
         configFile.setWritable(false, false);
         configFile.setWritable(true, true);
@@ -5768,7 +5768,7 @@ public class ProxyTunnelService extends Service {
             throw new IllegalStateException(getString(R.string.proxy_xray_tproxy_listener_timeout, XRAY_TPROXY_PORT));
         }
         stopXrayTproxyErrorLogTailer();
-        appendRuntimeLogLine(getString(R.string.proxy_xray_tproxy_runtime_started, XRAY_TPROXY_PORT));
+        appendRuntimeLogLine("Xray TPROXY runtime started under root, listener on :" + XRAY_TPROXY_PORT);
     }
 
     private boolean waitForXrayTproxyListenerSignal(long timeoutMs, int generation) {
@@ -6478,7 +6478,7 @@ public class ProxyTunnelService extends Service {
         }
         String tunnelTableLookup = resolveTunnelTableLookup();
         if (TextUtils.isEmpty(tunnelTableLookup)) {
-            appendRuntimeLogLine(getString(R.string.proxy_root_app_tunnel_table_missing, activeTunnelName));
+            appendRuntimeLogLine("Root app tunnel routing skipped: table for " + activeTunnelName + " not found");
             return;
         }
         int appUid = getApplicationInfo().uid;
@@ -7051,7 +7051,7 @@ public class ProxyTunnelService extends Service {
         if (isRootNatTableAvailable()) {
             return configuredMode;
         }
-        appendRuntimeLogLine(getString(R.string.proxy_root_tether_nat_fallback_netd));
+        appendRuntimeLogLine("Root tether NAT fallback: iptables nat unavailable, switching to netd");
         Log.w(TAG, "Root tether NAT fallback: iptables nat unavailable, using netd masquerade");
         return AppPrefs.SHARING_MASQUERADE_NETD;
     }
