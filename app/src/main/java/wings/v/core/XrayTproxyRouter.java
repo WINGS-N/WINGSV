@@ -49,6 +49,7 @@ public final class XrayTproxyRouter {
     private static final String CHAIN_OUT = "WINGS_XRAY_TP_OUT";
     private static final String CHAIN_PRE6 = "WINGS_XRAY_TP_PRE6";
     private static final String CHAIN_OUT6 = "WINGS_XRAY_TP_OUT6";
+    private static final String CHAIN_REDIR = "WINGS_XRAY_REDIR";
     // -w 5 — wait up to 5 seconds for the kernel xtables lock so that parallel
     // iptables invocations from vpnhotspot / ConnectivityService / system tether
     // helpers don't collide with ours and trip "lock xtables already used by
@@ -216,6 +217,91 @@ public final class XrayTproxyRouter {
     public static void revertQuietly(@NonNull Context context) {
         try {
             revert(context);
+        } catch (Exception ignored) {}
+    }
+
+    // Transparently REDIRECT AP/hotspot (tethering) client traffic from the given
+    // downstream interfaces into the local xray dokodemo-door redirect inbound
+    // (redirectPort), so shared clients are tunneled through the active outbound.
+    // Uses iptables nat REDIRECT (not TPROXY): the destination is DNATed to the
+    // box before the routing decision, so the app-uid VpnService xray receives it
+    // via SO_ORIGINAL_DST without needing IP_TRANSPARENT, and the packet never
+    // reaches the gVisor TUN nor the system tether MASQUERADE. IPv4 only (shared
+    // clients are IPv4; REDIRECT is an IPv4 nat target).
+    public static void applyForwardedRedirect(
+        @NonNull Context context,
+        Set<String> downstreamInterfaces,
+        int redirectPort
+    ) throws Exception {
+        revertForwardedRedirectQuietly(context);
+        if (downstreamInterfaces == null || downstreamInterfaces.isEmpty() || redirectPort <= 0) {
+            return;
+        }
+        StringBuilder s = new StringBuilder("set -e; ");
+        s
+            .append(IPT4)
+            .append(" -t nat -N ")
+            .append(CHAIN_REDIR)
+            .append(" 2>/dev/null || ")
+            .append(IPT4)
+            .append(" -t nat -F ")
+            .append(CHAIN_REDIR)
+            .append("; ");
+        for (String iface : downstreamInterfaces) {
+            if (TextUtils.isEmpty(iface)) {
+                continue;
+            }
+            appendRedirectRule(s, iface, "tcp", redirectPort);
+            appendRedirectRule(s, iface, "udp", redirectPort);
+        }
+        // Idempotent hook at the TOP of nat PREROUTING (before the system tether /
+        // vpnhotspot MASQUERADE chains) so shared-client packets are DNATed to the
+        // local dokodemo-door before anything can send them out the physical
+        // upstream. -C ... || -I keeps it single and survives `set -e`.
+        s
+            .append(IPT4)
+            .append(" -t nat -C PREROUTING -j ")
+            .append(CHAIN_REDIR)
+            .append(" 2>/dev/null || ")
+            .append(IPT4)
+            .append(" -t nat -I PREROUTING -j ")
+            .append(CHAIN_REDIR)
+            .append("; ");
+        s.append("true;");
+        RootShellCommand.exec(context, s.toString());
+    }
+
+    private static void appendRedirectRule(StringBuilder s, String iface, String proto, int redirectPort) {
+        s
+            .append(IPT4)
+            .append(" -t nat -A ")
+            .append(CHAIN_REDIR)
+            .append(" -i ")
+            .append(iface)
+            .append(" -p ")
+            .append(proto);
+        if ("udp".equals(proto)) {
+            // Leave UDP/53 to the AP gateway's own dnsmasq forwarder. DNS over the
+            // dokodemo-door followRedirect path does not survive the UDP return
+            // trip, so capturing it here black-holes client name resolution; the
+            // gateway resolver already answers the clients.
+            s.append(" ! --dport 53");
+        }
+        s.append(" -j REDIRECT --to-ports ").append(redirectPort).append("; ");
+    }
+
+    public static void revertForwardedRedirect(@NonNull Context context) throws Exception {
+        StringBuilder s = new StringBuilder();
+        s.append(IPT4).append(" -t nat -D PREROUTING -j ").append(CHAIN_REDIR).append(" 2>/dev/null; ");
+        s.append(IPT4).append(" -t nat -F ").append(CHAIN_REDIR).append(" 2>/dev/null; ");
+        s.append(IPT4).append(" -t nat -X ").append(CHAIN_REDIR).append(" 2>/dev/null; ");
+        s.append("true;");
+        RootShellCommand.exec(context, s.toString());
+    }
+
+    public static void revertForwardedRedirectQuietly(@NonNull Context context) {
+        try {
+            revertForwardedRedirect(context);
         } catch (Exception ignored) {}
     }
 
