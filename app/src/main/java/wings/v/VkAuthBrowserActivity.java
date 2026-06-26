@@ -23,23 +23,18 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import java.util.ArrayList;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import wings.v.core.Haptics;
 import wings.v.databinding.ActivityVkAuthBrowserBinding;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Browser for the VK account-auth TURN flow. It loads the real VK call/join
- * page DIRECTLY in a WebView (the link from the relay is already a
- * https://vk.com/call/join/&lt;hash&gt; URL) inside a OneUI ToolbarLayout with a
- * loading status, a progress indicator and onReceivedError handling. Injected
- * JavaScript intercepts the VK TURN credentials (the turn_server object) from
- * VK's own fetch/XHR responses and hands them to the WingsVkAuth bridge, which
- * delivers them to ProxyTunnelService (in process :tunnel); the service writes
- * them to the relay process stdin as one vk_account_creds JSON line.
+ * Browser for the VK account-auth TURN flow. It loads vk.com DIRECTLY in a
+ * WebView inside a OneUI ToolbarLayout with a loading status, a progress
+ * indicator and onReceivedError handling. Once the VK web session is signed in,
+ * it hands the live session cookies + WebView User-Agent to ProxyTunnelService
+ * (in process :tunnel) via ACTION_VK_COOKIES; the service forwards them to the
+ * relay process stdin as one vk_cookies JSON line, and the relay mints the
+ * privileged web token and runs the OK-infra TURN chain itself.
  *
  * The VK login session is persisted in the WebView CookieManager so the user
  * does not have to re-login across runs. If the user is not signed in, the same
@@ -79,25 +74,6 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
     private static final long WEBVIEW_RETRY_DELAY_MS = 250L;
     private static final String EXTRA_URL = "wings.v.extra.VK_AUTH_URL";
     private static final String STATE_SUBTITLE_EXPANDED = "wings.v.state.VK_AUTH_SUBTITLE_EXPANDED";
-
-    // Injected once per document: hooks window.fetch and XMLHttpRequest so any
-    // response body that carries a turn_server object is forwarded to the
-    // WingsVkAuth bridge. Re-injected on every onPageStarted/onPageFinished; the
-    // __wings_vk_auth_installed guard makes re-injection a no-op.
-    private static final String INTERCEPTOR_JS =
-        "(function(){if(window.__wings_vk_auth_installed)return;window.__wings_vk_auth_installed=true;" +
-        "function emit(d){try{if(!d)return;var ts=d.turn_server;" +
-        "if(!ts&&d.response&&d.response.turn_server)ts=d.response.turn_server;" +
-        "if(ts&&ts.username&&ts.credential&&ts.urls){window.WingsVkAuth.onTurnServer(JSON.stringify(ts));}}catch(e){}}" +
-        "var of=window.fetch;if(of){window.fetch=function(){return of.apply(this,arguments).then(function(r){" +
-        "try{var c=r.clone();c.text().then(function(t){if(t&&t.indexOf('turn_server')!==-1){" +
-        "try{emit(JSON.parse(t));}catch(e){}}});}catch(e){}return r;});};}" +
-        "var oo=XMLHttpRequest.prototype.open,os=XMLHttpRequest.prototype.send;" +
-        "XMLHttpRequest.prototype.open=function(m,u){this.__wings_u=u;return oo.apply(this,arguments);};" +
-        "XMLHttpRequest.prototype.send=function(){var x=this;x.addEventListener('load',function(){try{" +
-        "if(x.responseText&&x.responseText.indexOf('turn_server')!==-1){emit(JSON.parse(x.responseText));}" +
-        "}catch(e){}});return os.apply(this,arguments);};" +
-        "})();";
 
     private ActivityVkAuthBrowserBinding binding;
     private String authUrl;
@@ -347,7 +323,6 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
         settings.setDisplayZoomControls(false);
 
         authWebView.addJavascriptInterface(new VkAuthUiBridge(), "wingsvAndroid");
-        authWebView.addJavascriptInterface(new VkAuthCredsBridge(), "WingsVkAuth");
         authWebView.setWebChromeClient(new WebChromeClient());
         authWebView.setWebViewClient(
             new WebViewClient() {
@@ -360,7 +335,6 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
                 @Override
                 public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                     super.onPageStarted(view, url, favicon);
-                    injectInterceptor(view);
                     clearErrorState();
                     setLoadingState(true);
                 }
@@ -368,8 +342,8 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
-                    injectInterceptor(view);
                     flushCookies();
+                    maybeDeliverCookies();
                     setLoadingState(false);
                 }
 
@@ -393,9 +367,42 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
         );
     }
 
-    private void injectInterceptor(@Nullable WebView view) {
-        if (view != null) {
-            view.evaluateJavascript(INTERCEPTOR_JS, null);
+    // Once the VK web session is signed in (remixsid present), hand the live
+    // session cookies + WebView User-Agent to the tunnel service, which forwards
+    // them to the relay over stdin. The relay mints the privileged web token and
+    // runs the OK-infra TURN chain itself.
+    private void maybeDeliverCookies() {
+        if (completed) {
+            return;
+        }
+        CookieManager cookieManager = CookieManager.getInstance();
+        String cookies = cookieManager.getCookie("https://login.vk.com/");
+        if (TextUtils.isEmpty(cookies)) {
+            cookies = cookieManager.getCookie("https://vk.com/");
+        }
+        if (TextUtils.isEmpty(cookies) || !cookies.contains("remixsid")) {
+            // Not signed in yet; the VK login page is showing. Wait for the user.
+            return;
+        }
+        completed = true;
+        if (binding != null) {
+            binding.progressVkAuthStatus.setVisibility(View.GONE);
+        }
+        deliverCookies(cookies, WebSettings.getDefaultUserAgent(this));
+        finishSelf();
+    }
+
+    private void deliverCookies(String cookies, String userAgent) {
+        try {
+            startService(
+                new Intent(this, ProxyTunnelService.class)
+                    .setAction(ProxyTunnelService.ACTION_VK_COOKIES)
+                    .putExtra(ProxyTunnelService.EXTRA_VK_COOKIES, cookies)
+                    .putExtra(ProxyTunnelService.EXTRA_VK_UA, userAgent)
+            );
+            Log.i(LOG_TAG, "Delivered VK session cookies to tunnel service");
+        } catch (RuntimeException error) {
+            Log.w(LOG_TAG, "Failed to deliver VK session cookies to tunnel service", error);
         }
     }
 
@@ -536,22 +543,6 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
         finishSelf();
     }
 
-    private void deliverCreds(String username, String credential, ArrayList<String> urls) {
-        try {
-            startService(
-                new Intent(this, ProxyTunnelService.class)
-                    .setAction(ProxyTunnelService.ACTION_VK_ACCOUNT_CREDS)
-                    .putExtra(ProxyTunnelService.EXTRA_VK_LINK, authUrl)
-                    .putExtra(ProxyTunnelService.EXTRA_VK_USERNAME, username)
-                    .putExtra(ProxyTunnelService.EXTRA_VK_CREDENTIAL, credential)
-                    .putStringArrayListExtra(ProxyTunnelService.EXTRA_VK_URLS, urls)
-            );
-            Log.i(LOG_TAG, "Delivered VK TURN creds to tunnel service");
-        } catch (RuntimeException error) {
-            Log.w(LOG_TAG, "Failed to deliver VK TURN creds to tunnel service", error);
-        }
-    }
-
     private void finishSelf() {
         finish();
     }
@@ -584,55 +575,6 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
                 }
                 View target = binding.layoutVkAuthStatus != null ? binding.layoutVkAuthStatus : binding.getRoot();
                 target.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK);
-            });
-        }
-    }
-
-    @SuppressWarnings("PMD.PublicMemberInNonPublicType")
-    private final class VkAuthCredsBridge {
-
-        // Called from the injected interceptor JS with the serialized turn_server
-        // object {username, credential, urls:[...]}. Guarded against
-        // double-delivery via the completed flag.
-        @JavascriptInterface
-        public void onTurnServer(String json) {
-            if (TextUtils.isEmpty(json)) {
-                return;
-            }
-            final String username;
-            final String credential;
-            final ArrayList<String> urls = new ArrayList<>();
-            try {
-                JSONObject turnServer = new JSONObject(json);
-                username = turnServer.optString("username", "");
-                credential = turnServer.optString("credential", "");
-                JSONArray urlsArray = turnServer.optJSONArray("urls");
-                if (urlsArray != null) {
-                    for (int index = 0; index < urlsArray.length(); index++) {
-                        String value = urlsArray.optString(index, "");
-                        if (!TextUtils.isEmpty(value)) {
-                            urls.add(value);
-                        }
-                    }
-                }
-            } catch (JSONException error) {
-                Log.w(LOG_TAG, "Failed to parse intercepted turn_server", error);
-                return;
-            }
-            if (TextUtils.isEmpty(username) || TextUtils.isEmpty(credential) || urls.isEmpty()) {
-                return;
-            }
-            runOnUiThread(() -> {
-                if (completed) {
-                    return;
-                }
-                completed = true;
-                if (binding != null) {
-                    binding.progressVkAuthStatus.setVisibility(View.GONE);
-                }
-                flushCookies();
-                deliverCreds(username, credential, urls);
-                finishSelf();
             });
         }
     }
