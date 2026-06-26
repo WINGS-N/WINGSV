@@ -53,6 +53,14 @@ public final class XrayConfigFactory {
     private static final String TUN_TAG = "tun-in";
     private static final String TUN_BYPASS_TAG = "tun-in-bypass";
     private static final String TPROXY_TAG = "tproxy-in";
+    // Transparent REDIRECT inbound for AP/hotspot (tethering) client traffic.
+    // Plain dokodemo-door with followRedirect (NO tproxy sockopt), so the app-uid
+    // VpnService xray can bind it - unlike the TPROXY inbound which needs
+    // IP_TRANSPARENT (root). iptables nat REDIRECT diverts shared-client traffic
+    // here, where SO_ORIGINAL_DST is recovered and routed through the active
+    // tunnel outbound, bypassing the gVisor TUN (and its unknown-uid policy).
+    public static final int REDIRECT_PORT = 12346;
+    private static final String REDIR_TAG = "redirect-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String HTTP_TAG = "http-in";
     private static final String DEFAULT_LOOPBACK_LISTEN = "127.0.0.1";
@@ -496,6 +504,22 @@ public final class XrayConfigFactory {
             tunInbound.put("settings", tunSettings);
             tunInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(tunInbound);
+
+            // Transparent redirect inbound for shared (tethering) clients. Always
+            // present next to the gVisor TUN so the iptables nat REDIRECT can point
+            // here while sharing is active; idle otherwise. followRedirect recovers
+            // SO_ORIGINAL_DST; no tproxy sockopt, so it binds under the app uid.
+            JSONObject redirInbound = new JSONObject();
+            redirInbound.put("tag", REDIR_TAG);
+            redirInbound.put("protocol", "dokodemo-door");
+            redirInbound.put("listen", "0.0.0.0");
+            redirInbound.put("port", REDIRECT_PORT);
+            JSONObject redirSettings = new JSONObject();
+            redirSettings.put("network", "tcp,udp");
+            redirSettings.put("followRedirect", true);
+            redirInbound.put("settings", redirSettings);
+            redirInbound.put("sniffing", buildSniffing(settings));
+            inbounds.put(redirInbound);
         }
 
         if (tproxyPort > 0) {
@@ -712,6 +736,7 @@ public final class XrayConfigFactory {
         JSONArray inboundTags = new JSONArray();
         if (includeTunInbound) {
             inboundTags.put(TUN_TAG);
+            inboundTags.put(REDIR_TAG);
         }
         if (tproxyPort > 0) {
             inboundTags.put(TPROXY_TAG);
