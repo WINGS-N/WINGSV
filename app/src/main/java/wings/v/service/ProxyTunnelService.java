@@ -195,6 +195,7 @@ public class ProxyTunnelService extends Service {
     private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_REQUIRED = "vk_account_auth_required";
     private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_COMPLETE = "vk_account_auth_complete";
     private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_FAILED = "vk_account_auth_failed";
+    private static final String PROXY_EVENT_VK_COOKIES_REQUIRED = "vk_cookies_required";
     private static final String CAPTCHA_STATE_PENDING = "pending";
     private static final String CAPTCHA_STATE_REQUIRED = "required";
     private static final String CAPTCHA_STATE_SOLVED = "solved";
@@ -215,6 +216,9 @@ public class ProxyTunnelService extends Service {
     public static final String EXTRA_VK_CREDENTIAL = "wings.v.extra.VK_CREDENTIAL";
     public static final String EXTRA_VK_URLS = "wings.v.extra.VK_URLS";
     public static final String EXTRA_VK_CANCEL = "wings.v.extra.VK_CANCEL";
+    public static final String ACTION_VK_COOKIES = "wings.v.action.VK_COOKIES";
+    public static final String EXTRA_VK_COOKIES = "wings.v.extra.VK_COOKIES";
+    public static final String EXTRA_VK_UA = "wings.v.extra.VK_UA";
     private static final String EXTRA_TARGET_BACKEND = "wings.v.extra.TARGET_BACKEND";
     private static final String EXTRA_TARGET_XRAY_PROFILE_ID = "wings.v.extra.TARGET_XRAY_PROFILE_ID";
     private static final String NOTIFICATION_CHANNEL_ID = "wingsv_tunnel";
@@ -458,6 +462,7 @@ public class ProxyTunnelService extends Service {
     // / notification posted, awaiting complete or failed). Non-null means do not
     // start another activity/notification; the relay re-emits the event.
     private volatile String vkAccountAuthInFlightUrl;
+    private volatile boolean vkCookiesRequestInFlight;
     private ProxyProtectBridgeServer protectBridgeServer;
     private String protectSocketName;
     private ByeDpiNative byeDpiNative;
@@ -1501,6 +1506,10 @@ public class ProxyTunnelService extends Service {
         }
         if (ACTION_VK_ACCOUNT_CREDS.equals(action)) {
             handleVkAccountCredsIntent(intent);
+            return isActive() ? START_STICKY : START_NOT_STICKY;
+        }
+        if (ACTION_VK_COOKIES.equals(action)) {
+            handleVkCookiesIntent(intent);
             return isActive() ? START_STICKY : START_NOT_STICKY;
         }
         if (ACTION_RECONNECT.equals(action)) {
@@ -4558,6 +4567,65 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // B' authorized account TURN: the relay needs the live VK web session to mint
+    // the privileged token. Open the WebView at vk.com so the user can sign in (or
+    // reuse the persisted session); VkAuthBrowserActivity then delivers the cookies
+    // back via ACTION_VK_COOKIES.
+    private void handleVkCookiesRequired() {
+        Log.i(TAG, "VK cookies required event received");
+        if (!vkAccountAuthActive) {
+            Log.w(TAG, "VK account auth not active; ignoring vk_cookies_required");
+            return;
+        }
+        if (vkCookiesRequestInFlight) {
+            return;
+        }
+        vkCookiesRequestInFlight = true;
+        boolean foreground = isApplicationInForeground();
+        if (!foreground) {
+            postVkAccountAuthNotification("https://vk.com/");
+        }
+        try {
+            Intent intent = VkAuthBrowserActivity.createIntent(this, "https://vk.com/").addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
+            );
+            startActivity(intent);
+            Log.i(TAG, "VK cookie browser launched (foreground=" + foreground + ")");
+        } catch (Exception error) {
+            Log.w(TAG, "VK cookies: direct startActivity blocked, relying on notification", error);
+            if (foreground) {
+                postVkAccountAuthNotification("https://vk.com/");
+            }
+        }
+    }
+
+    private void handleVkCookiesIntent(@Nullable Intent intent) {
+        vkCookiesRequestInFlight = false;
+        if (intent == null) {
+            return;
+        }
+        String cookies = intent.getStringExtra(EXTRA_VK_COOKIES);
+        String userAgent = intent.getStringExtra(EXTRA_VK_UA);
+        if (TextUtils.isEmpty(cookies)) {
+            return;
+        }
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("type", "vk_cookies");
+            payload.put("cookies", cookies);
+            if (!TextUtils.isEmpty(userAgent)) {
+                payload.put("ua", userAgent);
+            }
+            writeProxyStdinLine(payload.toString());
+        } catch (JSONException error) {
+            appendRuntimeLogLine("Failed to encode vk_cookies line: " + error.getMessage());
+        }
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.cancel(VK_ACCOUNT_AUTH_NOTIFICATION_ID);
+        }
+    }
+
     // The relay finished the VK account-auth flow (complete or failed). Clear the
     // in-flight guard, dismiss the notification and close the browser across the
     // process boundary by re-launching VkAuthBrowserActivity with a FINISH
@@ -4839,6 +4907,10 @@ public class ProxyTunnelService extends Service {
             }
             if (PROXY_EVENT_VK_ACCOUNT_AUTH_REQUIRED.equals(type)) {
                 handleVkAccountAuthRequired(event.optString("link", "").trim());
+                return;
+            }
+            if (PROXY_EVENT_VK_COOKIES_REQUIRED.equals(type)) {
+                handleVkCookiesRequired();
                 return;
             }
             if (PROXY_EVENT_VK_ACCOUNT_AUTH_COMPLETE.equals(type)) {
