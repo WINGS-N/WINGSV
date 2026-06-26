@@ -50,6 +50,7 @@ public final class XrayTproxyRouter {
     private static final String CHAIN_PRE6 = "WINGS_XRAY_TP_PRE6";
     private static final String CHAIN_OUT6 = "WINGS_XRAY_TP_OUT6";
     private static final String CHAIN_REDIR = "WINGS_XRAY_REDIR";
+    private static final String CHAIN_FWD = "WINGS_XRAY_TP_FWD";
     // -w 5 — wait up to 5 seconds for the kernel xtables lock so that parallel
     // iptables invocations from vpnhotspot / ConnectivityService / system tether
     // helpers don't collide with ours and trip "lock xtables already used by
@@ -302,6 +303,77 @@ public final class XrayTproxyRouter {
     public static void revertForwardedRedirectQuietly(@NonNull Context context) {
         try {
             revertForwardedRedirect(context);
+        } catch (Exception ignored) {}
+    }
+
+    // Carve AP/hotspot (forwarded) traffic out of the on-device tproxy so it is
+    // not tunneled unless the user turned sharing on in the app. A dedicated chain
+    // is jumped at the very top of CHAIN_PRE; ACCEPT inside it makes the matched
+    // packets skip the rest of the mangle table (the broad TPROXY rule), so they
+    // go direct. With sharing ON only the clients' DNS (UDP/53) is carved out (the
+    // gateway resolver answers it) and the rest stays tunneled through CHAIN_PRE;
+    // with sharing OFF all forwarded traffic from the downstream interfaces goes
+    // direct.
+    public static void applyForwardedTproxyExclusion(
+        @NonNull Context context,
+        Set<String> downstreamInterfaces,
+        boolean appSharingOn
+    ) throws Exception {
+        revertForwardedTproxyExclusionQuietly(context);
+        if (downstreamInterfaces == null || downstreamInterfaces.isEmpty()) {
+            return;
+        }
+        StringBuilder s = new StringBuilder();
+        s
+            .append(IPT4)
+            .append(" -t mangle -N ")
+            .append(CHAIN_FWD)
+            .append(" 2>/dev/null || ")
+            .append(IPT4)
+            .append(" -t mangle -F ")
+            .append(CHAIN_FWD)
+            .append("; ");
+        for (String iface : downstreamInterfaces) {
+            if (TextUtils.isEmpty(iface)) {
+                continue;
+            }
+            s.append(IPT4).append(" -t mangle -A ").append(CHAIN_FWD).append(" -i ").append(iface);
+            if (appSharingOn) {
+                s.append(" -p udp -m udp --dport 53");
+            }
+            s.append(" -j ACCEPT; ");
+        }
+        // Jump first thing in the device tproxy PREROUTING chain (dedupe first).
+        s
+            .append(IPT4)
+            .append(" -t mangle -D ")
+            .append(CHAIN_PRE)
+            .append(" -j ")
+            .append(CHAIN_FWD)
+            .append(" 2>/dev/null; ");
+        s.append(IPT4).append(" -t mangle -I ").append(CHAIN_PRE).append(" 1 -j ").append(CHAIN_FWD).append("; ");
+        s.append("true;");
+        RootShellCommand.exec(context, s.toString());
+    }
+
+    public static void revertForwardedTproxyExclusion(@NonNull Context context) throws Exception {
+        StringBuilder s = new StringBuilder();
+        s
+            .append(IPT4)
+            .append(" -t mangle -D ")
+            .append(CHAIN_PRE)
+            .append(" -j ")
+            .append(CHAIN_FWD)
+            .append(" 2>/dev/null; ");
+        s.append(IPT4).append(" -t mangle -F ").append(CHAIN_FWD).append(" 2>/dev/null; ");
+        s.append(IPT4).append(" -t mangle -X ").append(CHAIN_FWD).append(" 2>/dev/null; ");
+        s.append("true;");
+        RootShellCommand.exec(context, s.toString());
+    }
+
+    public static void revertForwardedTproxyExclusionQuietly(@NonNull Context context) {
+        try {
+            revertForwardedTproxyExclusion(context);
         } catch (Exception ignored) {}
     }
 
