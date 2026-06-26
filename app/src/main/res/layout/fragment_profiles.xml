@@ -64,7 +64,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:drawableEnd="@drawable/ic_selected_apps_disclosure"
-                    app:showTopDivider="false" />
+                    app:showTopDivider="true" />
 
                 <FrameLayout
                     android:layout_width="match_parent"
