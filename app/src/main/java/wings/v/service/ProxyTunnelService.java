@@ -424,6 +424,7 @@ public class ProxyTunnelService extends Service {
         public void onReceive(Context context, Intent intent) {
             persistActiveTetherTypes(intent);
             requestRootTetherRoutingSync(intent);
+            workExecutor.execute(() -> reconcileTproxyForwardedExclusion());
         }
     };
     private ScheduledExecutorService statsExecutor;
@@ -2079,6 +2080,7 @@ public class ProxyTunnelService extends Service {
                 "Xray TPROXY routing applied (mode=" + tproxyAppMode + ", apps=" + routedUids.size() + ")"
             );
             applySplitTunnelLockdown("Xray TPROXY", null);
+            reconcileTproxyForwardedExclusion();
         }
 
         if (rootModeActive && shouldInitializeRootSharing()) {
@@ -5683,6 +5685,30 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // Keep the TPROXY-mode device tproxy from tunneling AP/hotspot (forwarded)
+    // traffic unless the user turned sharing on in the app. Runs on tether changes
+    // and after the tproxy chain is (re)built. Sharing off / no hotspot reverts the
+    // carve-out; on carves out only the clients' DNS.
+    private void reconcileTproxyForwardedExclusion() {
+        Context appContext = getApplicationContext();
+        if (!rootModeActive || !activeXrayTproxyMode) {
+            XrayTproxyRouter.revertForwardedTproxyExclusionQuietly(appContext);
+            return;
+        }
+        Set<String> downstream = new LinkedHashSet<>();
+        for (String tetherInterface : readLiveTetheredInterfaces(getStickyTetherIntent())) {
+            if (!TextUtils.isEmpty(tetherInterface) && !tetherInterface.startsWith("lo")) {
+                downstream.add(tetherInterface);
+            }
+        }
+        boolean appSharingOn = AppPrefs.isAppSharingIntended(appContext);
+        try {
+            XrayTproxyRouter.applyForwardedTproxyExclusion(appContext, downstream, appSharingOn);
+        } catch (Exception error) {
+            appendRuntimeLogLine("TPROXY forwarded exclusion failed: " + error.getMessage());
+        }
+    }
+
     private void applySharingTtlHide(Set<String> tetherInterfaces) {
         Context appContext = getApplicationContext();
         try {
@@ -5974,6 +6000,7 @@ public class ProxyTunnelService extends Service {
                 java.util.List<Integer> uids = XrayTproxyRouter.resolveRoutedUids(getApplicationContext(), packages);
                 XrayTproxyRouter.apply(getApplicationContext(), XRAY_TPROXY_PORT, mode, uids);
                 appendRuntimeLogLine("Xray TPROXY routing reapplied (" + reason + ")");
+                reconcileTproxyForwardedExclusion();
             } catch (Exception error) {
                 appendRuntimeLogLine(
                     "Xray TPROXY reapply failed: " + firstNonEmpty(error.getMessage(), error.toString())
@@ -6147,6 +6174,7 @@ public class ProxyTunnelService extends Service {
             rootRoutingState = null;
         }
         syncRootTetherRouting(null);
+        reconcileTproxyForwardedExclusion();
         requestPublicIpRefresh(true);
     }
 
