@@ -3,6 +3,8 @@ agp = "9.2.1"
 jdkCoroutines = "1.11.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
+robolectric = "4.14.1"
+mockitoCore = "5.14.2"
 espressoCore = "3.5.1"
 kotlin = "2.4.0"
 protobuf = "4.35.0"
@@ -41,6 +43,8 @@ livekit = "2.26.0"
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockitoCore" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-annotation = { module = "androidx.annotation:annotation", version = "1.10.0" }
 androidx-collection = { module = "androidx.collection:collection", version = "1.6.0" }
