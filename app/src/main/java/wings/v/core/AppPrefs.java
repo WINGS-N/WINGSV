@@ -798,6 +798,24 @@ public final class AppPrefs {
     // the UI toggles do not follow a system hotspot toggled outside the app. When
     // never set yet (null), falls back to the last-active-types so the toggles
     // are accurate on first show after upgrade.
+    // Whether the user turned VPN sharing on from inside the app (a real toggle),
+    // as opposed to a hotspot started purely through the system. Unlike
+    // getSharingUserToggleTypes this does NOT fall back to the routing's
+    // last-active types, so a system-only hotspot reads as "not app-initiated" and
+    // the VPN sharing routing stays off.
+    public static boolean isAppSharingIntended(Context context) {
+        Set<String> stored = prefs(context).getStringSet(KEY_SHARING_USER_TOGGLE_TYPES, null);
+        if (stored == null) {
+            return false;
+        }
+        for (String rawValue : stored) {
+            if (!TextUtils.isEmpty(rawValue)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Set<TetherType> getSharingUserToggleTypes(Context context) {
         Set<String> stored = prefs(context).getStringSet(KEY_SHARING_USER_TOGGLE_TYPES, null);
         if (stored == null) {
