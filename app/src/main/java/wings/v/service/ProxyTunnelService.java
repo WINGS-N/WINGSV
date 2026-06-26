@@ -6966,12 +6966,11 @@ public class ProxyTunnelService extends Service {
         if (AppPrefs.isSharingAutoStartOnBootEnabled(appContext)) {
             return true;
         }
-        Set<TetherType> savedTypes = AppPrefs.getSharingLastActiveTypes(appContext);
-        if (savedTypes != null && !savedTypes.isEmpty()) {
-            return true;
-        }
-        Set<TetherType> currentTypes = TetherType.readEnabledTypes(getStickyTetherIntent());
-        return currentTypes != null && !currentTypes.isEmpty();
+        // VPN sharing activates only when the user turned it on from inside the
+        // app. A hotspot started purely through the system (no app toggle) is left
+        // to the system's own routing - the app does not pull its forwarded clients
+        // through the tunnel, and the in-app toggles stay off.
+        return AppPrefs.isAppSharingIntended(appContext);
     }
 
     private boolean usesVpnServiceUpstreamForRootSharing() {
