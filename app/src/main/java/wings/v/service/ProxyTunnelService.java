@@ -475,7 +475,7 @@ public class ProxyTunnelService extends Service {
     private final AtomicBoolean tproxyListenerReady = new AtomicBoolean(false);
     private Thread tproxyErrorLogTailer;
     private volatile boolean tproxyErrorLogTailerStop;
-    private static final int XRAY_TPROXY_PORT = 12345;
+    private static final int XRAY_TPROXY_PORT = 55555;
     private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
     private static final String XRAY_TPROXY_LISTENER_LOG_MARKER = "listening TCP on";
     private static final long TPROXY_MARK_REFRESH_INTERVAL_MS = 1_000L;
@@ -4374,7 +4374,7 @@ public class ProxyTunnelService extends Service {
         // Two paths fire readiness:
         //
         //  (a) xray-core's own log line from transport/internet/tcp/hub.go:
-        //        [Info] transport/internet/tcp: listening TCP on 0.0.0.0:12345
+        //        [Info] transport/internet/tcp: listening TCP on 0.0.0.0:55555
         //      We pick it up by tailing the configured "error" log file (see
         //      startXrayTproxyErrorLogTailer) because gomobile redirects the
         //      Go runtime's stdout to logcat, which means the helper's stdout
@@ -5799,7 +5799,7 @@ public class ProxyTunnelService extends Service {
 
     // xray-core is spawned via gomobile's LibXray binding in our root helper;
     // gomobile rewires the Go runtime's os.Stdout/os.Stderr to logcat, so the
-    // "listening TCP on 0.0.0.0:12345" line from transport/internet/tcp/hub.go
+    // "listening TCP on 0.0.0.0:55555" line from transport/internet/tcp/hub.go
     // never reaches the helper's stdout pipe that startProxyOutputReader is
     // reading. xray-core does still honour its config "error" file path, so
     // we tail that file and feed each line into handleXrayTproxyListenerLine.
@@ -5882,7 +5882,7 @@ public class ProxyTunnelService extends Service {
         }
         killOrphanXrayTproxyRuntime(appContext);
         // The TPROXY listener should be gone after kill; wait briefly so the
-        // next start does not race against a still-bound :12345 socket.
+        // next start does not race against a still-bound :55555 socket.
         waitForTproxyListenerGone(2_000L);
     }
 
@@ -5934,7 +5934,7 @@ public class ProxyTunnelService extends Service {
     /**
      * Kills any leftover Xray TPROXY runtime spawned by a previous WINGSV process
      * that was force-killed before it could call {@link #stopTproxyXrayProcess()}.
-     * The orphan keeps {@code :12345} bound, so a fresh spawn would silently lose
+     * The orphan keeps {@code :55555} bound, so a fresh spawn would silently lose
      * the bind race while {@link #waitForXrayTproxyListenerSignal(long, int)} still
      * matched the old listener's log marker and reported a phantom success.
      *

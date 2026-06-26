@@ -59,7 +59,7 @@ public final class XrayConfigFactory {
     // IP_TRANSPARENT (root). iptables nat REDIRECT diverts shared-client traffic
     // here, where SO_ORIGINAL_DST is recovered and routed through the active
     // tunnel outbound, bypassing the gVisor TUN (and its unknown-uid policy).
-    public static final int REDIRECT_PORT = 12346;
+    public static final int REDIRECT_PORT = 55556;
     private static final String REDIR_TAG = "redirect-in";
     private static final String SOCKS_TAG = "socks-in";
     private static final String HTTP_TAG = "http-in";
