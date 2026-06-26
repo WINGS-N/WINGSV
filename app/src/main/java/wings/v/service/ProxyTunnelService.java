@@ -235,6 +235,9 @@ public class ProxyTunnelService extends Service {
     private static final long[] RUNTIME_START_RETRY_DELAYS_MS = { 5_000L, 10_000L, 20_000L, 40_000L, 60_000L };
     private static final long NETWORK_WAIT_LOG_INTERVAL_MS = 10_000L;
     private static final long RUNTIME_SUPERVISOR_INTERVAL_MS = 5_000L;
+    // Faster supervisor cadence while a downstream is shared through the tproxy
+    // tunnel, so a flushed chain or carve-out is restored within ~3s.
+    private static final long RUNTIME_SUPERVISOR_SHARING_INTERVAL_MS = 3_000L;
     private static final long STATS_SAMPLE_FAST_INTERVAL_MS = 100L;
     private static final long STATS_SAMPLE_BACKGROUND_INTERVAL_MS = 500L;
     private static final long STATS_SPEED_WINDOW_MS = 1_200L;
@@ -430,6 +433,8 @@ public class ProxyTunnelService extends Service {
     private ScheduledExecutorService statsExecutor;
     private Future<?> statsSamplingTask;
     private long activeStatsSampleIntervalMs = -1L;
+    private Future<?> supervisorTask;
+    private long activeSupervisorIntervalMs = -1L;
     private volatile Future<?> activeWorkTask;
     private volatile Future<?> byeDpiWorkTask;
     private final AtomicBoolean runtimeReconnectQueued = new AtomicBoolean();
@@ -5707,6 +5712,7 @@ public class ProxyTunnelService extends Service {
         } catch (Exception error) {
             appendRuntimeLogLine("TPROXY forwarded exclusion failed: " + error.getMessage());
         }
+        refreshSupervisorSchedule();
     }
 
     // Whether a downstream tether interface (hotspot / usb) is currently up, i.e.
@@ -7616,17 +7622,7 @@ public class ProxyTunnelService extends Service {
             TimeUnit.SECONDS
         );
 
-        statsExecutor.scheduleAtFixedRate(
-            () -> {
-                if (!sRunning) {
-                    return;
-                }
-                runRuntimeSupervisorTick();
-            },
-            5L,
-            RUNTIME_SUPERVISOR_INTERVAL_MS,
-            TimeUnit.MILLISECONDS
-        );
+        refreshSupervisorSchedule();
     }
 
     private void refreshStatsSamplingSchedule() {
@@ -7659,6 +7655,40 @@ public class ProxyTunnelService extends Service {
         );
     }
 
+    // Runs the runtime supervisor faster (3s) while a downstream is being shared
+    // through the tproxy tunnel, so a flushed chain / carve-out is caught and
+    // restored within ~3s; falls back to the 5s default otherwise. Re-evaluated on
+    // every tether / sharing change via reconcileTproxyForwardedExclusion.
+    private void refreshSupervisorSchedule() {
+        if (statsExecutor == null || statsExecutor.isShutdown()) {
+            return;
+        }
+        long targetIntervalMs =
+            activeXrayTproxyMode && hasTetherDownstream()
+                ? RUNTIME_SUPERVISOR_SHARING_INTERVAL_MS
+                : RUNTIME_SUPERVISOR_INTERVAL_MS;
+        if (activeSupervisorIntervalMs == targetIntervalMs && supervisorTask != null && !supervisorTask.isDone()) {
+            return;
+        }
+        long initialDelayMs = activeSupervisorIntervalMs < 0 ? 5L : targetIntervalMs;
+        Future<?> previousTask = supervisorTask;
+        if (previousTask != null) {
+            previousTask.cancel(false);
+        }
+        activeSupervisorIntervalMs = targetIntervalMs;
+        supervisorTask = statsExecutor.scheduleAtFixedRate(
+            () -> {
+                if (!sRunning) {
+                    return;
+                }
+                runRuntimeSupervisorTick();
+            },
+            initialDelayMs,
+            targetIntervalMs,
+            TimeUnit.MILLISECONDS
+        );
+    }
+
     private void shutdownStatsExecutor() {
         Future<?> samplingTask = statsSamplingTask;
         if (samplingTask != null) {
@@ -7666,6 +7696,12 @@ public class ProxyTunnelService extends Service {
             statsSamplingTask = null;
         }
         activeStatsSampleIntervalMs = -1L;
+        Future<?> currentSupervisorTask = supervisorTask;
+        if (currentSupervisorTask != null) {
+            currentSupervisorTask.cancel(false);
+            supervisorTask = null;
+        }
+        activeSupervisorIntervalMs = -1L;
         if (statsExecutor != null) {
             statsExecutor.shutdownNow();
             statsExecutor = null;
