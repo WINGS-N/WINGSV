@@ -380,7 +380,12 @@ public final class VkTurnProfileStore {
             active.title,
             active.transportKind,
             active.transportProfileId,
-            updated.vkTurnEndpoint,
+            // KEY_ENDPOINT in the flat keys is the WG peer endpoint (the local TURN
+            // relay, e.g. 127.0.0.1:9000) that the UI settings screen edits, not the
+            // VK TURN server. The VK TURN server endpoint is a VkTurnProfile-only
+            // field owned by the VK TURN editor, so preserve it across the WG-settings
+            // round-trip instead of folding the local relay back over it.
+            active.vkTurnEndpoint,
             updated.threads,
             updated.credsGroupSize,
             updated.useUdp,
