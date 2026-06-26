@@ -147,4 +147,85 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Multi-select action bar, mirroring the Xray profile list: shown while in
+         selection mode (long-press a row -> Select). Top row carries the count +
+         select-all + share, bottom row the reset-stats + delete actions. -->
+    <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+        android:id="@+id/layout_backend_profile_selection_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="12dp"
+        android:background="?android:colorBackground"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:roundedCorners="all">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="18dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="4dp">
+
+            <TextView
+                android:id="@+id/text_backend_profile_selection_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:textColor="?android:textColorSecondary"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_backend_profile_select_all"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/xray_profiles_select_all_action"
+                android:textAllCaps="false" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_backend_profile_share"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/xray_profiles_share_action"
+                android:textAllCaps="false" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="6dp"
+            android:paddingBottom="6dp">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_backend_profile_reset_stats"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/backend_profiles_action_reset_stats"
+                android:textAllCaps="false" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/button_backend_profile_delete"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/backend_profiles_action_delete"
+                android:textAllCaps="false" />
+        </LinearLayout>
+    </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
 </FrameLayout>

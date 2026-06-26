@@ -20,6 +20,16 @@
         android:paddingEnd="18dp"
         android:paddingBottom="10dp">
 
+        <androidx.appcompat.widget.AppCompatCheckBox
+            android:id="@+id/checkbox_backend_profile_selected"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:clickable="false"
+            android:contentDescription="@null"
+            android:focusable="false"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/image_backend_profile_active"
             android:layout_width="24dp"

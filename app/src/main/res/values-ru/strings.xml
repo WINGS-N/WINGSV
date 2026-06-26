@@ -774,8 +774,8 @@
     <string name="backend_profile_editor_mode_quick">Конфиг wg-quick</string>
     <string name="backend_profile_editor_mode_awg_quick">Конфиг awg-quick</string>
     <string name="backend_profile_editor_open_ui">Редактор UI</string>
-    <string name="backend_profile_edit_choice_text">Изменить текст конфига</string>
-    <string name="backend_profile_edit_choice_ui">Изменить в настройках</string>
+    <string name="backend_profile_edit_choice_wg">Редактировать wg-quick/awg-quick</string>
+    <string name="backend_profile_edit_choice_ui">Редактировать в UI</string>
     <string name="vk_turn_profile_editor_title">Изменить профиль VK TURN</string>
     <string name="vk_turn_profile_editor_endpoint_label">Эндпоинт VK TURN</string>
     <string name="vk_turn_profile_editor_endpoint_hint">хост:порт</string>

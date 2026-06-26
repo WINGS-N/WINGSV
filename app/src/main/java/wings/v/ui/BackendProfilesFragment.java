@@ -106,6 +106,23 @@ public class BackendProfilesFragment extends Fragment {
 
     private String activeBackendFilterId = FILTER_ALL;
 
+    // Multi-select state for the simple (WG / AWG / VK TURN) list, mirroring the
+    // Xray profile list: long-press -> Select enters selection mode, tap toggles,
+    // back exits. rowBindingsById tracks the live row views so checkboxes refresh
+    // without a full re-render; currentSelection* snapshot the rendered list +
+    // backend for select-all / share / reset / delete.
+    private final java.util.LinkedHashSet<String> selectedBackendProfileIds = new java.util.LinkedHashSet<>();
+    private boolean backendSelectionMode;
+    private final java.util.Map<String, ItemBackendProfileEntryBinding> rowBindingsById =
+        new java.util.LinkedHashMap<>();
+    private final List<SimpleProfile> currentSelectionProfiles = new ArrayList<>();
+
+    @Nullable
+    private BackendType currentSelectionBackend;
+
+    @Nullable
+    private androidx.activity.OnBackPressedCallback selectionBackCallback;
+
     @Nullable
     @Override
     public View onCreateView(
@@ -144,6 +161,29 @@ public class BackendProfilesFragment extends Fragment {
             Haptics.softSelection(v);
             importFromClipboard();
         });
+        binding.buttonBackendProfileSelectAll.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            selectAllBackendProfiles();
+        });
+        binding.buttonBackendProfileShare.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            shareSelectedBackendProfiles();
+        });
+        binding.buttonBackendProfileResetStats.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            resetSelectedBackendStats();
+        });
+        binding.buttonBackendProfileDelete.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            confirmDeleteSelectedBackend();
+        });
+        selectionBackCallback = new androidx.activity.OnBackPressedCallback(false) {
+            @Override
+            public void handleOnBackPressed() {
+                clearBackendSelectionMode();
+            }
+        };
+        requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), selectionBackCallback);
     }
 
     @Override
@@ -378,6 +418,20 @@ public class BackendProfilesFragment extends Fragment {
         binding.textBackendProfilesEmpty.setVisibility(profiles.isEmpty() ? View.VISIBLE : View.GONE);
         binding.containerBackendProfiles.setVisibility(profiles.isEmpty() ? View.GONE : View.VISIBLE);
 
+        rowBindingsById.clear();
+        currentSelectionProfiles.clear();
+        currentSelectionProfiles.addAll(profiles);
+        currentSelectionBackend = backendType;
+        Set<String> visibleIds = new java.util.HashSet<>();
+        for (SimpleProfile candidate : profiles) {
+            visibleIds.add(candidate.id);
+        }
+        // Drop any selection for rows that left the rendered list (filter / delete).
+        selectedBackendProfileIds.retainAll(visibleIds);
+        if (backendSelectionMode && selectedBackendProfileIds.isEmpty()) {
+            clearBackendSelectionMode();
+        }
+
         LayoutInflater inflater = LayoutInflater.from(context);
         for (int index = 0; index < profiles.size(); index++) {
             SimpleProfile profile = profiles.get(index);
@@ -387,8 +441,11 @@ public class BackendProfilesFragment extends Fragment {
                 false
             );
             bindRow(rowBinding, backendType, profile, activeId, traffic, index < profiles.size() - 1);
+            rowBindingsById.put(profile.id, rowBinding);
+            applyBackendRowState(rowBinding, profile.id, activeId);
             binding.containerBackendProfiles.addView(rowBinding.getRoot());
         }
+        updateBackendSelectionUi();
     }
 
     private void bindRow(
@@ -418,7 +475,13 @@ public class BackendProfilesFragment extends Fragment {
 
         applyFavoriteState(rowBinding, backendType, profile.id);
 
-        rowBinding.rowBackendProfileEntry.setOnClickListener(v -> onProfileSelected(backendType, profile.id));
+        rowBinding.rowBackendProfileEntry.setOnClickListener(v -> {
+            if (backendSelectionMode) {
+                toggleBackendSelection(profile.id);
+            } else {
+                onProfileSelected(backendType, profile.id);
+            }
+        });
         // Mirror the Xray profile list: tap selects, long-press opens the action
         // menu (PopupMenu anchored on the row). No per-row overflow button.
         rowBinding.rowBackendProfileEntry.setOnLongClickListener(v -> {
@@ -472,43 +535,289 @@ public class BackendProfilesFragment extends Fragment {
         Toast.makeText(context, R.string.backend_profiles_selected, Toast.LENGTH_SHORT).show();
     }
 
-    // Long-press action menu, mirroring the Xray profile list's long-press
-    // PopupMenu. Order: make active, rename, edit, share, reset traffic stats,
-    // delete (the WG/AWG transport rows fold a cascade-delete confirmation into
-    // the delete action).
+    // Long-press action menu, mirroring the Xray profile list: Select (enters
+    // multi-select), then the edit entry points. WireGuard / AmneziaWG expose the
+    // wg-quick / awg-quick text editor and the structured UI editor as separate
+    // items; VK TURN opens its form editor. Share / reset-stats / delete live in
+    // the multi-select action bar now, like Xray.
     private void showProfileMenu(View anchor, BackendType backendType, SimpleProfile profile) {
+        if (backendSelectionMode) {
+            beginBackendSelection(profile.id);
+            return;
+        }
         PopupMenu menu = new PopupMenu(requireContext(), anchor);
         menu.getMenu().add(0, 0, 0, R.string.backend_profiles_action_select);
-        menu.getMenu().add(0, 1, 1, R.string.backend_profiles_action_rename);
-        menu.getMenu().add(0, 2, 2, R.string.backend_profiles_action_edit);
-        menu.getMenu().add(0, 3, 3, R.string.backend_profiles_action_share);
-        menu.getMenu().add(0, 4, 4, R.string.backend_profiles_action_reset_stats);
-        menu.getMenu().add(0, 5, 5, R.string.backend_profiles_action_delete);
+        menu.getMenu().add(0, 4, 1, R.string.backend_profiles_action_rename);
+        if (isVkTurn(backendType)) {
+            menu.getMenu().add(0, 1, 1, R.string.backend_profiles_action_edit);
+        } else {
+            menu.getMenu().add(0, 2, 1, R.string.backend_profile_edit_choice_wg);
+            menu.getMenu().add(0, 3, 2, R.string.backend_profile_edit_choice_ui);
+        }
         menu.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 0:
-                    onProfileSelected(backendType, profile.id);
-                    return true;
-                case 1:
-                    showRenameDialog(backendType, profile);
-                    return true;
-                case 2:
-                    editProfile(backendType, profile);
-                    return true;
-                case 3:
-                    shareProfile(backendType, profile);
+                    beginBackendSelection(profile.id);
                     return true;
                 case 4:
-                    resetStats(backendType, profile.id);
+                    showRenameDialog(backendType, profile);
                     return true;
-                case 5:
-                    confirmDelete(backendType, profile);
+                case 1:
+                    startActivity(wings.v.VkTurnProfileEditorActivity.createIntent(requireContext(), profile.id));
+                    return true;
+                case 2:
+                    startActivity(
+                        wings.v.BackendProfileEditorActivity.createIntent(requireContext(), backendType, profile.id)
+                    );
+                    return true;
+                case 3:
+                    openUiSettingsForProfile(backendType, profile);
                     return true;
                 default:
                     return false;
             }
         });
         menu.show();
+    }
+
+    private void beginBackendSelection(String profileId) {
+        if (TextUtils.isEmpty(profileId)) {
+            return;
+        }
+        if (!backendSelectionMode) {
+            backendSelectionMode = true;
+            if (selectionBackCallback != null) {
+                selectionBackCallback.setEnabled(true);
+            }
+        }
+        selectedBackendProfileIds.add(profileId);
+        updateBackendSelectionUi();
+        updateAllBackendRowStates();
+    }
+
+    private void toggleBackendSelection(String profileId) {
+        if (TextUtils.isEmpty(profileId)) {
+            return;
+        }
+        if (!backendSelectionMode) {
+            beginBackendSelection(profileId);
+            return;
+        }
+        if (selectedBackendProfileIds.contains(profileId)) {
+            selectedBackendProfileIds.remove(profileId);
+        } else {
+            selectedBackendProfileIds.add(profileId);
+        }
+        if (selectedBackendProfileIds.isEmpty()) {
+            clearBackendSelectionMode();
+            return;
+        }
+        updateBackendSelectionUi();
+        updateAllBackendRowStates();
+    }
+
+    private void clearBackendSelectionMode() {
+        if (!backendSelectionMode && selectedBackendProfileIds.isEmpty()) {
+            return;
+        }
+        backendSelectionMode = false;
+        selectedBackendProfileIds.clear();
+        if (selectionBackCallback != null) {
+            selectionBackCallback.setEnabled(false);
+        }
+        updateBackendSelectionUi();
+        updateAllBackendRowStates();
+    }
+
+    private void updateBackendSelectionUi() {
+        if (binding == null) {
+            return;
+        }
+        boolean visible = backendSelectionMode && !selectedBackendProfileIds.isEmpty();
+        binding.layoutBackendProfileSelectionActions.setVisibility(visible ? View.VISIBLE : View.GONE);
+        binding.textBackendProfileSelectionCount.setText(
+            getString(R.string.xray_profiles_selected_count, selectedBackendProfileIds.size())
+        );
+        binding.buttonBackendProfileSelectAll.setText(
+            areAllVisibleBackendProfilesSelected()
+                ? R.string.xray_profiles_deselect_all_action
+                : R.string.xray_profiles_select_all_action
+        );
+        if (getActivity() instanceof wings.v.MainActivity) {
+            ((wings.v.MainActivity) getActivity()).setBottomNavigationSuppressed(visible);
+        }
+    }
+
+    private void updateAllBackendRowStates() {
+        if (binding == null || currentSelectionBackend == null) {
+            return;
+        }
+        String activeId = activeProfileId(requireContext(), currentSelectionBackend);
+        for (Map.Entry<String, ItemBackendProfileEntryBinding> entry : rowBindingsById.entrySet()) {
+            applyBackendRowState(entry.getValue(), entry.getKey(), activeId);
+        }
+    }
+
+    private void applyBackendRowState(ItemBackendProfileEntryBinding rowBinding, String profileId, String activeId) {
+        boolean selected = selectedBackendProfileIds.contains(profileId);
+        rowBinding.rowBackendProfileEntry.setActivated(selected);
+        rowBinding.checkboxBackendProfileSelected.setVisibility(backendSelectionMode ? View.VISIBLE : View.GONE);
+        rowBinding.checkboxBackendProfileSelected.setChecked(selected);
+        boolean active = TextUtils.equals(activeId, profileId);
+        rowBinding.imageBackendProfileActive.setVisibility(
+            backendSelectionMode ? View.GONE : active ? View.VISIBLE : View.INVISIBLE
+        );
+    }
+
+    private boolean areAllVisibleBackendProfilesSelected() {
+        if (currentSelectionProfiles.isEmpty()) {
+            return false;
+        }
+        for (SimpleProfile profile : currentSelectionProfiles) {
+            if (!selectedBackendProfileIds.contains(profile.id)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void selectAllBackendProfiles() {
+        if (currentSelectionProfiles.isEmpty()) {
+            return;
+        }
+        if (areAllVisibleBackendProfilesSelected()) {
+            clearBackendSelectionMode();
+            return;
+        }
+        if (!backendSelectionMode) {
+            backendSelectionMode = true;
+            if (selectionBackCallback != null) {
+                selectionBackCallback.setEnabled(true);
+            }
+        }
+        for (SimpleProfile profile : currentSelectionProfiles) {
+            selectedBackendProfileIds.add(profile.id);
+        }
+        updateBackendSelectionUi();
+        updateAllBackendRowStates();
+    }
+
+    private void shareSelectedBackendProfiles() {
+        if (currentSelectionBackend == null || selectedBackendProfileIds.isEmpty()) {
+            return;
+        }
+        Context context = requireContext();
+        BackendType backendType = currentSelectionBackend;
+        List<SimpleProfile> selected = new ArrayList<>();
+        for (SimpleProfile profile : currentSelectionProfiles) {
+            if (selectedBackendProfileIds.contains(profile.id)) {
+                selected.add(profile);
+            }
+        }
+        if (selected.isEmpty()) {
+            return;
+        }
+        if (selected.size() == 1) {
+            clearBackendSelectionMode();
+            shareProfile(backendType, selected.get(0));
+            return;
+        }
+        List<String> links = new ArrayList<>();
+        for (SimpleProfile profile : selected) {
+            String link = buildShareLink(context, backendType, profile);
+            if (!TextUtils.isEmpty(link)) {
+                links.add(link);
+            }
+        }
+        if (links.isEmpty()) {
+            Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        sendShareText(TextUtils.join("\n", links));
+        clearBackendSelectionMode();
+    }
+
+    @Nullable
+    private String buildShareLink(Context context, BackendType backendType, SimpleProfile profile) {
+        try {
+            if (isVkTurn(backendType)) {
+                VkTurnProfile vkTurn = VkTurnProfileStore.getProfileById(context, profile.id);
+                return vkTurn == null ? null : WingsImportParser.buildTurnProfileLink(context, vkTurn);
+            }
+            if (backendType == BackendType.AMNEZIAWG_PLAIN) {
+                AmneziaProfile amnezia = AmneziaProfileStore.getProfileById(context, profile.id);
+                return amnezia == null ? null : WingsImportParser.buildAmneziaProfileLink(amnezia);
+            }
+            WireGuardProfile wireGuard = WireGuardProfileStore.getProfileById(context, profile.id);
+            return wireGuard == null ? null : WingsImportParser.buildWireGuardProfileLink(wireGuard);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void resetSelectedBackendStats() {
+        if (currentSelectionBackend == null || selectedBackendProfileIds.isEmpty()) {
+            return;
+        }
+        List<String> ids = new ArrayList<>(selectedBackendProfileIds);
+        BackendType backendType = currentSelectionBackend;
+        clearBackendSelectionMode();
+        if (ids.size() == 1) {
+            resetStats(backendType, ids.get(0));
+            return;
+        }
+        resetProfileTrafficStats(requireContext(), backendType, ids);
+        refreshUi();
+        Toast.makeText(
+            requireContext(),
+            getString(R.string.xray_profiles_reset_stats_done, ids.size()),
+            Toast.LENGTH_SHORT
+        ).show();
+    }
+
+    private void confirmDeleteSelectedBackend() {
+        if (currentSelectionBackend == null || selectedBackendProfileIds.isEmpty()) {
+            return;
+        }
+        if (selectedBackendProfileIds.size() == 1) {
+            String id = selectedBackendProfileIds.iterator().next();
+            SimpleProfile profile = findSelectionProfile(id);
+            BackendType backendType = currentSelectionBackend;
+            if (profile != null) {
+                clearBackendSelectionMode();
+                confirmDelete(backendType, profile);
+            }
+            return;
+        }
+        new AlertDialog.Builder(requireContext())
+            .setTitle(R.string.backend_profiles_delete_confirm_title)
+            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
+            .setPositiveButton(R.string.backend_profiles_action_delete, (dialog, which) -> deleteSelectedBackend())
+            .show();
+    }
+
+    @Nullable
+    private SimpleProfile findSelectionProfile(String id) {
+        for (SimpleProfile profile : currentSelectionProfiles) {
+            if (TextUtils.equals(profile.id, id)) {
+                return profile;
+            }
+        }
+        return null;
+    }
+
+    private void deleteSelectedBackend() {
+        if (currentSelectionBackend == null || selectedBackendProfileIds.isEmpty()) {
+            return;
+        }
+        Context context = requireContext();
+        List<String> ids = new ArrayList<>(selectedBackendProfileIds);
+        for (String id : ids) {
+            deleteProfile(context, currentSelectionBackend, id);
+        }
+        clearBackendSelectionMode();
+        refreshUi();
+        Toast.makeText(context, getString(R.string.xray_profiles_delete_done, ids.size()), Toast.LENGTH_SHORT).show();
     }
 
     private void resetStats(BackendType backendType, String profileId) {
@@ -712,40 +1021,6 @@ public class BackendProfilesFragment extends Fragment {
             return;
         }
         startActivity(chooserIntent);
-    }
-
-    // Opens the per-backend editor for this profile. VK TURN goes straight to its
-    // form editor (which offers the endpoint + transport reference and an "open UI
-    // editor" button). WireGuard / AmneziaWG offer a small chooser between the
-    // wg-quick / awg-quick TEXT editor and the structured UI settings editor.
-    private void editProfile(BackendType backendType, SimpleProfile profile) {
-        // The list dispatch: the two plain backends (WIREGUARD, AMNEZIAWG_PLAIN)
-        // map to a WG/AWG transport profile row (text + UI chooser); the two VK
-        // TURN variants map to a VkTurnProfile row (the VK TURN form editor).
-        if (!isVkTurn(backendType)) {
-            showBackendEditChooser(backendType, profile);
-            return;
-        }
-        startActivity(wings.v.VkTurnProfileEditorActivity.createIntent(requireContext(), profile.id));
-    }
-
-    private void showBackendEditChooser(BackendType backendType, SimpleProfile profile) {
-        Context context = requireContext();
-        CharSequence[] items = {
-            getString(R.string.backend_profile_edit_choice_text),
-            getString(R.string.backend_profile_edit_choice_ui),
-        };
-        new AlertDialog.Builder(context)
-            .setTitle(R.string.backend_profiles_action_edit)
-            .setItems(items, (dialog, which) -> {
-                if (which == 0) {
-                    startActivity(wings.v.BackendProfileEditorActivity.createIntent(context, backendType, profile.id));
-                } else {
-                    openUiSettingsForProfile(backendType, profile);
-                }
-            })
-            .setNegativeButton(R.string.backend_profiles_dialog_cancel, null)
-            .show();
     }
 
     // UI editor entry point for WG / AWG: make the profile active, project it onto
