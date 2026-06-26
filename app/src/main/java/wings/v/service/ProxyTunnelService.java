@@ -5619,6 +5619,7 @@ public class ProxyTunnelService extends Service {
             SharingApiGuard.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             applySharingTtlHide(configuredInterfaces);
+            applyForwardedClientRedirect(configuredInterfaces);
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
             lastTetherSyncUpstream = upstreamNameForLog;
@@ -5647,12 +5648,39 @@ public class ProxyTunnelService extends Service {
         if (SharingApiGuard.isSupported()) {
             SharingApiGuard.stopSharing(getApplicationContext());
         }
+        if (rootModeActive) {
+            XrayTproxyRouter.revertForwardedRedirectQuietly(getApplicationContext());
+        }
         SharingTtlHider.clearQuietly(getApplicationContext());
         appliedTetherUpstreamName = null;
         lastTetherSyncInterfaces = null;
         lastTetherSyncUpstream = null;
         lastTetherSyncConfig = null;
         releaseSharingWifiLocks();
+    }
+
+    // Transparently REDIRECT shared (tethering) client traffic into the local xray
+    // dokodemo-door redirect inbound, so AP/hotspot clients are tunneled through
+    // the active backend instead of leaking out the physical upstream. Root only;
+    // bypasses the gVisor TUN entirely. Reverts when the interface set is empty.
+    private void applyForwardedClientRedirect(Set<String> downstreamInterfaces) {
+        if (!rootModeActive) {
+            return;
+        }
+        try {
+            if (downstreamInterfaces == null || downstreamInterfaces.isEmpty()) {
+                XrayTproxyRouter.revertForwardedRedirectQuietly(getApplicationContext());
+            } else {
+                XrayTproxyRouter.applyForwardedRedirect(
+                    getApplicationContext(),
+                    downstreamInterfaces,
+                    XrayConfigFactory.REDIRECT_PORT
+                );
+                appendRuntimeLogLine("Shared-client redirect applied: " + downstreamInterfaces);
+            }
+        } catch (Exception error) {
+            appendRuntimeLogLine("Shared-client redirect failed: " + error.getMessage());
+        }
     }
 
     private void applySharingTtlHide(Set<String> tetherInterfaces) {
