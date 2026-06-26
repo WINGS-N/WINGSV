@@ -397,7 +397,38 @@ public final class XrayTproxyRouter {
             " lookup " +
             ROUTE_TABLE +
             "' && " +
+            IPT4 +
+            " -t mangle -S " +
+            CHAIN_PRE +
+            " 2>/dev/null | grep -q TPROXY && " +
             "echo OK";
+        try {
+            String result = RootShellCommand.exec(context, probe);
+            return result != null && result.contains("OK");
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Whether the forwarded-exclusion carve-out is currently in place: the jump
+     * from the device tproxy chain into CHAIN_FWD exists and CHAIN_FWD still holds
+     * its ACCEPT rules. Lets the runtime supervisor catch a partial drop of the
+     * carve-out (vpnhotspot / system tether helpers flushing it) during active
+     * sharing without forcing a full tproxy reapply.
+     */
+    public static boolean isForwardedExclusionApplied(@NonNull Context context) {
+        String probe =
+            IPT4 +
+            " -t mangle -C " +
+            CHAIN_PRE +
+            " -j " +
+            CHAIN_FWD +
+            " 2>/dev/null && " +
+            IPT4 +
+            " -t mangle -S " +
+            CHAIN_FWD +
+            " 2>/dev/null | grep -q ' -j ACCEPT' && echo OK";
         try {
             String result = RootShellCommand.exec(context, probe);
             return result != null && result.contains("OK");
