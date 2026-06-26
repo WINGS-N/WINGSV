@@ -5709,6 +5709,18 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // Whether a downstream tether interface (hotspot / usb) is currently up, i.e.
+    // whether the forwarded carve-out is expected to exist. Mirrors the interface
+    // filter in reconcileTproxyForwardedExclusion.
+    private boolean hasTetherDownstream() {
+        for (String tetherInterface : readLiveTetheredInterfaces(getStickyTetherIntent())) {
+            if (!TextUtils.isEmpty(tetherInterface) && !tetherInterface.startsWith("lo")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void applySharingTtlHide(Set<String> tetherInterfaces) {
         Context appContext = getApplicationContext();
         try {
@@ -5983,7 +5995,17 @@ public class ProxyTunnelService extends Service {
                 if (!activeXrayTproxyMode || sServiceState != ServiceState.RUNNING) {
                     return;
                 }
-                if (XrayTproxyRouter.isFullyApplied(getApplicationContext())) {
+                boolean mainApplied = XrayTproxyRouter.isFullyApplied(getApplicationContext());
+                boolean exclusionDrifted =
+                    hasTetherDownstream() && !XrayTproxyRouter.isForwardedExclusionApplied(getApplicationContext());
+                if (mainApplied && !exclusionDrifted) {
+                    return;
+                }
+                if (mainApplied) {
+                    // Only the forwarded carve-out drifted (vpnhotspot / system tether
+                    // flushed CHAIN_FWD); restore it without a full tproxy reapply.
+                    appendRuntimeLogLine("TPROXY forwarded carve-out missing after " + reason + ", reconciling");
+                    reconcileTproxyForwardedExclusion();
                     return;
                 }
                 appendRuntimeLogLine("Xray TPROXY routing missing after " + reason + ", reapplying");
