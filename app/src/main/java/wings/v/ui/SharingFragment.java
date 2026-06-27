@@ -377,9 +377,32 @@ public class SharingFragment extends Fragment {
         }
         Haptics.softSliderStep(sourceView);
         setToggleIntent(type, enabled);
+        Context ctx = requireContext();
+        // The toggle owns VPN sharing (masquerade). It only starts/stops the AP
+        // itself when the app owns it: bring up a fresh AP on enable, and stop only
+        // an AP the app started -- never tear down a hotspot the user started from
+        // system settings.
+        refreshStickyState();
+        boolean controlAp;
+        if (enabled) {
+            controlAp = !enabledTypes.contains(type);
+            AppPrefs.setSharingStartedByApp(ctx, type, controlAp);
+        } else {
+            controlAp = AppPrefs.isSharingStartedByApp(ctx, type);
+            AppPrefs.setSharingStartedByApp(ctx, type, false);
+        }
+        if (!controlAp) {
+            // Leave the AP as-is; just re-apply the masquerade so the upstream
+            // (VPN vs direct) follows the toggle without touching the hotspot.
+            if (ProxyTunnelService.isActive()) {
+                ctx.startService(ProxyTunnelService.createReapplySharingIntent(ctx));
+            }
+            refreshUi();
+            return;
+        }
         operationInFlight = true;
         refreshUi();
-        Context appContext = requireContext().getApplicationContext();
+        Context appContext = ctx.getApplicationContext();
         executor.execute(() -> {
             String helperError = null;
             try {

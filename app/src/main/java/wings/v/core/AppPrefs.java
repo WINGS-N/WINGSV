@@ -205,6 +205,7 @@ public final class AppPrefs {
     public static final String KEY_SHARING_AUTO_START_ON_BOOT = "pref_sharing_auto_start_on_boot";
     public static final String KEY_SHARING_LAST_ACTIVE_TYPES = "pref_sharing_last_active_types";
     public static final String KEY_SHARING_USER_TOGGLE_TYPES = "pref_sharing_user_toggle_types";
+    public static final String KEY_SHARING_STARTED_BY_APP_TYPES = "pref_sharing_started_by_app_types";
     public static final String KEY_SHARING_UPSTREAM_INTERFACE = "pref_sharing_upstream_interface";
     public static final String KEY_SHARING_FALLBACK_UPSTREAM_INTERFACE = "pref_sharing_fallback_upstream_interface";
     public static final String KEY_SHARING_MASQUERADE_MODE = "pref_sharing_masquerade_mode";
@@ -831,6 +832,26 @@ public final class AppPrefs {
     // the UI toggles do not follow a system hotspot toggled outside the app. When
     // never set yet (null), falls back to the last-active-types so the toggles
     // are accurate on first show after upgrade.
+    // Whether the app itself started the system AP for this tether type (the toggle
+    // brought up a fresh hotspot), as opposed to a hotspot the user started from
+    // system settings. The toggle only tears the AP down when the app started it;
+    // a system-started AP is left running when sharing is toggled off.
+    public static boolean isSharingStartedByApp(Context context, TetherType type) {
+        Set<String> stored = prefs(context).getStringSet(KEY_SHARING_STARTED_BY_APP_TYPES, null);
+        return stored != null && stored.contains(type.commandName);
+    }
+
+    public static void setSharingStartedByApp(Context context, TetherType type, boolean started) {
+        Set<String> stored = prefs(context).getStringSet(KEY_SHARING_STARTED_BY_APP_TYPES, null);
+        Set<String> next = stored == null ? new java.util.HashSet<>() : new java.util.HashSet<>(stored);
+        if (started) {
+            next.add(type.commandName);
+        } else {
+            next.remove(type.commandName);
+        }
+        prefs(context).edit().putStringSet(KEY_SHARING_STARTED_BY_APP_TYPES, next).apply();
+    }
+
     // Whether the user turned VPN sharing on from inside the app (a real toggle),
     // as opposed to a hotspot started purely through the system. Unlike
     // getSharingUserToggleTypes this does NOT fall back to the routing's
