@@ -7776,6 +7776,13 @@ public class ProxyTunnelService extends Service {
         if (capabilities == null) {
             return false;
         }
+        // Exclude VPN networks: a VpnService network reports its underlying physical
+        // transport (cellular/wifi) alongside TRANSPORT_VPN, so without this guard the
+        // active VPN (tun0) is mistaken for the physical upstream and tethered clients
+        // get routed back through the VPN instead of going direct.
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            return false;
+        }
         boolean isPhysicalTransport =
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
