@@ -133,17 +133,25 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             rootMode &&
             AppPrefs.isXrayTproxyModeEnabled(requireContext()) &&
             RootUtils.isXrayTproxySupported(requireContext(), false);
+        // The gVisor TUN UID filter is built ONLY for the X (divert) modes - plain
+        // Bypass/Whitelist filter at the VpnService framework layer (non-root) or via
+        // iptables owner-match (root), never the gVisor filter. So its unknown-UID
+        // router/policy and the /proc lookup timeout act only in XBYPASS/XWHITELIST;
+        // hide them everywhere else (plain modes on root and non-root, and TPROXY).
+        // The timeout additionally needs root (it drives the root-only /proc retry).
+        wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(requireContext());
+        boolean gvisorUidFilterActive = !tproxyActive && appMode.isGvisorDivert();
         androidx.preference.Preference timeoutPref = findPreference(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
         if (timeoutPref != null) {
-            timeoutPref.setVisible(rootMode && !tproxyActive);
+            timeoutPref.setVisible(rootMode && gvisorUidFilterActive);
         }
         androidx.preference.Preference unknownRouterPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER);
         if (unknownRouterPref != null) {
-            unknownRouterPref.setVisible(!tproxyActive);
+            unknownRouterPref.setVisible(gvisorUidFilterActive);
         }
         androidx.preference.Preference unknownPolicyPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY);
         if (unknownPolicyPref != null) {
-            unknownPolicyPref.setVisible(!tproxyActive);
+            unknownPolicyPref.setVisible(gvisorUidFilterActive);
         }
     }
 
