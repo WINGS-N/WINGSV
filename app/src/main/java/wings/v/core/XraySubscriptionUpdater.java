@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
     {
@@ -164,6 +165,15 @@ public final class XraySubscriptionUpdater {
                     listener.onSubscriptionFinished(subscription, null);
                 }
             } catch (Exception error) {
+                String reason = TextUtils.isEmpty(error.getMessage())
+                    ? error.getClass().getSimpleName()
+                    : error.getMessage();
+                ProxyTunnelService.writeRuntimeLogLine(
+                    "Subscription refresh failed [" +
+                        (TextUtils.isEmpty(subscription.title) ? subscription.url : subscription.title) +
+                        "]: " +
+                        reason
+                );
                 if (TextUtils.isEmpty(firstError)) {
                     firstError = error.getMessage();
                 }
@@ -313,6 +323,9 @@ public final class XraySubscriptionUpdater {
     }
 
     private static FetchResult fetch(Context context, String urlString) throws Exception {
+        // Refresh through the tunnel while the VPN is up, otherwise direct off the
+        // physical network. openHttpConnection(useTunnelWhenActive=true) encodes
+        // exactly that: tunnel when active, physical network when not.
         HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, new URL(urlString), true);
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
