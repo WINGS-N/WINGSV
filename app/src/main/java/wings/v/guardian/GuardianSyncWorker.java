@@ -58,6 +58,7 @@ public final class GuardianSyncWorker extends Worker {
                 @Override
                 public void onConnected(String host) {
                     GuardianStateBroadcast.send(app, true, host);
+                    GuardianCommandHandler.sendStateReport(app, responder);
                 }
 
                 @Override

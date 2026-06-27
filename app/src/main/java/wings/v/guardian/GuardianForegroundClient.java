@@ -34,6 +34,14 @@ public final class GuardianForegroundClient {
                 @Override
                 public void onConnected(String host) {
                     GuardianStateBroadcast.send(app, true, host);
+                    // Mirror GuardianService: push the current config snapshot on
+                    // connect instead of waiting for a REPORT_NOW that may never
+                    // arrive, otherwise the panel only sees the hello with no config.
+                    GuardianCommandHandler.sendStateReport(app, frame -> {
+                        if (client != null) {
+                            client.sendFrame(frame);
+                        }
+                    });
                 }
 
                 @Override
