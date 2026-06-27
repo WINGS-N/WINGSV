@@ -5919,11 +5919,17 @@ public class ProxyTunnelService extends Service {
     }
 
     private void clearRootTetherRouting() {
-        if (SharingApiGuard.isSupported()) {
-            SharingApiGuard.stopSharing(getApplicationContext());
-        }
+        // Revert the forwarded-client redirect FIRST. It is the iptables rule that
+        // tunnels AP traffic into the backend, so dropping it immediately frees the
+        // hotspot to exit direct. stopSharing below is slow (engine runBlocking
+        // su/ndc) and the fast-stop budget can cut this method off mid-way - if the
+        // revert ran after it, a backend switch / root-off would leave the redirect
+        // installed and keep dragging the AP through the tunnel until a reboot.
         if (rootModeActive) {
             XrayTproxyRouter.revertForwardedRedirectQuietly(getApplicationContext());
+        }
+        if (SharingApiGuard.isSupported()) {
+            SharingApiGuard.stopSharing(getApplicationContext());
         }
         SharingTtlHider.clearQuietly(getApplicationContext());
         appliedTetherUpstreamName = null;
