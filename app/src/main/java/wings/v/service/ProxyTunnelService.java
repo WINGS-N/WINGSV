@@ -5780,27 +5780,23 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return;
         }
-        // The VPN-sharing toggle picks the masquerade upstream: ON -> the VPN tunnel
-        // (tethered clients exit through the VPN); OFF -> the physical interface, so
-        // the engine NATs them DIRECT to the phone's real IP. Either way the vpnhotspot
-        // engine owns and maintains the routing, so direct sticks instead of the system
-        // pulling the clients back into the VPN.
+        // The VPN-sharing toggle decides whether WINGS V touches the hotspot at all.
+        // OFF -> hands-off: the system already forwards tethered clients DIRECT (as it
+        // does from a clean boot), so we install zero rules and only revert any
+        // leftover routing once on the on->off transition. Installing our own
+        // masquerade/iif/redirect when sharing is off is exactly what dragged the AP
+        // back into the tunnel. ON -> the engine owns the routing and tunnels the
+        // clients through the active backend.
         boolean shareViaVpn = AppPrefs.isAppSharingIntended(getApplicationContext());
-        String upstreamNameForLog;
         if (!shareViaVpn) {
-            upstreamNameForLog = firstNonEmpty(
-                AppPrefs.getSharingUpstreamInterface(getApplicationContext()),
-                resolveActivePhysicalInterfaceName()
-            );
-            if (TextUtils.isEmpty(upstreamNameForLog)) {
-                AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
-                appendRuntimeLogLine("Root tether routing skipped: no physical upstream for direct sharing");
-                if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
-                    clearRootTetherRouting();
-                }
-                return;
+            AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+            if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
+                clearRootTetherRouting();
             }
-        } else if (activeXrayTproxyMode) {
+            return;
+        }
+        String upstreamNameForLog;
+        if (activeXrayTproxyMode) {
             String physicalInterface = firstNonEmpty(
                 AppPrefs.getSharingUpstreamInterface(getApplicationContext()),
                 resolveActivePhysicalInterfaceName()
@@ -5882,17 +5878,9 @@ public class ProxyTunnelService extends Service {
             SharingApiGuard.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             applySharingTtlHide(configuredInterfaces);
-            // Only tunnel forwarded (AP/hotspot) clients into the backend when the
-            // user turned VPN-sharing ON. With it off they must exit DIRECT via the
-            // physical masquerade, so REVERT the redirect instead of installing it.
-            // Leaving this rule on regardless of the toggle is what kept dragging the
-            // hotspot through the tunnel even with sharing off, and it survived every
-            // backend switch / root-off until a reboot wiped it.
-            if (shareViaVpn) {
-                applyForwardedClientRedirect(configuredInterfaces);
-            } else {
-                applyForwardedClientRedirect(new LinkedHashSet<>());
-            }
+            // Sharing is on here (the off case returned hands-off above): tunnel the
+            // forwarded AP/hotspot clients through the active backend.
+            applyForwardedClientRedirect(configuredInterfaces);
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
             lastTetherSyncUpstream = upstreamNameForLog;
@@ -7255,11 +7243,14 @@ public class ProxyTunnelService extends Service {
         }
 
         if (TextUtils.isEmpty(upstreamInterface)) {
-            if (!AppPrefs.isAppSharingIntended(getApplicationContext())) {
-                // Sharing toggle off -> direct: NAT tethered clients to the physical
-                // upstream (phone's real IP) instead of the VPN tunnel.
-                upstreamInterface = resolveActivePhysicalInterfaceName();
-            } else if (activeXrayTproxyMode) {
+            // Sharing-off direct-via-physical (masquerade+iif on the physical upstream)
+            // is disabled: syncRootTetherRouting returns hands-off before building a
+            // config when sharing is off, so the system forwards the hotspot direct
+            // with zero WINGS V rules. Kept commented as the prior approach:
+            //   if (!AppPrefs.isAppSharingIntended(getApplicationContext())) {
+            //       upstreamInterface = resolveActivePhysicalInterfaceName();
+            //   } else
+            if (activeXrayTproxyMode) {
                 upstreamInterface = resolveActivePhysicalInterfaceName();
             } else if (!usesVpnServiceUpstreamForRootSharing()) {
                 upstreamInterface = activeTunnelName;
