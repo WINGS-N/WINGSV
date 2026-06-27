@@ -22,6 +22,14 @@ public final class WireGuardConfigFactory {
      */
     private static final String[] WB_STREAM_EXCLUDED_CIDRS = { "185.62.200.0/24", "194.1.214.0/24" };
 
+    // Over the TURN relay the WG peer is reached through a TURN permission the OK
+    // server silently expires when idle (~300s). Plain WG sends nothing on its own,
+    // so an idle tunnel's permission lapses and forwarding dies while the relay
+    // still reports alive -- this is exactly why native WG silently drops but
+    // xray-WG (which keeps a 25s keepalive) never does. Pin the same keepalive so
+    // the relay->peer TURN mapping stays warm.
+    private static final int WG_RELAY_KEEPALIVE_SECONDS = 25;
+
     private WireGuardConfigFactory() {}
 
     public static Config build(Context context, ProxySettings settings) throws Exception {
@@ -65,6 +73,9 @@ public final class WireGuardConfigFactory {
         }
         builder.append("AllowedIPs = ").append(allowedIps).append('\n');
         builder.append("Endpoint = ").append(peerEndpoint).append('\n');
+        if (settings.backendType != BackendType.WIREGUARD) {
+            builder.append("PersistentKeepalive = ").append(WG_RELAY_KEEPALIVE_SECONDS).append('\n');
+        }
 
         return Config.parse(new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8)));
     }

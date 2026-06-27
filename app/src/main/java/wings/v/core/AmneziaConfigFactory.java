@@ -11,6 +11,11 @@ import org.amnezia.awg.config.Peer;
 
 public final class AmneziaConfigFactory {
 
+    // Over the TURN relay an AWG peer is reached through a TURN permission the OK
+    // server silently expires when idle; without keepalive the tunnel dies the same
+    // way native WG does. Force the same 25s keepalive xray-WG uses.
+    private static final int AWG_RELAY_KEEPALIVE_SECONDS = 25;
+
     private AmneziaConfigFactory() {}
 
     public static Config build(Context context, ProxySettings settings) throws Exception {
@@ -79,7 +84,11 @@ public final class AmneziaConfigFactory {
             if (peer.getPreSharedKey().isPresent()) {
                 peerBuilder.setPreSharedKey(peer.getPreSharedKey().get());
             }
-            if (peer.getPersistentKeepalive().isPresent()) {
+            if (overridePeerEndpoint) {
+                // Over the relay, force the keepalive so the TURN permission to the
+                // peer stays warm regardless of the imported config.
+                peerBuilder.setPersistentKeepalive(AWG_RELAY_KEEPALIVE_SECONDS);
+            } else if (peer.getPersistentKeepalive().isPresent()) {
                 peerBuilder.setPersistentKeepalive(peer.getPersistentKeepalive().get());
             }
             configBuilder.addPeer(peerBuilder.build());
