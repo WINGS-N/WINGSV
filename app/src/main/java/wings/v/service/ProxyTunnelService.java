@@ -293,6 +293,11 @@ public class ProxyTunnelService extends Service {
     private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
     private static final int MAX_PROXY_LOG_LINES = 600;
     private static final long ROOT_TETHER_SYNC_INTERVAL_MS = 3_000L;
+    // Android periodically wipes the tether masquerade/routing on its own (network
+    // events), so even when our desired state is unchanged we must re-apply on a
+    // cadence; otherwise the rules stay gone and sharing clients lose internet
+    // until a manual reapply. Force a full re-apply at least this often.
+    private static final long ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS = 20_000L;
     private static final int TRANSIENT_ERROR_NOTICE_THRESHOLD = 6;
     private static final long TRANSIENT_ERROR_NOTICE_WINDOW_MS = 20_000L;
     private static final long CAPTCHA_NOTIFICATION_COOLDOWN_MS = 2 * 60_000L;
@@ -518,6 +523,8 @@ public class ProxyTunnelService extends Service {
 
     @Nullable
     private VpnHotspotSharingConfig lastTetherSyncConfig;
+
+    private long lastTetherForceReapplyAtElapsedMs = -1L;
 
     private volatile PublicIpFetcher.Request publicIpRequest;
     private volatile int publicIpRequestGeneration;
@@ -3559,20 +3566,17 @@ public class ProxyTunnelService extends Service {
         silentCookieRejectCount = 0;
         lastSilentCookieDeliveryMs = 0L;
         if (vkAccountModeRequested) {
+            command.add("-vk-auth");
+            command.add("account");
+            command.add("-vk-session-file");
+            command.add(new File(getFilesDir(), "vk_session.json").getAbsolutePath());
             if (kernelWireguardActive) {
-                Log.w(
-                    TAG,
-                    "VK account auth requested but root/kernel-WG path has no writable relay stdin; " +
-                        "staying anonymous"
-                );
-                RuntimeStateStore.appendRuntimeLog("VK account auth unsupported on root path; relay stays anonymous");
-            } else {
-                command.add("-vk-auth");
-                command.add("account");
-                command.add("-vk-session-file");
-                command.add(new File(getFilesDir(), "vk_session.json").getAbsolutePath());
-                vkAccountAuthActive = true;
+                // Root/kernel-WG path: su -c gives the relay no writable stdin, so
+                // the vk_account_creds line cannot be delivered. Hand cookies over by
+                // writing the session file and have the relay poll it live instead.
+                command.add("-vk-cookie-file-poll");
             }
+            vkAccountAuthActive = true;
         }
         if (xrayTurnProxyEnabled) {
             command.add("-session-mode");
@@ -4659,6 +4663,12 @@ public class ProxyTunnelService extends Service {
         // re-request (e.g. after a relay restart) can be served straight from this
         // process with no browser.
         AppPrefs.setVkSession(this, cookies, null);
+        if (kernelWireguardActive) {
+            // Root/kernel-WG: the relay does not persist the file itself (the app
+            // owns it), so mirror the rotated session back to disk for the next
+            // relay start.
+            writeVkSessionFile(cookies, AppPrefs.getVkSessionUa(this));
+        }
     }
 
     private void handleVkCookiesIntent(@Nullable Intent intent) {
@@ -4687,6 +4697,12 @@ public class ProxyTunnelService extends Service {
         if (TextUtils.isEmpty(cookies)) {
             return;
         }
+        if (kernelWireguardActive) {
+            // Root/kernel-WG: the relay has no writable stdin, so deliver cookies by
+            // writing the session file, which the relay polls (-vk-cookie-file-poll).
+            writeVkSessionFile(cookies, userAgent);
+            return;
+        }
         try {
             JSONObject payload = new JSONObject();
             payload.put("type", "vk_cookies");
@@ -4697,6 +4713,35 @@ public class ProxyTunnelService extends Service {
             writeProxyStdinLine(payload.toString());
         } catch (JSONException error) {
             appendRuntimeLogLine("Failed to encode vk_cookies line: " + error.getMessage());
+        }
+    }
+
+    // Writes the VK session to vk_session.json in the relay's persist format
+    // ({"cookies","ua"}) atomically. On the root/kernel-WG path this is the cookie
+    // delivery channel (no writable relay stdin); the relay adopts it via
+    // -vk-cookie-file-poll. The app owns the file so the root relay only reads it.
+    private void writeVkSessionFile(String cookies, String userAgent) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("cookies", cookies);
+            if (!TextUtils.isEmpty(userAgent)) {
+                payload.put("ua", userAgent);
+            }
+            byte[] data = payload.toString().getBytes(StandardCharsets.UTF_8);
+            File sessionFile = new File(getFilesDir(), "vk_session.json");
+            File tmp = new File(getFilesDir(), "vk_session.json.tmp");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                out.write(data);
+                out.flush();
+            }
+            if (!tmp.renameTo(sessionFile)) {
+                tmp.delete();
+                appendRuntimeLogLine("vk_session.json write failed: rename");
+                return;
+            }
+            appendRuntimeLogLine("wrote VK session to file (" + cookies.length() + " cookie chars)");
+        } catch (JSONException | IOException error) {
+            appendRuntimeLogLine("vk_session.json write failed: " + error.getMessage());
         }
     }
 
@@ -5007,7 +5052,7 @@ public class ProxyTunnelService extends Service {
         if (event == null) {
             return;
         }
-        long connectedStreams = Math.max(0L, event.optLong("connectedStreams", 0L));
+        long connectedStreams = Math.max(0L, event.optLong("connected_streams", 0L));
         long activeStreams = Math.max(0L, event.optLong("activeStreams", 0L));
         sProxyConnectedStreams = (int) connectedStreams;
         persistConnectProgress();
@@ -5727,6 +5772,16 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return;
         }
+        if (!AppPrefs.isAppSharingIntended(getApplicationContext())) {
+            // VPN-sharing toggle is off: never pull tethered clients into the VPN.
+            // Tear down any masquerade/routing we previously applied so the system's
+            // own direct tethering to the physical upstream takes back over and the
+            // clients keep internet (they route directly, with the phone's real IP).
+            if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
+                clearRootTetherRouting();
+            }
+            return;
+        }
         String upstreamNameForLog;
         if (activeXrayTproxyMode) {
             String physicalInterface = firstNonEmpty(
@@ -5769,6 +5824,16 @@ public class ProxyTunnelService extends Service {
             }
             configuredInterfaces.add(tetherInterface);
         }
+        if (configuredInterfaces.isEmpty()) {
+            // No active tether interfaces -> sharing is off. Do not run the
+            // masquerade sync: its ndc teardown surfaces a misleading
+            // "200 0 success" as a runtime error and can wedge the runtime. Clear
+            // any leftover tether routing once on the on->off transition, then skip.
+            if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
+                clearRootTetherRouting();
+            }
+            return;
+        }
         VpnHotspotSharingConfig sharingConfig = buildSharingConfig();
         // Skip-no-op: при пустом наборе tether-интерфейсов и неизменных upstream/
         // конфиге дальше идёт runBlocking{ Routing.clean() } внутри
@@ -5776,7 +5841,16 @@ public class ProxyTunnelService extends Service {
         // каждые 3 секунды и составляло основной wakeup-shape в idle - кешируем
         // последнее применённое состояние и пропускаем sync если ничего не
         // менялось.
+        long now = SystemClock.elapsedRealtime();
+        // Re-apply on a cadence even when the desired state is unchanged: Android
+        // wipes the masquerade/routing out from under us, and "unchanged since our
+        // last sync" does not mean "still applied". Otherwise the rules stay gone
+        // until a manual reapply and sharing clients lose internet.
+        boolean forceReapply =
+            lastTetherForceReapplyAtElapsedMs <= 0L ||
+            now - lastTetherForceReapplyAtElapsedMs >= ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS;
         if (
+            !forceReapply &&
             configuredInterfaces.equals(lastTetherSyncInterfaces) &&
             Objects.equals(upstreamNameForLog, lastTetherSyncUpstream) &&
             Objects.equals(sharingConfig, lastTetherSyncConfig)
@@ -5796,6 +5870,7 @@ public class ProxyTunnelService extends Service {
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
             lastTetherSyncUpstream = upstreamNameForLog;
             lastTetherSyncConfig = sharingConfig;
+            lastTetherForceReapplyAtElapsedMs = now;
             String syncMessage =
                 "Root tether routing synced: " + configuredInterfaces + " upstream=" + upstreamNameForLog;
             appendRuntimeLogLine(syncMessage);
@@ -7727,67 +7802,63 @@ public class ProxyTunnelService extends Service {
         statsExecutor = Executors.newSingleThreadScheduledExecutor();
         refreshStatsSamplingSchedule();
 
-        statsExecutor.scheduleAtFixedRate(
-            () -> {
-                if (!sRunning) {
-                    return;
-                }
-                syncTunnelNetworkLocks();
-            },
-            2L,
-            5L,
-            TimeUnit.SECONDS
-        );
-
-        statsExecutor.scheduleAtFixedRate(
-            () -> {
-                if (!sRunning) {
-                    return;
-                }
-                requestPublicIpRefresh(false);
-            },
-            2L,
-            45L,
-            TimeUnit.SECONDS
-        );
-
-        statsExecutor.scheduleAtFixedRate(
-            () -> {
-                if (!sRunning || !rootModeActive) {
-                    return;
-                }
-                requestRootTetherRoutingSync(null);
-            },
+        scheduleGuardedPolling("Network lock sync", 2L, 5L, TimeUnit.SECONDS, this::syncTunnelNetworkLocks);
+        scheduleGuardedPolling("Public IP refresh", 2L, 45L, TimeUnit.SECONDS, () -> requestPublicIpRefresh(false));
+        scheduleGuardedPolling(
+            "Root tether routing sync",
             2L,
             ROOT_TETHER_SYNC_INTERVAL_MS,
-            TimeUnit.MILLISECONDS
-        );
-
-        statsExecutor.scheduleAtFixedRate(
+            TimeUnit.MILLISECONDS,
             () -> {
-                if (!sRunning) {
-                    return;
+                if (rootModeActive) {
+                    requestRootTetherRoutingSync(null);
                 }
-                requestConnectivityProbe(false);
-            },
-            4L,
-            CONNECTIVITY_PROBE_INTERVAL_MS,
-            TimeUnit.MILLISECONDS
+            }
         );
-
-        statsExecutor.scheduleAtFixedRate(
-            () -> {
-                if (!sRunning) {
-                    return;
-                }
-                requestActiveTunnelProbingIfNeeded();
-            },
+        scheduleGuardedPolling("Connectivity probe", 4L, CONNECTIVITY_PROBE_INTERVAL_MS, TimeUnit.MILLISECONDS, () ->
+            requestConnectivityProbe(false)
+        );
+        scheduleGuardedPolling(
+            "Active tunnel probing",
             4L,
             1L,
-            TimeUnit.SECONDS
+            TimeUnit.SECONDS,
+            this::requestActiveTunnelProbingIfNeeded
         );
 
         refreshSupervisorSchedule();
+    }
+
+    // scheduleAtFixedRate cancels a task forever on the first uncaught throwable,
+    // which silently kills periodic maintenance (the tether sync/reapply most
+    // visibly -- it drops every active sharing client until the service restarts).
+    // Wrap every polling body so one transient failure never stops the cadence.
+    private void scheduleGuardedPolling(
+        String label,
+        long initialDelayMs,
+        long periodMs,
+        TimeUnit unit,
+        Runnable body
+    ) {
+        statsExecutor.scheduleAtFixedRate(
+            () -> {
+                if (!sRunning) {
+                    return;
+                }
+                try {
+                    body.run();
+                } catch (Throwable error) {
+                    appendRuntimeLogLine(
+                        label +
+                            " polling failed: " +
+                            firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
+                    );
+                }
+            },
+            initialDelayMs,
+            periodMs,
+            unit
+        );
     }
 
     private void refreshStatsSamplingSchedule() {
@@ -7846,7 +7917,18 @@ public class ProxyTunnelService extends Service {
                 if (!sRunning) {
                     return;
                 }
-                runRuntimeSupervisorTick();
+                try {
+                    runRuntimeSupervisorTick();
+                } catch (Throwable error) {
+                    // scheduleAtFixedRate cancels the task forever on any uncaught
+                    // throwable, which silently kills the periodic tether
+                    // sync/reapply and drops every active sharing client until some
+                    // event restarts the supervisor. Swallow so it keeps ticking.
+                    appendRuntimeLogLine(
+                        "Runtime supervisor tick failed: " +
+                            firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
+                    );
+                }
             },
             initialDelayMs,
             targetIntervalMs,
