@@ -5772,18 +5772,27 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return;
         }
-        if (!AppPrefs.isAppSharingIntended(getApplicationContext())) {
-            // VPN-sharing toggle is off: never pull tethered clients into the VPN.
-            // Tear down any masquerade/routing we previously applied so the system's
-            // own direct tethering to the physical upstream takes back over and the
-            // clients keep internet (they route directly, with the phone's real IP).
-            if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
-                clearRootTetherRouting();
-            }
-            return;
-        }
+        // The VPN-sharing toggle picks the masquerade upstream: ON -> the VPN tunnel
+        // (tethered clients exit through the VPN); OFF -> the physical interface, so
+        // the engine NATs them DIRECT to the phone's real IP. Either way the vpnhotspot
+        // engine owns and maintains the routing, so direct sticks instead of the system
+        // pulling the clients back into the VPN.
+        boolean shareViaVpn = AppPrefs.isAppSharingIntended(getApplicationContext());
         String upstreamNameForLog;
-        if (activeXrayTproxyMode) {
+        if (!shareViaVpn) {
+            upstreamNameForLog = firstNonEmpty(
+                AppPrefs.getSharingUpstreamInterface(getApplicationContext()),
+                resolveActivePhysicalInterfaceName()
+            );
+            if (TextUtils.isEmpty(upstreamNameForLog)) {
+                AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
+                appendRuntimeLogLine("Root tether routing skipped: no physical upstream for direct sharing");
+                if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
+                    clearRootTetherRouting();
+                }
+                return;
+            }
+        } else if (activeXrayTproxyMode) {
             String physicalInterface = firstNonEmpty(
                 AppPrefs.getSharingUpstreamInterface(getApplicationContext()),
                 resolveActivePhysicalInterfaceName()
@@ -7222,7 +7231,11 @@ public class ProxyTunnelService extends Service {
         }
 
         if (TextUtils.isEmpty(upstreamInterface)) {
-            if (activeXrayTproxyMode) {
+            if (!AppPrefs.isAppSharingIntended(getApplicationContext())) {
+                // Sharing toggle off -> direct: NAT tethered clients to the physical
+                // upstream (phone's real IP) instead of the VPN tunnel.
+                upstreamInterface = resolveActivePhysicalInterfaceName();
+            } else if (activeXrayTproxyMode) {
                 upstreamInterface = resolveActivePhysicalInterfaceName();
             } else if (!usesVpnServiceUpstreamForRootSharing()) {
                 upstreamInterface = activeTunnelName;
@@ -7236,7 +7249,10 @@ public class ProxyTunnelService extends Service {
         }
         return new VpnHotspotSharingConfig(
             upstreamInterface,
-            AppPrefs.getSharingFallbackUpstreamInterface(getApplicationContext()),
+            firstNonEmpty(
+                AppPrefs.getSharingFallbackUpstreamInterface(getApplicationContext()),
+                resolveActivePhysicalInterfaceName()
+            ),
             explicitDnsServers,
             AppPrefs.getSharingMasqueradeMode(getApplicationContext()),
             AppPrefs.isSharingDhcpWorkaroundEnabled(getApplicationContext()),
