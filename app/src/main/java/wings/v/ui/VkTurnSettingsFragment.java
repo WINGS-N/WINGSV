@@ -16,6 +16,7 @@ import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
+import java.io.File;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -262,7 +263,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSwitchHaptics(AppPrefs.KEY_USE_UDP);
         bindSwitchHaptics(AppPrefs.KEY_NO_OBFUSCATION);
         bindSwitchHaptics(AppPrefs.KEY_MANUAL_CAPTCHA);
-        bindSwitchHaptics(AppPrefs.KEY_VK_AUTH_MODE);
+        bindVkAuthModeSwitch();
+        bindClearVkCookiesPreference();
         bindSwitchHaptics(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE);
 
         bindSecretPreference(AppPrefs.KEY_WG_PRIVATE_KEY);
@@ -326,6 +328,69 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
             return true;
         });
+    }
+
+    private void bindVkAuthModeSwitch() {
+        SwitchPreferenceCompat preference = findPreference(AppPrefs.KEY_VK_AUTH_MODE);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
+            setClearVkCookiesVisible(Boolean.TRUE.equals(newValue));
+            return true;
+        });
+    }
+
+    private void bindClearVkCookiesPreference() {
+        Preference preference = findPreference("pref_vk_clear_cookies");
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceClickListener(p -> {
+            Haptics.softSelection(getListView() != null ? getListView() : requireView());
+            AppPrefs.clearVkSession(requireContext());
+            deleteRelayVkSessionFile();
+            Toast.makeText(requireContext(), R.string.vk_clear_cookies_done, Toast.LENGTH_SHORT).show();
+            return true;
+        });
+    }
+
+    // The clear-cookies button only makes sense inside a VK TURN relay section with
+    // VK ID auth enabled, so its visibility tracks both.
+    private void setClearVkCookiesVisible(boolean authModeEnabled) {
+        Preference button = findPreference("pref_vk_clear_cookies");
+        if (button != null) {
+            button.setVisible(authModeEnabled && isVkTurnRelayActive());
+        }
+    }
+
+    private boolean isVkAuthModeEnabled() {
+        SwitchPreferenceCompat preference = findPreference(AppPrefs.KEY_VK_AUTH_MODE);
+        return preference != null && preference.isChecked();
+    }
+
+    private boolean isVkTurnRelayActive() {
+        BackendType backendType = XrayStore.getBackendType(requireContext());
+        if (backendType == null) {
+            return false;
+        }
+        if (backendType.usesTurnProxy()) {
+            return true;
+        }
+        XrayTransportMode xrayTransportMode = XrayStore.getXraySettings(requireContext()).transportMode;
+        return backendType.usesXrayCore() && xrayTransportMode != null && xrayTransportMode.usesTurnProxy();
+    }
+
+    private void deleteRelayVkSessionFile() {
+        try {
+            File sessionFile = new File(requireContext().getFilesDir(), "vk_session.json");
+            if (sessionFile.exists() && !sessionFile.delete()) {
+                sessionFile.deleteOnExit();
+            }
+        } catch (RuntimeException ignored) {
+            // Best effort: the relay re-requests cookies when the file is gone.
+        }
     }
 
     private void bindSummaryPreference(String key) {
@@ -677,6 +742,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         setPreferencesVisible(AMNEZIA_PREFERENCE_KEYS, awgBackend);
         setPreferenceVisible(AppPrefs.KEY_WG_ENDPOINT, plainWireGuardEndpointVisible);
         setPreferenceVisible(AmneziaStore.KEY_PEER_ENDPOINT, plainAwgPeerEndpointVisible);
+        setClearVkCookiesVisible(isVkAuthModeEnabled());
     }
 
     private void registerPreferencesListener() {

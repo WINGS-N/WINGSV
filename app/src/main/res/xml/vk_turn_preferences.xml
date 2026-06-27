@@ -67,6 +67,11 @@
         android:summary="@string/vk_account_auth_summary"
         android:defaultValue="false" />
 
+    <Preference
+        android:key="pref_vk_clear_cookies"
+        android:title="@string/vk_clear_cookies_title"
+        android:summary="@string/vk_clear_cookies_summary" />
+
     <SwitchPreferenceCompat
         android:key="pref_vk_turn_restart_on_network_change"
         android:title="@string/vk_turn_settings_restart_on_network_change_title"

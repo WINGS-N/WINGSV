@@ -1008,8 +1008,12 @@
     <string name="vk_links_summary_count_many">%d links</string>
     <string name="creds_group_size_title">Workers per TURN credential</string>
     <string name="creds_group_size_summary">How many workers share one VK credential. Fewer — more credentials (higher rate-limit ceiling, but more captcha requests). Default is 12.</string>
-    <string name="vk_account_auth_title">Использовать VK-аккаунт (TURN-креды через сессию)</string>
-    <string name="vk_account_auth_summary">TURN-креды через залогиненный VK-аккаунт (WebView) вместо анонимного режима</string>
+    <string name="vk_account_auth_title">Use VK ID</string>
+    <string name="vk_account_auth_summary">TURN credentials via VK ID sign-in instead of anonymous mode</string>
+    <string name="vk_clear_cookies_title">Delete VK cookies</string>
+    <string name="vk_clear_cookies_summary">Clear the saved VK session (sign-in required again)</string>
+    <string name="vk_clear_cookies_done">VK cookies deleted</string>
+    <string name="proxy_logs_cookie_warning_message">The log contains your VK ID cookies. Sharing it with anyone else may compromise your VK account.</string>
     <string name="manual_captcha_title">Manual captcha</string>
     <string name="manual_captcha_summary">Do not try to solve VK captcha automatically and wait for manual confirmation right away</string>
     <string name="captcha_auto_solver_title">Captcha auto-solve</string>

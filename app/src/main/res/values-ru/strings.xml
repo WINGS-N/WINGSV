@@ -1008,8 +1008,12 @@
     <string name="vk_links_summary_count_many">%d ссылок</string>
     <string name="creds_group_size_title">Воркеров на TURN-учётку</string>
     <string name="creds_group_size_summary">Сколько воркеров делят одну VK-учётку. Меньше — больше учёток (выше потолок до rate-limit, но больше captcha-запросов). По умолчанию 12.</string>
-    <string name="vk_account_auth_title">Использовать VK-аккаунт (TURN-креды через сессию)</string>
-    <string name="vk_account_auth_summary">TURN-креды через залогиненный VK-аккаунт (WebView) вместо анонимного режима</string>
+    <string name="vk_account_auth_title">Использовать VK ID</string>
+    <string name="vk_account_auth_summary">TURN-креды через вход по VK ID вместо анонимного режима</string>
+    <string name="vk_clear_cookies_title">Удалить cookies VK</string>
+    <string name="vk_clear_cookies_summary">Очистить сохранённую VK-сессию (потребуется повторный вход)</string>
+    <string name="vk_clear_cookies_done">Cookies VK удалены</string>
+    <string name="proxy_logs_cookie_warning_message">В логе присутствуют cookies от вашего VK ID. Передача постороннему лицу может скомпрометировать ваш аккаунт VK.</string>
     <string name="manual_captcha_title">Ручная captcha</string>
     <string name="manual_captcha_summary">Не пытаться проходить VK captcha автоматически и сразу ожидать ручное подтверждение</string>
     <string name="captcha_auto_solver_title">Авторешение captcha</string>

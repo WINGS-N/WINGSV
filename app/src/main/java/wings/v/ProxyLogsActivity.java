@@ -13,9 +13,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.io.File;
@@ -28,7 +31,10 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import wings.v.core.AppPrefs;
+import wings.v.core.BackendType;
 import wings.v.core.Haptics;
+import wings.v.core.ProxySettings;
 import wings.v.databinding.ActivityProxyLogsBinding;
 import wings.v.databinding.ItemLogLineBinding;
 import wings.v.service.ProxyTunnelService;
@@ -56,6 +62,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
     private static final long XRAY_LOG_TAIL_BYTES = 128 * 1024L;
     private static final int XRAY_LOG_TAIL_LINES = 100;
     private static final int MAX_DISPLAY_LINES = 5_000;
+    private static final int COOKIE_WARNING_COUNTDOWN_SECONDS = 5;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService fileReadExecutor = Executors.newSingleThreadExecutor();
@@ -68,6 +75,19 @@ public class ProxyLogsActivity extends AppCompatActivity {
             handler.postDelayed(this, REFRESH_INTERVAL_MS);
         }
     };
+    private final ActivityResultLauncher<Intent> cookieWarningLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            String text = this.pendingCopyText;
+            this.pendingCopyText = null;
+            if (result.getResultCode() == RESULT_OK && text != null) {
+                ClipboardManager clipboardManager = getSystemService(ClipboardManager.class);
+                if (clipboardManager != null) {
+                    performLogCopy(clipboardManager, text);
+                }
+            }
+        }
+    );
 
     private ActivityProxyLogsBinding binding;
     private LogsAdapter logsAdapter;
@@ -75,6 +95,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
     private long lastRenderedLogVersion = -1L;
     private String logMode = MODE_PROXY;
     private boolean autoScrollEnabled;
+    private String pendingCopyText;
 
     public static Intent createProxyIntent(Context context) {
         return new Intent(context, ProxyLogsActivity.class).putExtra(EXTRA_LOG_MODE, MODE_PROXY);
@@ -107,8 +128,6 @@ public class ProxyLogsActivity extends AppCompatActivity {
 
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         binding.toolbarLayout.setTitle(resolveTitle());
-        binding.textLogsHeadline.setText(resolveTitle());
-        binding.textLogsOutputTitle.setText(resolveOutputTitle());
         binding.textProxyLogsEmpty.setText(resolveEmptyText());
         binding.switchLogsAutoScroll.setChecked(autoScrollEnabled);
         binding.switchLogsAutoScroll.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -172,16 +191,55 @@ public class ProxyLogsActivity extends AppCompatActivity {
         applySnapshot(resolveSnapshot(), currentVersion, shouldStickToBottom);
     }
 
+    // Mirror the home screen status pill: colour by state and, for a VK TURN
+    // backend, show the live X/Y streams (threads) counter.
     private void updateStatusChip() {
-        if (ProxyTunnelService.isRunning()) {
-            binding.textProxyLogsStatus.setText(R.string.service_on);
+        if (binding == null) {
             return;
         }
-        if (ProxyTunnelService.isConnecting()) {
-            binding.textProxyLogsStatus.setText(R.string.service_connecting);
-            return;
+        boolean running = ProxyTunnelService.isRunning();
+        boolean connecting = ProxyTunnelService.isConnecting();
+        ProxySettings settings = AppPrefs.getSettings(this);
+        BackendType backend = ProxyTunnelService.getVisibleBackendType(this);
+        int streams = vkTurnFillingStreams(settings, backend);
+        String text;
+        int backgroundRes;
+        int textColor;
+        if (running) {
+            text =
+                streams >= 0 && streams < settings.threads
+                    ? getString(R.string.service_on_streams, streams, settings.threads)
+                    : getString(R.string.service_on);
+            backgroundRes = R.drawable.bg_service_state_on;
+            textColor = ContextCompat.getColor(this, android.R.color.white);
+        } else if (connecting) {
+            text =
+                streams >= 0
+                    ? getString(R.string.service_connecting_streams, streams, settings.threads)
+                    : getString(R.string.service_connecting);
+            backgroundRes = R.drawable.bg_service_state_warning;
+            textColor = ContextCompat.getColor(this, R.color.wingsv_text_primary);
+        } else {
+            text = getString(R.string.service_off);
+            backgroundRes = R.drawable.bg_service_state_off;
+            textColor = ContextCompat.getColor(this, R.color.wingsv_text_secondary);
         }
-        binding.textProxyLogsStatus.setText(R.string.service_off);
+        binding.textProxyLogsStatus.setText(text);
+        binding.textProxyLogsStatus.setBackgroundResource(backgroundRes);
+        binding.textProxyLogsStatus.setTextColor(textColor);
+    }
+
+    private int vkTurnFillingStreams(ProxySettings settings, BackendType backend) {
+        if (
+            settings == null ||
+            backend == null ||
+            !backend.usesTurnProxy() ||
+            backend.isWbStreamBackend() ||
+            settings.threads <= 0
+        ) {
+            return -1;
+        }
+        return Math.min(ProxyTunnelService.getProxyConnectedStreams(), settings.threads);
     }
 
     private long resolveLogVersion() {
@@ -359,8 +417,36 @@ public class ProxyLogsActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.proxy_logs_copy_failed, Toast.LENGTH_SHORT).show();
             return;
         }
+        if (AppPrefs.isVkAuthModeEnabled(this) && logContainsVkCookies(text)) {
+            pendingCopyText = text;
+            cookieWarningLauncher.launch(
+                WarningConfirmActivity.createIntent(
+                    this,
+                    getString(R.string.proxy_logs_cookie_warning_message),
+                    COOKIE_WARNING_COUNTDOWN_SECONDS
+                )
+            );
+            return;
+        }
+        performLogCopy(clipboardManager, text);
+    }
+
+    private void performLogCopy(ClipboardManager clipboardManager, String text) {
         clipboardManager.setPrimaryClip(ClipData.newPlainText(resolveTitle(), text));
         Toast.makeText(this, R.string.proxy_logs_copy_done, Toast.LENGTH_SHORT).show();
+    }
+
+    // Warn only when ACTUAL VK session cookie/token values are present in the log,
+    // not for the relay's request events (e.g. {"type":"vk_cookies_required"} or a
+    // truncated stdin-read line) which carry no secrets. These markers only appear
+    // inside a real cookie string.
+    private static boolean logContainsVkCookies(String text) {
+        return (
+            text.contains("remixsid=") ||
+            text.contains("remixstlid=") ||
+            text.contains("=vk1.a.") ||
+            text.contains("httoken=")
+        );
     }
 
     private String buildXraySnapshot() {
@@ -434,16 +520,6 @@ public class ProxyLogsActivity extends AppCompatActivity {
             return getString(R.string.xray_logs_title);
         }
         return getString(R.string.proxy_logs_title);
-    }
-
-    private String resolveOutputTitle() {
-        if (MODE_RUNTIME.equals(logMode)) {
-            return getString(R.string.runtime_logs_output_title);
-        }
-        if (MODE_XRAY.equals(logMode)) {
-            return getString(R.string.xray_logs_output_title);
-        }
-        return getString(R.string.proxy_logs_output_title);
     }
 
     private String resolveEmptyText() {
