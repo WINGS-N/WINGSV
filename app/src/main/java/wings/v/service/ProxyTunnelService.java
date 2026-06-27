@@ -298,6 +298,9 @@ public class ProxyTunnelService extends Service {
     // cadence; otherwise the rules stay gone and sharing clients lose internet
     // until a manual reapply. Force a full re-apply at least this often.
     private static final long ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS = 20_000L;
+    // Delay before the one-shot tether reconcile after start, so the VPN/relay and
+    // the system tether interface have settled before we clear+reapply.
+    private static final long TETHER_RECONCILE_ON_START_DELAY_MS = 4_000L;
     private static final int TRANSIENT_ERROR_NOTICE_THRESHOLD = 6;
     private static final long TRANSIENT_ERROR_NOTICE_WINDOW_MS = 20_000L;
     private static final long CAPTCHA_NOTIFICATION_COOLDOWN_MS = 2 * 60_000L;
@@ -7850,6 +7853,33 @@ public class ProxyTunnelService extends Service {
         );
 
         refreshSupervisorSchedule();
+        scheduleTetherReconcileOnStart();
+    }
+
+    // After an abrupt termination (force-stop, low-memory kill) the graceful tether
+    // cleanup never runs, so stale masquerade/routing and the sharing engine's
+    // runtime state survive into the next launch and leave clients dead until a
+    // manual reapply. Reconcile once shortly after start with the same full
+    // clear+reapply the manual button does, so recovery is automatic.
+    private void scheduleTetherReconcileOnStart() {
+        if (!rootModeActive || statsExecutor == null || statsExecutor.isShutdown()) {
+            return;
+        }
+        statsExecutor.schedule(
+            () ->
+                workExecutor.execute(() -> {
+                    if (!sRunning || !rootModeActive) {
+                        return;
+                    }
+                    try {
+                        reapplyRootSharingState();
+                    } catch (Exception error) {
+                        appendRuntimeLogLine("Tether reconcile on start failed: " + error.getMessage());
+                    }
+                }),
+            TETHER_RECONCILE_ON_START_DELAY_MS,
+            TimeUnit.MILLISECONDS
+        );
     }
 
     // scheduleAtFixedRate cancels a task forever on the first uncaught throwable,
