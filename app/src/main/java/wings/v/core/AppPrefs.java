@@ -43,6 +43,8 @@ public final class AppPrefs {
     public static final String KEY_VK_OAUTH_ACCESS_TOKEN = "pref_vk_oauth_access_token";
     public static final String KEY_VK_OAUTH_EXPIRES_AT_SECONDS = "pref_vk_oauth_expires_at_seconds";
     public static final String KEY_VK_OAUTH_USER_ID = "pref_vk_oauth_user_id";
+    public static final String KEY_VK_SESSION_COOKIES = "pref_vk_session_cookies";
+    public static final String KEY_VK_SESSION_UA = "pref_vk_session_ua";
     public static final String KEY_VK_OAUTH_PENDING_STATE = "pref_vk_oauth_pending_state";
     public static final String KEY_OPEN_VK_LINKS = "pref_open_vk_links";
     public static final String KEY_THREADS = "pref_threads";
@@ -398,6 +400,37 @@ public final class AppPrefs {
 
     public static void setDnsMode(Context context, String value) {
         prefs(context).edit().putString(KEY_DNS_MODE, normalizeDnsMode(value)).apply();
+    }
+
+    // VK web session mirror in cross-process MMKV: written when the auth browser
+    // delivers cookies and when the relay pushes rotated cookies, so the :tunnel
+    // process can hand the live session straight to the relay without a browser or
+    // a WebView CookieManager (which is unreliable outside an Activity).
+    public static String getVkSessionCookies(Context context) {
+        return trim(prefs(context).getString(KEY_VK_SESSION_COOKIES, ""));
+    }
+
+    public static String getVkSessionUa(Context context) {
+        return trim(prefs(context).getString(KEY_VK_SESSION_UA, ""));
+    }
+
+    public static void setVkSession(Context context, String cookies, String ua) {
+        SharedPreferences.Editor editor = prefs(context).edit();
+        if (cookies != null) {
+            editor.putString(KEY_VK_SESSION_COOKIES, cookies.trim());
+        }
+        if (ua != null && !ua.trim().isEmpty()) {
+            editor.putString(KEY_VK_SESSION_UA, ua.trim());
+        }
+        editor.apply();
+    }
+
+    public static void clearVkSession(Context context) {
+        prefs(context).edit().remove(KEY_VK_SESSION_COOKIES).remove(KEY_VK_SESSION_UA).apply();
+    }
+
+    public static boolean isVkAuthModeEnabled(Context context) {
+        return VK_AUTH_MODE_ACCOUNT.equals(getSettings(context).vkAuthMode);
     }
 
     public static String normalizeDnsMode(String value) {
