@@ -1015,13 +1015,21 @@ public final class XrayConfigFactory {
             return;
         }
         wings.v.core.AppRoutingMode routingMode = AppPrefs.getAppRoutingMode(context);
-        if (routingMode == wings.v.core.AppRoutingMode.BYPASS) {
-            // Plain Bypass excludes the selected apps at the VpnService layer
-            // (addDisallowedApplication); the gVisor TUN UID filter is only used by
-            // XBYPASS (divert) and WHITELIST (allowlist).
+        if (routingMode == wings.v.core.AppRoutingMode.BYPASS || routingMode == wings.v.core.AppRoutingMode.WHITELIST) {
+            // Plain Bypass / Whitelist filter at the VpnService framework layer
+            // (addDisallowedApplication / addAllowedApplication) and use NO gVisor
+            // TUN UID filter - symmetric with each other. The gVisor allowlist needs
+            // per-connection UID resolution (getConnectionOwnerUid on non-root), which
+            // does not reliably attribute forwarded connections; a known-but-not-listed
+            // UID (e.g. a system resolver) then hits a hard drop and black-holes the
+            // whole mode. Only XBYPASS/XWHITELIST run the gVisor filter - they divert
+            // non-listed UIDs to direct instead of dropping, so a missed UID degrades
+            // to a leak, not a blackout. On root, per-UID routing is enforced by
+            // iptables owner-match (RootMultiUserRouter / TPROXY) regardless of mode,
+            // so nothing is lost here.
             android.util.Log.i(
                 "WINGSV-Xray",
-                "applyTunUidFilter: plain BYPASS uses VpnService disallow, no gVisor filter"
+                "applyTunUidFilter: plain " + routingMode.prefValue + " uses VpnService filter, no gVisor filter"
             );
             return;
         }
@@ -1076,24 +1084,6 @@ public final class XrayConfigFactory {
             tunSettings.put("allowedUids", uidArray);
             tunSettings.put("bypassInboundTag", TUN_BYPASS_TAG);
             applyUnknownUidPolicy(tunSettings, xraySettings);
-        } else {
-            // Plain Whitelist: only listed packages are tunneled. The VpnService
-            // addAllowedApplication already keeps the rest out of the tunnel, so
-            // the gVisor allowlist only needs to drop anything that still slips in.
-            tunSettings.put("allowedUids", uidArray);
-            // Let connections whose UID cannot be resolved fall through to the
-            // tunnel instead of being dropped. addAllowedApplication already
-            // confines the tunnel to the selected apps, so the only traffic that
-            // reaches tun with an unresolvable UID is the platform itself (the
-            // system DoT / Private DNS resolver and similar netd/network-stack
-            // connections that getConnectionOwnerUid cannot attribute). The core
-            // started dropping unknown-UID connections once a UID filter is
-            // active, which black-holed the system DoT resolver and broke
-            // Private DNS in Whitelist mode; matching the pre-filter behaviour
-            // here keeps the per-app whitelist intact while restoring system DoT.
-            // (XBypass/XWhitelist use bypassInboundTag + the unknown-uid policy
-            // instead, so they are unaffected and untouched.)
-            tunSettings.put("tunnelUnknownUid", true);
         }
         android.util.Log.i(
             "WINGSV-Xray",
