@@ -23,6 +23,7 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import wings.v.core.AppPrefs;
 import wings.v.core.Haptics;
 import wings.v.databinding.ActivityVkAuthBrowserBinding;
 import wings.v.service.ProxyTunnelService;
@@ -310,6 +311,10 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(authWebView, true);
+        // Seed the WebView jar with the latest session the relay rotated into the
+        // cross-process store, so reopening the browser reflects the current login
+        // instead of a stale CookieManager copy.
+        syncCookiesFromStore(cookieManager);
 
         WebSettings settings = authWebView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -365,6 +370,24 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
                 }
             }
         );
+    }
+
+    // Loads the cross-process VK session (which the relay keeps current by mirroring
+    // every rotated Set-Cookie jar back to the app) into the WebView CookieManager
+    // for *.vk.com, so reopening the browser starts from the latest session.
+    private void syncCookiesFromStore(CookieManager cookieManager) {
+        String cookies = AppPrefs.getVkSessionCookies(this);
+        if (TextUtils.isEmpty(cookies)) {
+            return;
+        }
+        for (String pair : cookies.split(";")) {
+            String trimmed = pair.trim();
+            if (trimmed.isEmpty() || trimmed.indexOf('=') <= 0) {
+                continue;
+            }
+            cookieManager.setCookie("https://vk.com", trimmed + "; Domain=.vk.com; Path=/");
+        }
+        cookieManager.flush();
     }
 
     // Once the VK web session is signed in (remixsid present), hand the live
