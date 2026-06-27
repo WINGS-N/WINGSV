@@ -196,6 +196,7 @@ public class ProxyTunnelService extends Service {
     private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_COMPLETE = "vk_account_auth_complete";
     private static final String PROXY_EVENT_VK_ACCOUNT_AUTH_FAILED = "vk_account_auth_failed";
     private static final String PROXY_EVENT_VK_COOKIES_REQUIRED = "vk_cookies_required";
+    private static final String PROXY_EVENT_VK_COOKIES_UPDATE = "vk_cookies_update";
     private static final String CAPTCHA_STATE_PENDING = "pending";
     private static final String CAPTCHA_STATE_REQUIRED = "required";
     private static final String CAPTCHA_STATE_SOLVED = "solved";
@@ -258,6 +259,7 @@ public class ProxyTunnelService extends Service {
     // не стартует пока флаг false.
     private static final boolean XRAY_HEARTBEAT_CHECK_ENABLED = false;
     private static final long XRAY_VPN_STOP_WAIT_MS = 2_500L;
+    private static final long EMERGENCY_VPN_DISPLACE_HOLD_MS = 1_500L;
     private static final long ACTIVE_PROBING_FAST_STOP_WAIT_MS = 650L;
     private static final long ACTIVE_PROBING_PROCESS_RESTART_DELAY_MS = 350L;
     private static final long NON_XRAY_LIVENESS_STARTUP_GRACE_MS = 25_000L;
@@ -463,6 +465,13 @@ public class ProxyTunnelService extends Service {
     // start another activity/notification; the relay re-emits the event.
     private volatile String vkAccountAuthInFlightUrl;
     private volatile boolean vkCookiesRequestInFlight;
+    // Silent-delivery escalation: when persisted cookies keep getting rejected (the
+    // relay re-requests within the window this many times in a row), fall back to
+    // the visible login browser instead of looping silently.
+    private static final long SILENT_COOKIE_REJECT_WINDOW_MS = 15_000L;
+    private static final int SILENT_COOKIE_REJECT_LIMIT = 3;
+    private long lastSilentCookieDeliveryMs;
+    private int silentCookieRejectCount;
     private ProxyProtectBridgeServer protectBridgeServer;
     private String protectSocketName;
     private ByeDpiNative byeDpiNative;
@@ -2758,9 +2767,16 @@ public class ProxyTunnelService extends Service {
         long normalizedTimeoutMs = Math.max(1L, timeoutMs);
         boolean stopped = XrayVpnService.waitForStopped(normalizedTimeoutMs);
         if (!stopped) {
-            appendRuntimeLogLine(
-                reason + " timed out after " + normalizedTimeoutMs + "ms; continuing after best-effort stop"
-            );
+            // A wedged tun teardown leaves the system VPN slot held. Forcibly
+            // displace it with a stub-VPN pulse (the same mechanism AutoSearch uses):
+            // establishing a throwaway VPN revokes the stuck tun, which fires
+            // onRevoke and lets the service finally reach DOWN.
+            appendRuntimeLogLine(reason + " timed out after " + normalizedTimeoutMs + "ms; displacing the stuck VPN");
+            EmergencyVpnResetService.pulse(getApplicationContext(), EMERGENCY_VPN_DISPLACE_HOLD_MS);
+            stopped = XrayVpnService.waitForStopped(XRAY_VPN_STOP_WAIT_MS);
+            if (!stopped) {
+                appendRuntimeLogLine(reason + " still not DOWN after VPN displacement; continuing best-effort");
+            }
         }
         return stopped;
     }
@@ -3535,8 +3551,13 @@ public class ProxyTunnelService extends Service {
             AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
         );
         vkAccountAuthActive = false;
-        // Fresh relay launch: drop any stale in-flight guard from a prior run.
+        // Fresh relay launch: drop stale in-flight guards from a prior run. A stuck
+        // vkCookiesRequestInFlight would otherwise silently swallow every
+        // vk_cookies_required (no browser, relay waits for stdin forever).
         vkAccountAuthInFlightUrl = null;
+        vkCookiesRequestInFlight = false;
+        silentCookieRejectCount = 0;
+        lastSilentCookieDeliveryMs = 0L;
         if (vkAccountModeRequested) {
             if (kernelWireguardActive) {
                 Log.w(
@@ -3548,6 +3569,8 @@ public class ProxyTunnelService extends Service {
             } else {
                 command.add("-vk-auth");
                 command.add("account");
+                command.add("-vk-session-file");
+                command.add(new File(getFilesDir(), "vk_session.json").getAbsolutePath());
                 vkAccountAuthActive = true;
             }
         }
@@ -4572,15 +4595,43 @@ public class ProxyTunnelService extends Service {
     // reuse the persisted session); VkAuthBrowserActivity then delivers the cookies
     // back via ACTION_VK_COOKIES.
     private void handleVkCookiesRequired() {
-        Log.i(TAG, "VK cookies required event received");
         if (!vkAccountAuthActive) {
-            Log.w(TAG, "VK account auth not active; ignoring vk_cookies_required");
+            appendRuntimeLogLine("vk_cookies_required ignored: account auth not active");
             return;
         }
         if (vkCookiesRequestInFlight) {
+            appendRuntimeLogLine("vk_cookies_required ignored: a cookie request is already in flight");
             return;
         }
         vkCookiesRequestInFlight = true;
+        // Serve the cached session straight from cross-process MMKV (written by the
+        // auth browser delivery and by the relay's vk_cookies_update) with no
+        // browser. Fall back to the visible browser only when there is no cached
+        // session yet, or the cached cookies keep getting rejected (rapid repeats =>
+        // the session expired and a real re-login is needed).
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastSilentCookieDeliveryMs < SILENT_COOKIE_REJECT_WINDOW_MS) {
+            silentCookieRejectCount++;
+        } else {
+            silentCookieRejectCount = 0;
+        }
+        String cookies = AppPrefs.getVkSessionCookies(this);
+        if (
+            silentCookieRejectCount < SILENT_COOKIE_REJECT_LIMIT &&
+            !TextUtils.isEmpty(cookies) &&
+            cookies.contains("remixsid")
+        ) {
+            lastSilentCookieDeliveryMs = now;
+            deliverVkCookiesLine(cookies, AppPrefs.getVkSessionUa(this));
+            appendRuntimeLogLine("delivered cached VK session from MMKV (" + cookies.length() + " chars)");
+            vkCookiesRequestInFlight = false;
+            return;
+        }
+        silentCookieRejectCount = 0;
+        launchVkCookieBrowser();
+    }
+
+    private void launchVkCookieBrowser() {
         boolean foreground = isApplicationInForeground();
         if (!foreground) {
             postVkAccountAuthNotification("https://vk.com/");
@@ -4590,13 +4641,24 @@ public class ProxyTunnelService extends Service {
                 Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
             );
             startActivity(intent);
-            Log.i(TAG, "VK cookie browser launched (foreground=" + foreground + ")");
+            appendRuntimeLogLine("VK cookie browser launched (foreground=" + foreground + ")");
         } catch (Exception error) {
-            Log.w(TAG, "VK cookies: direct startActivity blocked, relying on notification", error);
             if (foreground) {
                 postVkAccountAuthNotification("https://vk.com/");
             }
         }
+    }
+
+    // The relay refreshed its VK cookie jar (rotated Set-Cookie captured during a
+    // token re-mint) and pushed it back; mirror it into MMKV for later re-requests.
+    private void handleVkCookiesUpdate(String cookies) {
+        if (TextUtils.isEmpty(cookies)) {
+            return;
+        }
+        // Mirror the relay's rotated session into cross-process MMKV so a later
+        // re-request (e.g. after a relay restart) can be served straight from this
+        // process with no browser.
+        AppPrefs.setVkSession(this, cookies, null);
     }
 
     private void handleVkCookiesIntent(@Nullable Intent intent) {
@@ -4606,6 +4668,22 @@ public class ProxyTunnelService extends Service {
         }
         String cookies = intent.getStringExtra(EXTRA_VK_COOKIES);
         String userAgent = intent.getStringExtra(EXTRA_VK_UA);
+        appendRuntimeLogLine("vk_cookies intent received (" + (cookies == null ? 0 : cookies.length()) + " chars)");
+        if (TextUtils.isEmpty(cookies)) {
+            return;
+        }
+        // Cache the freshly delivered session in cross-process MMKV so future
+        // re-requests are served from here with no browser, then hand it to the
+        // relay now.
+        AppPrefs.setVkSession(this, cookies, userAgent);
+        deliverVkCookiesLine(cookies, userAgent);
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.cancel(VK_ACCOUNT_AUTH_NOTIFICATION_ID);
+        }
+    }
+
+    private void deliverVkCookiesLine(String cookies, String userAgent) {
         if (TextUtils.isEmpty(cookies)) {
             return;
         }
@@ -4619,10 +4697,6 @@ public class ProxyTunnelService extends Service {
             writeProxyStdinLine(payload.toString());
         } catch (JSONException error) {
             appendRuntimeLogLine("Failed to encode vk_cookies line: " + error.getMessage());
-        }
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (manager != null) {
-            manager.cancel(VK_ACCOUNT_AUTH_NOTIFICATION_ID);
         }
     }
 
@@ -4741,26 +4815,26 @@ public class ProxyTunnelService extends Service {
 
     private void writeProxyStdinLine(String line) {
         if (!vkAccountAuthActive) {
-            Log.w(TAG, "VK account auth not active; dropping stdin line");
+            appendRuntimeLogLine("stdin write dropped: vk account auth not active");
             return;
         }
         synchronized (proxyStdinLock) {
             Process process = proxyProcess;
             if (process == null) {
-                Log.w(TAG, "Relay process not running; dropping vk_account_creds line");
+                appendRuntimeLogLine("stdin write dropped: relay process not running");
                 return;
             }
             java.io.OutputStream stdin = process.getOutputStream();
             if (stdin == null) {
-                Log.w(TAG, "Relay process stdin not writable; dropping vk_account_creds line");
+                appendRuntimeLogLine("stdin write dropped: relay stdin not writable");
                 return;
             }
             try {
                 stdin.write((line + "\n").getBytes(StandardCharsets.UTF_8));
                 stdin.flush();
-                Log.i(TAG, "Wrote vk_account_creds line to relay stdin");
+                appendRuntimeLogLine("wrote " + line.length() + " bytes to relay stdin");
             } catch (IOException error) {
-                Log.w(TAG, "Failed to write vk_account_creds line to relay stdin", error);
+                appendRuntimeLogLine("stdin write failed: " + error.getMessage());
             }
         }
     }
@@ -4911,6 +4985,10 @@ public class ProxyTunnelService extends Service {
             }
             if (PROXY_EVENT_VK_COOKIES_REQUIRED.equals(type)) {
                 handleVkCookiesRequired();
+                return;
+            }
+            if (PROXY_EVENT_VK_COOKIES_UPDATE.equals(type)) {
+                handleVkCookiesUpdate(event.optString("cookies", ""));
                 return;
             }
             if (PROXY_EVENT_VK_ACCOUNT_AUTH_COMPLETE.equals(type)) {
@@ -5298,6 +5376,7 @@ public class ProxyTunnelService extends Service {
     private void waitForProxyWarmup(long proxyStartedAt, int generation) throws InterruptedException {
         long deadline = proxyStartedAt + getProxyWarmupTimeoutMs();
         boolean lockoutWaitLogged = false;
+        boolean cookieWaitLogged = false;
         while (true) {
             ensureRuntimeStillWanted(generation);
             if (proxyWarmupDtlsReady) {
@@ -5308,6 +5387,20 @@ public class ProxyTunnelService extends Service {
                 throw new IllegalStateException(
                     firstNonEmpty(sLastError, getString(R.string.proxy_vk_turn_proxy_exited_during_warmup))
                 );
+            }
+            if (vkCookiesRequestInFlight) {
+                // The relay is blocked waiting for a VK cookie delivery (silent
+                // CookieManager read or browser login); it cannot reach DTLS ready
+                // until the cookies arrive. Pause the warmup deadline instead of
+                // killing and restarting the relay, which would wipe its warm token
+                // cache and re-trigger the whole cookie request.
+                if (!cookieWaitLogged) {
+                    appendRuntimeLogLine("vk-turn-proxy warmup paused: waiting for VK session cookies");
+                    cookieWaitLogged = true;
+                }
+                deadline = Math.max(deadline, SystemClock.elapsedRealtime() + getProxyWarmupTimeoutMs());
+                sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
+                continue;
             }
             if (!TextUtils.isEmpty(sPendingCaptchaUrl)) {
                 sleepInterruptibly(PROXY_WARMUP_POLL_MS, generation);
