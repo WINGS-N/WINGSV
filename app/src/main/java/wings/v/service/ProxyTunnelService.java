@@ -5877,7 +5877,17 @@ public class ProxyTunnelService extends Service {
             SharingApiGuard.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             applySharingTtlHide(configuredInterfaces);
-            applyForwardedClientRedirect(configuredInterfaces);
+            // Only tunnel forwarded (AP/hotspot) clients into the backend when the
+            // user turned VPN-sharing ON. With it off they must exit DIRECT via the
+            // physical masquerade, so REVERT the redirect instead of installing it.
+            // Leaving this rule on regardless of the toggle is what kept dragging the
+            // hotspot through the tunnel even with sharing off, and it survived every
+            // backend switch / root-off until a reboot wiped it.
+            if (shareViaVpn) {
+                applyForwardedClientRedirect(configuredInterfaces);
+            } else {
+                applyForwardedClientRedirect(new LinkedHashSet<>());
+            }
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
             lastTetherSyncUpstream = upstreamNameForLog;
