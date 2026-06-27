@@ -512,7 +512,7 @@
     <string name="turn_session_mode_mainline">Mainline</string>
     <string name="turn_session_mode_mu">mu/v1</string>
     <string name="settings_backend_category">Backend</string>
-    <string name="settings_backend_title">Активный backend</string>
+    <string name="settings_backend_title">Сетевой backend</string>
     <string name="backend_vk_turn_wireguard_title">VK TURN + WireGuard</string>
     <string name="backend_wireguard_title">WireGuard</string>
     <string name="backend_amneziawg_title">VK TURN + AmneziaWG</string>
@@ -577,8 +577,8 @@
     <string name="awg_settings_clipboard_import_invalid">Не удалось разобрать awg-quick config из буфера</string>
     <string name="sidebar_open_navigation">Открыть боковую панель</string>
     <string name="sidebar_backend_section_title">Backend</string>
-    <string name="sidebar_backend_section_summary">Быстрое переключение активного backend</string>
-    <string name="sidebar_backend_switch_title">Активный backend</string>
+    <string name="sidebar_backend_section_summary">Быстрое переключение сетевого backend</string>
+    <string name="sidebar_backend_switch_title">Сетевой backend</string>
     <string name="sidebar_xray_section_title">Xray</string>
     <string name="drawer_subscriptions_title">Подписки</string>
     <string name="drawer_subscriptions_summary">Список URL подписок, обновление и интервал синхронизации</string>
