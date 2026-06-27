@@ -324,9 +324,26 @@ public final class XraySubscriptionUpdater {
 
     private static FetchResult fetch(Context context, String urlString) throws Exception {
         // Refresh through the tunnel while the VPN is up, otherwise direct off the
-        // physical network. openHttpConnection(useTunnelWhenActive=true) encodes
-        // exactly that: tunnel when active, physical network when not.
-        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, new URL(urlString), true);
+        // physical network. If the tunnel is up but the fetch through it fails, fall
+        // back to a direct fetch so a dead tunnel does not block subscription updates.
+        URL url = new URL(urlString);
+        boolean tunnelActive = ProxyTunnelService.isActive();
+        try {
+            return fetchVia(context, url, tunnelActive);
+        } catch (Exception tunnelError) {
+            if (!tunnelActive) {
+                throw tunnelError;
+            }
+            try {
+                return fetchVia(context, url, false);
+            } catch (Exception directError) {
+                throw tunnelError;
+            }
+        }
+    }
+
+    private static FetchResult fetchVia(Context context, URL url, boolean useTunnel) throws Exception {
+        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, url, useTunnel);
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
