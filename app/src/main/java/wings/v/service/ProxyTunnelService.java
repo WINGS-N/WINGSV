@@ -2711,12 +2711,17 @@ public class ProxyTunnelService extends Service {
             proxyProcess = null;
         }
 
+        // Restore the device's own app connectivity FIRST: in root mode app traffic
+        // is redirected by ip-rules/iptables (not the VpnService), so tearing this
+        // down is what actually brings other apps back after stop - the VpnService
+        // going away does not. Listed first so its thread is the first to hit the
+        // root shell; the whole group still runs in parallel.
         runFastStopCleanupGroup(
             FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
+            new CleanupTask("Root routing cleanup", this::clearRootRouting),
+            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
             new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
             new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
-            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
-            new CleanupTask("Root routing cleanup", this::clearRootRouting),
             new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded)
         );
 
