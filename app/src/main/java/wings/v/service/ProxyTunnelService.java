@@ -8531,10 +8531,47 @@ public class ProxyTunnelService extends Service {
         sRxBytesPerSecond = Math.max(0L, Math.round(smoothedRxBytesPerSecond));
         sTxBytesPerSecond = Math.max(0L, Math.round(smoothedTxBytesPerSecond));
 
-        if (usesXrayBackend(activeBackendType) && (rxDelta > 0L || txDelta > 0L)) {
-            String activeProfileId = XrayStore.getActiveProfileId(getApplicationContext());
-            if (!TextUtils.isEmpty(activeProfileId)) {
-                XrayStore.addProfileTrafficDelta(getApplicationContext(), activeProfileId, rxDelta, txDelta);
+        // Attribute the traffic delta to the active profile of the CURRENT backend,
+        // routed to the same store the profile list reads from (mirrors
+        // BackendProfilesFragment.trafficStatsMap), so per-profile stats show for
+        // VK TURN / WireGuard / AmneziaWG too, not only Xray.
+        if ((rxDelta > 0L || txDelta > 0L) && activeBackendType != null) {
+            Context trafficContext = getApplicationContext();
+            if (usesXrayBackend(activeBackendType)) {
+                String activeProfileId = XrayStore.getActiveProfileId(trafficContext);
+                if (!TextUtils.isEmpty(activeProfileId)) {
+                    XrayStore.addProfileTrafficDelta(trafficContext, activeProfileId, rxDelta, txDelta);
+                }
+            } else if ("vk_turn".equals(activeBackendType.topLevelGroup())) {
+                String activeProfileId = wings.v.core.VkTurnProfileStore.getActiveProfileId(trafficContext);
+                if (!TextUtils.isEmpty(activeProfileId)) {
+                    wings.v.core.VkTurnProfileStore.addProfileTrafficDelta(
+                        trafficContext,
+                        activeProfileId,
+                        rxDelta,
+                        txDelta
+                    );
+                }
+            } else if (activeBackendType == BackendType.AMNEZIAWG_PLAIN) {
+                String activeProfileId = wings.v.core.AmneziaProfileStore.getActiveProfileId(trafficContext);
+                if (!TextUtils.isEmpty(activeProfileId)) {
+                    wings.v.core.AmneziaProfileStore.addProfileTrafficDelta(
+                        trafficContext,
+                        activeProfileId,
+                        rxDelta,
+                        txDelta
+                    );
+                }
+            } else if (activeBackendType == BackendType.WIREGUARD) {
+                String activeProfileId = wings.v.core.WireGuardProfileStore.getActiveProfileId(trafficContext);
+                if (!TextUtils.isEmpty(activeProfileId)) {
+                    wings.v.core.WireGuardProfileStore.addProfileTrafficDelta(
+                        trafficContext,
+                        activeProfileId,
+                        rxDelta,
+                        txDelta
+                    );
+                }
             }
         }
 
