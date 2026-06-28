@@ -45,6 +45,19 @@ public enum AppRoutingMode {
         return this == XBYPASS || this == XWHITELIST;
     }
 
+    // The non-X equivalent: XBYPASS -> BYPASS, XWHITELIST -> WHITELIST, others
+    // unchanged. Used on root, where the gVisor divert (the X modes) is replaced by
+    // in-kernel ip-rules / iptables, so X collapses to its plain family.
+    public AppRoutingMode plainFamily() {
+        if (this == XBYPASS) {
+            return BYPASS;
+        }
+        if (this == XWHITELIST) {
+            return WHITELIST;
+        }
+        return this;
+    }
+
     public static AppRoutingMode fromPrefValue(@Nullable String value) {
         if (TextUtils.isEmpty(value)) {
             return BYPASS;

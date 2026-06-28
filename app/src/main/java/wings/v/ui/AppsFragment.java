@@ -43,7 +43,6 @@ import wings.v.core.AppRoutingMode;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.ProxyRuntimeMode;
-import wings.v.core.RootUtils;
 import wings.v.core.RuStoreRecommendedAppsAsset;
 import wings.v.core.XrayStore;
 import wings.v.databinding.FragmentAppsBinding;
@@ -284,19 +283,18 @@ public class AppsFragment extends Fragment {
         if (backend == null) {
             return false;
         }
-        boolean rootMode = AppPrefs.isRootModeEnabled(context);
+        // X (gVisor divert) modes are a non-root mechanism: on root, per-UID routing
+        // is enforced in-kernel by ip-rules / iptables (RootMultiUserRouter), which
+        // also closes the leak X handles, so X is redundant and hidden here.
+        // getAppRoutingMode() collapses any stored X selection to its plain family on
+        // root, so the effective behaviour stays correct.
+        if (AppPrefs.isRootModeEnabled(context)) {
+            return false;
+        }
         if (backend == BackendType.XRAY) {
-            boolean proxyOnly = XrayStore.getXraySettings(context).runtimeMode == ProxyRuntimeMode.PROXY;
-            boolean tproxy =
-                rootMode &&
-                AppPrefs.isXrayTproxyModeEnabled(context) &&
-                RootUtils.isXrayTproxySupported(context, false);
-            return !proxyOnly && !tproxy;
+            return XrayStore.getXraySettings(context).runtimeMode != ProxyRuntimeMode.PROXY;
         }
-        if (backend == BackendType.VK_TURN_WIREGUARD || backend == BackendType.WIREGUARD) {
-            return !rootMode;
-        }
-        return false;
+        return backend == BackendType.VK_TURN_WIREGUARD || backend == BackendType.WIREGUARD;
     }
 
     @Override

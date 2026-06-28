@@ -1034,6 +1034,15 @@ public final class AppPrefs {
                 prefs.edit().putBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, true).commit();
             }
         }
+        // On root the per-UID routing is enforced in-kernel by ip-rules / iptables
+        // (RootMultiUserRouter), which already closes the SO_BINDTODEVICE leak the
+        // gVisor X (divert) modes exist to handle for non-root. Collapse X to its
+        // plain family so we never run the redundant (and non-root-shaped) gVisor
+        // divert on root. The stored value is left untouched, so turning root off
+        // restores the X selection.
+        if (mode.isGvisorDivert() && isRootModeEnabled(context)) {
+            mode = mode.plainFamily();
+        }
         return mode;
     }
 
