@@ -288,6 +288,12 @@ public class ProxyTunnelService extends Service {
     private static final long BYEDPI_STOP_TIMEOUT_MS = 750L;
     private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 500L;
     private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 500L;
+    // Connectivity-critical root teardown (ip-rules + UID filter) gets a generous
+    // blocking cap instead of the 500ms best-effort budget: if it is backgrounded
+    // and does not finish, every app routes into the dead tunnel table and loses
+    // internet until the VPN is turned back on. These clears are fast in practice
+    // (a few ip rule dels + iptables), so the cap is only a safety ceiling.
+    private static final long FAST_STOP_ROOT_ROUTING_TIMEOUT_MS = 2_500L;
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int WB_STREAM_EXCHANGE_MAX_ATTEMPTS = 3;
     private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
@@ -2711,15 +2717,23 @@ public class ProxyTunnelService extends Service {
             proxyProcess = null;
         }
 
-        // Restore the device's own app connectivity FIRST: in root mode app traffic
-        // is redirected by ip-rules/iptables (not the VpnService), so tearing this
-        // down is what actually brings other apps back after stop - the VpnService
-        // going away does not. Listed first so its thread is the first to hit the
-        // root shell; the whole group still runs in parallel.
+        // Restore the device's own app connectivity FIRST and RELIABLY: in root mode
+        // app traffic is steered by ip-rules/iptables (not the VpnService), so until
+        // these are torn down every app routes into the now-dead tunnel table and
+        // loses internet. Run them as BLOCKING steps with a generous cap rather than
+        // the 500ms best-effort group, which could background them and leave apps
+        // dead until the VPN is turned back on.
+        runFastStopCleanupStep("Root routing cleanup", FAST_STOP_ROOT_ROUTING_TIMEOUT_MS, this::clearRootRouting);
+        runFastStopCleanupStep(
+            "Root app tunnel routing cleanup",
+            FAST_STOP_ROOT_ROUTING_TIMEOUT_MS,
+            this::clearRootAppTunnelRouting
+        );
+        // The rest are not connectivity-critical for the device's own apps (tether
+        // teardown is slow, link-down and proxy-kill are best-effort), so keep them
+        // in the fast parallel group.
         runFastStopCleanupGroup(
             FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            new CleanupTask("Root routing cleanup", this::clearRootRouting),
-            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
             new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
             new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
             new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded)
