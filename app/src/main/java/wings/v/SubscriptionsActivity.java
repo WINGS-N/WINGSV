@@ -720,6 +720,31 @@ public class SubscriptionsActivity extends AppCompatActivity {
             }
         }
         XrayStore.setSubscriptions(this, subscriptions);
+        // Backend profiles (WG / AWG / VK TURN) imported from a deleted subscription
+        // are only ever touched by that subscription's own refresh, which will never
+        // run again - so prune them here explicitly. Xray profiles are dropped by the
+        // next full refresh rebuild, but the per-subscription backend stores need an
+        // explicit empty sync to release the deleted subscription's slice.
+        for (String deletedId : selectedSubscriptionIds) {
+            if (android.text.TextUtils.isEmpty(deletedId)) {
+                continue;
+            }
+            wings.v.core.WireGuardProfileStore.syncSubscriptionProfiles(
+                this,
+                deletedId,
+                java.util.Collections.emptyList()
+            );
+            wings.v.core.AmneziaProfileStore.syncSubscriptionProfiles(
+                this,
+                deletedId,
+                java.util.Collections.emptyList()
+            );
+            wings.v.core.VkTurnProfileStore.syncSubscriptionProfiles(
+                this,
+                deletedId,
+                java.util.Collections.emptyList()
+            );
+        }
         clearSelectionMode();
         refreshUi();
         Toast.makeText(this, getString(R.string.xray_subscriptions_delete_done, removed), Toast.LENGTH_SHORT).show();

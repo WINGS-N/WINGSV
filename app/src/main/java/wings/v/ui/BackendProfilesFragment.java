@@ -28,6 +28,7 @@ import androidx.core.widget.ImageViewCompat;
 import androidx.fragment.app.Fragment;
 import dev.oneuiproject.oneui.widget.CardItemView;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,6 +51,7 @@ import wings.v.core.WireGuardProfile;
 import wings.v.core.WireGuardProfileEditorCodec;
 import wings.v.core.WireGuardProfileStore;
 import wings.v.core.XrayStore;
+import wings.v.core.XraySubscription;
 import wings.v.databinding.FragmentBackendProfilesBinding;
 import wings.v.databinding.ItemBackendProfileEntryBinding;
 
@@ -95,6 +97,8 @@ public class BackendProfilesFragment extends Fragment {
     private static final String XRAY_CHILD_TAG = "embedded_xray_profiles";
     private static final String FILTER_ALL = "__all__";
     private static final String FILTER_FAVORITES = "__favorites__";
+    private static final String FILTER_NO_SUBSCRIPTION = "__no_subscription__";
+    private static final String FILTER_SUBSCRIPTION_PREFIX = "sub:";
 
     private FragmentBackendProfilesBinding binding;
 
@@ -399,18 +403,10 @@ public class BackendProfilesFragment extends Fragment {
         binding.scrollSimpleProfiles.setVisibility(View.VISIBLE);
 
         Context context = requireContext();
-        List<SimpleProfile> profiles = loadProfiles(context, backendType);
+        List<SimpleProfile> allProfiles = loadProfiles(context, backendType);
         Set<String> favorites = favoriteIds(context, backendType);
-        renderBackendFilterChips(favorites);
-        if (FILTER_FAVORITES.equals(activeBackendFilterId)) {
-            List<SimpleProfile> favoritesOnly = new ArrayList<>();
-            for (SimpleProfile candidate : profiles) {
-                if (favorites.contains(candidate.id)) {
-                    favoritesOnly.add(candidate);
-                }
-            }
-            profiles = favoritesOnly;
-        }
+        renderBackendFilterChips(context, allProfiles, favorites);
+        List<SimpleProfile> profiles = filterBackendProfiles(allProfiles, favorites);
         String activeId = activeProfileId(context, backendType);
         Map<String, XrayStore.ProfileTrafficStats> traffic = trafficStatsMap(context, backendType);
 
@@ -1188,19 +1184,102 @@ public class BackendProfilesFragment extends Fragment {
         return WireGuardProfileStore.getFavoriteProfileIds(context);
     }
 
-    // Mirror the Xray profile list filters: an "All" text chip and, when any
-    // profile is favorited, a bookmark icon chip that narrows the list to
-    // favorites. No subscription filters apply to WG / AWG / VK TURN.
-    private void renderBackendFilterChips(Set<String> favorites) {
+    // Mirror the Xray profile list filters: an "All" text chip, a bookmark icon
+    // chip for favorites (when any), one text chip per source subscription present
+    // in this backend's profiles, and a "No subscription" chip for manually added /
+    // imported profiles. Subscription titles prefer the live XraySubscription name
+    // (XrayStore.getSubscriptions) and fall back to the tag carried on the profile.
+    private void renderBackendFilterChips(Context context, List<SimpleProfile> profiles, Set<String> favorites) {
         binding.groupBackendProfileFilters.removeAllViews();
-        Context context = requireContext();
-        if (favorites.isEmpty() && FILTER_FAVORITES.equals(activeBackendFilterId)) {
+        Map<String, String> subscriptionTitles = new LinkedHashMap<>();
+        for (XraySubscription subscription : XrayStore.getSubscriptions(context)) {
+            if (subscription != null && !TextUtils.isEmpty(subscription.id)) {
+                subscriptionTitles.put(subscription.id, subscription.title);
+            }
+        }
+        boolean hasFavoriteProfile = false;
+        boolean hasManualProfile = false;
+        LinkedHashMap<String, String> subscriptionFilters = new LinkedHashMap<>();
+        for (SimpleProfile profile : profiles) {
+            if (favorites.contains(profile.id)) {
+                hasFavoriteProfile = true;
+            }
+            if (TextUtils.isEmpty(profile.subscriptionId)) {
+                hasManualProfile = true;
+                continue;
+            }
+            if (!subscriptionFilters.containsKey(profile.subscriptionId)) {
+                String live = subscriptionTitles.get(profile.subscriptionId);
+                String title = !TextUtils.isEmpty(live)
+                    ? live
+                    : TextUtils.isEmpty(profile.subscriptionTitle)
+                        ? getString(R.string.xray_profiles_filter_no_subscription)
+                        : profile.subscriptionTitle;
+                subscriptionFilters.put(profile.subscriptionId, title);
+            }
+        }
+        // Reset a stale selection that no longer has a matching pill so the list
+        // does not render empty after a refresh dropped its subscription.
+        if (FILTER_FAVORITES.equals(activeBackendFilterId) && !hasFavoriteProfile) {
+            activeBackendFilterId = FILTER_ALL;
+        } else if (FILTER_NO_SUBSCRIPTION.equals(activeBackendFilterId) && !hasManualProfile) {
+            activeBackendFilterId = FILTER_ALL;
+        } else if (
+            activeBackendFilterId.startsWith(FILTER_SUBSCRIPTION_PREFIX) &&
+            !subscriptionFilters.containsKey(activeBackendFilterId.substring(FILTER_SUBSCRIPTION_PREFIX.length()))
+        ) {
             activeBackendFilterId = FILTER_ALL;
         }
         addFilterChip(context, FILTER_ALL, getString(R.string.xray_profiles_filter_all), false);
-        if (!favorites.isEmpty()) {
+        if (hasFavoriteProfile) {
             addFilterChip(context, FILTER_FAVORITES, getString(R.string.xray_profiles_filter_favorites), true);
         }
+        for (Map.Entry<String, String> entry : subscriptionFilters.entrySet()) {
+            addFilterChip(context, FILTER_SUBSCRIPTION_PREFIX + entry.getKey(), entry.getValue(), false);
+        }
+        if (hasManualProfile && !subscriptionFilters.isEmpty()) {
+            addFilterChip(
+                context,
+                FILTER_NO_SUBSCRIPTION,
+                getString(R.string.xray_profiles_filter_no_subscription),
+                false
+            );
+        }
+    }
+
+    // Narrows the loaded backend profiles by the active pill: All, Favorites, a
+    // specific source subscription (sub:<id>), or manually added (no subscription).
+    private List<SimpleProfile> filterBackendProfiles(List<SimpleProfile> profiles, Set<String> favorites) {
+        if (FILTER_ALL.equals(activeBackendFilterId)) {
+            return profiles;
+        }
+        List<SimpleProfile> result = new ArrayList<>();
+        if (FILTER_FAVORITES.equals(activeBackendFilterId)) {
+            for (SimpleProfile profile : profiles) {
+                if (favorites.contains(profile.id)) {
+                    result.add(profile);
+                }
+            }
+            return result;
+        }
+        if (FILTER_NO_SUBSCRIPTION.equals(activeBackendFilterId)) {
+            for (SimpleProfile profile : profiles) {
+                if (TextUtils.isEmpty(profile.subscriptionId)) {
+                    result.add(profile);
+                }
+            }
+            return result;
+        }
+        if (activeBackendFilterId.startsWith(FILTER_SUBSCRIPTION_PREFIX)) {
+            String selectedId = activeBackendFilterId.substring(FILTER_SUBSCRIPTION_PREFIX.length());
+            for (SimpleProfile profile : profiles) {
+                if (TextUtils.equals(selectedId, profile.subscriptionId)) {
+                    result.add(profile);
+                }
+            }
+            return result;
+        }
+        return profiles;
     }
 
     private void addFilterChip(Context context, String filterId, String title, boolean bookmarkIcon) {
@@ -1332,19 +1411,35 @@ public class BackendProfilesFragment extends Fragment {
         final String id;
         final String rawTitle;
         final String summary;
+        final String subscriptionId;
+        final String subscriptionTitle;
 
-        private SimpleProfile(String id, String rawTitle, String summary) {
+        private SimpleProfile(
+            String id,
+            String rawTitle,
+            String summary,
+            String subscriptionId,
+            String subscriptionTitle
+        ) {
             this.id = id == null ? "" : id;
             this.rawTitle = rawTitle == null ? "" : rawTitle;
             this.summary = summary == null ? "" : summary;
+            this.subscriptionId = subscriptionId == null ? "" : subscriptionId;
+            this.subscriptionTitle = subscriptionTitle == null ? "" : subscriptionTitle;
         }
 
         static SimpleProfile fromWireGuard(WireGuardProfile profile) {
-            return new SimpleProfile(profile.id, profile.title, profile.endpoint);
+            return new SimpleProfile(
+                profile.id,
+                profile.title,
+                profile.endpoint,
+                profile.subscriptionId,
+                profile.subscriptionTitle
+            );
         }
 
         static SimpleProfile fromAmnezia(AmneziaProfile profile) {
-            return new SimpleProfile(profile.id, profile.title, "");
+            return new SimpleProfile(profile.id, profile.title, "", profile.subscriptionId, profile.subscriptionTitle);
         }
 
         static SimpleProfile fromVkTurn(VkTurnProfile profile) {
@@ -1355,7 +1450,13 @@ public class BackendProfilesFragment extends Fragment {
             } else {
                 summary = transport;
             }
-            return new SimpleProfile(profile.id, profile.title, summary);
+            return new SimpleProfile(
+                profile.id,
+                profile.title,
+                summary,
+                profile.subscriptionId,
+                profile.subscriptionTitle
+            );
         }
 
         String displayTitle(Context context) {
