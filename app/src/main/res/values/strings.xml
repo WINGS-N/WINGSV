@@ -746,7 +746,7 @@
     <string name="backend_profiles_reset_stats_done">Stats reset</string>
     <string name="backend_profiles_traffic_rx">Down %1$s</string>
     <string name="backend_profiles_traffic_tx">Up %1$s</string>
-    <string name="backend_profiles_action_select">Make active</string>
+    <string name="backend_profiles_action_select">Select</string>
     <string name="backend_profiles_action_favorite_add">Add to favorites</string>
     <string name="backend_profiles_action_favorite_remove">Remove from favorites</string>
     <string name="backend_profiles_action_reset_stats">Reset traffic stats</string>

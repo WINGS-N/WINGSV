@@ -746,7 +746,7 @@
     <string name="backend_profiles_reset_stats_done">Статистика сброшена</string>
     <string name="backend_profiles_traffic_rx">Вниз %1$s</string>
     <string name="backend_profiles_traffic_tx">Вверх %1$s</string>
-    <string name="backend_profiles_action_select">Сделать активным</string>
+    <string name="backend_profiles_action_select">Выбрать</string>
     <string name="backend_profiles_action_favorite_add">В избранное</string>
     <string name="backend_profiles_action_favorite_remove">Убрать из избранного</string>
     <string name="backend_profiles_action_reset_stats">Сбросить статистику трафика</string>
