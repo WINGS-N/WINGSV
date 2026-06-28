@@ -192,13 +192,20 @@ public class BackendProfilesFragment extends Fragment {
             Haptics.softSelection(v);
             shareSelectedBackendProfiles();
         });
-        binding.buttonBackendProfileResetStats.setOnClickListener(v -> {
-            Haptics.softSelection(v);
-            resetSelectedBackendStats();
-        });
-        binding.buttonBackendProfileDelete.setOnClickListener(v -> {
-            Haptics.softSelection(v);
-            confirmDeleteSelectedBackend();
+        binding.bottomTabBackendProfileSelection.inflateMenu(R.menu.menu_profile_selection_compact_actions, null);
+        binding.bottomTabBackendProfileSelection.setOnMenuItemClickListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.menu_profile_selection_reset_stats) {
+                Haptics.softSelection(binding.bottomTabBackendProfileSelection);
+                resetSelectedBackendStats();
+                return true;
+            }
+            if (itemId == R.id.menu_profile_selection_delete) {
+                Haptics.softSelection(binding.bottomTabBackendProfileSelection);
+                confirmDeleteSelectedBackend();
+                return true;
+            }
+            return false;
         });
         selectionBackCallback = new androidx.activity.OnBackPressedCallback(false) {
             @Override
