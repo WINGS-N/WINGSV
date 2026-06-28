@@ -97,6 +97,12 @@ public final class RootMultiUserRouter {
     // отработать, после чего отстающая фоновая чистка сносит свежий chain.
     private static final Object SCRIPT_LOCK = new Object();
 
+    // Bumped by every apply / applyFilterOnly (under SCRIPT_LOCK). clearQuietly reads
+    // it on entry and, if a newer apply landed before the clear actually ran, skips -
+    // so a backgrounded disconnect teardown cannot wipe the UID rules a reconnect
+    // (profile / routing-mode change) just re-applied.
+    private static volatile long appliedGeneration = 0L;
+
     // Имя iptables-цепочки для нашего OUTPUT-фильтра. Своя цепочка нужна чтобы
     // teardown был чистым: дропнуть chain - и всё, не выискивать конкретные
     // правила, которые сами могли быть инжектированы netd'ом между нашими.
@@ -172,14 +178,23 @@ public final class RootMultiUserRouter {
         }
         synchronized (SCRIPT_LOCK) {
             RootUtils.runRootHelper(context, "shell", script.toString());
+            appliedGeneration++;
         }
     }
 
     public static void clearQuietly(@NonNull Context context) {
+        long requestedAt = appliedGeneration;
         try {
             StringBuilder script = new StringBuilder();
             appendClear(script);
             synchronized (SCRIPT_LOCK) {
+                if (appliedGeneration != requestedAt) {
+                    // A fresh apply landed after this clear was requested (e.g. a
+                    // profile / routing-mode change re-applied the rules while this
+                    // disconnect teardown was still queued in the background). Skip so
+                    // we do not wipe the rules the reconnect just installed.
+                    return;
+                }
                 RootUtils.runRootHelper(context, "shell", script.toString());
             }
         } catch (Exception ignored) {}
@@ -241,6 +256,7 @@ public final class RootMultiUserRouter {
         );
         synchronized (SCRIPT_LOCK) {
             RootUtils.runRootHelper(context, "shell", script.toString());
+            appliedGeneration++;
         }
     }
 
