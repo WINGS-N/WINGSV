@@ -727,7 +727,7 @@
     <!-- Backend-aware profiles screen (WireGuard / AmneziaWG / VK TURN) -->
     <string name="backend_profiles_selector_section">Backend</string>
     <string name="backend_profiles_actions_section">Actions</string>
-    <string name="backend_profiles_selector_title">Active backend</string>
+    <string name="backend_profiles_selector_title">Network backend</string>
     <string name="backend_profiles_selector_summary">Choose which backend the profile list shows</string>
     <string name="backend_profiles_sub_backend_wireguard">WireGuard tunnel</string>
     <string name="backend_profiles_sub_backend_amneziawg">AmneziaWG tunnel</string>
