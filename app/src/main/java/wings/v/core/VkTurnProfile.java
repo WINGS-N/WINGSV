@@ -54,6 +54,12 @@ public final class VkTurnProfile {
     public final String localEndpoint;
     public final String turnHost;
     public final String turnPort;
+    // Source subscription tag. Empty for manually added / imported profiles; set
+    // when this profile was dispatched from a 3x-ui subscription that carried a
+    // wingsv:// link. Not part of stableDedupKey (dedup stays server-identity
+    // based), so the same server can be reused across subscription and manual.
+    public final String subscriptionId;
+    public final String subscriptionTitle;
 
     public VkTurnProfile(
         final String id,
@@ -81,6 +87,64 @@ public final class VkTurnProfile {
         final String turnHost,
         final String turnPort
     ) {
+        this(
+            id,
+            title,
+            transportKind,
+            transportProfileId,
+            vkTurnEndpoint,
+            threads,
+            credsGroupSize,
+            useUdp,
+            noObfuscation,
+            manualCaptcha,
+            captchaAutoSolver,
+            vkAuthMode,
+            turnSessionMode,
+            dnsMode,
+            userDns,
+            runtimeMode,
+            restartOnNetworkChange,
+            wrapMode,
+            wrapCipher,
+            wrapKeyHex,
+            wrapSendKey,
+            localEndpoint,
+            turnHost,
+            turnPort,
+            "",
+            ""
+        );
+    }
+
+    public VkTurnProfile(
+        final String id,
+        final String title,
+        final String transportKind,
+        final String transportProfileId,
+        final String vkTurnEndpoint,
+        final int threads,
+        final int credsGroupSize,
+        final boolean useUdp,
+        final boolean noObfuscation,
+        final boolean manualCaptcha,
+        final String captchaAutoSolver,
+        final String vkAuthMode,
+        final String turnSessionMode,
+        final String dnsMode,
+        final String userDns,
+        final String runtimeMode,
+        final boolean restartOnNetworkChange,
+        final String wrapMode,
+        final String wrapCipher,
+        final String wrapKeyHex,
+        final boolean wrapSendKey,
+        final String localEndpoint,
+        final String turnHost,
+        final String turnPort,
+        final String subscriptionId,
+        final String subscriptionTitle
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.transportKind = normalizeTransportKind(transportKind);
@@ -105,6 +169,82 @@ public final class VkTurnProfile {
         this.localEndpoint = emptyIfNull(localEndpoint);
         this.turnHost = emptyIfNull(turnHost);
         this.turnPort = emptyIfNull(turnPort);
+        this.subscriptionId = emptyIfNull(subscriptionId);
+        this.subscriptionTitle = emptyIfNull(subscriptionTitle);
+    }
+
+    /**
+     * Returns a copy tagged with the given source subscription. All other fields
+     * (including id) are preserved, so the profile identity is unchanged.
+     */
+    public VkTurnProfile withSubscription(final String subscriptionId, final String subscriptionTitle) {
+        return new VkTurnProfile(
+            id,
+            title,
+            transportKind,
+            transportProfileId,
+            vkTurnEndpoint,
+            threads,
+            credsGroupSize,
+            useUdp,
+            noObfuscation,
+            manualCaptcha,
+            captchaAutoSolver,
+            vkAuthMode,
+            turnSessionMode,
+            dnsMode,
+            userDns,
+            runtimeMode,
+            restartOnNetworkChange,
+            wrapMode,
+            wrapCipher,
+            wrapKeyHex,
+            wrapSendKey,
+            localEndpoint,
+            turnHost,
+            turnPort,
+            subscriptionId,
+            subscriptionTitle
+        );
+    }
+
+    /**
+     * Returns a copy that points its transport reference at the given profile id,
+     * preserving all other fields including the subscription tag.
+     */
+    public VkTurnProfile withTransportProfileId(final String newTransportProfileId) {
+        return new VkTurnProfile(
+            id,
+            title,
+            transportKind,
+            newTransportProfileId,
+            vkTurnEndpoint,
+            threads,
+            credsGroupSize,
+            useUdp,
+            noObfuscation,
+            manualCaptcha,
+            captchaAutoSolver,
+            vkAuthMode,
+            turnSessionMode,
+            dnsMode,
+            userDns,
+            runtimeMode,
+            restartOnNetworkChange,
+            wrapMode,
+            wrapCipher,
+            wrapKeyHex,
+            wrapSendKey,
+            localEndpoint,
+            turnHost,
+            turnPort,
+            subscriptionId,
+            subscriptionTitle
+        );
+    }
+
+    public boolean isFromSubscription() {
+        return !TextUtils.isEmpty(subscriptionId);
     }
 
     public static String normalizeTransportKind(String value) {
@@ -146,6 +286,8 @@ public final class VkTurnProfile {
         object.put("local_endpoint", localEndpoint);
         object.put("turn_host", turnHost);
         object.put("turn_port", turnPort);
+        object.put("subscription_id", subscriptionId);
+        object.put("subscription_title", subscriptionTitle);
         return object;
     }
 
@@ -177,7 +319,9 @@ public final class VkTurnProfile {
             object.optBoolean("wrap_send_key", true),
             object.optString("local_endpoint"),
             object.optString("turn_host"),
-            object.optString("turn_port")
+            object.optString("turn_port"),
+            object.optString("subscription_id"),
+            object.optString("subscription_title")
         );
     }
 
@@ -214,7 +358,9 @@ public final class VkTurnProfile {
             Objects.equals(wrapKeyHex, profile.wrapKeyHex) &&
             Objects.equals(localEndpoint, profile.localEndpoint) &&
             Objects.equals(turnHost, profile.turnHost) &&
-            Objects.equals(turnPort, profile.turnPort)
+            Objects.equals(turnPort, profile.turnPort) &&
+            Objects.equals(subscriptionId, profile.subscriptionId) &&
+            Objects.equals(subscriptionTitle, profile.subscriptionTitle)
         );
     }
 
@@ -232,7 +378,8 @@ public final class VkTurnProfile {
             turnSessionMode,
             localEndpoint,
             turnHost,
-            turnPort
+            turnPort,
+            subscriptionId
         );
     }
 

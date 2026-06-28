@@ -20,11 +20,41 @@ public final class AmneziaProfile {
     public final String id;
     public final String title;
     public final String quickConfig;
+    // Source subscription tag. Empty for manually added / imported profiles; set
+    // when this profile was dispatched from a 3x-ui subscription wingsv:// link
+    // (either standalone AmneziaWG or the AWG transport of a VK TURN profile). Not
+    // part of stableDedupKey, so the same config can be reused across sources.
+    public final String subscriptionId;
+    public final String subscriptionTitle;
 
     public AmneziaProfile(final String id, final String title, final String quickConfig) {
+        this(id, title, quickConfig, "", "");
+    }
+
+    public AmneziaProfile(
+        final String id,
+        final String title,
+        final String quickConfig,
+        final String subscriptionId,
+        final String subscriptionTitle
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.quickConfig = emptyIfNull(quickConfig);
+        this.subscriptionId = emptyIfNull(subscriptionId);
+        this.subscriptionTitle = emptyIfNull(subscriptionTitle);
+    }
+
+    /**
+     * Returns a copy tagged with the given source subscription, preserving all
+     * other fields (including id) so the profile identity is unchanged.
+     */
+    public AmneziaProfile withSubscription(final String subscriptionId, final String subscriptionTitle) {
+        return new AmneziaProfile(id, title, quickConfig, subscriptionId, subscriptionTitle);
+    }
+
+    public boolean isFromSubscription() {
+        return !TextUtils.isEmpty(subscriptionId);
     }
 
     public boolean isEmpty() {
@@ -40,6 +70,8 @@ public final class AmneziaProfile {
         object.put("id", id);
         object.put("title", title);
         object.put("quick_config", quickConfig);
+        object.put("subscription_id", subscriptionId);
+        object.put("subscription_title", subscriptionTitle);
         return object;
     }
 
@@ -47,7 +79,13 @@ public final class AmneziaProfile {
         if (object == null) {
             return null;
         }
-        return new AmneziaProfile(object.optString("id"), object.optString("title"), object.optString("quick_config"));
+        return new AmneziaProfile(
+            object.optString("id"),
+            object.optString("title"),
+            object.optString("quick_config"),
+            object.optString("subscription_id"),
+            object.optString("subscription_title")
+        );
     }
 
     @Override
@@ -62,13 +100,15 @@ public final class AmneziaProfile {
         return (
             Objects.equals(id, profile.id) &&
             Objects.equals(title, profile.title) &&
-            Objects.equals(quickConfig, profile.quickConfig)
+            Objects.equals(quickConfig, profile.quickConfig) &&
+            Objects.equals(subscriptionId, profile.subscriptionId) &&
+            Objects.equals(subscriptionTitle, profile.subscriptionTitle)
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, title, quickConfig);
+        return Objects.hash(id, title, quickConfig, subscriptionId);
     }
 
     private static String emptyIfNull(final String value) {

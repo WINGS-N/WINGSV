@@ -28,6 +28,12 @@ public final class WireGuardProfile {
     public final String presharedKey;
     public final String allowedIps;
     public final String endpoint;
+    // Source subscription tag. Empty for manually added / imported profiles; set
+    // when this profile was dispatched from a 3x-ui subscription wingsv:// link
+    // (either standalone WireGuard or the WG transport of a VK TURN profile). Not
+    // part of stableDedupKey, so the same server can be reused across sources.
+    public final String subscriptionId;
+    public final String subscriptionTitle;
 
     public WireGuardProfile(
         final String id,
@@ -41,6 +47,23 @@ public final class WireGuardProfile {
         final String allowedIps,
         final String endpoint
     ) {
+        this(id, title, privateKey, addresses, dns, mtu, publicKey, presharedKey, allowedIps, endpoint, "", "");
+    }
+
+    public WireGuardProfile(
+        final String id,
+        final String title,
+        final String privateKey,
+        final String addresses,
+        final String dns,
+        final int mtu,
+        final String publicKey,
+        final String presharedKey,
+        final String allowedIps,
+        final String endpoint,
+        final String subscriptionId,
+        final String subscriptionTitle
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.privateKey = emptyIfNull(privateKey);
@@ -51,6 +74,33 @@ public final class WireGuardProfile {
         this.presharedKey = emptyIfNull(presharedKey);
         this.allowedIps = emptyIfNull(allowedIps);
         this.endpoint = emptyIfNull(endpoint);
+        this.subscriptionId = emptyIfNull(subscriptionId);
+        this.subscriptionTitle = emptyIfNull(subscriptionTitle);
+    }
+
+    /**
+     * Returns a copy tagged with the given source subscription, preserving all
+     * other fields (including id) so the profile identity is unchanged.
+     */
+    public WireGuardProfile withSubscription(final String subscriptionId, final String subscriptionTitle) {
+        return new WireGuardProfile(
+            id,
+            title,
+            privateKey,
+            addresses,
+            dns,
+            mtu,
+            publicKey,
+            presharedKey,
+            allowedIps,
+            endpoint,
+            subscriptionId,
+            subscriptionTitle
+        );
+    }
+
+    public boolean isFromSubscription() {
+        return !TextUtils.isEmpty(subscriptionId);
     }
 
     public boolean isEmpty() {
@@ -73,6 +123,8 @@ public final class WireGuardProfile {
         object.put("preshared_key", presharedKey);
         object.put("allowed_ips", allowedIps);
         object.put("endpoint", endpoint);
+        object.put("subscription_id", subscriptionId);
+        object.put("subscription_title", subscriptionTitle);
         return object;
     }
 
@@ -90,7 +142,9 @@ public final class WireGuardProfile {
             object.optString("public_key"),
             object.optString("preshared_key"),
             object.optString("allowed_ips"),
-            object.optString("endpoint")
+            object.optString("endpoint"),
+            object.optString("subscription_id"),
+            object.optString("subscription_title")
         );
     }
 
@@ -113,13 +167,27 @@ public final class WireGuardProfile {
             Objects.equals(publicKey, profile.publicKey) &&
             Objects.equals(presharedKey, profile.presharedKey) &&
             Objects.equals(allowedIps, profile.allowedIps) &&
-            Objects.equals(endpoint, profile.endpoint)
+            Objects.equals(endpoint, profile.endpoint) &&
+            Objects.equals(subscriptionId, profile.subscriptionId) &&
+            Objects.equals(subscriptionTitle, profile.subscriptionTitle)
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, title, privateKey, addresses, dns, mtu, publicKey, presharedKey, allowedIps, endpoint);
+        return Objects.hash(
+            id,
+            title,
+            privateKey,
+            addresses,
+            dns,
+            mtu,
+            publicKey,
+            presharedKey,
+            allowedIps,
+            endpoint,
+            subscriptionId
+        );
     }
 
     private static String emptyIfNull(final String value) {
