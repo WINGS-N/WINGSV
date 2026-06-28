@@ -588,6 +588,202 @@ public final class WingsImportParser {
         return null;
     }
 
+    /**
+     * Scans a subscription body for wingsv:// single-profile links and decodes
+     * each into a concrete backend profile object (or objects, for a VK TURN
+     * profile which carries an embedded WG / AWG transport), WITHOUT writing to any
+     * store and WITHOUT touching global settings or the active profile. The body
+     * may be plain text holding the links or a single base64 blob of the whole
+     * list (common for 3x-ui), decoded the same way XraySubscriptionParser does
+     * before scanning. Full-settings bundles (CONFIG_TYPE_ALL) are skipped: only
+     * single-profile links are dispatched from subscriptions. A decode failure for
+     * one link is swallowed so it does not break the others; the caller tags the
+     * returned profiles with the source subscription and routes them to the stores.
+     */
+    public static List<ImportedBackendProfile> extractBackendProfilesFromSubscriptionBody(
+        Context context,
+        String body
+    ) {
+        ArrayList<ImportedBackendProfile> result = new ArrayList<>();
+        if (TextUtils.isEmpty(body)) {
+            return result;
+        }
+        for (String link : collectWingsvLinks(body)) {
+            try {
+                ImportedConfig config = parseFromText(link);
+                ImportedBackendProfile entry = toBackendProfile(context, config);
+                if (entry != null) {
+                    result.add(entry);
+                }
+            } catch (Exception ignored) {
+                // A single malformed wingsv:// link must not break the rest.
+            }
+        }
+        return result;
+    }
+
+    private static List<String> collectWingsvLinks(String body) {
+        LinkedHashSet<String> links = new LinkedHashSet<>();
+        collectWingsvLinks(body, links, true);
+        return new ArrayList<>(links);
+    }
+
+    private static void collectWingsvLinks(String text, LinkedHashSet<String> links, boolean allowBase64Fallback) {
+        String normalized = text == null ? "" : text.trim();
+        if (TextUtils.isEmpty(normalized)) {
+            return;
+        }
+        Matcher matcher = LINK_PATTERN.matcher(normalized);
+        while (matcher.find()) {
+            String match = matcher.group();
+            if (!TextUtils.isEmpty(match)) {
+                links.add(match.trim());
+            }
+        }
+        if (!links.isEmpty() || !allowBase64Fallback) {
+            return;
+        }
+        try {
+            byte[] decoded = Base64.decode(normalized, Base64.DEFAULT);
+            String decodedText = new String(decoded, StandardCharsets.UTF_8);
+            if (!TextUtils.equals(decodedText.trim(), normalized)) {
+                collectWingsvLinks(decodedText, links, false);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    // Maps a decoded single-profile ImportedConfig to a concrete backend profile,
+    // mirroring the dispatch in AppPrefs.applyImportedBackendProfile but building
+    // the model objects directly from the decoded fields instead of round-tripping
+    // through the flat keys (so nothing global / active is mutated). Returns null
+    // for full bundles or unsupported / empty payloads.
+    private static ImportedBackendProfile toBackendProfile(Context context, ImportedConfig config) {
+        if (config == null || config.hasAllSettings || config.backendType == null) {
+            return null;
+        }
+        BackendType backendType = config.backendType;
+        if (
+            (backendType == BackendType.VK_TURN_WIREGUARD || backendType == BackendType.AMNEZIAWG) &&
+            config.hasTurnSettings
+        ) {
+            boolean awg = backendType == BackendType.AMNEZIAWG;
+            VkTurnProfile vkTurn = buildVkTurnProfile(context, config, awg);
+            if (awg) {
+                AmneziaProfile transport = buildAmneziaProfile(config);
+                if (transport == null || transport.isEmpty()) {
+                    return null;
+                }
+                return ImportedBackendProfile.vkTurn(vkTurn, null, transport);
+            }
+            WireGuardProfile transport = buildWireGuardProfile(config, true);
+            if (transport == null || transport.isEmpty()) {
+                return null;
+            }
+            return ImportedBackendProfile.vkTurn(vkTurn, transport, null);
+        }
+        if (backendType == BackendType.WIREGUARD && config.hasWireGuardSettings) {
+            WireGuardProfile wireGuard = buildWireGuardProfile(config, false);
+            if (wireGuard == null || wireGuard.isEmpty()) {
+                return null;
+            }
+            return ImportedBackendProfile.wireGuard(wireGuard);
+        }
+        if (backendType == BackendType.AMNEZIAWG_PLAIN && config.hasAmneziaSettings) {
+            AmneziaProfile amnezia = buildAmneziaProfile(config);
+            if (amnezia == null || amnezia.isEmpty()) {
+                return null;
+            }
+            return ImportedBackendProfile.amnezia(amnezia);
+        }
+        return null;
+    }
+
+    private static WireGuardProfile buildWireGuardProfile(ImportedConfig config, boolean transport) {
+        String endpoint = value(config.wgEndpoint);
+        if (TextUtils.isEmpty(endpoint) && !transport) {
+            endpoint = value(config.endpoint);
+        }
+        String dns = TextUtils.isEmpty(value(config.wgDns)) ? DEFAULT_WG_DNS : value(config.wgDns);
+        int mtu = config.wgMtu != null && config.wgMtu > 0 ? config.wgMtu : DEFAULT_WG_MTU;
+        String allowedIps = TextUtils.isEmpty(value(config.wgAllowedIps))
+            ? DEFAULT_ALLOWED_IPS
+            : value(config.wgAllowedIps);
+        return new WireGuardProfile(
+            null,
+            value(config.importedWireGuardTitle),
+            value(config.wgPrivateKey),
+            value(config.wgAddresses),
+            dns,
+            mtu,
+            value(config.wgPublicKey),
+            value(config.wgPresharedKey),
+            allowedIps,
+            endpoint
+        );
+    }
+
+    private static AmneziaProfile buildAmneziaProfile(ImportedConfig config) {
+        String quick = value(config.awgQuickConfig);
+        if (TextUtils.isEmpty(quick.trim())) {
+            return null;
+        }
+        return new AmneziaProfile(null, value(config.importedAmneziaTitle), quick);
+    }
+
+    private static VkTurnProfile buildVkTurnProfile(Context context, ImportedConfig config, boolean awg) {
+        String transportKind = awg ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
+        int threads = config.threads != null && config.threads > 0 ? config.threads : 24;
+        int creds = config.credsGroupSize != null && config.credsGroupSize > 0 ? config.credsGroupSize : 12;
+        boolean useUdp = config.useUdp == null || config.useUdp;
+        boolean noObfuscation = config.noObfuscation != null && config.noObfuscation;
+        boolean manualCaptcha = config.manualCaptcha != null && config.manualCaptcha;
+        String captchaAutoSolver = TextUtils.isEmpty(value(config.captchaAutoSolver))
+            ? AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT
+            : value(config.captchaAutoSolver);
+        String turnSessionMode = TextUtils.isEmpty(value(config.turnSessionMode))
+            ? "mainline"
+            : value(config.turnSessionMode);
+        String runtimeMode =
+            config.vkTurnRuntimeMode != null ? config.vkTurnRuntimeMode.prefValue : ProxyRuntimeMode.VPN.prefValue;
+        boolean restart = config.vkTurnRestartOnNetworkChange == null || config.vkTurnRestartOnNetworkChange;
+        String wrapMode = AppPrefs.normalizeWrapMode(
+            config.vkTurnWrapMode == null ? "preferred" : config.vkTurnWrapMode
+        );
+        String wrapCipher = AppPrefs.normalizeWrapCipher(
+            config.vkTurnWrapCipher == null ? "srtp-aes-gcm" : config.vkTurnWrapCipher
+        );
+        boolean wrapSendKey = config.vkTurnWrapSendKey == null || config.vkTurnWrapSendKey;
+        String localEndpoint = TextUtils.isEmpty(value(config.localEndpoint))
+            ? DEFAULT_LOCAL_ENDPOINT
+            : value(config.localEndpoint);
+        return new VkTurnProfile(
+            null,
+            value(config.importedVkTurnTitle),
+            transportKind,
+            "",
+            value(config.endpoint),
+            threads,
+            creds,
+            useUdp,
+            noObfuscation,
+            manualCaptcha,
+            captchaAutoSolver,
+            AppPrefs.VK_AUTH_MODE_ANONYMOUS,
+            turnSessionMode,
+            AppPrefs.getDnsMode(context),
+            value(config.vkTurnUserDns),
+            runtimeMode,
+            restart,
+            wrapMode,
+            wrapCipher,
+            value(config.vkTurnWrapKeyHex),
+            wrapSendKey,
+            localEndpoint,
+            value(config.turnHost),
+            value(config.turnPort)
+        );
+    }
+
     private static List<XraySubscription> parseSubscriptionImports(String rawText) {
         LinkedHashSet<String> urls = new LinkedHashSet<>();
         Matcher matcher = SUBSCRIPTION_URL_PATTERN.matcher(value(rawText));
@@ -3057,6 +3253,60 @@ public final class WingsImportParser {
             return XrayTransportMode.VK_TURN_TCP;
         }
         return XrayTransportMode.DIRECT;
+    }
+
+    /**
+     * One backend profile decoded from a subscription wingsv:// link. For
+     * WIREGUARD / AMNEZIAWG it carries the standalone transport profile. For
+     * VK_TURN it carries the VkTurnProfile plus its embedded transport (exactly
+     * one of wireGuardProfile / amneziaProfile is non-null); the VkTurnProfile's
+     * transportProfileId is empty and must be resolved by the caller after the
+     * transport has been synced into its own store.
+     */
+    public static final class ImportedBackendProfile {
+
+        public enum Kind {
+            VK_TURN,
+            WIREGUARD,
+            AMNEZIAWG,
+        }
+
+        public final Kind kind;
+        public final VkTurnProfile vkTurnProfile;
+        public final WireGuardProfile wireGuardProfile;
+        public final AmneziaProfile amneziaProfile;
+
+        private ImportedBackendProfile(
+            Kind kind,
+            VkTurnProfile vkTurnProfile,
+            WireGuardProfile wireGuardProfile,
+            AmneziaProfile amneziaProfile
+        ) {
+            this.kind = kind;
+            this.vkTurnProfile = vkTurnProfile;
+            this.wireGuardProfile = wireGuardProfile;
+            this.amneziaProfile = amneziaProfile;
+        }
+
+        static ImportedBackendProfile vkTurn(
+            VkTurnProfile vkTurnProfile,
+            WireGuardProfile wireGuardTransport,
+            AmneziaProfile amneziaTransport
+        ) {
+            return new ImportedBackendProfile(Kind.VK_TURN, vkTurnProfile, wireGuardTransport, amneziaTransport);
+        }
+
+        static ImportedBackendProfile wireGuard(WireGuardProfile wireGuardProfile) {
+            return new ImportedBackendProfile(Kind.WIREGUARD, null, wireGuardProfile, null);
+        }
+
+        static ImportedBackendProfile amnezia(AmneziaProfile amneziaProfile) {
+            return new ImportedBackendProfile(Kind.AMNEZIAWG, null, null, amneziaProfile);
+        }
+
+        public boolean usesAmneziaTransport() {
+            return kind == Kind.VK_TURN && amneziaProfile != null;
+        }
     }
 
     public static final class ImportedConfig {

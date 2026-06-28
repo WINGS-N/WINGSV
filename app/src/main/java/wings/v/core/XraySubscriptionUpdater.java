@@ -144,6 +144,10 @@ public final class XraySubscriptionUpdater {
                         profiles.put(XrayStore.getProfileStorageKey(profile), profile);
                     }
                 }
+                // Same body may also carry wingsv:// backend profile links (VK TURN
+                // / WireGuard / AmneziaWG). Dispatch them into their stores tagged
+                // with this subscription, replacing (and pruning) the previous set.
+                dispatchBackendProfiles(context, subscription, fetched.body);
                 SubscriptionMetadata metadata = fetched.metadata.withFallback(subscription);
                 updatedSubscriptions.add(
                     new XraySubscription(
@@ -304,6 +308,68 @@ public final class XraySubscriptionUpdater {
             return true;
         }
         return now - subscription.lastUpdatedAt >= refreshMinutes * MILLIS_PER_MINUTE;
+    }
+
+    // Decodes wingsv:// backend profile links from the subscription body and
+    // replaces this subscription's slice of each backend store (VK TURN /
+    // WireGuard / AmneziaWG) with the fetched set. Transports are synced first so
+    // each VK TURN profile's transport reference resolves to a stable stored id;
+    // an empty fetched set for a kind prunes all of this subscription's profiles of
+    // that kind. Robust: a decode failure logs and leaves the stores untouched, so
+    // one bad subscription body cannot drop the rest of the refresh. Only called on
+    // a successful fetch, so a failed subscription never prunes its profiles.
+    private static void dispatchBackendProfiles(Context context, XraySubscription subscription, String body) {
+        try {
+            List<WingsImportParser.ImportedBackendProfile> imported =
+                WingsImportParser.extractBackendProfilesFromSubscriptionBody(context, body);
+            String subId = subscription.id;
+            String subTitle = subscription.title;
+            List<WireGuardProfile> wgFetched = new ArrayList<>();
+            List<AmneziaProfile> awgFetched = new ArrayList<>();
+            List<VkTurnPending> vkPending = new ArrayList<>();
+            for (WingsImportParser.ImportedBackendProfile entry : imported) {
+                if (entry == null) {
+                    continue;
+                }
+                if (entry.kind == WingsImportParser.ImportedBackendProfile.Kind.WIREGUARD) {
+                    wgFetched.add(entry.wireGuardProfile.withSubscription(subId, subTitle));
+                } else if (entry.kind == WingsImportParser.ImportedBackendProfile.Kind.AMNEZIAWG) {
+                    awgFetched.add(entry.amneziaProfile.withSubscription(subId, subTitle));
+                } else if (entry.kind == WingsImportParser.ImportedBackendProfile.Kind.VK_TURN) {
+                    VkTurnProfile vkTurn = entry.vkTurnProfile.withSubscription(subId, subTitle);
+                    if (entry.usesAmneziaTransport()) {
+                        AmneziaProfile transport = entry.amneziaProfile.withSubscription(subId, subTitle);
+                        awgFetched.add(transport);
+                        vkPending.add(new VkTurnPending(vkTurn, true, transport.stableDedupKey()));
+                    } else {
+                        WireGuardProfile transport = entry.wireGuardProfile.withSubscription(subId, subTitle);
+                        wgFetched.add(transport);
+                        vkPending.add(new VkTurnPending(vkTurn, false, transport.stableDedupKey()));
+                    }
+                }
+            }
+            // Sync transports first so VK TURN references resolve to stable ids.
+            WireGuardProfileStore.syncSubscriptionProfiles(context, subId, wgFetched);
+            AmneziaProfileStore.syncSubscriptionProfiles(context, subId, awgFetched);
+            List<VkTurnProfile> vkFetched = new ArrayList<>();
+            for (VkTurnPending pending : vkPending) {
+                String transportId = pending.amneziaTransport
+                    ? AmneziaProfileStore.idForDedupKey(context, pending.transportDedupKey)
+                    : WireGuardProfileStore.idForDedupKey(context, pending.transportDedupKey);
+                vkFetched.add(pending.profile.withTransportProfileId(transportId));
+            }
+            VkTurnProfileStore.syncSubscriptionProfiles(context, subId, vkFetched);
+        } catch (Exception error) {
+            String reason = TextUtils.isEmpty(error.getMessage())
+                ? error.getClass().getSimpleName()
+                : error.getMessage();
+            ProxyTunnelService.writeRuntimeLogLine(
+                "Subscription backend dispatch failed [" +
+                    (TextUtils.isEmpty(subscription.title) ? subscription.url : subscription.title) +
+                    "]: " +
+                    reason
+            );
+        }
     }
 
     private static void restoreExistingProfiles(
@@ -495,6 +561,22 @@ public final class XraySubscriptionUpdater {
     public interface ProgressListener {
         void onSubscriptionStarted(XraySubscription subscription);
         void onSubscriptionFinished(XraySubscription subscription, String error);
+    }
+
+    // A VK TURN profile awaiting transport-reference resolution: after the WG / AWG
+    // transport stores are synced, idForDedupKey(transportDedupKey) gives the
+    // stable stored id to stamp onto the profile via withTransportProfileId.
+    private static final class VkTurnPending {
+
+        final VkTurnProfile profile;
+        final boolean amneziaTransport;
+        final String transportDedupKey;
+
+        VkTurnPending(VkTurnProfile profile, boolean amneziaTransport, String transportDedupKey) {
+            this.profile = profile;
+            this.amneziaTransport = amneziaTransport;
+            this.transportDedupKey = transportDedupKey == null ? "" : transportDedupKey;
+        }
     }
 
     private static final class FetchResult {
