@@ -386,9 +386,20 @@ public class XrayVpnService extends VpnService implements DialerController {
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(this);
         AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
         if (packages.isEmpty()) {
-            ProxyTunnelService.writeRuntimeLogLine(
-                "App routing: mode=" + mode.prefValue + " selected=0 -> VPN captures every app"
-            );
+            if (mode == AppRoutingMode.WHITELIST) {
+                // An empty whitelist must tunnel NOTHING, not everything. Without an
+                // addAllowedApplication call the VpnService captures every app, so
+                // restrict it to our own package: the proxy's upstream sockets are
+                // protected (they bypass the VPN), so no other app is tunneled.
+                try {
+                    builder.addAllowedApplication(getPackageName());
+                } catch (Exception error) {
+                    throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
+                }
+                ProxyTunnelService.writeRuntimeLogLine("App routing: WHITELIST empty -> no app tunneled");
+            } else {
+                ProxyTunnelService.writeRuntimeLogLine("App routing: mode=" + mode.prefValue + " selected=0");
+            }
             return;
         }
         try {
