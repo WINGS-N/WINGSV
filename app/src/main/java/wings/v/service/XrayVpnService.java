@@ -384,15 +384,21 @@ public class XrayVpnService extends VpnService implements DialerController {
 
     private void applyAppRouting(Builder builder) {
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(this);
+        AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
         if (packages.isEmpty()) {
+            ProxyTunnelService.writeRuntimeLogLine(
+                "App routing: mode=" + mode.prefValue + " selected=0 -> VPN captures every app"
+            );
             return;
         }
-        AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
         try {
             if (mode == AppRoutingMode.WHITELIST) {
                 for (String packageName : packages) {
                     builder.addAllowedApplication(packageName);
                 }
+                ProxyTunnelService.writeRuntimeLogLine(
+                    "App routing: WHITELIST addAllowedApplication x" + packages.size()
+                );
             } else if (mode == AppRoutingMode.BYPASS) {
                 // Plain Bypass: exclude the selected apps at the Android layer.
                 // Simple and native, but a non-excluded app could still escape the
