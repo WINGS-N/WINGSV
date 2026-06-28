@@ -748,6 +748,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             // Hide/show root sub-options live when the master toggle flips.
             if (AppPrefs.KEY_ROOT_MODE.equals(key)) {
                 configureRootPreferences();
+                if (!AppPrefs.isRootModeEnabled(requireContext())) {
+                    // Root turned off: immediately drop any root ip-rules / UID filter
+                    // left from the root session so they do not linger and keep
+                    // steering app traffic. No-op when a tunnel is active - the
+                    // reconnect triggered by this toggle tears those down itself.
+                    wings.v.service.ProxyTunnelService.cleanStaleRootRoutingOnLaunch(requireContext());
+                }
             }
             // Sync the master Guardian switch in the parent settings list with
             // toggles done from inside GuardianActivity.
