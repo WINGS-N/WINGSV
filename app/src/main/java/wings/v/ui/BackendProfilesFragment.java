@@ -99,6 +99,7 @@ public class BackendProfilesFragment extends Fragment {
     private static final String FILTER_FAVORITES = "__favorites__";
     private static final String FILTER_NO_SUBSCRIPTION = "__no_subscription__";
     private static final String FILTER_SUBSCRIPTION_PREFIX = "sub:";
+    private static final int GROUP_QUOTA_PROGRESS_MAX = 1000;
 
     private FragmentBackendProfilesBinding binding;
 
@@ -109,6 +110,13 @@ public class BackendProfilesFragment extends Fragment {
     private BackendType pendingUiEditBackend;
 
     private String activeBackendFilterId = FILTER_ALL;
+
+    // Subscription refresh runs off the UI thread; the result is posted back via the
+    // main-looper handler, guarded by binding / isAdded.
+    private final java.util.concurrent.ExecutorService subscriptionExecutor =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private boolean refreshingSubscriptions;
 
     // Multi-select state for the simple (WG / AWG / VK TURN) list, mirroring the
     // Xray profile list: long-press -> Select enters selection mode, tap toggles,
@@ -165,6 +173,17 @@ public class BackendProfilesFragment extends Fragment {
             Haptics.softSelection(v);
             importFromClipboard();
         });
+        binding.rowOpenSubscriptions.setTitle(getString(R.string.xray_profiles_open_subscriptions_title));
+        binding.rowOpenSubscriptions.setSummary(getString(R.string.xray_profiles_open_subscriptions_summary));
+        binding.rowOpenSubscriptions.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            startActivity(wings.v.SubscriptionsActivity.createIntent(requireContext()));
+        });
+        binding.rowRefreshSubscriptions.setTitle(getString(R.string.xray_profiles_refresh_subscriptions_title));
+        binding.rowRefreshSubscriptions.setOnClickListener(v -> {
+            Haptics.softSelection(v);
+            refreshSubscriptions();
+        });
         binding.buttonBackendProfileSelectAll.setOnClickListener(v -> {
             Haptics.softSelection(v);
             selectAllBackendProfiles();
@@ -206,6 +225,12 @@ public class BackendProfilesFragment extends Fragment {
         super.onDestroyView();
     }
 
+    @Override
+    public void onDestroy() {
+        subscriptionExecutor.shutdownNow();
+        super.onDestroy();
+    }
+
     // Called by the embedded Xray ProfilesFragment when the user switches the
     // active backend from its in-card selector, so the host swaps to the new
     // backend's view.
@@ -220,6 +245,7 @@ public class BackendProfilesFragment extends Fragment {
         Context context = requireContext();
         BackendType backendType = XrayStore.getBackendType(context);
         binding.rowBackendSelector.setSummary(backendSelectorSummary(backendType));
+        updateSubscriptionRows(context);
         boolean vkTurn = "vk_turn".equals(backendType.topLevelGroup());
         binding.rowBackendSubSelector.setVisibility(vkTurn ? View.VISIBLE : View.GONE);
         if (vkTurn) {
@@ -230,6 +256,206 @@ public class BackendProfilesFragment extends Fragment {
         } else {
             showSimpleList(backendType);
         }
+    }
+
+    private void updateSubscriptionRows(Context context) {
+        if (binding == null) {
+            return;
+        }
+        binding.rowRefreshSubscriptions.setSummary(refreshSubscriptionsSummary(context));
+        renderSubscriptionQuota(context);
+    }
+
+    // Plain last-refresh / running / error summary, exactly like the Xray list.
+    private String refreshSubscriptionsSummary(Context context) {
+        if (refreshingSubscriptions) {
+            return getString(R.string.xray_profiles_refresh_subscriptions_running);
+        }
+        String lastError = XrayStore.getLastSubscriptionsError(context);
+        if (!TextUtils.isEmpty(lastError)) {
+            return getString(R.string.xray_profiles_header_error, lastError);
+        }
+        long lastRefreshAt = XrayStore.getLastSubscriptionsRefreshAt(context);
+        if (lastRefreshAt > 0L) {
+            return getString(
+                R.string.xray_profiles_header_last_refresh,
+                java.text.DateFormat.getDateTimeInstance().format(lastRefreshAt)
+            );
+        }
+        return getString(R.string.xray_profiles_refresh_subscriptions_summary);
+    }
+
+    // Subscription traffic quota bar for the selected subscription pill, identical
+    // in logic and look to the Xray profile group header: a horizontal progress bar
+    // tinted by remaining ratio (error <=10%, warning <=40%, else success) with
+    // used/total text and an optional expiry summary.
+    private void renderSubscriptionQuota(Context context) {
+        if (binding == null) {
+            return;
+        }
+        SubscriptionQuotaState quotaState = selectedSubscriptionQuotaState(context);
+        if (quotaState == null) {
+            binding.layoutBackendSubscriptionQuotaContainer.setVisibility(View.GONE);
+            return;
+        }
+        binding.layoutBackendSubscriptionQuotaContainer.setVisibility(View.VISIBLE);
+        if (TextUtils.isEmpty(quotaState.summary)) {
+            binding.textBackendSubscriptionSummary.setVisibility(View.GONE);
+        } else {
+            binding.textBackendSubscriptionSummary.setText(quotaState.summary);
+            binding.textBackendSubscriptionSummary.setVisibility(View.VISIBLE);
+        }
+        if (!quotaState.showProgress) {
+            binding.layoutBackendSubscriptionQuota.setVisibility(View.GONE);
+            return;
+        }
+        binding.textBackendSubscriptionQuota.setText(quotaState.progressText);
+        binding.progressBackendSubscriptionQuota.setMax(GROUP_QUOTA_PROGRESS_MAX);
+        binding.progressBackendSubscriptionQuota.setProgress(quotaState.progress);
+        binding.progressBackendSubscriptionQuota.setProgressTintList(
+            ColorStateList.valueOf(ContextCompat.getColor(context, quotaState.colorResId))
+        );
+        binding.layoutBackendSubscriptionQuota.setVisibility(View.VISIBLE);
+    }
+
+    @Nullable
+    private SubscriptionQuotaState selectedSubscriptionQuotaState(Context context) {
+        if (!activeBackendFilterId.startsWith(FILTER_SUBSCRIPTION_PREFIX)) {
+            return null;
+        }
+        String subId = activeBackendFilterId.substring(FILTER_SUBSCRIPTION_PREFIX.length());
+        for (XraySubscription subscription : XrayStore.getSubscriptions(context)) {
+            if (subscription != null && TextUtils.equals(subId, subscription.id)) {
+                return buildSubscriptionQuotaState(context, subscription);
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private SubscriptionQuotaState buildSubscriptionQuotaState(
+        Context context,
+        @Nullable XraySubscription subscription
+    ) {
+        if (subscription == null) {
+            return null;
+        }
+        long usedBytes = Math.max(0L, subscription.advertisedUploadBytes + subscription.advertisedDownloadBytes);
+        long totalBytes = Math.max(0L, subscription.advertisedTotalBytes);
+        long expireAt = Math.max(0L, subscription.advertisedExpireAt);
+        String expireDate = formatSubscriptionExpireDate(expireAt);
+        if (totalBytes > 0L) {
+            long remainingBytes = Math.max(totalBytes - usedBytes, 0L);
+            double remainingRatio = totalBytes == 0L ? 0.0 : (double) remainingBytes / (double) totalBytes;
+            int colorResId =
+                remainingRatio <= 0.1d
+                    ? R.color.wingsv_error
+                    : remainingRatio <= 0.4d
+                        ? R.color.wingsv_warning
+                        : R.color.wingsv_success;
+            String summary = TextUtils.isEmpty(expireDate)
+                ? ""
+                : getString(R.string.xray_profiles_subscription_expire_only, expireDate);
+            String progressText = getString(
+                R.string.xray_profiles_subscription_quota_used,
+                UiFormatter.formatBytes(context, usedBytes),
+                UiFormatter.formatBytes(context, totalBytes)
+            );
+            int progress = (int) Math.round(remainingRatio * GROUP_QUOTA_PROGRESS_MAX);
+            progress = Math.max(0, Math.min(progress, GROUP_QUOTA_PROGRESS_MAX));
+            return new SubscriptionQuotaState(summary, progressText, true, progress, colorResId);
+        }
+        if (usedBytes > 0L) {
+            String summary = TextUtils.isEmpty(expireDate)
+                ? ""
+                : getString(R.string.xray_profiles_subscription_expire_only, expireDate);
+            String progressText = getString(
+                R.string.xray_profiles_subscription_quota_used,
+                UiFormatter.formatBytes(context, usedBytes),
+                getString(R.string.xray_profiles_subscription_limit_infinite)
+            );
+            return new SubscriptionQuotaState(
+                summary,
+                progressText,
+                true,
+                GROUP_QUOTA_PROGRESS_MAX,
+                R.color.wingsv_success
+            );
+        }
+        if (!TextUtils.isEmpty(expireDate)) {
+            return new SubscriptionQuotaState(
+                getString(R.string.xray_profiles_subscription_expire_only, expireDate),
+                "",
+                false,
+                0,
+                0
+            );
+        }
+        return null;
+    }
+
+    private String formatSubscriptionExpireDate(long expireAt) {
+        if (expireAt <= 0L) {
+            return "";
+        }
+        return java.text.DateFormat.getDateInstance(java.text.DateFormat.SHORT).format(expireAt);
+    }
+
+    private static final class SubscriptionQuotaState {
+
+        final String summary;
+        final String progressText;
+        final boolean showProgress;
+        final int progress;
+        final int colorResId;
+
+        SubscriptionQuotaState(
+            String summary,
+            String progressText,
+            boolean showProgress,
+            int progress,
+            int colorResId
+        ) {
+            this.summary = summary;
+            this.progressText = progressText;
+            this.showProgress = showProgress;
+            this.progress = progress;
+            this.colorResId = colorResId;
+        }
+    }
+
+    private void refreshSubscriptions() {
+        if (refreshingSubscriptions || !isAdded()) {
+            return;
+        }
+        refreshingSubscriptions = true;
+        if (binding != null) {
+            binding.progressRefreshSubscriptions.setVisibility(View.VISIBLE);
+            binding.rowRefreshSubscriptions.setSummary(getString(R.string.xray_profiles_refresh_subscriptions_running));
+        }
+        Context appContext = requireContext().getApplicationContext();
+        subscriptionExecutor.execute(() -> {
+            String message;
+            try {
+                wings.v.core.XraySubscriptionUpdater.RefreshResult result =
+                    wings.v.core.XraySubscriptionUpdater.refreshAll(appContext);
+                message = TextUtils.isEmpty(result.error)
+                    ? appContext.getString(R.string.xray_profiles_refresh_subscriptions_done, result.profiles.size())
+                    : appContext.getString(R.string.xray_subscriptions_refresh_partial, result.error);
+            } catch (Exception error) {
+                message = appContext.getString(R.string.xray_subscriptions_refresh_failed, error.getMessage());
+            }
+            final String toast = message;
+            uiHandler.post(() -> {
+                refreshingSubscriptions = false;
+                if (binding == null || !isAdded()) {
+                    return;
+                }
+                binding.progressRefreshSubscriptions.setVisibility(View.GONE);
+                refreshUi();
+                android.widget.Toast.makeText(requireContext(), toast, android.widget.Toast.LENGTH_SHORT).show();
+            });
+        });
     }
 
     // Backend selector, mirroring the settings screen's backend dropdown exactly.
