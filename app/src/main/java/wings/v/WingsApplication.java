@@ -51,6 +51,10 @@ public class WingsApplication extends Application {
             return;
         }
         wings.v.core.AppPrefs.runMigrationsIfNeeded(this);
+        // Reconcile any root routing/filter rules left behind by a stop whose
+        // background teardown did not finish, so apps are not stuck routing into a
+        // dead tunnel table after the VPN was turned off.
+        wings.v.service.ProxyTunnelService.cleanStaleRootRoutingOnLaunch(this);
         registerActivityLifecycleCallbacks(
             new ActivityLifecycleCallbacks() {
                 @Override

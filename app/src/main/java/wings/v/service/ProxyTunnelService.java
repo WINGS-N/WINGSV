@@ -288,12 +288,6 @@ public class ProxyTunnelService extends Service {
     private static final long BYEDPI_STOP_TIMEOUT_MS = 750L;
     private static final long FAST_STOP_CLEANUP_TIMEOUT_MS = 500L;
     private static final long FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS = 500L;
-    // Connectivity-critical root teardown (ip-rules + UID filter) gets a generous
-    // blocking cap instead of the 500ms best-effort budget: if it is backgrounded
-    // and does not finish, every app routes into the dead tunnel table and loses
-    // internet until the VPN is turned back on. These clears are fast in practice
-    // (a few ip rule dels + iptables), so the cap is only a safety ceiling.
-    private static final long FAST_STOP_ROOT_ROUTING_TIMEOUT_MS = 2_500L;
     private static final int PROXY_START_MAX_ATTEMPTS = 3;
     private static final int WB_STREAM_EXCHANGE_MAX_ATTEMPTS = 3;
     private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
@@ -2717,23 +2711,16 @@ public class ProxyTunnelService extends Service {
             proxyProcess = null;
         }
 
-        // Restore the device's own app connectivity FIRST and RELIABLY: in root mode
-        // app traffic is steered by ip-rules/iptables (not the VpnService), so until
-        // these are torn down every app routes into the now-dead tunnel table and
-        // loses internet. Run them as BLOCKING steps with a generous cap rather than
-        // the 500ms best-effort group, which could background them and leave apps
-        // dead until the VPN is turned back on.
-        runFastStopCleanupStep("Root routing cleanup", FAST_STOP_ROOT_ROUTING_TIMEOUT_MS, this::clearRootRouting);
-        runFastStopCleanupStep(
-            "Root app tunnel routing cleanup",
-            FAST_STOP_ROOT_ROUTING_TIMEOUT_MS,
-            this::clearRootAppTunnelRouting
-        );
-        // The rest are not connectivity-critical for the device's own apps (tether
-        // teardown is slow, link-down and proxy-kill are best-effort), so keep them
-        // in the fast parallel group.
+        // All teardown runs in the fast parallel group (best-effort, backgrounded
+        // past the deadline) so stopping never blocks the UI. The connectivity-
+        // critical clears (root routing + UID filter) are listed first so their
+        // threads hit the root shell first. If the process dies before a backgrounded
+        // clear finishes, the next app launch reconciles any stale root rules - see
+        // cleanStaleRootRoutingOnLaunch().
         runFastStopCleanupGroup(
             FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
+            new CleanupTask("Root routing cleanup", this::clearRootRouting),
+            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
             new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
             new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
             new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded)
@@ -6943,6 +6930,32 @@ public class ProxyTunnelService extends Service {
             .append("while ip -6 rule del pref ")
             .append(ROOT_BYPASS_DNS_PRIORITY)
             .append(" 2>/dev/null; do :; done;");
+    }
+
+    // Defensive reconciliation on app launch: if a background stop teardown did not
+    // finish before the process died, stale root UID ip-rules / filter would keep
+    // steering app traffic into a dead tunnel table and block connectivity until the
+    // VPN is turned back on. When the app starts with the tunnel NOT active, clear
+    // them off the main thread. No-op when the tunnel is active (it owns the rules)
+    // or root is not granted.
+    public static void cleanStaleRootRoutingOnLaunch(Context context) {
+        if (isActive() || context == null) {
+            return;
+        }
+        Context appContext = context.getApplicationContext();
+        if (!RootUtils.isRootAccessGranted(appContext)) {
+            return;
+        }
+        new Thread(
+            () -> {
+                if (isActive()) {
+                    return;
+                }
+                RootMultiUserRouter.clearQuietly(appContext);
+            },
+            "wingsv-launch-root-cleanup"
+        )
+            .start();
     }
 
     private void clearRootAppTunnelRouting() {
