@@ -596,6 +596,104 @@ public final class VkTurnProfileStore {
         return transport == null ? "" : transport.id;
     }
 
+    /**
+     * Replaces the set of stored VK TURN profiles tagged with subscriptionId by the
+     * given fetched list (already tagged with that same subscriptionId, and with
+     * their transportProfileId already resolved to a transport synced into the
+     * WireGuard / Amnezia stores by the caller). New profiles are added, vanished
+     * ones are pruned, and profiles from a different or empty subscription are left
+     * untouched. Ids are reused (by stableDedupKey) from the previous snapshot of
+     * THIS subscription so the active id and traffic stats stay stable. The
+     * embedded-transport creation is done by the caller before this call (it must
+     * sync the transports into their own stores first so the references resolve),
+     * mirroring XraySubscriptionUpdater's per-subscription replace.
+     */
+    public static void syncSubscriptionProfiles(Context context, String subscriptionId, List<VkTurnProfile> fetched) {
+        String subId = ProfileStoreSupport.trim(subscriptionId);
+        if (TextUtils.isEmpty(subId)) {
+            return;
+        }
+        List<VkTurnProfile> current = getProfiles(context);
+        Map<String, String> reuseIds = new LinkedHashMap<>();
+        ArrayList<VkTurnProfile> result = new ArrayList<>();
+        for (VkTurnProfile profile : current) {
+            if (profile == null) {
+                continue;
+            }
+            if (TextUtils.equals(subId, profile.subscriptionId)) {
+                reuseIds.putIfAbsent(profile.stableDedupKey(), profile.id);
+            } else {
+                result.add(profile);
+            }
+        }
+        LinkedHashMap<String, VkTurnProfile> fetchedByKey = new LinkedHashMap<>();
+        if (fetched != null) {
+            for (VkTurnProfile profile : fetched) {
+                if (profile == null || TextUtils.isEmpty(profile.id)) {
+                    continue;
+                }
+                VkTurnProfile tagged = TextUtils.equals(subId, profile.subscriptionId)
+                    ? profile
+                    : profile.withSubscription(subId, profile.subscriptionTitle);
+                String reused = reuseIds.get(tagged.stableDedupKey());
+                if (!TextUtils.isEmpty(reused) && !TextUtils.equals(reused, tagged.id)) {
+                    tagged = copyWithId(tagged, reused);
+                }
+                fetchedByKey.put(tagged.stableDedupKey(), tagged);
+            }
+        }
+        // Nothing stored for this subscription and nothing fetched: avoid a needless
+        // rewrite of the whole store on every refresh of an unrelated subscription.
+        if (reuseIds.isEmpty() && fetchedByKey.isEmpty()) {
+            return;
+        }
+        result.addAll(fetchedByKey.values());
+        setProfiles(context, result);
+        ensureActivePresent(context);
+    }
+
+    /** Distinct non-empty source subscription ids present in the stored profiles. */
+    public static List<String> subscriptionIdsInUse(Context context) {
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (VkTurnProfile profile : getProfiles(context)) {
+            if (profile != null && !TextUtils.isEmpty(profile.subscriptionId)) {
+                ids.add(profile.subscriptionId);
+            }
+        }
+        return new ArrayList<>(ids);
+    }
+
+    private static VkTurnProfile copyWithId(VkTurnProfile profile, String newId) {
+        return new VkTurnProfile(
+            newId,
+            profile.title,
+            profile.transportKind,
+            profile.transportProfileId,
+            profile.vkTurnEndpoint,
+            profile.threads,
+            profile.credsGroupSize,
+            profile.useUdp,
+            profile.noObfuscation,
+            profile.manualCaptcha,
+            profile.captchaAutoSolver,
+            profile.vkAuthMode,
+            profile.turnSessionMode,
+            profile.dnsMode,
+            profile.userDns,
+            profile.runtimeMode,
+            profile.restartOnNetworkChange,
+            profile.wrapMode,
+            profile.wrapCipher,
+            profile.wrapKeyHex,
+            profile.wrapSendKey,
+            profile.localEndpoint,
+            profile.turnHost,
+            profile.turnPort,
+            profile.subscriptionId,
+            profile.subscriptionTitle
+        );
+    }
+
     private static VkTurnProfile findByDedupKey(List<VkTurnProfile> profiles, String dedupKey) {
         if (TextUtils.isEmpty(dedupKey)) {
             return null;

@@ -374,6 +374,101 @@ public final class WireGuardProfileStore {
         return seeded;
     }
 
+    /**
+     * Replaces the set of stored profiles tagged with subscriptionId by the given
+     * fetched list (which is already tagged with that same subscriptionId). New
+     * profiles are added, profiles that vanished from the feed are pruned, and
+     * profiles from a different or empty subscription are left untouched. Ids are
+     * reused (by stableDedupKey) from the previous snapshot of THIS subscription so
+     * the active id and traffic stats stay stable across refreshes. Mirrors
+     * XraySubscriptionUpdater's per-subscription replace.
+     */
+    public static void syncSubscriptionProfiles(
+        Context context,
+        String subscriptionId,
+        List<WireGuardProfile> fetched
+    ) {
+        String subId = ProfileStoreSupport.trim(subscriptionId);
+        if (TextUtils.isEmpty(subId)) {
+            return;
+        }
+        List<WireGuardProfile> current = getProfiles(context);
+        Map<String, String> reuseIds = new LinkedHashMap<>();
+        ArrayList<WireGuardProfile> result = new ArrayList<>();
+        for (WireGuardProfile profile : current) {
+            if (profile == null) {
+                continue;
+            }
+            if (TextUtils.equals(subId, profile.subscriptionId)) {
+                reuseIds.putIfAbsent(profile.stableDedupKey(), profile.id);
+            } else {
+                result.add(profile);
+            }
+        }
+        LinkedHashMap<String, WireGuardProfile> fetchedByKey = new LinkedHashMap<>();
+        if (fetched != null) {
+            for (WireGuardProfile profile : fetched) {
+                if (profile == null || profile.isEmpty()) {
+                    continue;
+                }
+                WireGuardProfile tagged = TextUtils.equals(subId, profile.subscriptionId)
+                    ? profile
+                    : profile.withSubscription(subId, profile.subscriptionTitle);
+                String reused = reuseIds.get(tagged.stableDedupKey());
+                if (!TextUtils.isEmpty(reused) && !TextUtils.equals(reused, tagged.id)) {
+                    tagged = copyWithId(tagged, reused);
+                }
+                fetchedByKey.put(tagged.stableDedupKey(), tagged);
+            }
+        }
+        // Nothing stored for this subscription and nothing fetched: avoid a needless
+        // rewrite of the whole store on every refresh of an unrelated subscription.
+        if (reuseIds.isEmpty() && fetchedByKey.isEmpty()) {
+            return;
+        }
+        result.addAll(fetchedByKey.values());
+        setProfiles(context, result);
+        ensureActivePresent(context);
+    }
+
+    /** Distinct non-empty source subscription ids present in the stored profiles. */
+    public static List<String> subscriptionIdsInUse(Context context) {
+        java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
+        for (WireGuardProfile profile : getProfiles(context)) {
+            if (profile != null && !TextUtils.isEmpty(profile.subscriptionId)) {
+                ids.add(profile.subscriptionId);
+            }
+        }
+        return new ArrayList<>(ids);
+    }
+
+    /**
+     * Id of the stored profile whose stableDedupKey matches, or empty when none.
+     * Used to resolve a VK TURN profile's transport reference to a stable id after
+     * its transport has been synced into this store.
+     */
+    public static String idForDedupKey(Context context, String dedupKey) {
+        WireGuardProfile existing = findByDedupKey(getProfiles(context), dedupKey);
+        return existing == null ? "" : existing.id;
+    }
+
+    private static WireGuardProfile copyWithId(WireGuardProfile profile, String newId) {
+        return new WireGuardProfile(
+            newId,
+            profile.title,
+            profile.privateKey,
+            profile.addresses,
+            profile.dns,
+            profile.mtu,
+            profile.publicKey,
+            profile.presharedKey,
+            profile.allowedIps,
+            profile.endpoint,
+            profile.subscriptionId,
+            profile.subscriptionTitle
+        );
+    }
+
     private static WireGuardProfile findByDedupKey(List<WireGuardProfile> profiles, String dedupKey) {
         if (TextUtils.isEmpty(dedupKey)) {
             return null;
