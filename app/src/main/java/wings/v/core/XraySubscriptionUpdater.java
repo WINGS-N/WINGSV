@@ -403,6 +403,9 @@ public final class XraySubscriptionUpdater {
             try {
                 return fetchVia(context, url, false);
             } catch (Exception directError) {
+                // Report the original tunnel failure, but keep the direct attempt's
+                // trace attached so neither is lost.
+                tunnelError.addSuppressed(directError);
                 throw tunnelError;
             }
         }
