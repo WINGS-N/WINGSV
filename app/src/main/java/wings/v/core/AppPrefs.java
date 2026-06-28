@@ -1093,16 +1093,16 @@ public final class AppPrefs {
 
     /**
      * Returns the package set every routing backend should actually enforce
-     * for the active mode. Differs from {@link #getActiveAppRoutingPackages}
-     * when the Xposed "hide VPN status" feature is enabled: apps that are
-     * lied to about the VPN being absent must also be physically kept out
-     * of the tunnel, otherwise the app sees "no VPN" yet its packets still
-     * go via the tunnel and outbound connections silently fail.
+     * for the active mode: the user's explicit per-app selection for that mode
+     * (minus our own package). Whether an app is tunneled is decided solely by
+     * the whitelist / bypass selection - nothing else.
      *
-     * In BYPASS the hidden-VPN list is merged into the user-managed bypass
-     * set. In WHITELIST the hidden-VPN packages are subtracted from the
-     * allowlist so they are excluded from the tunnel. In OFF the result is
-     * always empty (per-app filter disabled).
+     * The Xposed "hide VPN status" feature is intentionally NOT mixed in here.
+     * It only lies to detector apps that no VPN is present; it must not move an
+     * app's traffic. Forcing the hidden-VPN apps out of the tunnel broke the
+     * common "Tor / proxy over WINGS V" case - in RF Tor cannot reach its
+     * relays directly, so it has to be tunneled, not bypassed. The hide hook
+     * stays; routing follows the user.
      */
     public static Set<String> getEffectiveAppRoutingPackages(Context context) {
         AppRoutingMode mode = getAppRoutingMode(context);
@@ -1110,36 +1110,8 @@ public final class AppPrefs {
             return new LinkedHashSet<>();
         }
         LinkedHashSet<String> packages = new LinkedHashSet<>(getAppRoutingPackages(context, mode));
-        Set<String> hiddenVpnPackages = effectiveHiddenVpnPackages(context);
-        if (!hiddenVpnPackages.isEmpty()) {
-            if (mode.isBypassFamily()) {
-                packages.addAll(hiddenVpnPackages);
-            } else {
-                packages.removeAll(hiddenVpnPackages);
-            }
-        }
         packages.remove(context.getPackageName());
         return packages;
-    }
-
-    private static Set<String> effectiveHiddenVpnPackages(Context context) {
-        SharedPreferences xposedPrefs = XposedModulePrefs.prefs(context);
-        boolean moduleEnabled = xposedPrefs.getBoolean(
-            XposedModulePrefs.KEY_ENABLED,
-            XposedModulePrefs.DEFAULT_ENABLED
-        );
-        boolean hideEnabled = xposedPrefs.getBoolean(
-            XposedModulePrefs.KEY_HIDE_VPN_APPS,
-            XposedModulePrefs.DEFAULT_HIDE_VPN_APPS
-        );
-        if (!moduleEnabled || !hideEnabled) {
-            return java.util.Collections.emptySet();
-        }
-        Set<String> hidden = XposedModulePrefs.getHiddenVpnPackages(context);
-        if (hidden == null || hidden.isEmpty()) {
-            return java.util.Collections.emptySet();
-        }
-        return hidden;
     }
 
     public static void setAppRoutingPackageEnabled(
