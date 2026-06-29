@@ -116,15 +116,23 @@ public final class WingsImportParser {
             .setType(WingsvProto.ConfigType.CONFIG_TYPE_ALL)
             .setAppRouting(buildAppRouting(context));
 
-        WingsvProto.Turn turn = buildTurn(scopedSettings(context, ExportScope.VK_TURN), true);
+        WingsvProto.Turn turn = buildTurnWithProfiles(context, scopedSettings(context, ExportScope.VK_TURN), true);
         if (!turn.equals(WingsvProto.Turn.getDefaultInstance())) {
             builder.setTurn(turn);
         }
-        WingsvProto.WireGuard wg = buildWireGuard(scopedSettings(context, ExportScope.WIREGUARD), true);
+        WingsvProto.WireGuard wg = buildWireGuardWithProfiles(
+            context,
+            scopedSettings(context, ExportScope.WIREGUARD),
+            true
+        );
         if (!wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
             builder.setWg(wg);
         }
-        WingsvProto.AmneziaWG awg = buildAmnezia(scopedSettings(context, ExportScope.AMNEZIAWG), true);
+        WingsvProto.AmneziaWG awg = buildAmneziaWithProfiles(
+            context,
+            scopedSettings(context, ExportScope.AMNEZIAWG),
+            true
+        );
         if (!awg.equals(WingsvProto.AmneziaWG.getDefaultInstance())) {
             builder.setAwg(awg);
         }
@@ -884,15 +892,23 @@ public final class WingsImportParser {
                 .setType(WingsvProto.ConfigType.CONFIG_TYPE_ALL)
                 .setAppRouting(buildAppRouting(context));
 
-            WingsvProto.Turn turn = buildTurn(scopedSettings(context, ExportScope.VK_TURN), true);
+            WingsvProto.Turn turn = buildTurnWithProfiles(context, scopedSettings(context, ExportScope.VK_TURN), true);
             if (!turn.equals(WingsvProto.Turn.getDefaultInstance())) {
                 builder.setTurn(turn);
             }
-            WingsvProto.WireGuard wg = buildWireGuard(scopedSettings(context, ExportScope.WIREGUARD), true);
+            WingsvProto.WireGuard wg = buildWireGuardWithProfiles(
+                context,
+                scopedSettings(context, ExportScope.WIREGUARD),
+                true
+            );
             if (!wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
                 builder.setWg(wg);
             }
-            WingsvProto.AmneziaWG awg = buildAmnezia(scopedSettings(context, ExportScope.AMNEZIAWG), true);
+            WingsvProto.AmneziaWG awg = buildAmneziaWithProfiles(
+                context,
+                scopedSettings(context, ExportScope.AMNEZIAWG),
+                true
+            );
             if (!awg.equals(WingsvProto.AmneziaWG.getDefaultInstance())) {
                 builder.setAwg(awg);
             }
@@ -2304,6 +2320,7 @@ public final class WingsImportParser {
             importedConfig.backendType = null;
             importedConfig.updateBackendType = false;
         }
+        parseBackendProfileLists(config, importedConfig);
         boolean allSettings = config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_ALL;
         importedConfig.hasAllSettings = allSettings;
         boolean handled = allSettings;
@@ -3021,6 +3038,260 @@ public final class WingsImportParser {
         );
     }
 
+    // ---- Per-backend profile libraries (WG / AWG / VK TURN), mirroring Xray. The
+    // full-settings export attaches the whole library so the panel sees every
+    // profile the device knows about; the active profile is also projected onto
+    // the flat fields of the same message for legacy clients. ----
+
+    private static WingsvProto.WireGuardProfile toProtoWgProfile(WireGuardProfile profile) throws Exception {
+        WingsvProto.WireGuard wgConfig = buildWireGuard(wireGuardProfileToSettings(profile), false);
+        WingsvProto.WireGuardProfile.Builder builder = WingsvProto.WireGuardProfile.newBuilder();
+        builder.setId(value(profile.id));
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            builder.setTitle(value(profile.title));
+        }
+        if (wgConfig.hasIface()) {
+            builder.setIface(wgConfig.getIface());
+        }
+        if (wgConfig.hasPeer()) {
+            builder.setPeer(wgConfig.getPeer());
+        }
+        if (wgConfig.hasEndpoint()) {
+            builder.setEndpoint(wgConfig.getEndpoint());
+        }
+        if (!TextUtils.isEmpty(value(profile.subscriptionId))) {
+            builder.setSubscriptionId(value(profile.subscriptionId));
+        }
+        if (!TextUtils.isEmpty(value(profile.subscriptionTitle))) {
+            builder.setSubscriptionTitle(value(profile.subscriptionTitle));
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.AmneziaProfile toProtoAwgProfile(AmneziaProfile profile) {
+        WingsvProto.AmneziaProfile.Builder builder = WingsvProto.AmneziaProfile.newBuilder();
+        builder.setId(value(profile.id));
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            builder.setTitle(value(profile.title));
+        }
+        builder.setAwgQuickConfig(value(profile.quickConfig));
+        if (!TextUtils.isEmpty(value(profile.subscriptionId))) {
+            builder.setSubscriptionId(value(profile.subscriptionId));
+        }
+        if (!TextUtils.isEmpty(value(profile.subscriptionTitle))) {
+            builder.setSubscriptionTitle(value(profile.subscriptionTitle));
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.TurnProfile toProtoTurnProfile(VkTurnProfile profile) throws Exception {
+        WingsvProto.TurnProfile.Builder builder = WingsvProto.TurnProfile.newBuilder();
+        builder.setId(value(profile.id));
+        if (!TextUtils.isEmpty(value(profile.title))) {
+            builder.setTitle(value(profile.title));
+        }
+        if (!TextUtils.isEmpty(value(profile.transportKind))) {
+            builder.setTransportKind(value(profile.transportKind));
+        }
+        if (!TextUtils.isEmpty(value(profile.transportProfileId))) {
+            builder.setTransportProfileId(value(profile.transportProfileId));
+        }
+        if (!TextUtils.isEmpty(value(profile.vkTurnEndpoint))) {
+            builder.setVkTurnEndpoint(value(profile.vkTurnEndpoint));
+        }
+        // The inner Turn captures the per-profile proxy settings; it is never
+        // populated with its own profiles. The referenced transport (WG/AWG) is
+        // carried in the same Config's wg.profiles / awg.profiles.
+        builder.setConfig(buildTurn(vkTurnProfileToSettings(profile), true));
+        if (!TextUtils.isEmpty(value(profile.subscriptionId))) {
+            builder.setSubscriptionId(value(profile.subscriptionId));
+        }
+        if (!TextUtils.isEmpty(value(profile.subscriptionTitle))) {
+            builder.setSubscriptionTitle(value(profile.subscriptionTitle));
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.WireGuard buildWireGuardWithProfiles(
+        Context context,
+        ProxySettings settings,
+        boolean includeDefaults
+    ) throws Exception {
+        WingsvProto.WireGuard.Builder builder = buildWireGuard(settings, includeDefaults).toBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        LinkedHashMap<String, WireGuardProfile> profiles = new LinkedHashMap<>();
+        for (WireGuardProfile profile : WireGuardProfileStore.getProfiles(context)) {
+            if (profile != null && !profile.isEmpty()) {
+                profiles.put(profile.stableDedupKey(), profile);
+            }
+        }
+        String activeId = value(WireGuardProfileStore.getActiveProfileId(context));
+        for (WireGuardProfile profile : profiles.values()) {
+            if (!TextUtils.isEmpty(activeId) && activeId.equals(value(profile.id))) {
+                builder.setActiveProfileId(activeId);
+            }
+            builder.addProfiles(toProtoWgProfile(profile));
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.AmneziaWG buildAmneziaWithProfiles(
+        Context context,
+        ProxySettings settings,
+        boolean includeDefaults
+    ) {
+        WingsvProto.AmneziaWG.Builder builder = buildAmnezia(settings, includeDefaults).toBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        LinkedHashMap<String, AmneziaProfile> profiles = new LinkedHashMap<>();
+        for (AmneziaProfile profile : AmneziaProfileStore.getProfiles(context)) {
+            if (profile != null && !profile.isEmpty()) {
+                profiles.put(profile.stableDedupKey(), profile);
+            }
+        }
+        String activeId = value(AmneziaProfileStore.getActiveProfileId(context));
+        for (AmneziaProfile profile : profiles.values()) {
+            if (!TextUtils.isEmpty(activeId) && activeId.equals(value(profile.id))) {
+                builder.setActiveProfileId(activeId);
+            }
+            builder.addProfiles(toProtoAwgProfile(profile));
+        }
+        return builder.build();
+    }
+
+    private static WingsvProto.Turn buildTurnWithProfiles(
+        Context context,
+        ProxySettings settings,
+        boolean includeDefaults
+    ) throws Exception {
+        WingsvProto.Turn.Builder builder = buildTurn(settings, includeDefaults).toBuilder();
+        if (context == null) {
+            return builder.build();
+        }
+        LinkedHashMap<String, VkTurnProfile> profiles = new LinkedHashMap<>();
+        for (VkTurnProfile profile : VkTurnProfileStore.getProfiles(context)) {
+            if (profile != null && !TextUtils.isEmpty(value(profile.vkTurnEndpoint))) {
+                profiles.put(profile.stableDedupKey(), profile);
+            }
+        }
+        String activeId = value(VkTurnProfileStore.getActiveProfileId(context));
+        for (VkTurnProfile profile : profiles.values()) {
+            if (!TextUtils.isEmpty(activeId) && activeId.equals(value(profile.id))) {
+                builder.setActiveProfileId(activeId);
+            }
+            builder.addProfiles(toProtoTurnProfile(profile));
+        }
+        return builder.build();
+    }
+
+    private static void parseBackendProfileLists(WingsvProto.Config config, ImportedConfig importedConfig)
+        throws Exception {
+        if (config.hasWg() && config.getWg().getProfilesCount() > 0) {
+            importedConfig.hasWgProfiles = true;
+            importedConfig.activeWgProfileId = value(config.getWg().getActiveProfileId());
+            for (WingsvProto.WireGuardProfile profile : config.getWg().getProfilesList()) {
+                importedConfig.wgProfiles.add(fromProtoWgProfile(profile));
+            }
+        }
+        if (config.hasAwg() && config.getAwg().getProfilesCount() > 0) {
+            importedConfig.hasAwgProfiles = true;
+            importedConfig.activeAwgProfileId = value(config.getAwg().getActiveProfileId());
+            for (WingsvProto.AmneziaProfile profile : config.getAwg().getProfilesList()) {
+                importedConfig.awgProfiles.add(fromProtoAwgProfile(profile));
+            }
+        }
+        if (config.hasTurn() && config.getTurn().getProfilesCount() > 0) {
+            importedConfig.hasTurnProfiles = true;
+            importedConfig.activeTurnProfileId = value(config.getTurn().getActiveProfileId());
+            for (WingsvProto.TurnProfile profile : config.getTurn().getProfilesList()) {
+                importedConfig.turnProfiles.add(fromProtoTurnProfile(profile));
+            }
+        }
+    }
+
+    private static WireGuardProfile fromProtoWgProfile(WingsvProto.WireGuardProfile profile) throws Exception {
+        // Reuse parseWireGuard's iface/peer/endpoint extraction by wrapping the
+        // profile's sub-messages into a throwaway WireGuard message.
+        WingsvProto.WireGuard.Builder wg = WingsvProto.WireGuard.newBuilder();
+        if (profile.hasIface()) {
+            wg.setIface(profile.getIface());
+        }
+        if (profile.hasPeer()) {
+            wg.setPeer(profile.getPeer());
+        }
+        if (profile.hasEndpoint()) {
+            wg.setEndpoint(profile.getEndpoint());
+        }
+        ImportedConfig temp = new ImportedConfig();
+        parseWireGuard(wg.build(), temp);
+        return new WireGuardProfile(
+            value(profile.getId()),
+            value(profile.getTitle()),
+            value(temp.wgPrivateKey),
+            value(temp.wgAddresses),
+            value(temp.wgDns),
+            temp.wgMtu != null ? temp.wgMtu : 0,
+            value(temp.wgPublicKey),
+            value(temp.wgPresharedKey),
+            value(temp.wgAllowedIps),
+            value(temp.wgEndpoint),
+            value(profile.getSubscriptionId()),
+            value(profile.getSubscriptionTitle())
+        );
+    }
+
+    private static AmneziaProfile fromProtoAwgProfile(WingsvProto.AmneziaProfile profile) {
+        return new AmneziaProfile(
+            value(profile.getId()),
+            value(profile.getTitle()),
+            value(profile.getAwgQuickConfig()),
+            value(profile.getSubscriptionId()),
+            value(profile.getSubscriptionTitle())
+        );
+    }
+
+    private static VkTurnProfile fromProtoTurnProfile(WingsvProto.TurnProfile profile) {
+        // Reuse parseTurn to decode the embedded proxy settings, then layer the
+        // VK identity (transport reference + endpoint) on top. vkAuthMode and
+        // dnsMode are not carried by the Turn proto, so they default to empty.
+        ImportedConfig temp = new ImportedConfig();
+        parseTurn(profile.getConfig(), temp);
+        String endpoint = !TextUtils.isEmpty(value(profile.getVkTurnEndpoint()))
+            ? value(profile.getVkTurnEndpoint())
+            : value(temp.endpoint);
+        return new VkTurnProfile(
+            value(profile.getId()),
+            value(profile.getTitle()),
+            value(profile.getTransportKind()),
+            value(profile.getTransportProfileId()),
+            endpoint,
+            temp.threads != null ? temp.threads : 0,
+            temp.credsGroupSize != null ? temp.credsGroupSize : 0,
+            temp.useUdp != null && temp.useUdp,
+            temp.noObfuscation != null && temp.noObfuscation,
+            temp.manualCaptcha != null && temp.manualCaptcha,
+            value(temp.captchaAutoSolver),
+            "",
+            value(temp.turnSessionMode),
+            "",
+            value(temp.vkTurnUserDns),
+            temp.vkTurnRuntimeMode != null ? temp.vkTurnRuntimeMode.prefValue : "",
+            temp.vkTurnRestartOnNetworkChange != null && temp.vkTurnRestartOnNetworkChange,
+            value(temp.vkTurnWrapMode),
+            value(temp.vkTurnWrapCipher),
+            value(temp.vkTurnWrapKeyHex),
+            temp.vkTurnWrapSendKey != null && temp.vkTurnWrapSendKey,
+            value(temp.localEndpoint),
+            value(temp.turnHost),
+            value(temp.turnPort),
+            value(profile.getSubscriptionId()),
+            value(profile.getSubscriptionTitle())
+        );
+    }
+
     private static XraySettings fromProtoXraySettings(WingsvProto.XraySettings settings) {
         XraySettings result = defaultXraySettings();
         if (settings.hasAllowLan()) {
@@ -3373,6 +3644,18 @@ public final class WingsImportParser {
         public String wgPresharedKey;
         public String wgAllowedIps;
         public String awgQuickConfig;
+        // Per-backend profile libraries carried by a full config (panel desired_config).
+        // When present the importer REPLACES the matching store's profile list, mirroring
+        // how applyImportedXraySettings replaces the Xray profile list.
+        public boolean hasWgProfiles;
+        public final List<WireGuardProfile> wgProfiles = new ArrayList<>();
+        public String activeWgProfileId;
+        public boolean hasAwgProfiles;
+        public final List<AmneziaProfile> awgProfiles = new ArrayList<>();
+        public String activeAwgProfileId;
+        public boolean hasTurnProfiles;
+        public final List<VkTurnProfile> turnProfiles = new ArrayList<>();
+        public String activeTurnProfileId;
         // Profile titles carried by single-profile share links (empty otherwise).
         // applyImportedConfig prefers these over a synthesized title when adding
         // the imported config as a backend profile.

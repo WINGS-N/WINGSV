@@ -1393,6 +1393,7 @@ public final class AppPrefs {
         // to the matching backend's profile list (deduped), make it active and
         // re-project it onto the flat keys, mirroring Xray's add-don't-replace.
         applyImportedBackendProfile(context, importedConfig, backendType);
+        applyImportedBackendProfileLists(context, importedConfig);
 
         if (importedConfig.hasXraySettings) {
             applyImportedXraySettings(context, importedConfig);
@@ -1655,6 +1656,49 @@ public final class AppPrefs {
             XrayStore.setImportedSubscriptionJson(context, importedConfig.xraySubscriptionJson);
         }
         XrayStore.setLastSubscriptionsError(context, "");
+    }
+
+    // Replaces a backend's profile library from a full config (panel desired_config),
+    // mirroring how applyImportedXraySettings replaces the Xray list. The pushed ids
+    // are kept verbatim, so VK TURN transport references stay valid; the active
+    // profile is then re-projected onto the flat keys the runtime reads.
+    private static void applyImportedBackendProfileLists(
+        Context context,
+        WingsImportParser.ImportedConfig importedConfig
+    ) {
+        if (importedConfig.hasWgProfiles) {
+            WireGuardProfileStore.setProfiles(context, importedConfig.wgProfiles);
+            String active = trim(importedConfig.activeWgProfileId);
+            if (TextUtils.isEmpty(active) && !importedConfig.wgProfiles.isEmpty()) {
+                active = importedConfig.wgProfiles.get(0).id;
+            }
+            if (!TextUtils.isEmpty(active)) {
+                WireGuardProfileStore.setActiveProfileId(context, active);
+            }
+            WireGuardProfileStore.applyActiveToPrefs(context);
+        }
+        if (importedConfig.hasAwgProfiles) {
+            AmneziaProfileStore.setProfiles(context, importedConfig.awgProfiles);
+            String active = trim(importedConfig.activeAwgProfileId);
+            if (TextUtils.isEmpty(active) && !importedConfig.awgProfiles.isEmpty()) {
+                active = importedConfig.awgProfiles.get(0).id;
+            }
+            if (!TextUtils.isEmpty(active)) {
+                AmneziaProfileStore.setActiveProfileId(context, active);
+            }
+            AmneziaProfileStore.applyActiveToPrefs(context);
+        }
+        if (importedConfig.hasTurnProfiles) {
+            VkTurnProfileStore.setProfiles(context, importedConfig.turnProfiles);
+            String active = trim(importedConfig.activeTurnProfileId);
+            if (TextUtils.isEmpty(active) && !importedConfig.turnProfiles.isEmpty()) {
+                active = importedConfig.turnProfiles.get(0).id;
+            }
+            if (!TextUtils.isEmpty(active)) {
+                VkTurnProfileStore.setActiveProfileId(context, active);
+            }
+            VkTurnProfileStore.applyActiveToPrefs(context);
+        }
     }
 
     private static void forceDisableRootDependentFlags(Context context) {
