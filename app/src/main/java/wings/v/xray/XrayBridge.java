@@ -4,7 +4,6 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
-import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.text.TextUtils;
@@ -19,7 +18,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import libXray.DialerController;
@@ -187,7 +185,7 @@ public final class XrayBridge {
                 );
             }
             ACTIVE_NETWORK_CONTROLLER.set(vpnService);
-            configureRuntimeNetworkingLocked(remoteDns, directDns);
+            ensureControllersRegisteredLocked();
         }
     }
 
@@ -195,7 +193,7 @@ public final class XrayBridge {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             ACTIVE_NETWORK_CONTROLLER.set(DIRECT_NETWORK_CONTROLLER);
-            configureRuntimeNetworkingLocked(remoteDns, directDns);
+            ensureControllersRegisteredLocked();
         }
     }
 
@@ -210,7 +208,7 @@ public final class XrayBridge {
                 throw new IllegalArgumentException("Protect socket name is empty");
             }
             ACTIVE_NETWORK_CONTROLLER.set(new ProtectBridgeDialerController(socketName));
-            configureRuntimeNetworkingLocked(remoteDns, directDns);
+            ensureControllersRegisteredLocked();
         }
     }
 
@@ -312,7 +310,6 @@ public final class XrayBridge {
             } finally {
                 RUNTIME_STARTED.set(false);
                 ACTIVE_NETWORK_CONTROLLER.set(DIRECT_NETWORK_CONTROLLER);
-                LibXray.resetDns();
             }
         }
     }
@@ -420,126 +417,6 @@ public final class XrayBridge {
             }
             LibXray.setUIDLookupDiagPath(diagFile.getAbsolutePath());
         } catch (Exception ignored) {}
-    }
-
-    private static void configureRuntimeNetworkingLocked(String remoteDns, String directDns) {
-        ensureControllersRegisteredLocked();
-        String runtimeDns = resolveBootstrapDnsDialTarget(remoteDns, directDns);
-        if (!TextUtils.isEmpty(runtimeDns)) {
-            LibXray.initDns(DELEGATING_CONTROLLER, runtimeDns);
-        } else {
-            LibXray.resetDns();
-        }
-    }
-
-    private static String resolveBootstrapDnsDialTarget(String remoteDns, String directDns) {
-        String candidate = normalizePlainDnsDialTarget(remoteDns);
-        if (!TextUtils.isEmpty(candidate)) {
-            return candidate;
-        }
-        candidate = normalizePlainDnsDialTarget(directDns);
-        if (!TextUtils.isEmpty(candidate)) {
-            return candidate;
-        }
-        candidate = normalizeDnsUrlBootstrapTarget(remoteDns);
-        if (!TextUtils.isEmpty(candidate)) {
-            return candidate;
-        }
-        candidate = normalizeDnsUrlBootstrapTarget(directDns);
-        if (!TextUtils.isEmpty(candidate)) {
-            return candidate;
-        }
-        return "1.1.1.1:53";
-    }
-
-    private static String normalizePlainDnsDialTarget(String value) {
-        String normalized = trim(value);
-        if (TextUtils.isEmpty(normalized)) {
-            return "";
-        }
-        if (looksLikeDnsUrl(normalized)) {
-            return "";
-        }
-        if (normalized.startsWith("[")) {
-            return normalized.contains("]:") ? normalized : normalized + ":53";
-        }
-        int firstColon = normalized.indexOf(':');
-        int lastColon = normalized.lastIndexOf(':');
-        if (firstColon >= 0 && firstColon == lastColon) {
-            String portCandidate = normalized.substring(lastColon + 1);
-            if (isDigits(portCandidate)) {
-                return normalized;
-            }
-            return normalized + ":53";
-        }
-        if (firstColon != lastColon) {
-            return "[" + normalized + "]:53";
-        }
-        return normalized + ":53";
-    }
-
-    private static String normalizeDnsUrlBootstrapTarget(String value) {
-        String normalized = trim(value);
-        if (!looksLikeDnsUrl(normalized)) {
-            return "";
-        }
-        try {
-            Uri uri = Uri.parse(normalized);
-            String host = trim(uri.getHost());
-            if (TextUtils.isEmpty(host)) {
-                return "";
-            }
-            if (!looksLikeIpLiteral(host)) {
-                return "";
-            }
-            if (host.contains(":")) {
-                return "[" + host + "]:53";
-            }
-            return host + ":53";
-        } catch (Exception ignored) {
-            return "";
-        }
-    }
-
-    private static boolean looksLikeDnsUrl(String value) {
-        if (TextUtils.isEmpty(value)) {
-            return false;
-        }
-        String normalized = value.toLowerCase(Locale.ROOT);
-        return (
-            normalized.startsWith("https://") ||
-            normalized.startsWith("tls://") ||
-            normalized.startsWith("quic://") ||
-            normalized.startsWith("h3://")
-        );
-    }
-
-    private static boolean looksLikeIpLiteral(String host) {
-        if (TextUtils.isEmpty(host)) {
-            return false;
-        }
-        if (host.contains(":")) {
-            return true;
-        }
-        for (int index = 0; index < host.length(); index++) {
-            char value = host.charAt(index);
-            if (!(Character.isDigit(value) || value == '.')) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean isDigits(String value) {
-        if (TextUtils.isEmpty(value)) {
-            return false;
-        }
-        for (int index = 0; index < value.length(); index++) {
-            if (!Character.isDigit(value.charAt(index))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static String trim(String value) {
