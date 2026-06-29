@@ -3084,7 +3084,8 @@ public final class WingsImportParser {
         return builder.build();
     }
 
-    private static WingsvProto.TurnProfile toProtoTurnProfile(VkTurnProfile profile) throws Exception {
+    // Package-private for round-trip unit tests (BackendProfileRoundTripTest).
+    static WingsvProto.TurnProfile toProtoTurnProfile(VkTurnProfile profile) throws Exception {
         WingsvProto.TurnProfile.Builder builder = WingsvProto.TurnProfile.newBuilder();
         builder.setId(value(profile.id));
         if (!TextUtils.isEmpty(value(profile.title))) {
@@ -3259,7 +3260,8 @@ public final class WingsImportParser {
         );
     }
 
-    private static VkTurnProfile fromProtoTurnProfile(WingsvProto.TurnProfile profile) {
+    // Package-private for round-trip unit tests (BackendProfileRoundTripTest).
+    static VkTurnProfile fromProtoTurnProfile(WingsvProto.TurnProfile profile) {
         // Reuse parseTurn to decode the embedded proxy settings, then layer the
         // VK identity (transport reference + endpoint) on top. vkAuthMode and
         // dnsMode are not carried by the Turn proto, so they default to empty.
