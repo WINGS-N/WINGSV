@@ -355,7 +355,7 @@ public final class WingsImportParser {
         }
         WingsvProto.Config config = WingsvProto.Config.newBuilder()
             .setVer(CURRENT_VERSION)
-            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_PLAIN)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_TL)
             .setType(WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG)
             .setAwg(awg.build())
             .build();
@@ -391,7 +391,7 @@ public final class WingsImportParser {
 
         WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
             .setVer(CURRENT_VERSION)
-            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_VK_TURN_WIREGUARD)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_VK_TURN)
             .setType(WingsvProto.ConfigType.CONFIG_TYPE_VK_TURN_PROFILE)
             .setTurn(turn.build());
 
@@ -2288,7 +2288,18 @@ public final class WingsImportParser {
 
         ImportedConfig importedConfig = new ImportedConfig();
         if (config.getBackend() != WingsvProto.BackendType.BACKEND_TYPE_UNSPECIFIED) {
-            importedConfig.backendType = BackendType.fromProto(config.getBackend());
+            BackendType resolvedBackend = BackendType.fromProto(config.getBackend());
+            // New proto encodes VK TURN as BACKEND_TYPE_VK_TURN with the WG/AWG choice
+            // carried by Turn.tunnel_mode; recover the AWG variant so it is not lost.
+            // Legacy BACKEND_TYPE_AMNEZIAWG already resolves to AMNEZIAWG directly.
+            if (
+                resolvedBackend == BackendType.VK_TURN_WIREGUARD &&
+                config.hasTurn() &&
+                config.getTurn().getTunnelMode() == WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG
+            ) {
+                resolvedBackend = BackendType.AMNEZIAWG;
+            }
+            importedConfig.backendType = resolvedBackend;
         } else {
             importedConfig.backendType = null;
             importedConfig.updateBackendType = false;

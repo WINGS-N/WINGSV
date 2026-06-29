@@ -51,12 +51,17 @@ public enum BackendType {
         if (backendType == WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_PLAIN) {
             return AMNEZIAWG_PLAIN;
         }
+        if (backendType == WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_TL) {
+            return AMNEZIAWG_PLAIN;
+        }
         if (backendType == WingsvProto.BackendType.BACKEND_TYPE_XRAY) {
             return XRAY;
         }
         if (backendType == WingsvProto.BackendType.BACKEND_TYPE_WB_STREAM) {
             return WB_STREAM;
         }
+        // Covers BACKEND_TYPE_VK_TURN (new) and the legacy BACKEND_TYPE_VK_TURN_WIREGUARD.
+        // The VK+AWG variant is recovered from Turn.tunnel_mode by the importer.
         return VK_TURN_WIREGUARD;
     }
 
@@ -81,10 +86,11 @@ public enum BackendType {
             return WingsvProto.BackendType.BACKEND_TYPE_WIREGUARD;
         }
         if (this == AMNEZIAWG) {
-            return WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG;
+            // VK TURN over AmneziaWG: tunnel carried by Turn.tunnel_mode in the new model.
+            return WingsvProto.BackendType.BACKEND_TYPE_VK_TURN;
         }
         if (this == AMNEZIAWG_PLAIN) {
-            return WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_PLAIN;
+            return WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_TL;
         }
         if (this == XRAY) {
             return WingsvProto.BackendType.BACKEND_TYPE_XRAY;
@@ -92,7 +98,7 @@ public enum BackendType {
         if (this == WB_STREAM || this == WB_STREAM_AMNEZIAWG) {
             return WingsvProto.BackendType.BACKEND_TYPE_WB_STREAM;
         }
-        return WingsvProto.BackendType.BACKEND_TYPE_VK_TURN_WIREGUARD;
+        return WingsvProto.BackendType.BACKEND_TYPE_VK_TURN;
     }
 
     /** TunnelMode для WbStream/Turn-обёрток. Возвращает UNSPECIFIED для backend'ов без подтипа. */
