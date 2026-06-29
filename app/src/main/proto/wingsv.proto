@@ -119,6 +119,19 @@ message AmneziaWG {
   // saved AmneziaWG profile). Empty in legacy / full-settings exports; the
   // importer synthesizes a title when this is empty.
   string title = 2;
+  // Multi-profile library for the standalone AmneziaWG backend (mirrors Xray).
+  // The active profile is projected onto the flat field above at runtime.
+  string active_profile_id = 3;
+  repeated AmneziaProfile profiles = 4;
+  optional bool merge_only = 5;
+}
+
+message AmneziaProfile {
+  string id = 1;
+  string title = 2;
+  string awg_quick_config = 3;
+  string subscription_id = 4;
+  string subscription_title = 5;
 }
 
 message Endpoint {
@@ -176,6 +189,28 @@ message Turn {
   // importer synthesizes a title when this is empty. The referenced transport
   // (WG or AWG sub-config) travels in the same Config alongside this Turn.
   string title = 23;
+  // Multi-profile library for the VK TURN backend (mirrors Xray). The active
+  // profile is projected onto the flat fields above at runtime.
+  string active_profile_id = 24;
+  repeated TurnProfile profiles = 25;
+  optional bool merge_only = 26;
+}
+
+message TurnProfile {
+  string id = 1;
+  string title = 2;
+  // "wg" | "awg" - which transport the VK TURN proxy runs over.
+  string transport_kind = 3;
+  // Reference (by id) to the WireGuardProfile / AmneziaProfile that carries the
+  // transport. The referenced profile travels in the same Config's wg.profiles /
+  // awg.profiles - this is NOT an embedded copy.
+  string transport_profile_id = 4;
+  string vk_turn_endpoint = 5;
+  // Per-profile VK TURN proxy settings (threads/wrap/dns/...). The inner Turn is
+  // never populated with its own profiles.
+  Turn config = 6;
+  string subscription_id = 7;
+  string subscription_title = 8;
 }
 
 enum WrapKeyDelivery {
@@ -223,6 +258,21 @@ message WireGuard {
   // saved WireGuard profile). Empty in legacy / full-settings exports; the
   // importer synthesizes a title when this is empty.
   string title = 4;
+  // Multi-profile library for the standalone WireGuard backend (mirrors Xray).
+  // The active profile is projected onto the flat fields above at runtime.
+  string active_profile_id = 5;
+  repeated WireGuardProfile profiles = 6;
+  optional bool merge_only = 7;
+}
+
+message WireGuardProfile {
+  string id = 1;
+  string title = 2;
+  Interface iface = 3;
+  Peer peer = 4;
+  Endpoint endpoint = 5;
+  string subscription_id = 6;
+  string subscription_title = 7;
 }
 
 message Interface {
