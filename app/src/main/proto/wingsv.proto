@@ -211,6 +211,12 @@ message TurnProfile {
   Turn config = 6;
   string subscription_id = 7;
   string subscription_title = 8;
+  // "account" | "anonymous" - UI "Use VK ID" toggle. Not carried by the inner
+  // Turn message, so it lives here directly.
+  string vk_auth_mode = 9;
+  // "auto" | "udp" | "doh" - UI "DNS resolver" list (shared VK TURN / WB Stream
+  // setting). Not carried by the inner Turn message.
+  string dns_mode = 10;
 }
 
 enum WrapKeyDelivery {

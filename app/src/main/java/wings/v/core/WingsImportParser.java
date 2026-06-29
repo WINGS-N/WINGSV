@@ -3109,6 +3109,12 @@ public final class WingsImportParser {
         if (!TextUtils.isEmpty(value(profile.subscriptionTitle))) {
             builder.setSubscriptionTitle(value(profile.subscriptionTitle));
         }
+        if (!TextUtils.isEmpty(value(profile.vkAuthMode))) {
+            builder.setVkAuthMode(value(profile.vkAuthMode));
+        }
+        if (!TextUtils.isEmpty(value(profile.dnsMode))) {
+            builder.setDnsMode(value(profile.dnsMode));
+        }
         return builder.build();
     }
 
@@ -3274,9 +3280,9 @@ public final class WingsImportParser {
             temp.noObfuscation != null && temp.noObfuscation,
             temp.manualCaptcha != null && temp.manualCaptcha,
             value(temp.captchaAutoSolver),
-            "",
+            value(profile.getVkAuthMode()),
             value(temp.turnSessionMode),
-            "",
+            value(profile.getDnsMode()),
             value(temp.vkTurnUserDns),
             temp.vkTurnRuntimeMode != null ? temp.vkTurnRuntimeMode.prefValue : "",
             temp.vkTurnRestartOnNetworkChange != null && temp.vkTurnRestartOnNetworkChange,
