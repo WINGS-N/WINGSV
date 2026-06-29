@@ -189,10 +189,10 @@ public class FirstLaunchXrayFragment extends Fragment {
             pendingImport = parsed;
             if (!android.text.TextUtils.isEmpty(parsed.guardianAdminUsername)) {
                 wings.v.core.GuardianImportPrompt.show(requireActivity(), parsed, () ->
-                    wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                    guardianConfirmLauncher.launch(wings.v.core.GuardianImportGate.createIntent(requireActivity()))
                 );
             } else {
-                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                guardianConfirmLauncher.launch(wings.v.core.GuardianImportGate.createIntent(requireActivity()));
             }
             return;
         }
@@ -263,31 +263,26 @@ public class FirstLaunchXrayFragment extends Fragment {
         }
     }
 
-    private static final int REQUEST_GUARDIAN_CONFIRM = 4302;
+    private final ActivityResultLauncher<Intent> guardianConfirmLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> onGuardianConfirmResult(result.getResultCode())
+    );
     private String pendingImportRawText;
     private WingsImportParser.ImportedConfig pendingImport;
 
-    @Override
-    public void onActivityResult(
-        int requestCode,
-        int resultCode,
-        @androidx.annotation.Nullable android.content.Intent data
-    ) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_GUARDIAN_CONFIRM) {
-            String text = pendingImportRawText;
-            WingsImportParser.ImportedConfig parsed = pendingImport;
-            pendingImportRawText = null;
-            pendingImport = null;
-            Context context = getContext();
-            if (context == null) {
-                return;
-            }
-            if (resultCode == android.app.Activity.RESULT_OK && parsed != null && text != null) {
-                applyParsedImport(text, parsed);
-            } else {
-                Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
-            }
+    private void onGuardianConfirmResult(int resultCode) {
+        String text = pendingImportRawText;
+        WingsImportParser.ImportedConfig parsed = pendingImport;
+        pendingImportRawText = null;
+        pendingImport = null;
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        if (resultCode == android.app.Activity.RESULT_OK && parsed != null && text != null) {
+            applyParsedImport(text, parsed);
+        } else {
+            Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
         }
     }
 

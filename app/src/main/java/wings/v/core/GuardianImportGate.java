@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.content.Intent;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.fragment.app.Fragment;
 import wings.v.R;
 import wings.v.WarningConfirmActivity;
 
@@ -34,9 +33,5 @@ public final class GuardianImportGate {
 
     public static void launchFromActivity(@NonNull Activity activity, int requestCode) {
         activity.startActivityForResult(createIntent(activity), requestCode);
-    }
-
-    public static void launchFromFragment(@NonNull Fragment fragment, int requestCode) {
-        fragment.startActivityForResult(createIntent(fragment.requireActivity()), requestCode);
     }
 }

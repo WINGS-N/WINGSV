@@ -29,7 +29,10 @@ public class FirstLaunchConnectionFragment extends Fragment {
     public static final String CHOICE_XRAY = "xray";
     public static final String CHOICE_AUTO_SEARCH = "auto_search";
 
-    private static final int REQUEST_GUARDIAN_CONFIRM = 4304;
+    private final ActivityResultLauncher<Intent> guardianConfirmLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> onGuardianConfirmResult(result.getResultCode())
+    );
 
     @Nullable
     private FragmentFirstLaunchConnectionBinding binding;
@@ -156,10 +159,10 @@ public class FirstLaunchConnectionFragment extends Fragment {
             pendingImportParsed = parsed;
             if (!android.text.TextUtils.isEmpty(parsed.guardianAdminUsername)) {
                 wings.v.core.GuardianImportPrompt.show(requireActivity(), parsed, () ->
-                    GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                    guardianConfirmLauncher.launch(GuardianImportGate.createIntent(requireActivity()))
                 );
             } else {
-                GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                guardianConfirmLauncher.launch(GuardianImportGate.createIntent(requireActivity()));
             }
             return;
         }
@@ -174,12 +177,7 @@ public class FirstLaunchConnectionFragment extends Fragment {
         }
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_GUARDIAN_CONFIRM) {
-            return;
-        }
+    private void onGuardianConfirmResult(int resultCode) {
         WingsImportParser.ImportedConfig parsed = pendingImportParsed;
         pendingImportRawText = null;
         pendingImportParsed = null;

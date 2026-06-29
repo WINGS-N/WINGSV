@@ -16,6 +16,8 @@ import android.view.ViewGroup;
 import android.view.animation.LinearInterpolator;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
@@ -609,14 +611,14 @@ public class HomeFragment extends Fragment {
                 pendingImportRawText = rawText;
                 pendingImport = importedConfig;
                 wings.v.core.GuardianImportPrompt.show(requireActivity(), importedConfig, () ->
-                    wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM)
+                    guardianConfirmLauncher.launch(wings.v.core.GuardianImportGate.createIntent(requireActivity()))
                 );
                 return;
             }
             if (wings.v.core.GuardianImportGate.needsConfirmation(importedConfig)) {
                 pendingImportRawText = rawText;
                 pendingImport = importedConfig;
-                wings.v.core.GuardianImportGate.launchFromFragment(this, REQUEST_GUARDIAN_CONFIRM);
+                guardianConfirmLauncher.launch(wings.v.core.GuardianImportGate.createIntent(requireActivity()));
                 return;
             }
             applyImportedConfigInternal(context, rawText, importedConfig);
@@ -625,25 +627,24 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    private static final int REQUEST_GUARDIAN_CONFIRM = 4303;
+    private final ActivityResultLauncher<android.content.Intent> guardianConfirmLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> onGuardianConfirmResult(result.getResultCode())
+    );
     private String pendingImportRawText;
     private WingsImportParser.ImportedConfig pendingImport;
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable android.content.Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_GUARDIAN_CONFIRM) {
-            String rawText = pendingImportRawText;
-            WingsImportParser.ImportedConfig parsed = pendingImport;
-            pendingImportRawText = null;
-            pendingImport = null;
-            Context context = getContext();
-            if (context == null) return;
-            if (resultCode == android.app.Activity.RESULT_OK && parsed != null) {
-                applyImportedConfigInternal(context, rawText, parsed);
-            } else {
-                Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
-            }
+    private void onGuardianConfirmResult(int resultCode) {
+        String rawText = pendingImportRawText;
+        WingsImportParser.ImportedConfig parsed = pendingImport;
+        pendingImportRawText = null;
+        pendingImport = null;
+        Context context = getContext();
+        if (context == null) return;
+        if (resultCode == android.app.Activity.RESULT_OK && parsed != null) {
+            applyImportedConfigInternal(context, rawText, parsed);
+        } else {
+            Toast.makeText(context, R.string.import_confirm_cancelled, Toast.LENGTH_SHORT).show();
         }
     }
 

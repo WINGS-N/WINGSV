@@ -1,9 +1,12 @@
 package wings.v.guardian;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
@@ -15,7 +18,17 @@ import wings.v.core.AppPrefs;
 /** Backing fragment for GuardianActivity. */
 public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
 
-    private static final int REQUEST_REVOKE = 4101;
+    private final ActivityResultLauncher<Intent> revokeLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (result.getResultCode() == Activity.RESULT_OK && isAdded()) {
+                Context ctx = requireContext();
+                GuardianRunner.stopAll(ctx.getApplicationContext());
+                AppPrefs.clearGuardian(ctx);
+                refresh();
+            }
+        }
+    );
 
     private GuardianStateBroadcast.Listener stateListener;
 
@@ -45,13 +58,12 @@ public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
         Preference revoke = findPreference("pref_guardian_revoke");
         if (revoke != null) {
             revoke.setOnPreferenceClickListener(p -> {
-                startActivityForResult(
+                revokeLauncher.launch(
                     WarningConfirmActivity.createIntent(
                         requireContext(),
                         getString(R.string.guardian_revoke_warning),
                         5
-                    ),
-                    REQUEST_REVOKE
+                    )
                 );
                 return true;
             });
@@ -73,17 +85,6 @@ public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
             stateListener = null;
         }
         super.onPause();
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_REVOKE && resultCode == android.app.Activity.RESULT_OK) {
-            Context ctx = requireContext();
-            GuardianRunner.stopAll(ctx.getApplicationContext());
-            AppPrefs.clearGuardian(ctx);
-            refresh();
-        }
     }
 
     private void refresh() {
