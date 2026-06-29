@@ -1379,6 +1379,7 @@
     <string name="settings_export_clip_label">WINGSV settings</string>
     <string name="settings_export_done">Link copied</string>
     <string name="settings_export_failed">Failed to export settings</string>
+    <string name="settings_export_telegram_markdown_warning">Sending this data over Telegram will corrupt it because the messenger auto-applies markdown formatting. To keep the wingsv:// link intact in Telegram, add ``` on the line before the wingsv:// line and ``` on the line after it.</string>
 
     <!-- Auto Search -->
     <string name="auto_search_title">Auto search</string>

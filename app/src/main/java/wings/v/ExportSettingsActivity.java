@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.Preference;
@@ -38,6 +40,15 @@ public class ExportSettingsActivity extends AppCompatActivity {
         XRAY_ROUTING,
     }
 
+    private final ActivityResultLauncher<Intent> allExportWarningLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (result.getResultCode() == RESULT_OK) {
+                performExport(ExportAction.ALL);
+            }
+        }
+    );
+
     public static Intent createIntent(final Context context) {
         return new Intent(context, ExportSettingsActivity.class);
     }
@@ -57,6 +68,20 @@ public class ExportSettingsActivity extends AppCompatActivity {
     }
 
     private void exportSettings(final ExportAction action) {
+        if (action == ExportAction.ALL) {
+            allExportWarningLauncher.launch(
+                WarningConfirmActivity.createIntent(
+                    this,
+                    getString(R.string.settings_export_telegram_markdown_warning),
+                    2
+                )
+            );
+            return;
+        }
+        performExport(action);
+    }
+
+    private void performExport(final ExportAction action) {
         try {
             final String link = buildLink(action);
             final ClipboardManager clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
