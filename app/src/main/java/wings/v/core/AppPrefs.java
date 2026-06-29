@@ -241,6 +241,15 @@ public final class AppPrefs {
     public static final String DNS_MODE_UDP = "udp";
     public static final String DNS_MODE_DOH = "doh";
     public static final String KEY_DNS_MODE = "pref_dns_mode";
+
+    // VK TURN browser fingerprint family for HTTP+TLS impersonation. "auto" =
+    // the relay picks a random profile per session; the rest pin one family.
+    public static final String VK_TURN_BROWSER_FP_AUTO = "auto";
+    public static final String VK_TURN_BROWSER_FP_CHROME = "chrome";
+    public static final String VK_TURN_BROWSER_FP_EDGE = "edge";
+    public static final String VK_TURN_BROWSER_FP_SAFARI = "safari";
+    public static final String VK_TURN_BROWSER_FP_FIREFOX = "firefox";
+    public static final String KEY_VK_TURN_BROWSER_FINGERPRINT = "pref_vk_turn_browser_fingerprint";
     public static final String KEY_GUARDIAN_ENABLED = "pref_guardian_enabled";
     public static final String KEY_GUARDIAN_AUTO_START_ON_BOOT = "pref_guardian_auto_start_on_boot";
     public static final String KEY_GUARDIAN_WS_URL = "pref_guardian_ws_url";
@@ -440,6 +449,25 @@ public final class AppPrefs {
             return normalized;
         }
         return DNS_MODE_AUTO;
+    }
+
+    public static String getVkTurnBrowserFingerprint(Context context) {
+        return normalizeVkTurnBrowserFingerprint(
+            prefs(context).getString(KEY_VK_TURN_BROWSER_FINGERPRINT, VK_TURN_BROWSER_FP_AUTO)
+        );
+    }
+
+    public static String normalizeVkTurnBrowserFingerprint(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (
+            VK_TURN_BROWSER_FP_CHROME.equals(normalized) ||
+            VK_TURN_BROWSER_FP_EDGE.equals(normalized) ||
+            VK_TURN_BROWSER_FP_SAFARI.equals(normalized) ||
+            VK_TURN_BROWSER_FP_FIREFOX.equals(normalized)
+        ) {
+            return normalized;
+        }
+        return VK_TURN_BROWSER_FP_AUTO;
     }
 
     public static boolean isGuardianEnabled(Context context) {

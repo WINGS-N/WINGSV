@@ -511,6 +511,13 @@
     <string name="turn_session_mode_auto">Auto</string>
     <string name="turn_session_mode_mainline">Mainline</string>
     <string name="turn_session_mode_mu">mu/v1</string>
+    <string name="vk_turn_browser_fingerprint_title">Отпечаток браузера</string>
+    <string name="vk_turn_browser_fingerprint_summary">Браузер, под который маскируется relay (User-Agent, Client Hints и TLS) при обращении к VK/OK. Авто выбирает случайный на каждую сессию.</string>
+    <string name="vk_turn_browser_fingerprint_auto">Авто (случайный)</string>
+    <string name="vk_turn_browser_fingerprint_chrome">Chrome</string>
+    <string name="vk_turn_browser_fingerprint_edge">Edge</string>
+    <string name="vk_turn_browser_fingerprint_safari">Safari</string>
+    <string name="vk_turn_browser_fingerprint_firefox">Firefox</string>
     <string name="settings_backend_category">Backend</string>
     <string name="settings_backend_title">Сетевой backend</string>
     <string name="backend_vk_turn_wireguard_title">VK TURN + WireGuard</string>

@@ -3594,6 +3594,8 @@ public class ProxyTunnelService extends Service {
             command.add("-session-mode");
             command.add(settings.turnSessionMode);
         }
+        command.add("-browser-fp");
+        command.add(AppPrefs.getVkTurnBrowserFingerprint(getApplicationContext()));
         if (!TextUtils.isEmpty(settings.turnHost)) {
             command.add("-turn");
             command.add(settings.turnHost);

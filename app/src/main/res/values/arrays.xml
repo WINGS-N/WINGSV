@@ -11,6 +11,22 @@
         <item>mu</item>
     </string-array>
 
+    <string-array name="vk_turn_browser_fingerprint_entries">
+        <item>@string/vk_turn_browser_fingerprint_auto</item>
+        <item>@string/vk_turn_browser_fingerprint_chrome</item>
+        <item>@string/vk_turn_browser_fingerprint_edge</item>
+        <item>@string/vk_turn_browser_fingerprint_safari</item>
+        <item>@string/vk_turn_browser_fingerprint_firefox</item>
+    </string-array>
+
+    <string-array name="vk_turn_browser_fingerprint_values">
+        <item>auto</item>
+        <item>chrome</item>
+        <item>edge</item>
+        <item>safari</item>
+        <item>firefox</item>
+    </string-array>
+
     <string-array name="runtime_mode_entries">
         <item>@string/runtime_mode_vpn</item>
         <item>@string/runtime_mode_proxy</item>

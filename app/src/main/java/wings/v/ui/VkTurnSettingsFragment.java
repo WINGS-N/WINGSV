@@ -49,6 +49,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
         AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
         AppPrefs.KEY_TURN_SESSION_MODE,
+        AppPrefs.KEY_VK_TURN_BROWSER_FINGERPRINT,
         AppPrefs.KEY_LOCAL_ENDPOINT,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
@@ -69,6 +70,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
         AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE,
         AppPrefs.KEY_TURN_SESSION_MODE,
+        AppPrefs.KEY_VK_TURN_BROWSER_FINGERPRINT,
         AppPrefs.KEY_TURN_HOST,
         AppPrefs.KEY_TURN_PORT,
         AppPrefs.KEY_VK_TURN_USER_DNS,
@@ -217,6 +219,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindNumericPreference(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE);
         bindListPreference(AppPrefs.KEY_VK_TURN_RUNTIME_MODE);
         bindListPreference(AppPrefs.KEY_TURN_SESSION_MODE);
+        bindListPreference(AppPrefs.KEY_VK_TURN_BROWSER_FINGERPRINT);
         bindListPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
         bindListPreference(AppPrefs.KEY_DNS_MODE);
         bindListPreference(AppPrefs.KEY_VK_TURN_WRAP_MODE);

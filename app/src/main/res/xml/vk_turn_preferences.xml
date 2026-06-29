@@ -85,6 +85,14 @@
         android:entries="@array/turn_session_mode_entries"
         android:entryValues="@array/turn_session_mode_values" />
 
+    <androidx.preference.DropDownPreference
+        android:key="pref_vk_turn_browser_fingerprint"
+        android:title="@string/vk_turn_browser_fingerprint_title"
+        android:summary="@string/vk_turn_browser_fingerprint_summary"
+        android:defaultValue="auto"
+        android:entries="@array/vk_turn_browser_fingerprint_entries"
+        android:entryValues="@array/vk_turn_browser_fingerprint_values" />
+
     <EditTextPreference
         android:key="pref_local_endpoint"
         android:title="Локальный endpoint"
