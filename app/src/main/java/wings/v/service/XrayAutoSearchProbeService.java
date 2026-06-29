@@ -8,6 +8,7 @@ import android.os.IBinder;
 import android.os.ResultReceiver;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.IntentCompat;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,7 +90,7 @@ public abstract class XrayAutoSearchProbeService extends Service {
             return START_NOT_STICKY;
         }
         Bundle requestBundle = intent.getBundleExtra(EXTRA_REQUEST);
-        ResultReceiver receiver = intent.getParcelableExtra(EXTRA_RECEIVER);
+        ResultReceiver receiver = IntentCompat.getParcelableExtra(intent, EXTRA_RECEIVER, ResultReceiver.class);
         if (requestBundle == null || receiver == null) {
             stopSelfResult(startId);
             return START_NOT_STICKY;

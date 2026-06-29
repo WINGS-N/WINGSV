@@ -7107,6 +7107,7 @@ public class ProxyTunnelService extends Service {
     // решается в рантайме через PackageManager - он отличается по устройствам.
     private static final String[] SYSTEM_PROXY_PACKAGES = { "com.android.proxyhandler" };
 
+    @SuppressWarnings("deprecation")
     private java.util.List<Integer> discoverSystemProxyPorts() {
         java.util.LinkedHashSet<Integer> ports = new java.util.LinkedHashSet<>();
         ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
@@ -7786,6 +7787,7 @@ public class ProxyTunnelService extends Service {
     }
 
     @Nullable
+    @SuppressWarnings("deprecation")
     private String resolveActivePhysicalInterfaceName() {
         ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
         if (connectivityManager == null) {

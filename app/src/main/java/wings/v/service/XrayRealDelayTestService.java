@@ -8,6 +8,7 @@ import android.os.IBinder;
 import android.os.ResultReceiver;
 import android.text.TextUtils;
 import androidx.annotation.Nullable;
+import androidx.core.content.IntentCompat;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -145,7 +146,7 @@ public abstract class XrayRealDelayTestService extends Service {
             return START_NOT_STICKY;
         }
         Bundle request = intent.getBundleExtra(EXTRA_REQUEST);
-        ResultReceiver receiver = intent.getParcelableExtra(EXTRA_RECEIVER);
+        ResultReceiver receiver = IntentCompat.getParcelableExtra(intent, EXTRA_RECEIVER, ResultReceiver.class);
         executor.execute(() -> {
             handleRequest(request, receiver);
             stopSelf(startId);

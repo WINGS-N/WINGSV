@@ -731,9 +731,7 @@ public class AppsFragment extends Fragment {
         }
         InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
         if (inputMethodManager != null) {
-            binding.inputAppSearch.post(() ->
-                inputMethodManager.showSoftInput(binding.inputAppSearch, InputMethodManager.SHOW_IMPLICIT)
-            );
+            binding.inputAppSearch.post(() -> inputMethodManager.showSoftInput(binding.inputAppSearch, 0));
         }
     }
 

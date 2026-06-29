@@ -470,7 +470,7 @@ public final class XposedAttackStatsStore {
 
         @NonNull
         public String getWeekLabel() {
-            return day.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, new Locale("ru"));
+            return day.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, Locale.forLanguageTag("ru"));
         }
     }
 

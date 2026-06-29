@@ -8,6 +8,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -39,7 +40,9 @@ public class TrafficWeeklyChartView extends View {
         super(context, attrs);
         slotPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_surface_alt));
         labelPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_text_secondary));
-        labelPaint.setTextSize(getResources().getDisplayMetrics().scaledDensity * 11f);
+        labelPaint.setTextSize(
+            TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, getResources().getDisplayMetrics())
+        );
         labelPaint.setTextAlign(Paint.Align.CENTER);
         sentStartColor = ContextCompat.getColor(context, R.color.wingsv_chart_sent_start);
         sentEndColor = ContextCompat.getColor(context, R.color.wingsv_chart_sent_end);

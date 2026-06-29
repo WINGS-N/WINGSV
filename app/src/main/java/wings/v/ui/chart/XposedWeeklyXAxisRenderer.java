@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Paint.FontMetrics;
+import android.util.TypedValue;
 import androidx.annotation.NonNull;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.renderer.XAxisRenderer;
@@ -31,7 +32,11 @@ public final class XposedWeeklyXAxisRenderer extends XAxisRenderer {
         @NonNull Context context
     ) {
         super(viewPortHandler, xAxis, transformer);
-        float textSize = context.getResources().getDisplayMetrics().scaledDensity * 11f;
+        float textSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_SP,
+            11f,
+            context.getResources().getDisplayMetrics()
+        );
         labelPaint.setColor(context.getColor(R.color.wingsv_text_secondary));
         labelPaint.setTextSize(textSize);
         labelPaint.setTextAlign(Paint.Align.CENTER);

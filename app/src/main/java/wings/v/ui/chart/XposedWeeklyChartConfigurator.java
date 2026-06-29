@@ -5,7 +5,6 @@ import android.view.View;
 import android.view.animation.Interpolator;
 import androidx.annotation.NonNull;
 import androidx.core.text.TextUtilsCompat;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.animation.PathInterpolatorCompat;
 import com.github.mikephil.charting.animation.Easing;
 import com.github.mikephil.charting.charts.BarChart;
@@ -40,7 +39,7 @@ public final class XposedWeeklyChartConfigurator {
         float density = context.getResources().getDisplayMetrics().density;
         boolean isRtl =
             TextUtilsCompat.getLayoutDirectionFromLocale(Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL ||
-            ViewCompat.getLayoutDirection(chart) == ViewCompat.LAYOUT_DIRECTION_RTL;
+            chart.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
         chart.setDescription(null);
         chart.setDrawGridBackground(false);
         chart.setScaleEnabled(false);

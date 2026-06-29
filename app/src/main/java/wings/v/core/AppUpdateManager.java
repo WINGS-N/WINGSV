@@ -11,6 +11,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.pm.PackageInfoCompat;
 import com.github.luben.zstd.ZstdInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -1226,10 +1227,7 @@ public final class AppUpdateManager {
             } else {
                 packageInfo = appContext.getPackageManager().getPackageInfo(appContext.getPackageName(), 0);
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                return packageInfo.getLongVersionCode();
-            }
-            return packageInfo.versionCode;
+            return PackageInfoCompat.getLongVersionCode(packageInfo);
         } catch (PackageManager.NameNotFoundException ignored) {
             return 0L;
         } catch (RuntimeException ignored) {

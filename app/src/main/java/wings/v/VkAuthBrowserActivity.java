@@ -217,6 +217,7 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
     }
 
     @Nullable
+    @SuppressWarnings("deprecation")
     private static Network findNonVpnNetwork(ConnectivityManager connectivityManager) {
         try {
             Network activeNetwork = connectivityManager.getActiveNetwork();
@@ -319,7 +320,6 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
         WebSettings settings = authWebView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
         settings.setLoadsImagesAutomatically(true);
         settings.setSupportMultipleWindows(false);
         settings.setAllowFileAccess(false);

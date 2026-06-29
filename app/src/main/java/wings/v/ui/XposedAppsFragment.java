@@ -505,9 +505,7 @@ public class XposedAppsFragment extends Fragment {
     private void showKeyboard() {
         InputMethodManager inputMethodManager = requireContext().getSystemService(InputMethodManager.class);
         if (inputMethodManager != null && binding != null) {
-            binding.inputAppSearch.post(() ->
-                inputMethodManager.showSoftInput(binding.inputAppSearch, InputMethodManager.SHOW_IMPLICIT)
-            );
+            binding.inputAppSearch.post(() -> inputMethodManager.showSoftInput(binding.inputAppSearch, 0));
         }
     }
 

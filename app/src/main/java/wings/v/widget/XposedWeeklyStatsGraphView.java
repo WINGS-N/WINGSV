@@ -8,6 +8,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -40,10 +41,14 @@ public class XposedWeeklyStatsGraphView extends View {
         super(context, attrs);
         barPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_surface_alt));
         labelPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_text_secondary));
-        labelPaint.setTextSize(getResources().getDisplayMetrics().scaledDensity * 11f);
+        labelPaint.setTextSize(
+            TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, getResources().getDisplayMetrics())
+        );
         labelPaint.setTextAlign(Paint.Align.CENTER);
         selectedLabelPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_window));
-        selectedLabelPaint.setTextSize(getResources().getDisplayMetrics().scaledDensity * 11f);
+        selectedLabelPaint.setTextSize(
+            TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 11f, getResources().getDisplayMetrics())
+        );
         selectedLabelPaint.setTextAlign(Paint.Align.CENTER);
         selectedLabelPaint.setFakeBoldText(true);
         selectedLabelBgPaint.setColor(ContextCompat.getColor(context, R.color.wingsv_accent));
