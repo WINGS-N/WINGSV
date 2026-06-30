@@ -194,6 +194,10 @@ message Turn {
   string active_profile_id = 24;
   repeated TurnProfile profiles = 25;
   optional bool merge_only = 26;
+  // Семейство браузерного отпечатка для HTTP+TLS-имитации relay'ем:
+  // "auto" | "chrome" | "edge" | "safari" | "firefox". Пусто / "auto" — relay
+  // выбирает случайный профиль на сессию; остальные фиксируют одно семейство.
+  string browser_fingerprint = 27;
 }
 
 message TurnProfile {
