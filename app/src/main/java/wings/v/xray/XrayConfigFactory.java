@@ -4,6 +4,7 @@ import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
 import android.net.Network;
+import android.net.Uri;
 import android.text.TextUtils;
 import androidx.annotation.Nullable;
 import java.io.File;
@@ -159,11 +160,22 @@ public final class XrayConfigFactory {
             rewritePrimaryOutboundEndpoint(proxyOutbound, trim(outboundHostOverride), outboundPortOverride);
         }
 
+        // Resolve the proxy server's domain through xray's internal DNS over the
+        // protected dialer. libXray's initDns bootstrap was removed upstream, so
+        // without this the dialer uses Android's system resolver, which the VPN
+        // captures - domain-addressed servers then fail to connect.
+        applyServerDomainStrategy(proxyOutbound, xraySettings.ipv6);
+
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
         root.put("inbounds", buildInbounds(context, xraySettings, includeTunInbound, tproxyPort));
-        root.put("outbounds", buildOutbounds(proxyOutbound, xraySettings, byeDpiSettings));
+        JSONArray outbounds = buildOutbounds(proxyOutbound, xraySettings, byeDpiSettings);
+        // The direct outbound carries DoH connections and direct-routed traffic;
+        // let it resolve hostnames through the internal DNS too so the DoH
+        // bootstrap servers in buildDns are reachable without the system resolver.
+        applyDirectResolveStrategy(outbounds, xraySettings.ipv6);
+        root.put("outbounds", outbounds);
         root.put("routing", buildRouting(context, xraySettings, includeTunInbound, tproxyPort));
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
@@ -424,6 +436,12 @@ public final class XrayConfigFactory {
         JSONObject dns = new JSONObject();
         dns.put("tag", DNS_TAG);
         JSONArray servers = new JSONArray();
+        // Bootstrap the hostnames of any DoH/DoT DNS servers through plain
+        // protected resolvers, so the internal resolver can reach a
+        // domain-addressed DNS server without the Android system resolver (which
+        // the VPN captures) and without libXray's removed initDns bootstrap.
+        // Scoped to those hosts so DoH stays primary for everything else.
+        addDnsBootstrapServers(servers, settings.remoteDns, settings.directDns);
         // Direct-routed domains first: one provider-DNS server per resolver IP,
         // scoped to those domains so they are resolved on the physical network
         // (the query itself is sent direct by a routing rule in buildRouting that
@@ -444,6 +462,11 @@ public final class XrayConfigFactory {
         }
         addDnsServer(servers, settings.remoteDns);
         addDnsServer(servers, settings.directDns);
+        // Plain-IP fallback resolvers (vk-turn-proxy's defaultResolverAddrs,
+        // Yandex first: rarely censored under RU block conditions where 1.1.1.1
+        // often is). Last, so configured/DoH servers stay preferred; they keep
+        // resolution working when those are unreachable.
+        addPlainFallbackResolvers(servers);
         if (servers.length() > 0) {
             dns.put("servers", servers);
         }
@@ -483,6 +506,142 @@ public final class XrayConfigFactory {
             }
         }
         return values;
+    }
+
+    private static final String[] BOOTSTRAP_RESOLVERS = { "77.88.8.8", "77.88.8.1", "8.8.8.8", "8.8.4.4", "1.1.1.1" };
+
+    // Adds, scoped to the hostnames of any DoH/DoT DNS servers in the configured
+    // values, one plain protected resolver per BOOTSTRAP_RESOLVERS entry, so xray
+    // can resolve those DNS-server hostnames (and only those) without the captured
+    // system resolver - letting DoH bootstrap. No-op for plain-IP servers.
+    private static void addDnsBootstrapServers(JSONArray servers, String remoteDns, String directDns) throws Exception {
+        JSONArray hosts = new JSONArray();
+        collectDnsServerHosts(hosts, remoteDns);
+        collectDnsServerHosts(hosts, directDns);
+        if (hosts.length() == 0) {
+            return;
+        }
+        JSONArray domains = new JSONArray();
+        for (int i = 0; i < hosts.length(); i++) {
+            domains.put("full:" + hosts.optString(i));
+        }
+        for (String resolver : BOOTSTRAP_RESOLVERS) {
+            JSONObject server = new JSONObject();
+            server.put("address", resolver);
+            server.put("domains", domains);
+            servers.put(server);
+        }
+    }
+
+    private static void collectDnsServerHosts(JSONArray out, String value) {
+        for (String entry : splitDnsEntries(value)) {
+            String host = extractDnsServerHost(entry);
+            if (TextUtils.isEmpty(host)) {
+                continue;
+            }
+            boolean duplicate = false;
+            for (int i = 0; i < out.length(); i++) {
+                if (TextUtils.equals(host, out.optString(i))) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                out.put(host);
+            }
+        }
+    }
+
+    // Hostname of a DoH/DoT/DoQ DNS server URL (https/tls/quic/h2c/h3 scheme), or
+    // "" for plain-IP / IP-literal servers, which need no bootstrap.
+    private static String extractDnsServerHost(String value) {
+        String normalized = trim(value);
+        if (TextUtils.isEmpty(normalized) || !normalized.contains("://")) {
+            return "";
+        }
+        String host;
+        try {
+            host = trim(Uri.parse(normalized).getHost());
+        } catch (Exception ignored) {
+            return "";
+        }
+        if (TextUtils.isEmpty(host) || looksLikeIpLiteral(host)) {
+            return "";
+        }
+        return host;
+    }
+
+    private static boolean looksLikeIpLiteral(String host) {
+        if (TextUtils.isEmpty(host)) {
+            return false;
+        }
+        if (host.indexOf(':') >= 0) {
+            return true;
+        }
+        String[] parts = host.split("\\.");
+        if (parts.length != 4) {
+            return false;
+        }
+        for (String part : parts) {
+            if (TextUtils.isEmpty(part) || part.length() > 3) {
+                return false;
+            }
+            for (int i = 0; i < part.length(); i++) {
+                if (!Character.isDigit(part.charAt(i))) {
+                    return false;
+                }
+            }
+            if (Integer.parseInt(part) > 255) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void addPlainFallbackResolvers(JSONArray servers) {
+        for (String resolver : BOOTSTRAP_RESOLVERS) {
+            addDnsServer(servers, resolver);
+        }
+    }
+
+    // Sets sockopt.domainStrategy on an outbound so xray resolves the target
+    // domain through its internal DNS (protected dialer) instead of the captured
+    // Android system resolver. Force* on the proxy: the server MUST resolve.
+    private static void applyServerDomainStrategy(JSONObject outbound, boolean ipv6) throws Exception {
+        JSONObject sockopt = ensureSockopt(outbound);
+        if (TextUtils.isEmpty(sockopt.optString("domainStrategy", ""))) {
+            sockopt.put("domainStrategy", ipv6 ? "ForceIP" : "ForceIPv4");
+        }
+    }
+
+    // Use* on the direct outbound: resolve via internal DNS when possible without
+    // hard-failing direct traffic on an unresolved name.
+    private static void applyDirectResolveStrategy(JSONArray outbounds, boolean ipv6) throws Exception {
+        for (int i = 0; i < outbounds.length(); i++) {
+            JSONObject outbound = outbounds.optJSONObject(i);
+            if (outbound == null || !DIRECT_TAG.equals(outbound.optString("tag"))) {
+                continue;
+            }
+            JSONObject sockopt = ensureSockopt(outbound);
+            if (TextUtils.isEmpty(sockopt.optString("domainStrategy", ""))) {
+                sockopt.put("domainStrategy", ipv6 ? "UseIP" : "UseIPv4");
+            }
+            return;
+        }
+    }
+
+    private static JSONObject ensureSockopt(JSONObject outbound) throws Exception {
+        JSONObject streamSettings = outbound.optJSONObject("streamSettings");
+        if (streamSettings == null) {
+            streamSettings = new JSONObject();
+            outbound.put("streamSettings", streamSettings);
+        }
+        JSONObject sockopt = streamSettings.optJSONObject("sockopt");
+        if (sockopt == null) {
+            sockopt = new JSONObject();
+            streamSettings.put("sockopt", sockopt);
+        }
+        return sockopt;
     }
 
     private static JSONArray buildInbounds(
