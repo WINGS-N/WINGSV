@@ -684,6 +684,7 @@
     <string name="xray_profiles_list_section">Profiles</string>
     <string name="xray_profiles_filters_section">Subscriptions</string>
     <string name="xray_profiles_empty">No VLESS profiles added yet</string>
+    <string name="xray_profiles_empty_only_vk_turn">This subscription has only VK TURN profiles. Switch the network backend.</string>
     <string name="xray_profiles_selected">Active profile changed</string>
     <string name="xray_profiles_active_label">Active profile</string>
     <string name="xray_profiles_untitled">Untitled profile</string>

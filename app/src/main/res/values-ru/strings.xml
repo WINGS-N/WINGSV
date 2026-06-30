@@ -684,6 +684,7 @@
     <string name="xray_profiles_list_section">Профили</string>
     <string name="xray_profiles_filters_section">Подписки</string>
     <string name="xray_profiles_empty">Профили VLESS пока не добавлены</string>
+    <string name="xray_profiles_empty_only_vk_turn">В этой подписке только VK TURN профили. Смените сетевой backend.</string>
     <string name="xray_profiles_selected">Активный профиль изменён</string>
     <string name="xray_profiles_active_label">Активный профиль</string>
     <string name="xray_profiles_untitled">Профиль без названия</string>

@@ -53,6 +53,8 @@ import wings.v.core.ByeDpiSettings;
 import wings.v.core.ByeDpiStore;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
+import wings.v.core.VkTurnProfile;
+import wings.v.core.VkTurnProfileStore;
 import wings.v.core.WingsImportParser;
 import wings.v.core.XrayProfile;
 import wings.v.core.XraySettings;
@@ -107,6 +109,7 @@ public class ProfilesFragment extends Fragment {
     private static final String FILTER_ALL = "__all__";
     private static final String FILTER_FAVORITES = "__favorites__";
     private static final String FILTER_NO_SUBSCRIPTION = "__manual__";
+    private static final String SUBSCRIPTION_FILTER_PREFIX = "sub:";
 
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService renderExecutor = Executors.newSingleThreadExecutor();
@@ -527,6 +530,36 @@ public class ProfilesFragment extends Fragment {
         boolean empty = currentDisplayItems.isEmpty();
         binding.textProfilesEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
         binding.containerProfileGroups.setVisibility(empty ? View.GONE : View.VISIBLE);
+        if (empty) {
+            binding.textProfilesEmpty.setText(emptyStateMessage());
+        }
+    }
+
+    // When the selected subscription has no VLESS profiles but does carry VK TURN
+    // ones, point the user at the backend switch instead of the generic "no
+    // profiles" copy - the subscription simply targets a different backend.
+    private int emptyStateMessage() {
+        if (
+            activeFilterId != null &&
+            activeFilterId.startsWith(SUBSCRIPTION_FILTER_PREFIX) &&
+            subscriptionHasVkTurnProfiles(activeFilterId.substring(SUBSCRIPTION_FILTER_PREFIX.length()))
+        ) {
+            return R.string.xray_profiles_empty_only_vk_turn;
+        }
+        return R.string.xray_profiles_empty;
+    }
+
+    private boolean subscriptionHasVkTurnProfiles(String subscriptionId) {
+        Context context = getContext();
+        if (context == null || TextUtils.isEmpty(subscriptionId)) {
+            return false;
+        }
+        for (VkTurnProfile profile : VkTurnProfileStore.getProfiles(context)) {
+            if (TextUtils.equals(subscriptionId, profile.subscriptionId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void updatePageLoader() {
