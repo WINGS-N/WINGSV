@@ -2351,7 +2351,12 @@ public final class WingsImportParser {
             boolean awgTransport =
                 config.hasTurn() && config.getTurn().getTunnelMode() == WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG;
             importedConfig.backendType = awgTransport ? BackendType.AMNEZIAWG : BackendType.VK_TURN_WIREGUARD;
-            if (config.hasTurn()) {
+            // Skip the flat VK-TURN path for a targeted import that carries
+            // profiles (e.g. a panel-managed profile): those must be merged into
+            // the profile list, not written over the shared flat keys / VK-links
+            // pool. A full backup (allSettings) or a plain link without profiles
+            // still takes the flat path.
+            if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
             if (config.hasAwg()) {
@@ -2377,7 +2382,12 @@ public final class WingsImportParser {
                 importedConfig.backendType = BackendType.XRAY;
             }
             parseXray(config, importedConfig);
-            if (config.hasTurn()) {
+            // Skip the flat VK-TURN path for a targeted import that carries
+            // profiles (e.g. a panel-managed profile): those must be merged into
+            // the profile list, not written over the shared flat keys / VK-links
+            // pool. A full backup (allSettings) or a plain link without profiles
+            // still takes the flat path.
+            if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
             handled = true;
@@ -2424,7 +2434,12 @@ public final class WingsImportParser {
                         ? BackendType.WB_STREAM_AMNEZIAWG
                         : BackendType.WB_STREAM;
             }
-            if (config.hasTurn()) {
+            // Skip the flat VK-TURN path for a targeted import that carries
+            // profiles (e.g. a panel-managed profile): those must be merged into
+            // the profile list, not written over the shared flat keys / VK-links
+            // pool. A full backup (allSettings) or a plain link without profiles
+            // still takes the flat path.
+            if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
             if (config.hasWg()) {
@@ -2442,7 +2457,12 @@ public final class WingsImportParser {
             config.hasTurn() ||
             config.hasWg()
         ) {
-            if (config.hasTurn()) {
+            // Skip the flat VK-TURN path for a targeted import that carries
+            // profiles (e.g. a panel-managed profile): those must be merged into
+            // the profile list, not written over the shared flat keys / VK-links
+            // pool. A full backup (allSettings) or a plain link without profiles
+            // still takes the flat path.
+            if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
             if (config.hasWg()) {

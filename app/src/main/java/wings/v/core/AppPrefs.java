@@ -1559,7 +1559,11 @@ public final class AppPrefs {
         if (importedLinks.isEmpty() && !TextUtils.isEmpty(importedLink)) {
             importedLinks.add(importedLink);
         }
-        editor.putString(KEY_VK_LINKS_JSON, encodeVkLinks(importedLinks));
+        // Never wipe the shared VK-links pool from a targeted import that carries no
+        // links; only a full backup restore may overwrite it (even with empty).
+        if (!importedLinks.isEmpty() || importedConfig.hasAllSettings) {
+            editor.putString(KEY_VK_LINKS_JSON, encodeVkLinks(importedLinks));
+        }
         editor.putString(KEY_VK_LINK_SECONDARY, trim(importedConfig.linkSecondary));
         editor.putString(
             KEY_CREDS_GROUP_SIZE,
@@ -1695,10 +1699,27 @@ public final class AppPrefs {
             AmneziaProfileStore.applyActiveToPrefs(context);
         }
         if (importedConfig.hasTurnProfiles) {
-            VkTurnProfileStore.setProfiles(context, importedConfig.turnProfiles);
             String active = trim(importedConfig.activeTurnProfileId);
-            if (TextUtils.isEmpty(active) && !importedConfig.turnProfiles.isEmpty()) {
-                active = importedConfig.turnProfiles.get(0).id;
+            if (importedConfig.hasAllSettings) {
+                // Full backup restore replaces the whole list.
+                VkTurnProfileStore.setProfiles(context, importedConfig.turnProfiles);
+                if (TextUtils.isEmpty(active) && !importedConfig.turnProfiles.isEmpty()) {
+                    active = importedConfig.turnProfiles.get(0).id;
+                }
+            } else {
+                // Targeted import (e.g. a panel-managed profile): add without
+                // discarding the user's existing profiles or the shared VK-links
+                // pool. Make the imported profile active so it is ready to use.
+                String addedId = null;
+                for (VkTurnProfile profile : importedConfig.turnProfiles) {
+                    VkTurnProfile stored = VkTurnProfileStore.addImportedProfile(context, profile);
+                    if (stored != null && addedId == null) {
+                        addedId = stored.id;
+                    }
+                }
+                if (TextUtils.isEmpty(active)) {
+                    active = addedId;
+                }
             }
             if (!TextUtils.isEmpty(active)) {
                 VkTurnProfileStore.setActiveProfileId(context, active);
