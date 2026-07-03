@@ -221,6 +221,14 @@ message TurnProfile {
   // "auto" | "udp" | "doh" - UI "DNS resolver" list (shared VK TURN / WB Stream
   // setting). Not carried by the inner Turn message.
   string dns_mode = 10;
+  // Managed profile: the wg/awg transport is provisioned dynamically by the node
+  // over the DTLS PROVISION exchange rather than referenced via
+  // transport_profile_id. The app calls AppControl.Provision with the fields
+  // below and applies the returned config; the editor shows the wg/awg fields
+  // read-only.
+  bool wg_provisioned = 11;
+  string provision_client_id = 12;
+  bytes provision_token = 13;
 }
 
 enum WrapKeyDelivery {
