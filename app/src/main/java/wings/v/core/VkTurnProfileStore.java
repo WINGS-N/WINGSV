@@ -409,6 +409,13 @@ public final class VkTurnProfileStore {
             updated.turnHost,
             updated.turnPort
         );
+        // A managed profile provisions its wg transport on connect; folding the flat
+        // keys back must not strip its managed identity (wgProvisioned + provision
+        // client/token), or the round-trip through the settings screen would turn it
+        // into a plain profile and lose the provisioning credentials.
+        if (active.isManaged()) {
+            merged = merged.withManaged(active.provisionClientId, active.provisionToken);
+        }
         if (!replaceProfile(context, merged)) {
             return null;
         }
