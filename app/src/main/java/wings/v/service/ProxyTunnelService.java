@@ -2204,6 +2204,7 @@ public class ProxyTunnelService extends Service {
             long proxyStartedAt = startProxyProcess(settings, generation);
             waitForProxyWarmup(proxyStartedAt, generation);
         }
+        applyManagedProvisioningIfNeeded(settings);
         ensureRuntimeStillWanted(generation);
 
         if (rootModeActive && shouldInitializeRootSharing()) {
@@ -2283,6 +2284,7 @@ public class ProxyTunnelService extends Service {
             long proxyStartedAt = startProxyProcess(settings, generation);
             waitForProxyWarmup(proxyStartedAt, generation);
         }
+        applyManagedProvisioningIfNeeded(settings);
 
         ensureRuntimeStillWanted(generation);
         if (!kernelWireguardActive) {
@@ -3641,6 +3643,63 @@ public class ProxyTunnelService extends Service {
 
     private static String emptyToNull(String value) {
         return TextUtils.isEmpty(value) ? null : value;
+    }
+
+    // Managed VK TURN profile: the wg transport is not carried by a stored profile
+    // but minted by the vk-turn-proxy node over its DTLS PROVISION exchange. Once
+    // the relay is up and the AppControl channel is open, ask it to provision and
+    // fold the returned WireGuard config into settings so the awg/wg backend builds
+    // from it. Requires the non-root AppControl path; a managed profile on the
+    // root/kernel-WG path has no gRPC channel and fails fast here.
+    private void applyManagedProvisioningIfNeeded(ProxySettings settings) throws Exception {
+        if (settings == null || !settings.wgProvisioned) {
+            return;
+        }
+        wings.v.ipc.AppControlClient client = appControlClient;
+        if (!appControlGrpcActive || client == null) {
+            throw new IllegalStateException("managed VK TURN profile requires the non-root AppControl channel");
+        }
+        byte[] token = TextUtils.isEmpty(settings.provisionToken)
+            ? new byte[0]
+            : android.util.Base64.decode(settings.provisionToken, android.util.Base64.NO_WRAP);
+        String hwid = wings.v.core.SubscriptionHwidStore.getAutomaticPayload(getApplicationContext()).hwid;
+        int localPort = parseEndpointPort(settings.localEndpoint);
+        appendRuntimeLogLine("requesting managed WireGuard provisioning (client " + settings.provisionClientId + ")");
+        wings.v.proto.appcontrol.AppControlProto.ProvisionResponse response = client.provision(
+            settings.provisionClientId,
+            token,
+            hwid,
+            localPort
+        );
+        if (!TextUtils.isEmpty(response.getError())) {
+            throw new IllegalStateException("VK TURN provisioning failed: " + response.getError());
+        }
+        wings.v.proto.appcontrol.AppControlProto.WireguardConfig wg = response.getWg();
+        settings.wgPrivateKey = wg.getPrivateKey();
+        settings.wgPublicKey = wg.getServerPublicKey();
+        settings.wgAddresses = wg.getAddress();
+        if (!TextUtils.isEmpty(wg.getAllowedIps())) {
+            settings.wgAllowedIps = wg.getAllowedIps();
+        }
+        if (wg.getMtu() > 0) {
+            settings.wgMtu = (int) wg.getMtu();
+        }
+        appendRuntimeLogLine("applied provisioned WireGuard config (address " + wg.getAddress() + ")");
+    }
+
+    private static int parseEndpointPort(String endpoint) {
+        if (TextUtils.isEmpty(endpoint)) {
+            return 0;
+        }
+        int colon = endpoint.lastIndexOf(':');
+        if (colon < 0 || colon + 1 >= endpoint.length()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(endpoint.substring(colon + 1).trim());
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private Process buildProxyProcess(ProxySettings settings) throws Exception {
