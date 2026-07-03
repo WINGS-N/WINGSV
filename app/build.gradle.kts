@@ -414,25 +414,50 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
     }
 }
 
+val grpcJavaPlugin: Configuration by configurations.creating
+
+val grpcOsClassifier: String = run {
+    val osName = System.getProperty("os.name").lowercase()
+    val osArch = System.getProperty("os.arch").lowercase()
+    val os = when {
+        osName.contains("linux") -> "linux"
+        osName.contains("mac") || osName.contains("darwin") || osName.contains("os x") -> "osx"
+        osName.contains("win") -> "windows"
+        else -> "linux"
+    }
+    val arch = if (osArch.contains("aarch64") || osArch.contains("arm64")) "aarch_64" else "x86_64"
+    "$os-$arch"
+}
+
+dependencies {
+    grpcJavaPlugin("io.grpc:protoc-gen-grpc-java:${libs.versions.grpc.get()}:$grpcOsClassifier@exe")
+}
+
 val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "build"
-    description = "Generates Java lite sources from app/src/main/proto via protoc."
+    description = "Generates Java lite + gRPC sources from app/src/main/proto via protoc."
 
     inputs.files(fileTree(protoSourceDir) {
         include("**/*.proto")
     })
+    inputs.files(grpcJavaPlugin)
     outputs.dir(generatedProtoJavaDir)
 
     doFirst {
         val outDir: File = generatedProtoJavaDir.get().asFile
         outDir.mkdirs()
+        val pluginFile: File = grpcJavaPlugin.singleFile
+        pluginFile.setExecutable(true)
         workingDir = projectDir
         commandLine(
             "protoc",
             "--proto_path=${protoSourceDir.absolutePath}",
             "--java_out=lite:${outDir.absolutePath}",
+            "--plugin=protoc-gen-grpc-java=${pluginFile.absolutePath}",
+            "--grpc-java_out=lite:${outDir.absolutePath}",
             "${protoSourceDir.resolve("wingsv.proto").absolutePath}",
-            "${protoSourceDir.resolve("guardian.proto").absolutePath}"
+            "${protoSourceDir.resolve("guardian.proto").absolutePath}",
+            "${protoSourceDir.resolve("appcontrol.proto").absolutePath}"
         )
     }
 }
@@ -720,6 +745,10 @@ dependencies {
     implementation(libs.oneui.design)
     implementation(libs.sesl.pickerBasic)
     implementation(libs.protobuf.javalite)
+    implementation(libs.grpc.stub)
+    implementation(libs.grpc.protobuf.lite)
+    implementation(libs.grpc.okhttp)
+    compileOnly(libs.javax.annotation.api)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.tencent:mmkv:1.3.9")
     implementation(libs.wireguard.tunnel)

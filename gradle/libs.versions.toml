@@ -8,6 +8,7 @@ mockitoCore = "5.14.2"
 espressoCore = "3.5.1"
 kotlin = "2.4.0"
 protobuf = "4.35.0"
+grpc = "1.68.1"
 librootkotlinx = "1.2.1"
 librootkotlinxV3 = "2.0.0-alpha13"
 ktorIo = "3.5.0"
@@ -54,6 +55,10 @@ librootkotlinx = { module = "be.mygod.librootkotlinx:librootkotlinx", version.re
 oneui-design = { module = "io.github.tribalfs:oneui-design", version.ref = "oneuiDesign" }
 wireguard-tunnel = { module = "com.wireguard.android:tunnel", version.ref = "wireguardTunnel" }
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+grpc-protobuf-lite = { module = "io.grpc:grpc-protobuf-lite", version.ref = "grpc" }
+grpc-okhttp = { module = "io.grpc:grpc-okhttp", version.ref = "grpc" }
+javax-annotation-api = { module = "javax.annotation:javax.annotation-api", version = "1.3.2" }
 xhook = { module = "dev.rikka.ndk.thirdparty:xhook", version.ref = "xhook" }
 sesl-appcompat = { module = "sesl.androidx.appcompat:appcompat", version.ref = "sesl-appcompat" }
 sesl-core = { module = "sesl.androidx.core:core", version.ref = "sesl-core" }
