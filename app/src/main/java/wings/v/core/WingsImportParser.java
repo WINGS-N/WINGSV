@@ -3306,29 +3306,34 @@ public final class WingsImportParser {
         String endpoint = !TextUtils.isEmpty(value(profile.getVkTurnEndpoint()))
             ? value(profile.getVkTurnEndpoint())
             : value(temp.endpoint);
+        // An absent field in the embedded Turn means "use the app default", NOT
+        // zero/off. A panel-managed profile ships an empty inner Turn (its wg
+        // transport is provisioned on connect), so falling back to zeros here
+        // wiped every VK TURN default when the profile was applied. Mirror the
+        // defaults readFlatProfile uses so an absent field lands on a sane value.
         return new VkTurnProfile(
             value(profile.getId()),
             value(profile.getTitle()),
             value(profile.getTransportKind()),
             value(profile.getTransportProfileId()),
             endpoint,
-            temp.threads != null ? temp.threads : 0,
-            temp.credsGroupSize != null ? temp.credsGroupSize : 0,
-            temp.useUdp != null && temp.useUdp,
+            temp.threads != null ? temp.threads : 24,
+            temp.credsGroupSize != null ? temp.credsGroupSize : 12,
+            temp.useUdp == null || temp.useUdp,
             temp.noObfuscation != null && temp.noObfuscation,
             temp.manualCaptcha != null && temp.manualCaptcha,
             value(temp.captchaAutoSolver),
             value(profile.getVkAuthMode()),
-            value(temp.turnSessionMode),
+            TextUtils.isEmpty(value(temp.turnSessionMode)) ? "mainline" : value(temp.turnSessionMode),
             value(profile.getDnsMode()),
             value(temp.vkTurnUserDns),
-            temp.vkTurnRuntimeMode != null ? temp.vkTurnRuntimeMode.prefValue : "",
-            temp.vkTurnRestartOnNetworkChange != null && temp.vkTurnRestartOnNetworkChange,
-            value(temp.vkTurnWrapMode),
-            value(temp.vkTurnWrapCipher),
+            temp.vkTurnRuntimeMode != null ? temp.vkTurnRuntimeMode.prefValue : ProxyRuntimeMode.VPN.prefValue,
+            temp.vkTurnRestartOnNetworkChange == null || temp.vkTurnRestartOnNetworkChange,
+            TextUtils.isEmpty(value(temp.vkTurnWrapMode)) ? "preferred" : value(temp.vkTurnWrapMode),
+            TextUtils.isEmpty(value(temp.vkTurnWrapCipher)) ? "srtp-aes-gcm" : value(temp.vkTurnWrapCipher),
             value(temp.vkTurnWrapKeyHex),
-            temp.vkTurnWrapSendKey != null && temp.vkTurnWrapSendKey,
-            value(temp.localEndpoint),
+            temp.vkTurnWrapSendKey == null || temp.vkTurnWrapSendKey,
+            TextUtils.isEmpty(value(temp.localEndpoint)) ? "127.0.0.1:9000" : value(temp.localEndpoint),
             value(temp.turnHost),
             value(temp.turnPort),
             value(profile.getSubscriptionId()),
