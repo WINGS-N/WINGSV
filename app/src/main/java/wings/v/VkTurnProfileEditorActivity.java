@@ -52,6 +52,9 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
     private String transportKind = VkTurnProfile.TRANSPORT_KIND_WG;
     private String transportProfileId = "";
     private boolean returningFromUiEditor;
+    private boolean managed;
+    private String provisionClientId = "";
+    private String provisionToken = "";
 
     public static Intent createIntent(Context context, String profileId) {
         return new Intent(context, VkTurnProfileEditorActivity.class).putExtra(EXTRA_PROFILE_ID, profileId);
@@ -71,6 +74,9 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
         }
         transportKind = profile.transportKind;
         transportProfileId = profile.transportProfileId;
+        managed = profile.isManaged();
+        provisionClientId = profile.provisionClientId;
+        provisionToken = profile.provisionToken;
         binding.editVkTurnEndpoint.setText(profile.vkTurnEndpoint);
         binding.buttonTransportKind.setOnClickListener(v -> {
             Haptics.softSelection(v);
@@ -88,7 +94,20 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
             Haptics.softSelection(v);
             openUiEditor();
         });
+        applyManagedReadOnly();
         refreshTransportLabels();
+    }
+
+    // A panel-managed profile provisions its wg transport dynamically on connect,
+    // so the transport-kind and transport-profile pickers carry no user choice and
+    // are shown read-only with an explanatory hint.
+    private void applyManagedReadOnly() {
+        if (!managed) {
+            return;
+        }
+        binding.buttonTransportKind.setEnabled(false);
+        binding.buttonTransportProfile.setEnabled(false);
+        binding.textTransportHint.setText(R.string.vk_turn_profile_editor_managed_hint);
     }
 
     @Override
@@ -178,6 +197,10 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
                 ? R.string.backend_profiles_sub_backend_amneziawg
                 : R.string.backend_profiles_sub_backend_wireguard
         );
+        if (managed) {
+            binding.buttonTransportProfile.setText(R.string.vk_turn_profile_editor_transport_managed);
+            return;
+        }
         binding.buttonTransportProfile.setText(resolveTransportProfileLabel());
     }
 
@@ -200,7 +223,7 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
     }
 
     private void saveProfile() {
-        if (TextUtils.isEmpty(transportProfileId)) {
+        if (!managed && TextUtils.isEmpty(transportProfileId)) {
             Toast.makeText(this, R.string.vk_turn_profile_editor_no_transport, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -230,7 +253,7 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
     }
 
     private void openUiEditor() {
-        if (TextUtils.isEmpty(transportProfileId)) {
+        if (!managed && TextUtils.isEmpty(transportProfileId)) {
             Toast.makeText(this, R.string.vk_turn_profile_editor_no_transport, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -260,7 +283,7 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
             base.id,
             base.title,
             kind,
-            transportId,
+            managed ? "" : transportId,
             endpoint,
             base.threads,
             base.credsGroupSize,
@@ -280,7 +303,12 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
             base.wrapSendKey,
             base.localEndpoint,
             base.turnHost,
-            base.turnPort
+            base.turnPort,
+            base.subscriptionId,
+            base.subscriptionTitle,
+            managed,
+            provisionClientId,
+            provisionToken
         );
     }
 
