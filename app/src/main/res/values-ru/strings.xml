@@ -791,6 +791,8 @@
     <string name="vk_turn_profile_editor_transport_profile_label">Профиль транспорта</string>
     <string name="vk_turn_profile_editor_transport_hint">Конфиг транспорта редактируется через его собственный профиль WireGuard или AmneziaWG.</string>
     <string name="vk_turn_profile_editor_transport_not_set">Не выбран</string>
+    <string name="vk_turn_profile_editor_transport_managed">Выдаётся панелью</string>
+    <string name="vk_turn_profile_editor_managed_hint">Этот профиль управляется панелью. Его транспорт WireGuard выдаётся автоматически при подключении и не редактируется здесь.</string>
     <string name="vk_turn_profile_editor_no_transport">Пока нет профилей транспорта этого типа</string>
     <string name="xray_subscriptions_title">Подписки</string>
     <string name="xray_subscriptions_header_title">Источники подписок</string>

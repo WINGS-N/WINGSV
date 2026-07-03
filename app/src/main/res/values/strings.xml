@@ -791,6 +791,8 @@
     <string name="vk_turn_profile_editor_transport_profile_label">Transport profile</string>
     <string name="vk_turn_profile_editor_transport_hint">The transport config is edited through its own WireGuard or AmneziaWG profile.</string>
     <string name="vk_turn_profile_editor_transport_not_set">Not selected</string>
+    <string name="vk_turn_profile_editor_transport_managed">Provisioned by the panel</string>
+    <string name="vk_turn_profile_editor_managed_hint">This profile is managed by the panel. Its WireGuard transport is provisioned automatically on connect and cannot be edited here.</string>
     <string name="vk_turn_profile_editor_no_transport">No transport profiles for this kind yet</string>
     <string name="xray_subscriptions_title">Subscriptions</string>
     <string name="xray_subscriptions_header_title">Subscription sources</string>
