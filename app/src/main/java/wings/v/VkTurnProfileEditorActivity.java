@@ -98,15 +98,18 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
         refreshTransportLabels();
     }
 
-    // A panel-managed profile provisions its wg transport dynamically on connect,
-    // so the transport-kind and transport-profile pickers carry no user choice and
-    // are shown read-only with an explanatory hint.
+    // A panel-managed profile provisions its wg transport (keys, address, server
+    // key) dynamically on connect, so none of the transport config is user-editable:
+    // the transport pickers, the wg UI editor and the endpoint are read-only, with
+    // an explanatory hint.
     private void applyManagedReadOnly() {
         if (!managed) {
             return;
         }
         binding.buttonTransportKind.setEnabled(false);
         binding.buttonTransportProfile.setEnabled(false);
+        binding.buttonOpenUiEditor.setEnabled(false);
+        binding.editVkTurnEndpoint.setEnabled(false);
         binding.textTransportHint.setText(R.string.vk_turn_profile_editor_managed_hint);
     }
 
