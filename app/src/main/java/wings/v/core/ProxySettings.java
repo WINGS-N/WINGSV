@@ -65,6 +65,13 @@ public class ProxySettings {
     public String wgPresharedKey;
     public String wgAllowedIps;
     public String awgQuickConfig;
+    // Managed profile: the wg/awg transport is provisioned by the vk-turn-proxy
+    // node on connect over its DTLS PROVISION exchange. The wg* fields above are
+    // then left empty and the relay is launched with the provision credentials
+    // instead, minting and applying the config itself.
+    public boolean wgProvisioned;
+    public String provisionClientId;
+    public String provisionToken;
     public boolean rootModeEnabled;
     public boolean kernelWireguardEnabled;
     public XrayProfile activeXrayProfile;
