@@ -324,6 +324,9 @@ public final class VkTurnProfileStore {
             )
             .putString(AppPrefs.KEY_TURN_HOST, ProfileStoreSupport.trim(profile.turnHost))
             .putString(AppPrefs.KEY_TURN_PORT, ProfileStoreSupport.trim(profile.turnPort))
+            .putBoolean(AppPrefs.KEY_VK_TURN_WG_PROVISIONED, profile.wgProvisioned)
+            .putString(AppPrefs.KEY_VK_TURN_PROVISION_CLIENT_ID, ProfileStoreSupport.trim(profile.provisionClientId))
+            .putString(AppPrefs.KEY_VK_TURN_PROVISION_TOKEN, ProfileStoreSupport.trim(profile.provisionToken))
             .commit();
     }
 

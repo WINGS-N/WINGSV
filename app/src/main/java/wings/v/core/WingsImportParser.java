@@ -3116,6 +3116,22 @@ public final class WingsImportParser {
         if (!TextUtils.isEmpty(value(profile.dnsMode))) {
             builder.setDnsMode(value(profile.dnsMode));
         }
+        if (profile.wgProvisioned) {
+            builder.setWgProvisioned(true);
+            if (!TextUtils.isEmpty(value(profile.provisionClientId))) {
+                builder.setProvisionClientId(value(profile.provisionClientId));
+            }
+            if (!TextUtils.isEmpty(value(profile.provisionToken))) {
+                // The app model holds the raw provision token base64-encoded so it
+                // round-trips any bytes losslessly through JSON; the wire field is
+                // the raw bytes.
+                builder.setProvisionToken(
+                    com.google.protobuf.ByteString.copyFrom(
+                        android.util.Base64.decode(value(profile.provisionToken), android.util.Base64.NO_WRAP)
+                    )
+                );
+            }
+        }
         return builder.build();
     }
 
@@ -3296,7 +3312,15 @@ public final class WingsImportParser {
             value(temp.turnHost),
             value(temp.turnPort),
             value(profile.getSubscriptionId()),
-            value(profile.getSubscriptionTitle())
+            value(profile.getSubscriptionTitle()),
+            profile.getWgProvisioned(),
+            value(profile.getProvisionClientId()),
+            profile.getProvisionToken().isEmpty()
+                ? ""
+                : android.util.Base64.encodeToString(
+                      profile.getProvisionToken().toByteArray(),
+                      android.util.Base64.NO_WRAP
+                  )
         );
     }
 

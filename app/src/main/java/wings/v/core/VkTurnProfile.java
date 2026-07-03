@@ -60,6 +60,14 @@ public final class VkTurnProfile {
     // based), so the same server can be reused across subscription and manual.
     public final String subscriptionId;
     public final String subscriptionTitle;
+    // Managed profile: the wg/awg transport is not referenced by transportProfileId
+    // but provisioned on connect by the vk-turn-proxy node over its DTLS PROVISION
+    // exchange. The app passes provisionClientId + provisionToken to the relay,
+    // which mints and applies the wg config itself; the editor shows the transport
+    // fields read-only. Empty token / false flag means a normal by-reference profile.
+    public final boolean wgProvisioned;
+    public final String provisionClientId;
+    public final String provisionToken;
 
     public VkTurnProfile(
         final String id,
@@ -145,6 +153,70 @@ public final class VkTurnProfile {
         final String subscriptionId,
         final String subscriptionTitle
     ) {
+        this(
+            id,
+            title,
+            transportKind,
+            transportProfileId,
+            vkTurnEndpoint,
+            threads,
+            credsGroupSize,
+            useUdp,
+            noObfuscation,
+            manualCaptcha,
+            captchaAutoSolver,
+            vkAuthMode,
+            turnSessionMode,
+            dnsMode,
+            userDns,
+            runtimeMode,
+            restartOnNetworkChange,
+            wrapMode,
+            wrapCipher,
+            wrapKeyHex,
+            wrapSendKey,
+            localEndpoint,
+            turnHost,
+            turnPort,
+            subscriptionId,
+            subscriptionTitle,
+            false,
+            "",
+            ""
+        );
+    }
+
+    public VkTurnProfile(
+        final String id,
+        final String title,
+        final String transportKind,
+        final String transportProfileId,
+        final String vkTurnEndpoint,
+        final int threads,
+        final int credsGroupSize,
+        final boolean useUdp,
+        final boolean noObfuscation,
+        final boolean manualCaptcha,
+        final String captchaAutoSolver,
+        final String vkAuthMode,
+        final String turnSessionMode,
+        final String dnsMode,
+        final String userDns,
+        final String runtimeMode,
+        final boolean restartOnNetworkChange,
+        final String wrapMode,
+        final String wrapCipher,
+        final String wrapKeyHex,
+        final boolean wrapSendKey,
+        final String localEndpoint,
+        final String turnHost,
+        final String turnPort,
+        final String subscriptionId,
+        final String subscriptionTitle,
+        final boolean wgProvisioned,
+        final String provisionClientId,
+        final String provisionToken
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.transportKind = normalizeTransportKind(transportKind);
@@ -171,6 +243,9 @@ public final class VkTurnProfile {
         this.turnPort = emptyIfNull(turnPort);
         this.subscriptionId = emptyIfNull(subscriptionId);
         this.subscriptionTitle = emptyIfNull(subscriptionTitle);
+        this.wgProvisioned = wgProvisioned;
+        this.provisionClientId = emptyIfNull(provisionClientId);
+        this.provisionToken = emptyIfNull(provisionToken);
     }
 
     /**
@@ -204,7 +279,10 @@ public final class VkTurnProfile {
             turnHost,
             turnPort,
             subscriptionId,
-            subscriptionTitle
+            subscriptionTitle,
+            wgProvisioned,
+            provisionClientId,
+            provisionToken
         );
     }
 
@@ -239,8 +317,54 @@ public final class VkTurnProfile {
             turnHost,
             turnPort,
             subscriptionId,
-            subscriptionTitle
+            subscriptionTitle,
+            wgProvisioned,
+            provisionClientId,
+            provisionToken
         );
+    }
+
+    /**
+     * Returns a copy marked as a panel-managed profile carrying the provision
+     * credentials. The transport reference is cleared because the wg/awg config is
+     * minted dynamically on connect rather than referenced.
+     */
+    public VkTurnProfile withManaged(final String newProvisionClientId, final String newProvisionToken) {
+        return new VkTurnProfile(
+            id,
+            title,
+            transportKind,
+            "",
+            vkTurnEndpoint,
+            threads,
+            credsGroupSize,
+            useUdp,
+            noObfuscation,
+            manualCaptcha,
+            captchaAutoSolver,
+            vkAuthMode,
+            turnSessionMode,
+            dnsMode,
+            userDns,
+            runtimeMode,
+            restartOnNetworkChange,
+            wrapMode,
+            wrapCipher,
+            wrapKeyHex,
+            wrapSendKey,
+            localEndpoint,
+            turnHost,
+            turnPort,
+            subscriptionId,
+            subscriptionTitle,
+            true,
+            newProvisionClientId,
+            newProvisionToken
+        );
+    }
+
+    public boolean isManaged() {
+        return wgProvisioned;
     }
 
     public boolean isFromSubscription() {
@@ -288,6 +412,9 @@ public final class VkTurnProfile {
         object.put("turn_port", turnPort);
         object.put("subscription_id", subscriptionId);
         object.put("subscription_title", subscriptionTitle);
+        object.put("wg_provisioned", wgProvisioned);
+        object.put("provision_client_id", provisionClientId);
+        object.put("provision_token", provisionToken);
         return object;
     }
 
@@ -321,7 +448,10 @@ public final class VkTurnProfile {
             object.optString("turn_host"),
             object.optString("turn_port"),
             object.optString("subscription_id"),
-            object.optString("subscription_title")
+            object.optString("subscription_title"),
+            object.optBoolean("wg_provisioned", false),
+            object.optString("provision_client_id"),
+            object.optString("provision_token")
         );
     }
 
@@ -342,6 +472,9 @@ public final class VkTurnProfile {
             manualCaptcha == profile.manualCaptcha &&
             restartOnNetworkChange == profile.restartOnNetworkChange &&
             wrapSendKey == profile.wrapSendKey &&
+            wgProvisioned == profile.wgProvisioned &&
+            Objects.equals(provisionClientId, profile.provisionClientId) &&
+            Objects.equals(provisionToken, profile.provisionToken) &&
             Objects.equals(id, profile.id) &&
             Objects.equals(title, profile.title) &&
             Objects.equals(transportKind, profile.transportKind) &&

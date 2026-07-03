@@ -69,6 +69,9 @@ public final class AppPrefs {
     public static final String KEY_LOCAL_ENDPOINT = "pref_local_endpoint";
     public static final String KEY_TURN_HOST = "pref_turn_host";
     public static final String KEY_TURN_PORT = "pref_turn_port";
+    public static final String KEY_VK_TURN_WG_PROVISIONED = "pref_vk_turn_wg_provisioned";
+    public static final String KEY_VK_TURN_PROVISION_CLIENT_ID = "pref_vk_turn_provision_client_id";
+    public static final String KEY_VK_TURN_PROVISION_TOKEN = "pref_vk_turn_provision_token";
     public static final String KEY_WG_PRIVATE_KEY = "pref_wg_private_key";
     public static final String KEY_WG_ADDRESSES = "pref_wg_addresses";
     public static final String KEY_WG_DNS = "pref_wg_dns";
@@ -1317,6 +1320,9 @@ public final class AppPrefs {
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
         settings.turnPort = trim(prefs.getString(KEY_TURN_PORT, ""));
+        settings.wgProvisioned = prefs.getBoolean(KEY_VK_TURN_WG_PROVISIONED, false);
+        settings.provisionClientId = trim(prefs.getString(KEY_VK_TURN_PROVISION_CLIENT_ID, ""));
+        settings.provisionToken = trim(prefs.getString(KEY_VK_TURN_PROVISION_TOKEN, ""));
         settings.wgPrivateKey = trim(prefs.getString(KEY_WG_PRIVATE_KEY, ""));
         settings.wgAddresses = trim(prefs.getString(KEY_WG_ADDRESSES, ""));
         settings.wgDns = trim(prefs.getString(KEY_WG_DNS, "1.1.1.1, 1.0.0.1"));
