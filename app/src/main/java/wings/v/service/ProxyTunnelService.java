@@ -435,6 +435,7 @@ public class ProxyTunnelService extends Service {
     // thread executor сохраняет упорядоченность apply/clear/reapply.
     private final ExecutorService rootRoutingExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
+    private static final long APP_CONTROL_COOKIE_POLL_INTERVAL_MS = 3000L;
     private final AtomicBoolean rootTetherSyncQueued = new AtomicBoolean();
     private final BroadcastReceiver tetherStateReceiver = new BroadcastReceiver() {
         @Override
@@ -464,6 +465,13 @@ public class ProxyTunnelService extends Service {
     private Process proxyProcess;
     // Serializes writes to the relay process stdin (vk_account_creds lines).
     private final Object proxyStdinLock = new Object();
+    // AppControl local gRPC to the running relay (non-root path only). While set,
+    // VK cookies flow in via SetVKCookies and rotated cookies out via a
+    // GetVKCookies poller, replacing the stdin/stdout cookie lines; the root path
+    // leaves both null and keeps the vk_session.json file channel.
+    private volatile boolean appControlGrpcActive;
+    private volatile wings.v.ipc.AppControlClient appControlClient;
+    private Thread appControlCookiePoller;
     // True while the running relay was launched with VK account-auth mode and
     // its stdin is writable (non-root ProcessBuilder path only). Used to gate
     // the VK_ACCOUNT_AUTH_REQUIRED handling and stdin writes.
@@ -2700,6 +2708,11 @@ public class ProxyTunnelService extends Service {
         releaseTunnelWifiLock();
         releaseSharingWifiLocks();
 
+        // Shut the AppControl gRPC client (and its cookie poller) before the relay
+        // dies so the channel tears down cleanly instead of thrashing on a vanished
+        // socket.
+        closeAppControl();
+
         if (proxyProcess != null) {
             // Forcibly kill (SIGKILL) the vk-turn-proxy helper rather than a
             // graceful destroy(): during VK account auth the relay is blocked in
@@ -2869,6 +2882,7 @@ public class ProxyTunnelService extends Service {
         releaseSharingWifiLocks();
         runFastStopCleanupStep("Root routing cleanup", ACTIVE_PROBING_FAST_STOP_WAIT_MS, this::clearRootRouting);
 
+        closeAppControl();
         if (proxyProcess != null) {
             runFastStopCleanupStep("Proxy process destroy", ACTIVE_PROBING_FAST_STOP_WAIT_MS, () -> {
                 if (proxyProcess != null) {
@@ -3028,6 +3042,7 @@ public class ProxyTunnelService extends Service {
         // Захват ссылки на proxyProcess до параллельной чистки: уничтожение
         // делается в группе, чтобы destroy() (synchronous) не блокировал
         // основной поток ещё на 50-200ms.
+        closeAppControl();
         final Process proxyProcessToDestroy = proxyProcess;
         proxyProcess = null;
 
@@ -3446,6 +3461,7 @@ public class ProxyTunnelService extends Service {
                 proxyProcess = launchedProcess;
                 clearLastError();
                 attachProxyWaitThread(launchedProcess, generation);
+                startAppControlIfActive(generation);
                 return launchedAt;
             }
 
@@ -3532,6 +3548,101 @@ public class ProxyTunnelService extends Service {
         return appControlToken;
     }
 
+    // Opens the AppControl gRPC client to the just-launched relay (non-root path)
+    // and starts the rotated-cookie poller. The channel connects lazily, so the
+    // socket not existing yet is fine; the first RPC retries. No-op when the relay
+    // was launched without the socket (root path).
+    private void startAppControlIfActive(int generation) {
+        if (!appControlGrpcActive) {
+            return;
+        }
+        closeAppControl();
+        try {
+            appControlClient = new wings.v.ipc.AppControlClient(appControlSocketPath(), appControlToken());
+            appendRuntimeLogLine("AppControl gRPC client opened on " + appControlSocketPath());
+        } catch (RuntimeException error) {
+            appControlClient = null;
+            appendRuntimeLogLine("AppControl gRPC client open failed: " + error.getMessage());
+            return;
+        }
+        Thread poller = new Thread(() -> appControlCookiePollLoop(generation), "appcontrol-cookie-poll");
+        poller.setDaemon(true);
+        appControlCookiePoller = poller;
+        poller.start();
+    }
+
+    // Polls the relay for its current VK cookie jar and mirrors any rotation into
+    // MMKV, replacing the stdout vk_cookies_update line (which the relay redacts to
+    // empty while AppControl is active). Runs until the client is replaced/closed
+    // or the runtime generation moves on.
+    private void appControlCookiePollLoop(int generation) {
+        wings.v.ipc.AppControlClient client = appControlClient;
+        String lastCookies = "";
+        while (client != null && client == appControlClient && generation == runtimeGeneration.get()) {
+            try {
+                Thread.sleep(APP_CONTROL_COOKIE_POLL_INTERVAL_MS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (client != appControlClient) {
+                return;
+            }
+            try {
+                wings.v.proto.appcontrol.AppControlProto.GetVKCookiesResponse response = client.getVkCookies();
+                String cookies = response.getCookies();
+                if (!TextUtils.isEmpty(cookies) && !cookies.equals(lastCookies)) {
+                    lastCookies = cookies;
+                    AppPrefs.setVkSession(this, cookies, emptyToNull(response.getUserAgent()));
+                    appendRuntimeLogLine("AppControl rotated VK session pulled (" + cookies.length() + " chars)");
+                }
+            } catch (RuntimeException error) {
+                // Socket not up yet, or the relay went away; keep trying until the
+                // generation/client changes rather than tearing the loop down on a
+                // transient gRPC UNAVAILABLE during warmup.
+                continue;
+            }
+        }
+    }
+
+    // Hands VK cookies to the relay over AppControl. Returns false when the gRPC
+    // path is not active or the call failed, so the caller can fall back.
+    private boolean appControlSetVkCookies(String cookies, String userAgent) {
+        wings.v.ipc.AppControlClient client = appControlClient;
+        if (client == null) {
+            return false;
+        }
+        try {
+            client.setVkCookies(cookies, userAgent);
+            appendRuntimeLogLine("delivered VK cookies over AppControl (" + cookies.length() + " chars)");
+            return true;
+        } catch (RuntimeException error) {
+            appendRuntimeLogLine("AppControl SetVKCookies failed: " + error.getMessage());
+            return false;
+        }
+    }
+
+    private void closeAppControl() {
+        Thread poller = appControlCookiePoller;
+        appControlCookiePoller = null;
+        if (poller != null) {
+            poller.interrupt();
+        }
+        wings.v.ipc.AppControlClient client = appControlClient;
+        appControlClient = null;
+        if (client != null) {
+            try {
+                client.close();
+            } catch (RuntimeException ignored) {
+                // Best-effort shutdown; the relay process is being torn down anyway.
+            }
+        }
+    }
+
+    private static String emptyToNull(String value) {
+        return TextUtils.isEmpty(value) ? null : value;
+    }
+
     private Process buildProxyProcess(ProxySettings settings) throws Exception {
         File executable = new File(getApplicationInfo().nativeLibraryDir, "libvkturn.so");
         if (!executable.isFile()) {
@@ -3553,10 +3664,20 @@ public class ProxyTunnelService extends Service {
         command.add(joinVkLinks(settings));
         command.add("-listen");
         command.add(settings.localEndpoint);
-        command.add("-app-grpc-socket");
-        command.add(appControlSocketPath());
-        command.add("-app-grpc-token");
-        command.add(appControlToken());
+        // AppControl local gRPC (cookies in/out, provision). Only the non-root
+        // ProcessBuilder path shares the app uid, so its unix socket + SO_PEERCRED
+        // same-uid gate work; the root "su -c" path runs the relay under a different
+        // uid where the socket is unreachable (and may be blocked by SELinux), so
+        // there we stay on the vk_session.json file channel instead. The relay only
+        // redacts cookies from stdout while AppControl is active, so this flag and
+        // the app's gRPC cookie path must switch together.
+        appControlGrpcActive = !kernelWireguardActive;
+        if (appControlGrpcActive) {
+            command.add("-app-grpc-socket");
+            command.add(appControlSocketPath());
+            command.add("-app-grpc-token");
+            command.add(appControlToken());
+        }
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
             command.add("-vk-link-secondary");
             command.add(settings.vkLinkSecondary);
@@ -4743,6 +4864,11 @@ public class ProxyTunnelService extends Service {
             // Root/kernel-WG: the relay has no writable stdin, so deliver cookies by
             // writing the session file, which the relay polls (-vk-cookie-file-poll).
             writeVkSessionFile(cookies, userAgent);
+            return;
+        }
+        if (appControlGrpcActive && appControlSetVkCookies(cookies, userAgent)) {
+            // Non-root: the primary channel is AppControl SetVKCookies. Fall through
+            // to the stdin line only if the gRPC call is unavailable.
             return;
         }
         try {
