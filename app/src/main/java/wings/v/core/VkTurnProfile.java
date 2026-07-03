@@ -381,7 +381,15 @@ public final class VkTurnProfile {
     }
 
     public String stableDedupKey() {
-        return (transportKind + "|" + transportProfileId + "|" + vkTurnEndpoint).trim().toLowerCase(Locale.ROOT);
+        String base = (transportKind + "|" + transportProfileId + "|" + vkTurnEndpoint).trim().toLowerCase(Locale.ROOT);
+        // A managed profile is keyed per client: two clients that provision off the
+        // same vk-turn endpoint would otherwise collide (same kind, no transport id,
+        // same endpoint) and the second import would be silently deduped into the
+        // first. The provision client id keeps them distinct.
+        if (wgProvisioned && !TextUtils.isEmpty(provisionClientId)) {
+            return base + "|" + provisionClientId.trim().toLowerCase(Locale.ROOT);
+        }
+        return base;
     }
 
     public JSONObject toJson() throws JSONException {
