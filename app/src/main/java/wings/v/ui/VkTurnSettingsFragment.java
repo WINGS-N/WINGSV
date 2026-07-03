@@ -28,6 +28,8 @@ import wings.v.core.Haptics;
 import wings.v.core.ProxyRuntimeMode;
 import wings.v.core.ProxySettings;
 import wings.v.core.UiFormatter;
+import wings.v.core.VkTurnProfile;
+import wings.v.core.VkTurnProfileStore;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTransportMode;
 import wings.v.service.ProxyTunnelService;
@@ -746,6 +748,34 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         setPreferenceVisible(AppPrefs.KEY_WG_ENDPOINT, plainWireGuardEndpointVisible);
         setPreferenceVisible(AmneziaStore.KEY_PEER_ENDPOINT, plainAwgPeerEndpointVisible);
         setClearVkCookiesVisible(isVkAuthModeEnabled());
+        applyManagedLock();
+    }
+
+    // A panel-managed VK TURN profile provisions its wg/awg transport (keys,
+    // address, obfuscation params, peer endpoint) on connect over the DTLS
+    // exchange, so the server owns that config. Disable the transport inputs so
+    // an edit here cannot silently diverge from the provisioned config; the VK
+    // TURN endpoint itself is locked in the profile editor.
+    private void applyManagedLock() {
+        VkTurnProfile active = VkTurnProfileStore.getActiveProfile(requireContext());
+        boolean unlocked = active == null || !active.isManaged();
+        setPreferencesEnabled(WIREGUARD_PREFERENCE_KEYS, unlocked);
+        setPreferencesEnabled(AMNEZIA_PREFERENCE_KEYS, unlocked);
+        setPreferenceEnabled(AppPrefs.KEY_WG_ENDPOINT, unlocked);
+        setPreferenceEnabled(AmneziaStore.KEY_PEER_ENDPOINT, unlocked);
+    }
+
+    private void setPreferenceEnabled(String key, boolean enabled) {
+        Preference preference = findPreference(key);
+        if (preference != null) {
+            preference.setEnabled(enabled);
+        }
+    }
+
+    private void setPreferencesEnabled(String[] keys, boolean enabled) {
+        for (String key : keys) {
+            setPreferenceEnabled(key, enabled);
+        }
     }
 
     private void registerPreferencesListener() {
