@@ -2431,6 +2431,13 @@ public class ProxyTunnelService extends Service {
             long proxyStartedAt = startProxyProcess(settings, generation);
             waitForProxyWarmup(proxyStartedAt, generation);
             wgPeerEndpoint = settings.localEndpoint;
+            // A managed VK TURN profile provisions its wg keys/address over the
+            // AppControl channel the relay just opened. This non-root userspace
+            // path returns before the shared applyManagedProvisioningIfNeeded call
+            // in startWireGuardRuntime, so provision here - before the xray WG
+            // outbound below is built from settings.wg* - or it would connect with
+            // stale/empty keys and never provision.
+            applyManagedProvisioningIfNeeded(settings);
         }
 
         ensureRuntimeStillWanted(generation);
