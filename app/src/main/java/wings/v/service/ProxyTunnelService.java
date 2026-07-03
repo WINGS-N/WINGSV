@@ -3505,6 +3505,33 @@ public class ProxyTunnelService extends Service {
         return settings.vkLink == null ? "" : settings.vkLink.trim();
     }
 
+    private String appControlSocketPath;
+    private String appControlToken;
+
+    // Unix socket + random token the embedded vk-turn-proxy client serves its
+    // AppControl gRPC on. Kept in the app-private files dir so only this app can
+    // reach it; the token is regenerated per service instance.
+    private String appControlSocketPath() {
+        if (appControlSocketPath == null) {
+            appControlSocketPath = new File(getFilesDir(), "appcontrol.sock").getAbsolutePath();
+        }
+        return appControlSocketPath;
+    }
+
+    private String appControlToken() {
+        if (appControlToken == null) {
+            byte[] raw = new byte[24];
+            new java.security.SecureRandom().nextBytes(raw);
+            StringBuilder sb = new StringBuilder(raw.length * 2);
+            for (byte b : raw) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            appControlToken = sb.toString();
+        }
+        return appControlToken;
+    }
+
     private Process buildProxyProcess(ProxySettings settings) throws Exception {
         File executable = new File(getApplicationInfo().nativeLibraryDir, "libvkturn.so");
         if (!executable.isFile()) {
@@ -3526,6 +3553,10 @@ public class ProxyTunnelService extends Service {
         command.add(joinVkLinks(settings));
         command.add("-listen");
         command.add(settings.localEndpoint);
+        command.add("-app-grpc-socket");
+        command.add(appControlSocketPath());
+        command.add("-app-grpc-token");
+        command.add(appControlToken());
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
             command.add("-vk-link-secondary");
             command.add(settings.vkLinkSecondary);
