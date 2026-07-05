@@ -551,7 +551,11 @@ public class ProxyLogsActivity extends AppCompatActivity {
         if (itemCount <= 0) {
             return;
         }
-        binding.recyclerProxyLogs.post(() -> binding.recyclerProxyLogs.scrollToPosition(itemCount - 1));
+        // Capture the RecyclerView locally: the posted runnable runs later and must
+        // not re-read binding, which onDestroy nulls out while a scroll is queued
+        // during a burst of log lines (NPE on binding.recyclerProxyLogs otherwise).
+        RecyclerView recycler = binding.recyclerProxyLogs;
+        recycler.post(() -> recycler.scrollToPosition(itemCount - 1));
     }
 
     private static final class LogsAdapter extends RecyclerView.Adapter<LogsAdapter.LogLineViewHolder> {
