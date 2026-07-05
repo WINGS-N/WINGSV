@@ -75,6 +75,38 @@ public final class AppControlClient implements Closeable {
         return stub.streamTelemetry(AppControlProto.StreamTelemetryRequest.getDefaultInstance());
     }
 
+    // Blocking server stream of relay control events (status/caps/captcha/lockout/
+    // vk-auth) that formerly rode the stdout PROXY_EVENT JSONL lines. next() returns
+    // the moment the relay pushes an event.
+    public java.util.Iterator<AppControlProto.ProxyEvent> streamEvents() {
+        return stub.streamEvents(AppControlProto.StreamEventsRequest.getDefaultInstance());
+    }
+
+    // Delivers the VK TURN credentials intercepted in the sign-in WebView (or a
+    // cancel) back to the relay, replacing the vk_account_creds stdin line. Works on
+    // the root/kernel-WG path too, where the relay has no writable stdin.
+    public void submitVkAccountCreds(
+        String link,
+        String username,
+        String credential,
+        java.util.List<String> turnUrls,
+        boolean cancel
+    ) {
+        AppControlProto.VKAccountCredsRequest.Builder request = AppControlProto.VKAccountCredsRequest.newBuilder()
+            .setLink(link == null ? "" : link)
+            .setUsername(username == null ? "" : username)
+            .setCredential(credential == null ? "" : credential)
+            .setCancel(cancel);
+        if (turnUrls != null) {
+            for (String url : turnUrls) {
+                if (url != null && !url.isEmpty()) {
+                    request.addTurnUrls(url);
+                }
+            }
+        }
+        stub.submitVKAccountCreds(request.build());
+    }
+
     public AppControlProto.ProvisionResponse provision(String clientId, byte[] token, String hwid, int localPort) {
         return stub.provision(
             AppControlProto.ProvisionRequest.newBuilder()
