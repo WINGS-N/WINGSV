@@ -291,22 +291,17 @@ public final class VkTurnProfileStore {
                 WireGuardProfileStore.applyProfileToPrefs(context, transport);
             }
         }
+        // Threads, creds group size, the VK-ID auth mode, the session mode and the
+        // browser fingerprint are device-global user preferences, NOT per-profile:
+        // they are deliberately not projected here, so switching a profile never
+        // resets them. The flat keys stay as the user set them globally.
         ProfileStoreSupport.prefs(context)
             .edit()
             .putString(AppPrefs.KEY_ENDPOINT, ProfileStoreSupport.trim(profile.vkTurnEndpoint))
-            .putString(AppPrefs.KEY_THREADS, String.valueOf(profile.threads > 0 ? profile.threads : 24))
-            .putString(
-                AppPrefs.KEY_CREDS_GROUP_SIZE,
-                String.valueOf(profile.credsGroupSize > 0 ? profile.credsGroupSize : 12)
-            )
             .putBoolean(AppPrefs.KEY_USE_UDP, profile.useUdp)
             .putBoolean(AppPrefs.KEY_NO_OBFUSCATION, profile.noObfuscation)
             .putBoolean(AppPrefs.KEY_MANUAL_CAPTCHA, profile.manualCaptcha)
             .putString(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER, normalizeCaptchaAutoSolver(profile.captchaAutoSolver))
-            .putBoolean(
-                AppPrefs.KEY_VK_AUTH_MODE,
-                AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(AppPrefs.normalizeVkAuthMode(profile.vkAuthMode))
-            )
             .putBoolean(AppPrefs.KEY_VK_TURN_RESTART_ON_NETWORK_CHANGE, profile.restartOnNetworkChange)
             .putString(AppPrefs.KEY_VK_TURN_RUNTIME_MODE, ProxyRuntimeMode.fromPrefValue(profile.runtimeMode).prefValue)
             .putString(AppPrefs.KEY_VK_TURN_USER_DNS, ProfileStoreSupport.trim(profile.userDns))
@@ -314,7 +309,6 @@ public final class VkTurnProfileStore {
             .putString(AppPrefs.KEY_VK_TURN_WRAP_CIPHER, AppPrefs.normalizeWrapCipher(profile.wrapCipher))
             .putString(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX, ProfileStoreSupport.trim(profile.wrapKeyHex))
             .putBoolean(AppPrefs.KEY_VK_TURN_WRAP_SEND_KEY, profile.wrapSendKey)
-            .putString(AppPrefs.KEY_TURN_SESSION_MODE, ProfileStoreSupport.trim(profile.turnSessionMode))
             .putString(AppPrefs.KEY_DNS_MODE, AppPrefs.normalizeDnsMode(profile.dnsMode))
             .putString(
                 AppPrefs.KEY_LOCAL_ENDPOINT,
