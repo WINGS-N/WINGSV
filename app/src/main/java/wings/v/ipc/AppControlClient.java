@@ -23,15 +23,25 @@ public final class AppControlClient implements Closeable {
     private final AppControlGrpc.AppControlBlockingStub stub;
 
     public AppControlClient(String socketPath, String token) {
-        // An IP-literal target avoids a real DNS lookup (grpc's dns resolver
-        // short-circuits literals), so the custom socketFactory connects the unix
-        // socket without resolving "localhost" - which fails under the active
-        // VPN/restricted network (connection never attempted -> UNAVAILABLE).
-        this.channel = OkHttpChannelBuilder.forTarget("127.0.0.1:1")
-            .socketFactory(new LocalSocketChannelFactory(socketPath))
-            .overrideAuthority("localhost")
-            .usePlaintext()
-            .build();
+        if (socketPath.startsWith("tcp:")) {
+            // Root/kernel-WG path: the relay listens on 127.0.0.1:port (SELinux forbids
+            // the unix-socket connectto to its priv_app domain). The bearer token below
+            // is the access control against other local apps.
+            this.channel = OkHttpChannelBuilder.forTarget(socketPath.substring("tcp:".length()))
+                .overrideAuthority("localhost")
+                .usePlaintext()
+                .build();
+        } else {
+            // An IP-literal target avoids a real DNS lookup (grpc's dns resolver
+            // short-circuits literals), so the custom socketFactory connects the unix
+            // socket without resolving "localhost" - which fails under the active
+            // VPN/restricted network (connection never attempted -> UNAVAILABLE).
+            this.channel = OkHttpChannelBuilder.forTarget("127.0.0.1:1")
+                .socketFactory(new LocalSocketChannelFactory(socketPath))
+                .overrideAuthority("localhost")
+                .usePlaintext()
+                .build();
+        }
         AppControlGrpc.AppControlBlockingStub built = AppControlGrpc.newBlockingStub(channel);
         if (token != null && !token.isEmpty()) {
             Metadata headers = new Metadata();
