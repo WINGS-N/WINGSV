@@ -164,6 +164,7 @@ public final class AppPrefs {
     public static final String KEY_VK_TURN_FAVORITE_PROFILE_IDS = "pref_vk_turn_favorite_profile_ids";
     public static final String KEY_VK_TURN_PROFILE_TRAFFIC_JSON = "pref_vk_turn_profile_traffic_json";
     public static final String KEY_VK_TURN_PROFILES_MIGRATED = "pref_vk_turn_profiles_migrated";
+    private static final String KEY_VK_TURN_MU_SAFARI_MIGRATED = "pref_vk_turn_mu_safari_migrated";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES = "pref_xray_subscriptions_refresh_minutes";
     public static final String KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED =
@@ -288,6 +289,25 @@ public final class AppPrefs {
         migrateFirstLaunchExperienceReset300(context);
         XrayRoutingStore.ensureGeoFilesBootstrap(context);
         migrateBackendProfiles(context);
+        migrateVkTurnSessionAndFingerprint(context);
+    }
+
+    // One-time move of the global VK TURN session mode to mu/v1 and the browser
+    // fingerprint to Safari (the new defaults). Idempotent, gated by its own flag.
+    // These are device-global VK TURN keys, so setting them once carries every
+    // profile forward; new installs get the same values through the getSettings /
+    // getVkTurnBrowserFingerprint defaults above.
+    private static void migrateVkTurnSessionAndFingerprint(Context context) {
+        SharedPreferences preferences = prefs(context);
+        if (preferences.getBoolean(KEY_VK_TURN_MU_SAFARI_MIGRATED, false)) {
+            return;
+        }
+        preferences
+            .edit()
+            .putString(KEY_TURN_SESSION_MODE, TURN_SESSION_MODE_MU)
+            .putString(KEY_VK_TURN_BROWSER_FINGERPRINT, VK_TURN_BROWSER_FP_SAFARI)
+            .putBoolean(KEY_VK_TURN_MU_SAFARI_MIGRATED, true)
+            .apply();
     }
 
     // One-time seeding of the WireGuard / AmneziaWG / VK TURN multi-profile
@@ -456,7 +476,7 @@ public final class AppPrefs {
 
     public static String getVkTurnBrowserFingerprint(Context context) {
         return normalizeVkTurnBrowserFingerprint(
-            prefs(context).getString(KEY_VK_TURN_BROWSER_FINGERPRINT, VK_TURN_BROWSER_FP_AUTO)
+            prefs(context).getString(KEY_VK_TURN_BROWSER_FINGERPRINT, VK_TURN_BROWSER_FP_SAFARI)
         );
     }
 
@@ -1316,7 +1336,9 @@ public final class AppPrefs {
         settings.vkTurnWrapCipher = normalizeWrapCipher(prefs.getString(KEY_VK_TURN_WRAP_CIPHER, "srtp-aes-gcm"));
         settings.vkTurnWrapKeyHex = trim(prefs.getString(KEY_VK_TURN_WRAP_KEY_HEX, ""));
         settings.vkTurnWrapSendKey = prefs.getBoolean(KEY_VK_TURN_WRAP_SEND_KEY, true);
-        settings.turnSessionMode = normalizeTurnSessionMode(prefs.getString(KEY_TURN_SESSION_MODE, "mainline"));
+        settings.turnSessionMode = normalizeTurnSessionMode(
+            prefs.getString(KEY_TURN_SESSION_MODE, TURN_SESSION_MODE_MU)
+        );
         settings.localEndpoint = trim(prefs.getString(KEY_LOCAL_ENDPOINT, "127.0.0.1:9000"));
         settings.turnHost = trim(prefs.getString(KEY_TURN_HOST, ""));
         settings.turnPort = trim(prefs.getString(KEY_TURN_PORT, ""));
