@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.text.TextUtils;
+import android.webkit.CookieManager;
 import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
@@ -356,6 +357,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             Haptics.softSelection(getListView() != null ? getListView() : requireView());
             AppPrefs.clearVkSession(requireContext());
             deleteRelayVkSessionFile();
+            clearVkWebViewCookies();
             Toast.makeText(requireContext(), R.string.vk_clear_cookies_done, Toast.LENGTH_SHORT).show();
             return true;
         });
@@ -395,6 +397,20 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             }
         } catch (RuntimeException ignored) {
             // Best effort: the relay re-requests cookies when the file is gone.
+        }
+    }
+
+    // The MMKV and file caches are only mirrors of the real VK login, which lives
+    // in the WebView CookieManager. Without wiping it the next relay start reopens
+    // vk.com already signed in, silently reharvests the session, and re-populates
+    // the caches - so clearing must reach the CookieManager too.
+    private void clearVkWebViewCookies() {
+        try {
+            CookieManager cookieManager = CookieManager.getInstance();
+            cookieManager.removeAllCookies(null);
+            cookieManager.flush();
+        } catch (RuntimeException ignored) {
+            // WebView may be unavailable; the cache clears above still apply.
         }
     }
 
