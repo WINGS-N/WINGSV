@@ -23,7 +23,11 @@ public final class AppControlClient implements Closeable {
     private final AppControlGrpc.AppControlBlockingStub stub;
 
     public AppControlClient(String socketPath, String token) {
-        this.channel = OkHttpChannelBuilder.forTarget("localhost:1")
+        // An IP-literal target avoids a real DNS lookup (grpc's dns resolver
+        // short-circuits literals), so the custom socketFactory connects the unix
+        // socket without resolving "localhost" - which fails under the active
+        // VPN/restricted network (connection never attempted -> UNAVAILABLE).
+        this.channel = OkHttpChannelBuilder.forTarget("127.0.0.1:1")
             .socketFactory(new LocalSocketChannelFactory(socketPath))
             .overrideAuthority("localhost")
             .usePlaintext()
@@ -60,6 +64,10 @@ public final class AppControlClient implements Closeable {
                 .setLocalPort(localPort)
                 .build()
         );
+    }
+
+    public AppControlProto.ConfigureResponse configure(AppControlProto.ConfigureRequest request) {
+        return stub.configure(request);
     }
 
     @Override
