@@ -282,12 +282,19 @@ val buildVkTurnProxyArm64: TaskProvider<Exec> by tasks.registering(Exec::class) 
                 "CC" to resolveVkTurnAndroidClang().absolutePath
             )
         )
+        val vkTurnVersion = runCatching {
+            val proc = ProcessBuilder(
+                "git", "-C", vkTurnRepoDir.absolutePath,
+                "describe", "--tags", "--always", "--dirty"
+            ).redirectErrorStream(true).start()
+            proc.inputStream.bufferedReader().readText().trim().also { proc.waitFor() }
+        }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "dev"
         commandLine(
             "go",
             "build",
             "-trimpath",
             "-ldflags",
-            "-checklinkname=0 -s -w",
+            "-checklinkname=0 -s -w -X main.clientVersion=$vkTurnVersion",
             "-o",
             outputFile.absolutePath,
             "./client"
