@@ -1358,10 +1358,11 @@ public final class AppPrefs {
             }
             return;
         }
-        SharedPreferences.Editor editor = prefs(context).edit();
+        SharedPreferences importPrefs = prefs(context);
+        SharedPreferences.Editor editor = importPrefs.edit();
 
         if (importedConfig.hasTurnSettings) {
-            applyImportedTurnSettings(editor, importedConfig, backendType);
+            applyImportedTurnSettings(editor, importPrefs, importedConfig, backendType);
         }
         if (importedConfig.hasWireGuardSettings) {
             applyImportedWireGuardSettings(editor, importedConfig, backendType);
@@ -1537,6 +1538,7 @@ public final class AppPrefs {
 
     private static void applyImportedTurnSettings(
         SharedPreferences.Editor editor,
+        SharedPreferences prefs,
         WingsImportParser.ImportedConfig importedConfig,
         BackendType backendType
     ) {
@@ -1546,7 +1548,6 @@ public final class AppPrefs {
             editor.putString(KEY_ENDPOINT, trim(importedConfig.endpoint));
         }
         String importedLink = trim(importedConfig.link);
-        editor.putString(KEY_VK_LINK, importedLink);
         ArrayList<String> importedLinks = new ArrayList<>();
         if (importedConfig.links != null) {
             for (String entry : importedConfig.links) {
@@ -1559,12 +1560,24 @@ public final class AppPrefs {
         if (importedLinks.isEmpty() && !TextUtils.isEmpty(importedLink)) {
             importedLinks.add(importedLink);
         }
-        // Never wipe the shared VK-links pool from a targeted import that carries no
-        // links; only a full backup restore may overwrite it (even with empty).
-        if (!importedLinks.isEmpty() || importedConfig.hasAllSettings) {
-            editor.putString(KEY_VK_LINKS_JSON, encodeVkLinks(importedLinks));
+        // The VK-links pool is shared across every profile. Importing any profile only
+        // APPENDS its links to what the user already has - it never wipes the pool. A
+        // profile that carries no links leaves both the pool and the primary link as-is.
+        List<String> vkLinkPool = new ArrayList<>(readVkLinks(prefs, trim(prefs.getString(KEY_VK_LINK, ""))));
+        for (String entry : importedLinks) {
+            if (!vkLinkPool.contains(entry)) {
+                vkLinkPool.add(entry);
+            }
         }
-        editor.putString(KEY_VK_LINK_SECONDARY, trim(importedConfig.linkSecondary));
+        editor.putString(KEY_VK_LINKS_JSON, encodeVkLinks(vkLinkPool));
+        if (!TextUtils.isEmpty(importedLink)) {
+            editor.putString(KEY_VK_LINK, importedLink);
+        } else if (!vkLinkPool.isEmpty()) {
+            editor.putString(KEY_VK_LINK, vkLinkPool.get(0));
+        }
+        if (!TextUtils.isEmpty(trim(importedConfig.linkSecondary))) {
+            editor.putString(KEY_VK_LINK_SECONDARY, trim(importedConfig.linkSecondary));
+        }
         editor.putString(
             KEY_CREDS_GROUP_SIZE,
             String.valueOf(
@@ -1573,10 +1586,11 @@ public final class AppPrefs {
                     : 12
             )
         );
-        editor.putString(
-            KEY_THREADS,
-            String.valueOf(importedConfig.threads != null && importedConfig.threads > 0 ? importedConfig.threads : 24)
-        );
+        // Threads is a device-local tuning preference; a profile import that omits it
+        // (e.g. a panel managed VK TURN link) keeps the user's current value.
+        if (importedConfig.threads != null && importedConfig.threads > 0) {
+            editor.putString(KEY_THREADS, String.valueOf(importedConfig.threads));
+        }
         editor.putBoolean(KEY_USE_UDP, importedConfig.useUdp == null || importedConfig.useUdp);
         editor.putBoolean(KEY_NO_OBFUSCATION, importedConfig.noObfuscation != null && importedConfig.noObfuscation);
         editor.putBoolean(KEY_MANUAL_CAPTCHA, importedConfig.manualCaptcha != null && importedConfig.manualCaptcha);

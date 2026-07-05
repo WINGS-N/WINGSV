@@ -740,7 +740,11 @@ public final class WingsImportParser {
 
     private static VkTurnProfile buildVkTurnProfile(Context context, ImportedConfig config, boolean awg) {
         String transportKind = awg ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
-        int threads = config.threads != null && config.threads > 0 ? config.threads : 24;
+        // Threads and the VK-ID auth mode are device-local preferences the user tunes,
+        // not part of a shared/managed config - inherit the current values so importing
+        // a profile that omits them (e.g. a panel managed VK TURN link) never resets them.
+        ProxySettings currentSettings = AppPrefs.getSettings(context);
+        int threads = config.threads != null && config.threads > 0 ? config.threads : currentSettings.threads;
         int creds = config.credsGroupSize != null && config.credsGroupSize > 0 ? config.credsGroupSize : 12;
         boolean useUdp = config.useUdp == null || config.useUdp;
         boolean noObfuscation = config.noObfuscation != null && config.noObfuscation;
@@ -776,7 +780,7 @@ public final class WingsImportParser {
             noObfuscation,
             manualCaptcha,
             captchaAutoSolver,
-            AppPrefs.VK_AUTH_MODE_ANONYMOUS,
+            AppPrefs.normalizeVkAuthMode(currentSettings.vkAuthMode),
             turnSessionMode,
             AppPrefs.getDnsMode(context),
             value(config.vkTurnUserDns),
@@ -3324,7 +3328,9 @@ public final class WingsImportParser {
             temp.manualCaptcha != null && temp.manualCaptcha,
             value(temp.captchaAutoSolver),
             value(profile.getVkAuthMode()),
-            TextUtils.isEmpty(value(temp.turnSessionMode)) ? "mainline" : value(temp.turnSessionMode),
+            TextUtils.isEmpty(value(temp.turnSessionMode))
+                ? (profile.getWgProvisioned() ? "mu" : "mainline")
+                : value(temp.turnSessionMode),
             value(profile.getDnsMode()),
             value(temp.vkTurnUserDns),
             temp.vkTurnRuntimeMode != null ? temp.vkTurnRuntimeMode.prefValue : ProxyRuntimeMode.VPN.prefValue,
