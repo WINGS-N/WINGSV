@@ -436,6 +436,9 @@ public class ProxyTunnelService extends Service {
     private final ExecutorService rootRoutingExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
     private static final long APP_CONTROL_COOKIE_POLL_INTERVAL_MS = 3000L;
+    // Telemetry rides a blocking server stream (event-driven, no poll). This is only
+    // the backoff before re-subscribing when the stream drops (e.g. relay warmup).
+    private static final long APP_CONTROL_TELEMETRY_RETRY_MS = 500L;
     private final AtomicBoolean rootTetherSyncQueued = new AtomicBoolean();
     private final BroadcastReceiver tetherStateReceiver = new BroadcastReceiver() {
         @Override
@@ -472,6 +475,7 @@ public class ProxyTunnelService extends Service {
     private volatile boolean appControlGrpcActive;
     private volatile wings.v.ipc.AppControlClient appControlClient;
     private Thread appControlCookiePoller;
+    private Thread appControlTelemetryPoller;
     // True while the running relay was launched with VK account-auth mode and
     // its stdin is writable (non-root ProcessBuilder path only). Used to gate
     // the VK_ACCOUNT_AUTH_REQUIRED handling and stdin writes.
@@ -3630,6 +3634,13 @@ public class ProxyTunnelService extends Service {
         poller.setDaemon(true);
         appControlCookiePoller = poller;
         poller.start();
+        Thread telemetryPoller = new Thread(
+            () -> appControlTelemetryStreamLoop(generation),
+            "appcontrol-telemetry-stream"
+        );
+        telemetryPoller.setDaemon(true);
+        appControlTelemetryPoller = telemetryPoller;
+        telemetryPoller.start();
     }
 
     // Delivers the relay runtime configuration (formerly CLI flags) to the embedded
@@ -3772,6 +3783,38 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // Reads the relay's live telemetry (connected TURN stream count) off a blocking
+    // AppControl server stream and applies it, replacing the PROXY_EVENT telemetry
+    // stdout scrape. next() returns the instant the relay pushes a change, so there
+    // is no poll latency. The relay still prints the line, so it stays in the log.
+    private void appControlTelemetryStreamLoop(int generation) {
+        while (appControlClient != null && generation == runtimeGeneration.get()) {
+            wings.v.ipc.AppControlClient client = appControlClient;
+            if (client == null) {
+                return;
+            }
+            try {
+                java.util.Iterator<wings.v.proto.appcontrol.AppControlProto.Telemetry> stream =
+                    client.streamTelemetry();
+                while (stream.hasNext() && client == appControlClient && generation == runtimeGeneration.get()) {
+                    applyProxyStreamTelemetry((int) stream.next().getConnectedStreams());
+                }
+            } catch (RuntimeException error) {
+                // Stream not up yet or dropped (relay warmup / restart); re-subscribe
+                // after a short backoff until the generation/client changes.
+            }
+            if (client != appControlClient || generation != runtimeGeneration.get()) {
+                return;
+            }
+            try {
+                Thread.sleep(APP_CONTROL_TELEMETRY_RETRY_MS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
     // Hands VK cookies to the relay over AppControl. Returns false when the gRPC
     // path is not active or the call failed, so the caller can fall back.
     private boolean appControlSetVkCookies(String cookies, String userAgent) {
@@ -3794,6 +3837,11 @@ public class ProxyTunnelService extends Service {
         appControlCookiePoller = null;
         if (poller != null) {
             poller.interrupt();
+        }
+        Thread telemetryPoller = appControlTelemetryPoller;
+        appControlTelemetryPoller = null;
+        if (telemetryPoller != null) {
+            telemetryPoller.interrupt();
         }
         wings.v.ipc.AppControlClient client = appControlClient;
         appControlClient = null;
@@ -5424,7 +5472,8 @@ public class ProxyTunnelService extends Service {
                 return;
             }
             if (PROXY_EVENT_TELEMETRY.equals(type)) {
-                handleStructuredProxyTelemetry(event);
+                // Telemetry is consumed over the AppControl gRPC now
+                // (appControlTelemetryPollLoop); the line was already logged above.
                 return;
             }
             if (PROXY_EVENT_VK_ACCOUNT_AUTH_REQUIRED.equals(type)) {
@@ -5451,20 +5500,19 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    private void handleStructuredProxyTelemetry(JSONObject event) {
-        if (event == null) {
-            return;
-        }
-        long connectedStreams = Math.max(0L, event.optLong("connected_streams", 0L));
-        long activeStreams = Math.max(0L, event.optLong("activeStreams", 0L));
-        sProxyConnectedStreams = (int) connectedStreams;
+    // Applies the relay's connected-stream count (pulled over AppControl): drives the
+    // connect-progress counter, refreshes the notification while (dis)connecting, and
+    // marks DTLS liveness. Runs on the telemetry poll thread.
+    private void applyProxyStreamTelemetry(int connectedStreams) {
+        int connected = Math.max(0, connectedStreams);
+        sProxyConnectedStreams = connected;
         persistConnectProgress();
         if (sServiceState == ServiceState.CONNECTING || sServiceState == ServiceState.RUNNING) {
             // Refresh the notification so its stream counter (e.g. "2/12T") ticks
             // up as streams connect - they keep filling after the tunnel is up.
             updateNotification();
         }
-        if (connectedStreams > 0L || activeStreams > 0L) {
+        if (connected > 0) {
             markProxyDtlsActivity();
         }
     }
