@@ -1393,11 +1393,37 @@ public class ProxyTunnelService extends Service {
         return android.text.format.DateFormat.format("HH:mm:ss", System.currentTimeMillis()).toString() + " " + line;
     }
 
+    // Matches the JSON cookies field the relay emits on the root stdin/stdout
+    // channel (vk_cookies_update). The non-root path carries cookies over the
+    // AppControl gRPC instead, so its log never shows them.
+    private static final java.util.regex.Pattern PROXY_COOKIE_PATTERN = java.util.regex.Pattern.compile(
+        "(\"cookies\"\\s*:\\s*\")([^\"]*)(\")"
+    );
+
+    // The root relay writes rotated VK cookies to stdout, which would otherwise be
+    // logged verbatim. Redact the value (keeping the char count) so the root log
+    // matches the non-root path, which never carries the cookie in the clear.
+    private static String redactProxyLogLine(String line) {
+        if (line == null || line.indexOf("\"cookies\"") < 0) {
+            return line;
+        }
+        java.util.regex.Matcher matcher = PROXY_COOKIE_PATTERN.matcher(line);
+        StringBuffer out = new StringBuffer();
+        while (matcher.find()) {
+            int length = matcher.group(2).length();
+            String replacement =
+                matcher.group(1) + (length == 0 ? "" : "[redacted " + length + " chars]") + matcher.group(3);
+            matcher.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(out);
+        return out.toString();
+    }
+
     private static void appendProxyLogLine(String line) {
         if (TextUtils.isEmpty(line)) {
             return;
         }
-        String stamped = stamp(line);
+        String stamped = stamp(redactProxyLogLine(line));
         synchronized (PROXY_LOG_LOCK) {
             while (sProxyLogLines.size() >= MAX_PROXY_LOG_LINES) {
                 sProxyLogLines.removeFirst();
@@ -2202,9 +2228,13 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
+            // Provision before warmup so a fresh DTLS worker claims the parked
+            // PROVISION before the workers reach session (see the userspace path).
+            applyManagedProvisioningIfNeeded(settings);
             waitForProxyWarmup(proxyStartedAt, generation);
+        } else {
+            applyManagedProvisioningIfNeeded(settings);
         }
-        applyManagedProvisioningIfNeeded(settings);
         ensureRuntimeStillWanted(generation);
 
         if (rootModeActive && shouldInitializeRootSharing()) {
@@ -2282,9 +2312,13 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
+            // Provision before warmup so a fresh DTLS worker claims the parked
+            // PROVISION before the workers reach session (see the userspace path).
+            applyManagedProvisioningIfNeeded(settings);
             waitForProxyWarmup(proxyStartedAt, generation);
+        } else {
+            applyManagedProvisioningIfNeeded(settings);
         }
-        applyManagedProvisioningIfNeeded(settings);
 
         ensureRuntimeStillWanted(generation);
         if (!kernelWireguardActive) {
@@ -2429,15 +2463,15 @@ public class ProxyTunnelService extends Service {
         String wgPeerEndpoint = null;
         if (activeXrayUsesTurnProxy) {
             long proxyStartedAt = startProxyProcess(settings, generation);
-            waitForProxyWarmup(proxyStartedAt, generation);
             wgPeerEndpoint = settings.localEndpoint;
-            // A managed VK TURN profile provisions its wg keys/address over the
-            // AppControl channel the relay just opened. This non-root userspace
-            // path returns before the shared applyManagedProvisioningIfNeeded call
-            // in startWireGuardRuntime, so provision here - before the xray WG
-            // outbound below is built from settings.wg* - or it would connect with
-            // stale/empty keys and never provision.
+            // Provision BEFORE warmup. The relay parks the PROVISION for the next
+            // FRESH DTLS worker to run as its first hello (runPendingProvisionOnConn),
+            // which only works while workers are still connecting. Warmup waits for
+            // the workers to reach session, so provisioning after it is parked too
+            // late - no worker claims it and the request hangs. This also folds the
+            // provisioned wg keys into settings before the xray WG outbound is built.
             applyManagedProvisioningIfNeeded(settings);
+            waitForProxyWarmup(proxyStartedAt, generation);
         }
 
         ensureRuntimeStillWanted(generation);
@@ -2739,14 +2773,10 @@ public class ProxyTunnelService extends Service {
         // threads hit the root shell first. If the process dies before a backgrounded
         // clear finishes, the next app launch reconciles any stale root rules - see
         // cleanStaleRootRoutingOnLaunch().
-        runFastStopCleanupGroup(
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            new CleanupTask("Root routing cleanup", this::clearRootRouting),
-            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
-            new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
-            new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
-            new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded)
-        );
+        java.util.List<CleanupTask> stopTasks = new java.util.ArrayList<>();
+        stopTasks.addAll(java.util.Arrays.asList(rootStopCleanupTasks()));
+        stopTasks.add(new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded));
+        runFastStopCleanupGroup(FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, stopTasks.toArray(new CleanupTask[0]));
 
         protectSocketName = null;
         rootModeActive = false;
@@ -3015,7 +3045,12 @@ public class ProxyTunnelService extends Service {
 
         BackendType resolvedBackendToStop = backendToStop != null ? backendToStop : activeBackendType;
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly(resolvedBackendToStop);
-        if (usesXrayBackend(resolvedBackendToStop)) {
+        // A non-root VK TURN / plain-WG run tunnels through the xray-core gVisor TUN
+        // (XrayVpnService), not the GoBackend userspace VpnService, even though its
+        // backend type is not an xray one. Route its teardown to the XrayVpnService
+        // stop, or the tun is never torn down and the VpnService lingers after
+        // disconnect.
+        if (usesXrayBackend(resolvedBackendToStop) || activeXrayWgRuntime) {
             // Xray VPN force stop и core stop запараллеливаем: первая ждёт
             // Android binder destroy, вторая дёргает native xray cleanup,
             // независимые состояния. Если skipNativeStopForProcessRestart -
@@ -3057,13 +3092,10 @@ public class ProxyTunnelService extends Service {
 
         // Все root-shell teardown'ы независимы между собой: каждая команда
         // sweep'ит свои iptables/ip-rule pref'ы или свой PID-файл, не пересекаются.
-        runFastStopCleanupGroup(
-            FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS,
-            new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded),
-            new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
-            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
-            new CleanupTask("Root routing cleanup", this::clearRootRouting),
-            new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded),
+        java.util.List<CleanupTask> stopTasks = new java.util.ArrayList<>();
+        stopTasks.add(new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded));
+        stopTasks.addAll(java.util.Arrays.asList(rootStopCleanupTasks()));
+        stopTasks.add(
             new CleanupTask("Proxy process destroy", () -> {
                 if (proxyProcessToDestroy != null) {
                     // Hard kill: the relay can be parked in a long account-auth
@@ -3073,6 +3105,7 @@ public class ProxyTunnelService extends Service {
                 }
             })
         );
+        runFastStopCleanupGroup(FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, stopTasks.toArray(new CleanupTask[0]));
 
         // Receiver/callback unregister и Wi-Fi locks release - чистые Android
         // binder ops, никаких блокировок, можно сразу пачкой параллельно.
@@ -3175,6 +3208,24 @@ public class ProxyTunnelService extends Service {
             this.name = name;
             this.step = step;
         }
+    }
+
+    // The root teardown steps each shell out to su, which is slow and can block for
+    // seconds; skip them entirely when the user's master Root functions toggle is
+    // off. A no-root run never installed any root routing, and turning the toggle
+    // off already runs its own immediate cleanup - so running them here on a non-root
+    // run only times out (su is granted at the OS level even when the app is no-root)
+    // and stalls the stop.
+    private CleanupTask[] rootStopCleanupTasks() {
+        if (!AppPrefs.isRootModeEnabled(getApplicationContext())) {
+            return new CleanupTask[0];
+        }
+        return new CleanupTask[] {
+            new CleanupTask("Root routing cleanup", this::clearRootRouting),
+            new CleanupTask("Root app tunnel routing cleanup", this::clearRootAppTunnelRouting),
+            new CleanupTask("Root tether routing cleanup", this::clearRootTetherRouting),
+            new CleanupTask("Persisted root proxy cleanup", this::killPersistedRootProxyIfNeeded),
+        };
     }
 
     private void runFastStopCleanupGroup(long timeoutMs, CleanupTask... tasks) {
@@ -3471,6 +3522,7 @@ public class ProxyTunnelService extends Service {
                 clearLastError();
                 attachProxyWaitThread(launchedProcess, generation);
                 startAppControlIfActive(generation);
+                sendConfigureIfActive(settings);
                 return launchedAt;
             }
 
@@ -3580,6 +3632,112 @@ public class ProxyTunnelService extends Service {
         poller.start();
     }
 
+    // Delivers the relay runtime configuration (formerly CLI flags) to the embedded
+    // vk-turn-proxy over the AppControl Configure RPC. The relay launches with only
+    // its gRPC socket flags and blocks until this arrives before booting its engine.
+    private void sendConfigureIfActive(ProxySettings settings) {
+        if (!appControlGrpcActive) {
+            return;
+        }
+        wings.v.ipc.AppControlClient client = appControlClient;
+        if (client == null) {
+            return;
+        }
+        try {
+            client.configure(buildConfigure(settings));
+            appendRuntimeLogLine("delivered relay configuration over AppControl gRPC");
+        } catch (RuntimeException error) {
+            StringBuilder chain = new StringBuilder();
+            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                chain.append(cause.getClass().getSimpleName()).append(": ").append(cause.getMessage()).append(" <- ");
+            }
+            appendRuntimeLogLine("AppControl Configure failed via " + appControlSocketPath() + ": " + chain);
+        }
+    }
+
+    private wings.v.proto.appcontrol.AppControlProto.ConfigureRequest buildConfigure(ProxySettings settings) {
+        Context ctx = getApplicationContext();
+        wings.v.proto.appcontrol.AppControlProto.ConfigureRequest.Builder b =
+            wings.v.proto.appcontrol.AppControlProto.ConfigureRequest.newBuilder();
+        b.setDnsMode(AppPrefs.getDnsMode(ctx));
+        if (settings.vkTurnUserDns != null && !settings.vkTurnUserDns.trim().isEmpty()) {
+            b.setUserDns(settings.vkTurnUserDns.trim());
+        }
+        if (settings.endpoint != null) {
+            b.setPeer(settings.endpoint);
+        }
+        b.setVkLink(joinVkLinks(settings));
+        if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
+            b.setVkLinkSecondary(settings.vkLinkSecondary);
+        }
+        if (settings.localEndpoint != null) {
+            b.setListen(settings.localEndpoint);
+        }
+        if (settings.threads > 0) {
+            b.setThreads(settings.threads);
+        }
+        if (settings.credsGroupSize > 0) {
+            b.setCredsGroupSize(settings.credsGroupSize);
+        }
+        boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
+        if (xrayTurnProxyEnabled) {
+            b.setTransport("tcp");
+        }
+        b.setUdp(settings.useUdp);
+        b.setNoDtls(settings.noObfuscation);
+        b.setManualCaptcha(settings.manualCaptcha);
+        String captchaSolver = settings.captchaAutoSolver;
+        if (TextUtils.isEmpty(captchaSolver)) {
+            captchaSolver = AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT;
+        }
+        b.setCaptchaSolver(captchaSolver);
+        boolean vkAccountModeRequested = AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(
+            AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
+        );
+        if (vkAccountModeRequested) {
+            b.setVkAuth("account");
+            b.setVkSessionFile(new File(getFilesDir(), "vk_session.json").getAbsolutePath());
+            if (kernelWireguardActive) {
+                b.setVkCookieFilePoll(true);
+            }
+        }
+        if (xrayTurnProxyEnabled) {
+            b.setSessionMode("mainline");
+        } else if (settings.wgProvisioned) {
+            // A managed profile provisions its wg config over the DTLS PROVISION
+            // exchange, which rides the mu/v1 WRAP-in-band channel; mainline has no
+            // SessionHello to install the cipher, so provisioning fails there.
+            b.setSessionMode("mu");
+        } else if (!TextUtils.isEmpty(settings.turnSessionMode)) {
+            b.setSessionMode(settings.turnSessionMode);
+        }
+        b.setBrowserFp(AppPrefs.getVkTurnBrowserFingerprint(ctx));
+        if (!TextUtils.isEmpty(settings.turnHost)) {
+            b.setTurnHost(settings.turnHost);
+        }
+        if (!TextUtils.isEmpty(settings.turnPort)) {
+            b.setTurnPort(settings.turnPort);
+        }
+        if (!TextUtils.isEmpty(protectSocketName)) {
+            b.setProtectSock(protectSocketName);
+        }
+        String wrapMode = AppPrefs.normalizeWrapMode(settings.vkTurnWrapMode);
+        if (!"off".equals(wrapMode)) {
+            b.setWrapMode(wrapMode);
+            b.setWrapCipher(AppPrefs.normalizeWrapCipher(settings.vkTurnWrapCipher));
+            String wrapKey = settings.vkTurnWrapKeyHex == null ? "" : settings.vkTurnWrapKeyHex.trim();
+            if (!TextUtils.isEmpty(wrapKey)) {
+                b.setWrapKeyHex(wrapKey);
+            }
+            b.setWrapSendKey(settings.vkTurnWrapSendKey);
+        }
+        String wgPublicKeyFingerprint = computeWireGuardPublicKeyFingerprint(settings.wgPublicKey);
+        if (!TextUtils.isEmpty(wgPublicKeyFingerprint)) {
+            b.setProtoFp(wgPublicKeyFingerprint);
+        }
+        return b.build();
+    }
+
     // Polls the relay for its current VK cookie jar and mirrors any rotation into
     // MMKV, replacing the stdout vk_cookies_update line (which the relay redacts to
     // empty while AppControl is active). Runs until the client is replaced/closed
@@ -3672,12 +3830,17 @@ public class ProxyTunnelService extends Service {
         String hwid = wings.v.core.SubscriptionHwidStore.getAutomaticPayload(getApplicationContext()).hwid;
         int localPort = parseEndpointPort(settings.localEndpoint);
         appendRuntimeLogLine("requesting managed WireGuard provisioning (client " + settings.provisionClientId + ")");
-        wings.v.proto.appcontrol.AppControlProto.ProvisionResponse response = client.provision(
-            settings.provisionClientId,
-            token,
-            hwid,
-            localPort
-        );
+        wings.v.proto.appcontrol.AppControlProto.ProvisionResponse response;
+        try {
+            response = client.provision(settings.provisionClientId, token, hwid, localPort);
+        } catch (RuntimeException error) {
+            StringBuilder chain = new StringBuilder();
+            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                chain.append(cause.getClass().getSimpleName()).append(": ").append(cause.getMessage()).append(" <- ");
+            }
+            appendRuntimeLogLine("provisioning RPC failed via " + appControlSocketPath() + ": " + chain);
+            throw error;
+        }
         if (!TextUtils.isEmpty(response.getError())) {
             throw new IllegalStateException("VK TURN provisioning failed: " + response.getError());
         }
@@ -3717,10 +3880,15 @@ public class ProxyTunnelService extends Service {
         if (activeBackendType.isWbStreamBackend()) {
             return buildWbStreamProxyProcess(settings, executable);
         }
-        boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
-
+        // [gRPC migration] app<->VKTP configuration now travels over the AppControl
+        // gRPC channel, not CLI flags. The relay launches with ONLY its gRPC socket +
+        // token; dns/peer/vk-link/listen/threads/creds/udp/dtls/captcha/vk-auth/
+        // session-mode/browser-fp/turn/wrap/proto-fp are delivered over AppControl
+        // after start. TODO: implement the AppControl Configure RPC on both sides.
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
+        /* [gRPC migration] moved to AppControl:
+        boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
         command.add("-dns");
         command.add(AppPrefs.getDnsMode(getApplicationContext()));
         appendUserDnsArg(command, settings);
@@ -3730,20 +3898,16 @@ public class ProxyTunnelService extends Service {
         command.add(joinVkLinks(settings));
         command.add("-listen");
         command.add(settings.localEndpoint);
-        // AppControl local gRPC (cookies in/out, provision). Only the non-root
-        // ProcessBuilder path shares the app uid, so its unix socket + SO_PEERCRED
-        // same-uid gate work; the root "su -c" path runs the relay under a different
-        // uid where the socket is unreachable (and may be blocked by SELinux), so
-        // there we stay on the vk_session.json file channel instead. The relay only
-        // redacts cookies from stdout while AppControl is active, so this flag and
-        // the app's gRPC cookie path must switch together.
-        appControlGrpcActive = !kernelWireguardActive;
-        if (appControlGrpcActive) {
-            command.add("-app-grpc-socket");
-            command.add(appControlSocketPath());
-            command.add("-app-grpc-token");
-            command.add(appControlToken());
-        }
+        */
+        // [gRPC migration] app<->VKTP now talks over this AppControl gRPC socket on
+        // BOTH the non-root and root paths. The relay must accept the app uid on the
+        // socket (root peer-uid change is a follow-up). Config + provision ride here.
+        appControlGrpcActive = true;
+        command.add("-app-grpc-socket");
+        command.add(appControlSocketPath());
+        command.add("-app-grpc-token");
+        command.add(appControlToken());
+        /* [gRPC migration] moved to AppControl Configure RPC:
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
             command.add("-vk-link-secondary");
             command.add(settings.vkLinkSecondary);
@@ -3757,6 +3921,7 @@ public class ProxyTunnelService extends Service {
             command.add("-creds-group-size");
             command.add(String.valueOf(settings.credsGroupSize));
         }
+        boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
         if (xrayTurnProxyEnabled) {
             command.add("-transport");
             command.add("tcp");
@@ -3776,14 +3941,10 @@ public class ProxyTunnelService extends Service {
         }
         command.add("-captcha-solver");
         command.add(captchaSolver);
-        // VK account-auth mode. The relay will request TURN creds
-        // per VK link over stdout and we feed them back over stdin. This needs
-        // a writable stdin, which only the non-root ProcessBuilder path
-        // provides; the root "su -c" path does not expose a usable stdin, so we
-        // gate the flag to the non-root path and log when it is unsupported.
         boolean vkAccountModeRequested = AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(
             AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
         );
+        */
         vkAccountAuthActive = false;
         // Fresh relay launch: drop stale in-flight guards from a prior run. A stuck
         // vkCookiesRequestInFlight would otherwise silently swallow every
@@ -3792,6 +3953,7 @@ public class ProxyTunnelService extends Service {
         vkCookiesRequestInFlight = false;
         silentCookieRejectCount = 0;
         lastSilentCookieDeliveryMs = 0L;
+        /* [gRPC migration] moved to AppControl Configure RPC:
         if (vkAccountModeRequested) {
             command.add("-vk-auth");
             command.add("account");
@@ -3844,6 +4006,7 @@ public class ProxyTunnelService extends Service {
             command.add("-proto-fp");
             command.add(wgPublicKeyFingerprint);
         }
+        */
         if (!kernelWireguardActive) {
             return new ProcessBuilder(command).redirectErrorStream(true).start();
         }
