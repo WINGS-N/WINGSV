@@ -55,6 +55,16 @@ public final class AppControlClient implements Closeable {
         return stub.getVKCookies(AppControlProto.GetVKCookiesRequest.getDefaultInstance());
     }
 
+    public AppControlProto.Telemetry getTelemetry() {
+        return stub.getTelemetry(AppControlProto.GetTelemetryRequest.getDefaultInstance());
+    }
+
+    // Blocking server stream: each next() returns as soon as the relay pushes a new
+    // connected-stream count, so telemetry is event-driven with no poll latency.
+    public java.util.Iterator<AppControlProto.Telemetry> streamTelemetry() {
+        return stub.streamTelemetry(AppControlProto.StreamTelemetryRequest.getDefaultInstance());
+    }
+
     public AppControlProto.ProvisionResponse provision(String clientId, byte[] token, String hwid, int localPort) {
         return stub.provision(
             AppControlProto.ProvisionRequest.newBuilder()
