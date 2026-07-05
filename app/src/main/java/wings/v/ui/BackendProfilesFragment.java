@@ -751,17 +751,26 @@ public class BackendProfilesFragment extends Fragment {
             // Re-tapping the already-active profile: still re-project it onto the
             // flat keys so KEY_ENDPOINT (and the rest) reflect this profile even
             // when it was made active by migration/startup and never applied. This
-            // is idempotent and runs no reconnect / toast.
+            // is idempotent and changes no markers, so nothing to re-render.
             applyActiveToPrefs(context, backendType);
-            refreshUi();
             return;
         }
         setActiveProfileId(context, backendType, profileId);
         applyActiveToPrefs(context, backendType);
         wings.v.service.ProxyTunnelService.requestReconnect(context, "Backend profile changed");
         Haptics.softSelection(binding.getRoot());
-        refreshUi();
+        // Move the active checkmark on the already-inflated rows instead of calling
+        // refreshUi(), which removes and re-inflates every row view. That full
+        // rebuild on each tap is what froze the UI on large VK TURN profile lists.
+        updateActiveMarkers(profileId);
         Toast.makeText(context, R.string.backend_profiles_selected, Toast.LENGTH_SHORT).show();
+    }
+
+    // Repaints just the active/selection state on the live row views (no inflation).
+    private void updateActiveMarkers(String activeId) {
+        for (Map.Entry<String, ItemBackendProfileEntryBinding> entry : rowBindingsById.entrySet()) {
+            applyBackendRowState(entry.getValue(), entry.getKey(), activeId);
+        }
     }
 
     // Long-press action menu, mirroring the Xray profile list: Select (enters
