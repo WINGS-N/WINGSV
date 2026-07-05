@@ -24,43 +24,65 @@ public final class LocalSocketChannelFactory extends SocketFactory {
         this.socketPath = socketPath;
     }
 
+    // The no-arg createSocket() returns an UNCONNECTED socket (grpc-okhttp connects
+    // it via connect()); the host/port overloads follow the SocketFactory contract
+    // and return a CONNECTED socket, which is the path grpc-okhttp actually uses
+    // (socketFactory.createSocket(InetAddress, port)). Returning an unconnected
+    // socket there left the transport with dead streams -> UNAVAILABLE.
     @Override
     public Socket createSocket() {
         return new LocalUnixSocket(socketPath);
     }
 
     @Override
-    public Socket createSocket(String host, int port) {
-        return createSocket();
+    public Socket createSocket(String host, int port) throws IOException {
+        LocalUnixSocket socket = new LocalUnixSocket(socketPath);
+        socket.connectLocal();
+        return socket;
     }
 
     @Override
-    public Socket createSocket(String host, int port, InetAddress localHost, int localPort) {
-        return createSocket();
+    public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
+        return createSocket(host, port);
     }
 
     @Override
-    public Socket createSocket(InetAddress host, int port) {
-        return createSocket();
+    public Socket createSocket(InetAddress host, int port) throws IOException {
+        LocalUnixSocket socket = new LocalUnixSocket(socketPath);
+        socket.connectLocal();
+        return socket;
     }
 
     @Override
-    public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) {
-        return createSocket();
+    public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort)
+        throws IOException {
+        return createSocket(address, port);
     }
 
     private static final class LocalUnixSocket extends Socket {
 
         private final String path;
         private final LocalSocket local = new LocalSocket();
+        private boolean connected;
 
         LocalUnixSocket(String path) {
             this.path = path;
         }
 
+        // Connects the underlying LocalSocket to the filesystem unix socket exactly
+        // once, whichever way grpc-okhttp drives the socket (connect-on-create via a
+        // host/port createSocket, or createSocket() + a later connect()).
+        synchronized void connectLocal() throws IOException {
+            if (connected) {
+                return;
+            }
+            local.connect(new LocalSocketAddress(path, LocalSocketAddress.Namespace.FILESYSTEM));
+            connected = true;
+        }
+
         @Override
         public void connect(SocketAddress endpoint, int timeout) throws IOException {
-            local.connect(new LocalSocketAddress(path, LocalSocketAddress.Namespace.FILESYSTEM));
+            connectLocal();
         }
 
         @Override
