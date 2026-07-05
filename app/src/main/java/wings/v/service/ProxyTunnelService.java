@@ -481,6 +481,7 @@ public class ProxyTunnelService extends Service {
     private volatile wings.v.ipc.AppControlClient appControlClient;
     private Thread appControlCookiePoller;
     private Thread appControlTelemetryPoller;
+    private Thread appControlEventPoller;
     // True while the running relay was launched with VK account-auth mode and
     // its stdin is writable (non-root ProcessBuilder path only). Used to gate
     // the VK_ACCOUNT_AUTH_REQUIRED handling and stdin writes.
@@ -3693,6 +3694,12 @@ public class ProxyTunnelService extends Service {
         telemetryPoller.setDaemon(true);
         appControlTelemetryPoller = telemetryPoller;
         telemetryPoller.start();
+        // Subscribe to the control-event stream before Configure boots the relay
+        // engine, so no early status/caps event is missed in the warmup window.
+        Thread eventPoller = new Thread(() -> appControlEventStreamLoop(generation), "appcontrol-event-stream");
+        eventPoller.setDaemon(true);
+        appControlEventPoller = eventPoller;
+        eventPoller.start();
     }
 
     // Delivers the relay runtime configuration (formerly CLI flags) to the embedded
@@ -3867,6 +3874,108 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // Reads the relay's control events (connection-progress status, capabilities,
+    // captcha prompts, VK account-auth drive) off a blocking AppControl server
+    // stream and dispatches them, replacing the stdout PROXY_EVENT JSONL scrape.
+    // next() returns the instant the relay pushes an event. The relay still prints
+    // the JSONL line, so it stays in the log; only control now flows over gRPC.
+    private void appControlEventStreamLoop(int generation) {
+        while (appControlClient != null && generation == runtimeGeneration.get()) {
+            wings.v.ipc.AppControlClient client = appControlClient;
+            if (client == null) {
+                return;
+            }
+            try {
+                java.util.Iterator<wings.v.proto.appcontrol.AppControlProto.ProxyEvent> stream = client.streamEvents();
+                while (stream.hasNext() && client == appControlClient && generation == runtimeGeneration.get()) {
+                    dispatchProxyEvent(stream.next());
+                }
+            } catch (RuntimeException error) {
+                // Stream not up yet or dropped (relay warmup / restart); re-subscribe
+                // after a short backoff until the generation/client changes.
+            }
+            if (client != appControlClient || generation != runtimeGeneration.get()) {
+                return;
+            }
+            try {
+                Thread.sleep(APP_CONTROL_TELEMETRY_RETRY_MS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    // Maps one typed AppControl ProxyEvent onto the same handlers the stdout JSONL
+    // path used, so the two channels behave identically.
+    private void dispatchProxyEvent(wings.v.proto.appcontrol.AppControlProto.ProxyEvent event) {
+        if (event == null) {
+            return;
+        }
+        switch (event.getEventCase()) {
+            case STATUS:
+                handleProxyStatusMarker(event.getStatus().getPhase().trim().toLowerCase(Locale.US));
+                return;
+            case CAPS: {
+                wings.v.proto.appcontrol.AppControlProto.CapsEvent caps = event.getCaps();
+                LinkedHashSet<String> capabilities = new LinkedHashSet<>(caps.getCapabilitiesList());
+                noteProxyCapabilities(caps.getVersion(), capabilities);
+                return;
+            }
+            case CAPTCHA:
+                dispatchProxyCaptchaEvent(event.getCaptcha());
+                return;
+            case LOCKOUT: {
+                int seconds = event.getLockout().getSeconds();
+                if (seconds > 0) {
+                    noteProxyCaptchaLockoutSeconds(seconds);
+                }
+                return;
+            }
+            case VK_ACCOUNT_AUTH: {
+                wings.v.proto.appcontrol.AppControlProto.VKAccountAuthEvent auth = event.getVkAccountAuth();
+                String phase = auth.getPhase().trim().toLowerCase(Locale.US);
+                if ("required".equals(phase)) {
+                    handleVkAccountAuthRequired(auth.getLink().trim());
+                } else if ("complete".equals(phase)) {
+                    handleVkAccountAuthDone(null);
+                } else if ("failed".equals(phase)) {
+                    handleVkAccountAuthDone(trimToNull(auth.getReason()));
+                }
+                return;
+            }
+            case VK_COOKIES_REQUIRED:
+                handleVkCookiesRequired();
+                return;
+            default:
+            // EVENT_NOT_SET or a variant added by a newer relay - ignore.
+        }
+    }
+
+    private void dispatchProxyCaptchaEvent(wings.v.proto.appcontrol.AppControlProto.CaptchaEvent captcha) {
+        String state = captcha.getState().trim().toLowerCase(Locale.US);
+        if (CAPTCHA_STATE_SOLVING.equals(state)) {
+            // Auto-captcha solved by the proxy with no user interaction - surface it
+            // as the captcha connect stage without any UI.
+            proxyCaptchaInProgress = true;
+            persistConnectProgress();
+            return;
+        }
+        if (CAPTCHA_STATE_REQUIRED.equals(state) || CAPTCHA_STATE_PENDING.equals(state)) {
+            String url = trimToNull(captcha.getUrl());
+            if (url == null) {
+                return;
+            }
+            CaptchaPromptSource source = CaptchaPromptSource.fromWireValue(trimToNull(captcha.getSource()));
+            String userAgent = trimToNull(captcha.getUserAgent());
+            handleCaptchaPromptEvent(new CaptchaPrompt(url, source, userAgent), CAPTCHA_STATE_PENDING.equals(state));
+            return;
+        }
+        if ("solved".equals(state) || "cancelled".equals(state) || "expired".equals(state)) {
+            handleCaptchaCompletionState(state);
+        }
+    }
+
     // Hands VK cookies to the relay over AppControl. Returns false when the gRPC
     // path is not active or the call failed, so the caller can fall back.
     private boolean appControlSetVkCookies(String cookies, String userAgent) {
@@ -3894,6 +4003,11 @@ public class ProxyTunnelService extends Service {
         appControlTelemetryPoller = null;
         if (telemetryPoller != null) {
             telemetryPoller.interrupt();
+        }
+        Thread eventPoller = appControlEventPoller;
+        appControlEventPoller = null;
+        if (eventPoller != null) {
+            eventPoller.interrupt();
         }
         wings.v.ipc.AppControlClient client = appControlClient;
         appControlClient = null;
@@ -4010,6 +4124,9 @@ public class ProxyTunnelService extends Service {
         if (!executable.isFile()) {
             throw new IllegalStateException("VK TURN binary not found: " + executable.getAbsolutePath());
         }
+        // Recomputed per launch: only the VK TURN relay path below opens the
+        // AppControl gRPC channel, so a prior run must not leave this set.
+        appControlGrpcActive = false;
         if (activeBackendType.isWbStreamBackend()) {
             return buildWbStreamProxyProcess(settings, executable);
         }
@@ -4092,7 +4209,10 @@ public class ProxyTunnelService extends Service {
             AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
         );
         */
-        vkAccountAuthActive = false;
+        // Account mode is now configured over the Configure RPC (see buildConfigure),
+        // but the app still gates its VK auth-required / cookies-required handling on
+        // this flag, so set it from the same condition at launch.
+        vkAccountAuthActive = AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(AppPrefs.normalizeVkAuthMode(settings.vkAuthMode));
         // Fresh relay launch: drop stale in-flight guards from a prior run. A stuck
         // vkCookiesRequestInFlight would otherwise silently swallow every
         // vk_cookies_required (no browser, relay waits for stdin forever).
@@ -5009,6 +5129,13 @@ public class ProxyTunnelService extends Service {
         if (TextUtils.isEmpty(line)) {
             return;
         }
+        // When AppControl is active, control (status/caps/captcha/vk-auth) flows over
+        // the StreamEvents gRPC channel; the relay still prints the JSONL lines but
+        // they are kept for the log only (appended in startProxyOutputReader), so do
+        // not interpret them here to avoid double-dispatch.
+        if (appControlGrpcActive) {
+            return;
+        }
         if (line.startsWith("PROXY_CAPS:")) {
             handleProxyCapsLine(line.substring("PROXY_CAPS:".length()).trim());
             return;
@@ -5348,13 +5475,52 @@ public class ProxyTunnelService extends Service {
         String link = trimToNull(intent.getStringExtra(EXTRA_VK_LINK));
         boolean cancel = intent.getBooleanExtra(EXTRA_VK_CANCEL, false);
         if (cancel) {
-            writeVkAccountCancelLine(link);
+            submitVkAccountCreds(link, null, null, null, true);
             return;
         }
         String username = intent.getStringExtra(EXTRA_VK_USERNAME);
         String credential = intent.getStringExtra(EXTRA_VK_CREDENTIAL);
         ArrayList<String> urls = intent.getStringArrayListExtra(EXTRA_VK_URLS);
-        writeVkAccountCredsLine(link, username, credential, urls);
+        if (TextUtils.isEmpty(username) || TextUtils.isEmpty(credential) || urls == null || urls.isEmpty()) {
+            Log.w(TAG, "VK account creds delivery missing fields; ignoring");
+            return;
+        }
+        submitVkAccountCreds(link, username, credential, urls, false);
+    }
+
+    // Delivers the intercepted VK TURN creds (or a cancel) to the relay. Prefers the
+    // AppControl gRPC channel, which works on the root/kernel-WG path too (no
+    // writable stdin there); falls back to the legacy stdin line when gRPC is off.
+    // The blocking RPC runs off the caller (onStartCommand) thread.
+    private void submitVkAccountCreds(
+        @Nullable String link,
+        @Nullable String username,
+        @Nullable String credential,
+        @Nullable List<String> urls,
+        boolean cancel
+    ) {
+        wings.v.ipc.AppControlClient client = appControlClient;
+        if (appControlGrpcActive && client != null) {
+            Thread worker = new Thread(
+                () -> {
+                    try {
+                        client.submitVkAccountCreds(link, username, credential, urls, cancel);
+                        appendRuntimeLogLine("delivered VK account creds over AppControl (cancel=" + cancel + ")");
+                    } catch (RuntimeException error) {
+                        appendRuntimeLogLine("AppControl SubmitVKAccountCreds failed: " + error.getMessage());
+                    }
+                },
+                "appcontrol-creds"
+            );
+            worker.setDaemon(true);
+            worker.start();
+            return;
+        }
+        if (cancel) {
+            writeVkAccountCancelLine(link);
+        } else {
+            writeVkAccountCredsLine(link, username, credential, urls);
+        }
     }
 
     private void writeVkAccountCredsLine(
