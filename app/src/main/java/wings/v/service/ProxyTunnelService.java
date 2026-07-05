@@ -439,6 +439,11 @@ public class ProxyTunnelService extends Service {
     // Telemetry rides a blocking server stream (event-driven, no poll). This is only
     // the backoff before re-subscribing when the stream drops (e.g. relay warmup).
     private static final long APP_CONTROL_TELEMETRY_RETRY_MS = 500L;
+    // Managed-provisioning retry window: the relay launched under su (root/kernel-WG)
+    // can take a few seconds to listen + chown the AppControl socket, so retry the
+    // provision RPC over this window before giving up.
+    private static final long APP_CONTROL_PROVISION_TIMEOUT_MS = 20_000L;
+    private static final long APP_CONTROL_PROVISION_RETRY_MS = 500L;
     private final AtomicBoolean rootTetherSyncQueued = new AtomicBoolean();
     private final BroadcastReceiver tetherStateReceiver = new BroadcastReceiver() {
         @Override
@@ -3587,16 +3592,63 @@ public class ProxyTunnelService extends Service {
     }
 
     private String appControlSocketPath;
+    private int appControlTcpPort;
     private String appControlToken;
 
     // Unix socket + random token the embedded vk-turn-proxy client serves its
     // AppControl gRPC on. Kept in the app-private files dir so only this app can
     // reach it; the token is regenerated per service instance.
     private String appControlSocketPath() {
+        // Root/kernel-WG path: the relay runs under su in the priv_app domain and
+        // SELinux forbids untrusted_app -> priv_app unix_stream_socket connectto, so a
+        // unix socket can never be reached however it is labelled. Use a 127.0.0.1 TCP
+        // listener there (no domain-connectto check); the token is the access control.
+        if (kernelWireguardActive) {
+            return "tcp:127.0.0.1:" + appControlTcpPort();
+        }
         if (appControlSocketPath == null) {
             appControlSocketPath = new File(getFilesDir(), "appcontrol.sock").getAbsolutePath();
         }
         return appControlSocketPath;
+    }
+
+    private int appControlTcpPort() {
+        if (appControlTcpPort == 0) {
+            try (
+                java.net.ServerSocket probe = new java.net.ServerSocket(
+                    0,
+                    1,
+                    java.net.InetAddress.getByName("127.0.0.1")
+                )
+            ) {
+                appControlTcpPort = probe.getLocalPort();
+            } catch (Exception error) {
+                appControlTcpPort = 28400 + (int) (SystemClock.elapsedRealtime() % 900);
+            }
+        }
+        return appControlTcpPort;
+    }
+
+    // Derives the SELinux file context the AppControl socket must carry so this
+    // untrusted_app can connect: our process context (user:role:type:level) with the
+    // role/type swapped to the app_data_file object label, keeping our per-app MLS
+    // categories. Returns "" when the context is unreadable (no SELinux / bad format).
+    private String appControlSocketContext() {
+        try (java.io.FileInputStream in = new java.io.FileInputStream("/proc/self/attr/current")) {
+            byte[] buf = new byte[256];
+            int n = in.read(buf);
+            if (n <= 0) {
+                return "";
+            }
+            String proc = new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8).trim().replace("\0", "");
+            String[] parts = proc.split(":", 4);
+            if (parts.length < 4) {
+                return "";
+            }
+            return "u:object_r:app_data_file:" + parts[3];
+        } catch (Exception error) {
+            return "";
+        }
     }
 
     private String appControlToken() {
@@ -3879,16 +3931,48 @@ public class ProxyTunnelService extends Service {
         String hwid = wings.v.core.SubscriptionHwidStore.getAutomaticPayload(getApplicationContext()).hwid;
         int localPort = parseEndpointPort(settings.localEndpoint);
         appendRuntimeLogLine("requesting managed WireGuard provisioning (client " + settings.provisionClientId + ")");
-        wings.v.proto.appcontrol.AppControlProto.ProvisionResponse response;
-        try {
-            response = client.provision(settings.provisionClientId, token, hwid, localPort);
-        } catch (RuntimeException error) {
-            StringBuilder chain = new StringBuilder();
-            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-                chain.append(cause.getClass().getSimpleName()).append(": ").append(cause.getMessage()).append(" <- ");
+        // The relay under su (root/kernel-WG path) needs longer to listen + chown the
+        // AppControl socket than the non-root in-process path, so the first provision
+        // calls can race it and fail UNAVAILABLE. Retry until the channel is up or the
+        // deadline passes; a real provision failure comes back as response.getError().
+        wings.v.proto.appcontrol.AppControlProto.ProvisionResponse response = null;
+        long provisionDeadline = SystemClock.elapsedRealtime() + APP_CONTROL_PROVISION_TIMEOUT_MS;
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            try {
+                response = client.provision(settings.provisionClientId, token, hwid, localPort);
+                break;
+            } catch (RuntimeException error) {
+                StringBuilder chain = new StringBuilder();
+                for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                    chain
+                        .append(cause.getClass().getSimpleName())
+                        .append(": ")
+                        .append(cause.getMessage())
+                        .append(" <- ");
+                }
+                if (SystemClock.elapsedRealtime() >= provisionDeadline) {
+                    appendRuntimeLogLine(
+                        "provisioning RPC failed after " +
+                            attempt +
+                            " attempts via " +
+                            appControlSocketPath() +
+                            ": " +
+                            chain
+                    );
+                    throw error;
+                }
+                if (attempt == 1 || attempt % 4 == 0) {
+                    appendRuntimeLogLine("provisioning RPC not ready (attempt " + attempt + "): " + chain);
+                }
+                try {
+                    Thread.sleep(APP_CONTROL_PROVISION_RETRY_MS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw error;
+                }
             }
-            appendRuntimeLogLine("provisioning RPC failed via " + appControlSocketPath() + ": " + chain);
-            throw error;
         }
         if (!TextUtils.isEmpty(response.getError())) {
             throw new IllegalStateException("VK TURN provisioning failed: " + response.getError());
@@ -3961,6 +4045,15 @@ public class ProxyTunnelService extends Service {
         // non-root path this equals the relay's own uid and is a no-op.
         command.add("-app-grpc-peer-uid");
         command.add(Integer.toString(android.os.Process.myUid()));
+        // On the root/kernel-WG path the relay creates the socket as root, so it gets
+        // the plain app_data_file:s0 label without our per-app MLS categories and the
+        // app is SELinux-denied sock_file connect. Pass our socket file context so the
+        // root relay relabels it to match. Harmless on the non-root path (same uid).
+        String appControlPeerContext = appControlSocketContext();
+        if (!TextUtils.isEmpty(appControlPeerContext)) {
+            command.add("-app-grpc-peer-context");
+            command.add(appControlPeerContext);
+        }
         /* [gRPC migration] moved to AppControl Configure RPC:
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
             command.add("-vk-link-secondary");
