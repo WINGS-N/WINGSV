@@ -3814,15 +3814,16 @@ public class ProxyTunnelService extends Service {
     // but minted by the vk-turn-proxy node over its DTLS PROVISION exchange. Once
     // the relay is up and the AppControl channel is open, ask it to provision and
     // fold the returned WireGuard config into settings so the awg/wg backend builds
-    // from it. Requires the non-root AppControl path; a managed profile on the
-    // root/kernel-WG path has no gRPC channel and fails fast here.
+    // from it. Works on both the non-root and root/kernel-WG paths: the relay owns
+    // the AppControl socket by the app uid (via -app-grpc-peer-uid) so the app can
+    // reach it even when the relay runs under su.
     private void applyManagedProvisioningIfNeeded(ProxySettings settings) throws Exception {
         if (settings == null || !settings.wgProvisioned) {
             return;
         }
         wings.v.ipc.AppControlClient client = appControlClient;
         if (!appControlGrpcActive || client == null) {
-            throw new IllegalStateException("managed VK TURN profile requires the non-root AppControl channel");
+            throw new IllegalStateException("managed VK TURN profile requires the AppControl channel");
         }
         byte[] token = TextUtils.isEmpty(settings.provisionToken)
             ? new byte[0]
@@ -3900,13 +3901,18 @@ public class ProxyTunnelService extends Service {
         command.add(settings.localEndpoint);
         */
         // [gRPC migration] app<->VKTP now talks over this AppControl gRPC socket on
-        // BOTH the non-root and root paths. The relay must accept the app uid on the
-        // socket (root peer-uid change is a follow-up). Config + provision ride here.
+        // BOTH the non-root and root paths. Config + provision ride here.
         appControlGrpcActive = true;
         command.add("-app-grpc-socket");
         command.add(appControlSocketPath());
         command.add("-app-grpc-token");
         command.add(appControlToken());
+        // Tell the relay which uid to accept and own the socket by. On the
+        // root/kernel-WG path it runs under su as uid 0 while we connect as the app
+        // uid, so it must chown the socket to us and peer-cred-accept us; on the
+        // non-root path this equals the relay's own uid and is a no-op.
+        command.add("-app-grpc-peer-uid");
+        command.add(Integer.toString(android.os.Process.myUid()));
         /* [gRPC migration] moved to AppControl Configure RPC:
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
             command.add("-vk-link-secondary");
