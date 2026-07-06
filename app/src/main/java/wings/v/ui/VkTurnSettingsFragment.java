@@ -342,6 +342,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         super.onResume();
         registerPreferencesListener();
         registerPatchStatusReceiver();
+        restorePersistedPatchWarnings();
         AmneziaStore.maybeBackfillStructuredPrefs(requireContext());
         syncFromStore();
         refreshBackendSections();
@@ -369,10 +370,12 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 if (intent == null || !ProxyTunnelService.ACTION_PATCH_STATUS.equals(intent.getAction())) {
                     return;
                 }
-                applyPatchStatus(
-                    intent.getStringExtra(ProxyTunnelService.EXTRA_PATCH_FIELD),
-                    intent.getStringExtra(ProxyTunnelService.EXTRA_PATCH_STATE)
-                );
+                String state = intent.getStringExtra(ProxyTunnelService.EXTRA_PATCH_STATE);
+                if ("reset".equals(state)) {
+                    clearAllPatchStatus();
+                    return;
+                }
+                applyPatchStatus(intent.getStringExtra(ProxyTunnelService.EXTRA_PATCH_FIELD), state);
             }
         };
         androidx.core.content.ContextCompat.registerReceiver(
@@ -429,6 +432,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void applyPatchStatus(String field, String state) {
+        applyPatchStatus(field, state, true);
+    }
+
+    private void applyPatchStatus(String field, String state, boolean showToast) {
         java.util.List<String> keys = patchFieldToKeys(field);
         if (keys.isEmpty() || TextUtils.isEmpty(state)) {
             return;
@@ -462,7 +469,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                     break;
             }
         }
-        if (failed) {
+        if (failed && showToast) {
             Context context = getContext();
             if (context != null) {
                 Toast.makeText(context, R.string.vk_turn_live_patch_failed, Toast.LENGTH_LONG).show();
@@ -473,6 +480,31 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     private int originalWidgetLayout(String key) {
         Integer original = originalWidgetLayouts.get(key);
         return original != null ? original : 0;
+    }
+
+    // Restores every live-patchable row to its normal widget (drops loaders and
+    // warnings). Used on a relay restart, when nothing is left pending.
+    private void clearAllPatchStatus() {
+        for (java.util.Map.Entry<String, Integer> entry : originalWidgetLayouts.entrySet()) {
+            Preference preference = findPreference(entry.getKey());
+            if (preference != null) {
+                preference.setEnabled(true);
+                preference.setWidgetLayoutResource(entry.getValue());
+            }
+        }
+        originalWidgetLayouts.clear();
+    }
+
+    // Re-shows warnings for fields whose live patch is still pending a restart, so
+    // the indicator survives leaving and returning to this screen.
+    private void restorePersistedPatchWarnings() {
+        Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        for (String field : AppPrefs.getLivePatchFailedFields(context)) {
+            applyPatchStatus(field, "reverted_needs_restart", false);
+        }
     }
 
     private void flushPendingReconnect() {
