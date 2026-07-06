@@ -1612,4 +1612,5 @@
     <string name="import_parser_version_missing_or_invalid">Missing or invalid ver field</string>
     <string name="import_parser_unsupported_type">Only type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing is supported</string>
     <string name="import_parser_payload_unpack_failed">Failed to unpack payload</string>
+    <string name="vk_turn_live_patch_failed">Live-apply failed - it will take effect on the next start</string>
 </resources>
