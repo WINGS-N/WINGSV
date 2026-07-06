@@ -237,6 +237,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     @Nullable
     private android.content.BroadcastReceiver patchStatusReceiver;
 
+    // The real widget layout of each live-patchable row, captured before the loader
+    // replaces it, so it can be restored once the field is applied.
+    private final java.util.Map<String, Integer> originalWidgetLayouts = new java.util.HashMap<>();
+
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
@@ -435,19 +439,24 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             if (preference == null) {
                 continue;
             }
+            // Remember the row's real widget (a switch, a dropdown arrow, or none) so
+            // the SESL loader can replace it while applying and be restored after.
+            if (!originalWidgetLayouts.containsKey(key)) {
+                originalWidgetLayouts.put(key, preference.getWidgetLayoutResource());
+            }
             switch (state) {
                 case "applying":
                     preference.setEnabled(false);
-                    preference.setIcon(R.drawable.ic_live_patch_spinner);
+                    preference.setWidgetLayoutResource(R.layout.preference_widget_live_loader);
                     break;
                 case "applied":
                     preference.setEnabled(true);
-                    preference.setIcon(null);
+                    preference.setWidgetLayoutResource(originalWidgetLayout(key));
                     break;
                 case "failed":
                 case "reverted_needs_restart":
                     preference.setEnabled(true);
-                    preference.setIcon(R.drawable.ic_warning_triangle);
+                    preference.setWidgetLayoutResource(R.layout.preference_widget_live_warning);
                     break;
                 default:
                     break;
@@ -459,6 +468,11 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 Toast.makeText(context, R.string.vk_turn_live_patch_failed, Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    private int originalWidgetLayout(String key) {
+        Integer original = originalWidgetLayouts.get(key);
+        return original != null ? original : 0;
     }
 
     private void flushPendingReconnect() {
