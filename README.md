@@ -34,7 +34,10 @@
 Для наилучшего результата на серверной стороне используйте форк [WINGS V VKTP](https://github.com/WINGS-N/vk-turn-proxy). В нём есть WRAP SRTP-mimicry обфускация и in-band доставка ключа, которые клиент WINGS V включает по умолчанию для обхода content-фильтрации VK. Панель 3x-ui выше собирается с этим же форком.
 
 ## `wingsv://` ссылки
-- Формат: `wingsv://{base64(deflate(protobuf_data))}`
+- Формат: `wingsv://{base64url(0x12 || zlib(protobuf Config))}` - URL-safe base64
+  (с паддингом, без переносов) от кадра: байт формата `0x12`, затем zlib-сжатый
+  (с zlib-заголовком) protobuf-message `Config` (`wingsv.proto`).
+  См. `WingsImportParser.encodeConfig` / `decodePayload`.
 - Внутри могут храниться:
   - `VK TURN + WireGuard` настройки
   - `Xray` профили и подписки
