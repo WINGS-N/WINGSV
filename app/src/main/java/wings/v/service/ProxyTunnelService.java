@@ -3793,6 +3793,21 @@ public class ProxyTunnelService extends Service {
         if (ks.contains(AppPrefs.KEY_TURN_PORT)) {
             b.setTurnPort(settings.turnPort == null ? "" : settings.turnPort);
         }
+        if (ks.contains(AppPrefs.KEY_THREADS) && settings.threads > 0) {
+            b.setThreads(settings.threads);
+        }
+        if (ks.contains(AppPrefs.KEY_VK_LINKS_JSON)) {
+            wings.v.proto.appcontrol.AppControlProto.VKLinksPatch.Builder links =
+                wings.v.proto.appcontrol.AppControlProto.VKLinksPatch.newBuilder();
+            if (settings.vkLinks != null) {
+                for (String link : settings.vkLinks) {
+                    if (!TextUtils.isEmpty(link)) {
+                        links.addLinks(link);
+                    }
+                }
+            }
+            b.setVkLinks(links.build());
+        }
         if (ks.contains(AppPrefs.KEY_VK_AUTH_MODE)) {
             b.setVkAuth(AppPrefs.normalizeVkAuthMode(settings.vkAuthMode));
         }

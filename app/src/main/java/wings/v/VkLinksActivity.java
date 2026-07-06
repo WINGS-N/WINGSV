@@ -409,9 +409,15 @@ public class VkLinksActivity extends AppCompatActivity {
     }
 
     private void requestRuntimeReconnect() {
-        if (ProxyTunnelService.isActive()) {
-            ProxyTunnelService.requestReconnect(getApplicationContext(), "VK links updated");
+        if (!ProxyTunnelService.isActive()) {
+            return;
         }
+        // VK links are live-patchable: the relay swaps the pool and re-fetches creds
+        // per stream without a restart. Falls back to a reconnect inside the service
+        // when the gRPC path is unavailable.
+        java.util.ArrayList<String> keys = new java.util.ArrayList<>();
+        keys.add(AppPrefs.KEY_VK_LINKS_JSON);
+        ProxyTunnelService.requestLivePatch(getApplicationContext(), keys);
     }
 
     @FunctionalInterface
