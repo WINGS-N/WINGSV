@@ -1612,4 +1612,5 @@
     <string name="import_parser_version_missing_or_invalid">Отсутствует или некорректен ver</string>
     <string name="import_parser_unsupported_type">Поддерживается только type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing</string>
     <string name="import_parser_payload_unpack_failed">Не удалось распаковать payload</string>
+    <string name="vk_turn_live_patch_failed">Ошибка при живом применении параметра - применится на следующем старте</string>
 </resources>

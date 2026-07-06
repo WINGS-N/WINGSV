@@ -233,6 +233,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     @Nullable
     private Runnable pendingPatchRunnable;
 
+    @Nullable
+    private android.content.BroadcastReceiver patchStatusReceiver;
+
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
@@ -333,6 +336,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     public void onResume() {
         super.onResume();
         registerPreferencesListener();
+        registerPatchStatusReceiver();
         AmneziaStore.maybeBackfillStructuredPrefs(requireContext());
         syncFromStore();
         refreshBackendSections();
@@ -342,7 +346,114 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     public void onPause() {
         flushPendingReconnect();
         unregisterPreferencesListener();
+        unregisterPatchStatusReceiver();
         super.onPause();
+    }
+
+    // Receives per-field live-patch status from the :tunnel process and reflects it
+    // on the matching preference rows: disabled + a spinner while applying, cleared
+    // when applied, a warning icon + a toast when a live apply could not be done and
+    // will only take effect on the next relay restart.
+    private void registerPatchStatusReceiver() {
+        if (patchStatusReceiver != null) {
+            return;
+        }
+        patchStatusReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, android.content.Intent intent) {
+                if (intent == null || !ProxyTunnelService.ACTION_PATCH_STATUS.equals(intent.getAction())) {
+                    return;
+                }
+                applyPatchStatus(
+                    intent.getStringExtra(ProxyTunnelService.EXTRA_PATCH_FIELD),
+                    intent.getStringExtra(ProxyTunnelService.EXTRA_PATCH_STATE)
+                );
+            }
+        };
+        androidx.core.content.ContextCompat.registerReceiver(
+            requireContext().getApplicationContext(),
+            patchStatusReceiver,
+            new android.content.IntentFilter(ProxyTunnelService.ACTION_PATCH_STATUS),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        );
+    }
+
+    private void unregisterPatchStatusReceiver() {
+        if (patchStatusReceiver == null) {
+            return;
+        }
+        try {
+            requireContext().getApplicationContext().unregisterReceiver(patchStatusReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // Not registered; nothing to do.
+        }
+        patchStatusReceiver = null;
+    }
+
+    // Maps a relay field key (as sent in PatchStatusEvent) to the preference keys it
+    // affects. WRAP covers the whole WRAP group.
+    private static java.util.List<String> patchFieldToKeys(String field) {
+        if (field == null) {
+            return java.util.Collections.emptyList();
+        }
+        switch (field) {
+            case "dns":
+                return java.util.Collections.singletonList(AppPrefs.KEY_DNS_MODE);
+            case "peer":
+                return java.util.Collections.singletonList(AppPrefs.KEY_ENDPOINT);
+            case "turn_host":
+                return java.util.Collections.singletonList(AppPrefs.KEY_TURN_HOST);
+            case "turn_port":
+                return java.util.Collections.singletonList(AppPrefs.KEY_TURN_PORT);
+            case "vk_auth":
+                return java.util.Collections.singletonList(AppPrefs.KEY_VK_AUTH_MODE);
+            case "wrap":
+                return java.util.Arrays.asList(
+                    AppPrefs.KEY_VK_TURN_WRAP_MODE,
+                    AppPrefs.KEY_VK_TURN_WRAP_CIPHER,
+                    AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX,
+                    AppPrefs.KEY_VK_TURN_WRAP_SEND_KEY
+                );
+            default:
+                return java.util.Collections.emptyList();
+        }
+    }
+
+    private void applyPatchStatus(String field, String state) {
+        java.util.List<String> keys = patchFieldToKeys(field);
+        if (keys.isEmpty() || TextUtils.isEmpty(state)) {
+            return;
+        }
+        boolean failed = "failed".equals(state) || "reverted_needs_restart".equals(state);
+        for (String key : keys) {
+            Preference preference = findPreference(key);
+            if (preference == null) {
+                continue;
+            }
+            switch (state) {
+                case "applying":
+                    preference.setEnabled(false);
+                    preference.setIcon(R.drawable.ic_live_patch_spinner);
+                    break;
+                case "applied":
+                    preference.setEnabled(true);
+                    preference.setIcon(null);
+                    break;
+                case "failed":
+                case "reverted_needs_restart":
+                    preference.setEnabled(true);
+                    preference.setIcon(R.drawable.ic_warning_triangle);
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (failed) {
+            Context context = getContext();
+            if (context != null) {
+                Toast.makeText(context, R.string.vk_turn_live_patch_failed, Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void flushPendingReconnect() {

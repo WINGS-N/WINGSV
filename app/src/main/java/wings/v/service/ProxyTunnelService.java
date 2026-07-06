@@ -210,6 +210,12 @@ public class ProxyTunnelService extends Service {
     // preference keys; the service reads their current values and sends the delta.
     public static final String ACTION_LIVE_PATCH = "wings.v.action.LIVE_PATCH";
     private static final String EXTRA_PATCH_KEYS = "wings.v.extra.PATCH_KEYS";
+    // Broadcast from the :tunnel process to the settings UI reporting the live-apply
+    // status of one patched field (relay field key / state / message).
+    public static final String ACTION_PATCH_STATUS = "wings.v.action.PATCH_STATUS";
+    public static final String EXTRA_PATCH_FIELD = "wings.v.extra.PATCH_FIELD";
+    public static final String EXTRA_PATCH_STATE = "wings.v.extra.PATCH_STATE";
+    public static final String EXTRA_PATCH_MESSAGE = "wings.v.extra.PATCH_MESSAGE";
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
@@ -4048,9 +4054,26 @@ public class ProxyTunnelService extends Service {
             case VK_COOKIES_REQUIRED:
                 handleVkCookiesRequired();
                 return;
+            case PATCH_STATUS:
+                broadcastPatchStatus(event.getPatchStatus());
+                return;
             default:
             // EVENT_NOT_SET or a variant added by a newer relay - ignore.
         }
+    }
+
+    // Relays a live-patch field status from the :tunnel process to the settings UI
+    // in the main process (a global broadcast; the fragment registers a receiver).
+    private void broadcastPatchStatus(wings.v.proto.appcontrol.AppControlProto.PatchStatusEvent status) {
+        if (status == null) {
+            return;
+        }
+        Intent intent = new Intent(ACTION_PATCH_STATUS)
+            .setPackage(getPackageName())
+            .putExtra(EXTRA_PATCH_FIELD, status.getField())
+            .putExtra(EXTRA_PATCH_STATE, status.getState())
+            .putExtra(EXTRA_PATCH_MESSAGE, status.getMessage());
+        sendBroadcast(intent);
     }
 
     private void dispatchProxyCaptchaEvent(wings.v.proto.appcontrol.AppControlProto.CaptchaEvent captcha) {
