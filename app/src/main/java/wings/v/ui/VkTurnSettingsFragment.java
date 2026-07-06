@@ -191,6 +191,29 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         }
     }
 
+    // The subset of runtime-affecting VK TURN keys the relay can live-apply over
+    // AppControl gRPC (no restart): DNS mode, endpoint (manual-wg only; managed
+    // profiles lock it), TURN host/port, VK auth mode, and the WRAP group.
+    // Everything else - WG transport, threads, VK links, session mode - still
+    // reconnects.
+    private static final Set<String> LIVE_PATCHABLE_KEYS = new LinkedHashSet<>();
+
+    static {
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_DNS_MODE);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_ENDPOINT);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_TURN_HOST);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_TURN_PORT);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_AUTH_MODE);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_TURN_WRAP_MODE);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_TURN_WRAP_CIPHER);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_TURN_WRAP_SEND_KEY);
+    }
+
+    private static boolean isLivePatchableKey(String key) {
+        return key != null && LIVE_PATCHABLE_KEYS.contains(key);
+    }
+
     private static final long RUNTIME_RECONNECT_DEBOUNCE_MS = 250L;
 
     private boolean suppressPreferenceSync;
@@ -202,6 +225,13 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     @Nullable
     private String pendingReconnectReason;
+
+    // Coalesces rapid live-patchable edits into one PatchConfig over the debounce
+    // window (mirrors the reconnect debounce).
+    private final Set<String> pendingPatchKeys = new LinkedHashSet<>();
+
+    @Nullable
+    private Runnable pendingPatchRunnable;
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -826,7 +856,12 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                     suppressPreferenceSync = false;
                 }
             }
-            if (isRuntimeAffectingKey(key)) {
+            if (!structuredPreference && isLivePatchableKey(key)) {
+                // Live-apply over gRPC instead of restarting the relay. These keys
+                // never change the WG transport, so a single-field edit on the active
+                // profile is always WG-safe.
+                requestLivePatchIfActive(key);
+            } else if (isRuntimeAffectingKey(key)) {
                 requestRuntimeReconnectIfActive(
                     structuredPreference ? "AmneziaWG settings changed" : "VK TURN settings changed"
                 );
@@ -965,5 +1000,31 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             ProxyTunnelService.requestReconnect(context.getApplicationContext(), resolvedReason);
         };
         reconnectHandler.postDelayed(pendingReconnectRunnable, RUNTIME_RECONNECT_DEBOUNCE_MS);
+    }
+
+    private void requestLivePatchIfActive(String key) {
+        if (!ProxyTunnelService.isActive() || TextUtils.isEmpty(key)) {
+            return;
+        }
+        pendingPatchKeys.add(key);
+        if (pendingPatchRunnable != null) {
+            reconnectHandler.removeCallbacks(pendingPatchRunnable);
+        }
+        pendingPatchRunnable = () -> {
+            pendingPatchRunnable = null;
+            if (pendingPatchKeys.isEmpty() || !ProxyTunnelService.isActive()) {
+                pendingPatchKeys.clear();
+                return;
+            }
+            Context context = getContext();
+            if (context == null) {
+                pendingPatchKeys.clear();
+                return;
+            }
+            java.util.ArrayList<String> keys = new java.util.ArrayList<>(pendingPatchKeys);
+            pendingPatchKeys.clear();
+            ProxyTunnelService.requestLivePatch(context.getApplicationContext(), keys);
+        };
+        reconnectHandler.postDelayed(pendingPatchRunnable, RUNTIME_RECONNECT_DEBOUNCE_MS);
     }
 }
