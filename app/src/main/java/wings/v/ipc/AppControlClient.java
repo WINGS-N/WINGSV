@@ -122,6 +122,14 @@ public final class AppControlClient implements Closeable {
         return stub.configure(request);
     }
 
+    // Live-applies a delta of runtime-mutable settings without a relay restart. Only
+    // the fields set on the request are patched; the relay reports per-field progress
+    // over StreamEvents (PatchStatusEvent), so this returns as soon as the patch is
+    // accepted.
+    public AppControlProto.PatchConfigResponse patchConfig(AppControlProto.PatchConfigRequest request) {
+        return stub.patchConfig(request);
+    }
+
     @Override
     public void close() {
         channel.shutdownNow();

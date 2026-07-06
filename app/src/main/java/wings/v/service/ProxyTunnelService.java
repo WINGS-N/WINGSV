@@ -205,6 +205,11 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_STOP = "wings.v.action.STOP";
     public static final String ACTION_REFRESH_IP = "wings.v.action.REFRESH_IP";
     public static final String ACTION_RECONNECT = "wings.v.action.RECONNECT";
+    // Live-patch a set of runtime-mutable VK TURN settings over AppControl gRPC
+    // instead of tearing the relay down. EXTRA_PATCH_KEYS carries the changed
+    // preference keys; the service reads their current values and sends the delta.
+    public static final String ACTION_LIVE_PATCH = "wings.v.action.LIVE_PATCH";
+    private static final String EXTRA_PATCH_KEYS = "wings.v.extra.PATCH_KEYS";
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
@@ -804,6 +809,24 @@ public class ProxyTunnelService extends Service {
             try {
                 ContextCompat.startForegroundService(appContext, intent);
             } catch (IllegalStateException | SecurityException ignored) {}
+        }
+    }
+
+    // Ask the running service to live-patch the given changed preference keys over
+    // AppControl gRPC (no relay restart). No-op unless the service is active.
+    public static void requestLivePatch(Context context, java.util.ArrayList<String> changedKeys) {
+        Context appContext = context != null ? context.getApplicationContext() : null;
+        if (appContext == null || !isActive() || changedKeys == null || changedKeys.isEmpty()) {
+            return;
+        }
+        Intent intent = new Intent(appContext, ProxyTunnelService.class)
+            .setAction(ACTION_LIVE_PATCH)
+            .putStringArrayListExtra(EXTRA_PATCH_KEYS, changedKeys);
+        try {
+            appContext.startService(intent);
+        } catch (IllegalStateException | SecurityException ignored) {
+            // The service is already foreground when active; a start failure here just
+            // means the change lands on the next manual reconnect.
         }
     }
 
@@ -1601,6 +1624,10 @@ public class ProxyTunnelService extends Service {
             workExecutor.execute(() ->
                 performRuntimeReconnect(runtimeGeneration.get(), "manual reconnect", backendToStop, targetBackend)
             );
+            return START_STICKY;
+        }
+        if (ACTION_LIVE_PATCH.equals(action)) {
+            handleLivePatch(intent);
             return START_STICKY;
         }
         if (ACTION_SYNC_RUNTIME.equals(action)) {
@@ -3705,6 +3732,80 @@ public class ProxyTunnelService extends Service {
     // Delivers the relay runtime configuration (formerly CLI flags) to the embedded
     // vk-turn-proxy over the AppControl Configure RPC. The relay launches with only
     // its gRPC socket flags and blocks until this arrives before booting its engine.
+    // Builds a PatchConfig delta from the changed preference keys and sends it over
+    // AppControl gRPC so the relay live-applies it without a restart. Falls back to a
+    // full reconnect when the gRPC path is unavailable (e.g. non-VK backend).
+    private void handleLivePatch(@Nullable Intent intent) {
+        if (intent == null || !isActive()) {
+            return;
+        }
+        java.util.ArrayList<String> keys = intent.getStringArrayListExtra(EXTRA_PATCH_KEYS);
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+        wings.v.ipc.AppControlClient client = appControlClient;
+        if (!appControlGrpcActive || client == null) {
+            requestReconnect(this, "settings changed");
+            return;
+        }
+        ProxySettings settings = AppPrefs.getSettings(this);
+        wings.v.proto.appcontrol.AppControlProto.PatchConfigRequest request = buildLivePatch(settings, keys);
+        int generation = runtimeGeneration.get();
+        workExecutor.execute(() -> {
+            wings.v.ipc.AppControlClient c = appControlClient;
+            if (c == null || generation != runtimeGeneration.get()) {
+                return;
+            }
+            try {
+                c.patchConfig(request);
+                appendRuntimeLogLine("sent live config patch " + keys);
+            } catch (RuntimeException error) {
+                appendRuntimeLogLine("live patch RPC failed, reconnecting: " + error.getMessage());
+                requestReconnect(this, "live patch failed");
+            }
+        });
+    }
+
+    private wings.v.proto.appcontrol.AppControlProto.PatchConfigRequest buildLivePatch(
+        ProxySettings settings,
+        java.util.List<String> keys
+    ) {
+        Context ctx = getApplicationContext();
+        java.util.Set<String> ks = new java.util.HashSet<>(keys);
+        wings.v.proto.appcontrol.AppControlProto.PatchConfigRequest.Builder b =
+            wings.v.proto.appcontrol.AppControlProto.PatchConfigRequest.newBuilder();
+        b.setRequestId(java.util.UUID.randomUUID().toString());
+        if (ks.contains(AppPrefs.KEY_DNS_MODE)) {
+            b.setDnsMode(AppPrefs.getDnsMode(ctx));
+        }
+        if (ks.contains(AppPrefs.KEY_ENDPOINT) && settings.endpoint != null) {
+            b.setPeer(settings.endpoint);
+        }
+        if (ks.contains(AppPrefs.KEY_TURN_HOST)) {
+            b.setTurnHost(settings.turnHost == null ? "" : settings.turnHost);
+        }
+        if (ks.contains(AppPrefs.KEY_TURN_PORT)) {
+            b.setTurnPort(settings.turnPort == null ? "" : settings.turnPort);
+        }
+        if (ks.contains(AppPrefs.KEY_VK_AUTH_MODE)) {
+            b.setVkAuth(AppPrefs.normalizeVkAuthMode(settings.vkAuthMode));
+        }
+        // WRAP is one coherent group: any WRAP key change sends the whole set so the
+        // relay resolves a consistent cipher/key/mode/in-band snapshot.
+        if (
+            ks.contains(AppPrefs.KEY_VK_TURN_WRAP_MODE) ||
+            ks.contains(AppPrefs.KEY_VK_TURN_WRAP_CIPHER) ||
+            ks.contains(AppPrefs.KEY_VK_TURN_WRAP_KEY_HEX) ||
+            ks.contains(AppPrefs.KEY_VK_TURN_WRAP_SEND_KEY)
+        ) {
+            b.setWrapMode(AppPrefs.normalizeWrapMode(settings.vkTurnWrapMode));
+            b.setWrapCipher(AppPrefs.normalizeWrapCipher(settings.vkTurnWrapCipher));
+            b.setWrapKeyHex(settings.vkTurnWrapKeyHex == null ? "" : settings.vkTurnWrapKeyHex.trim());
+            b.setWrapSendKey(settings.vkTurnWrapSendKey);
+        }
+        return b.build();
+    }
+
     private void sendConfigureIfActive(ProxySettings settings) {
         if (!appControlGrpcActive) {
             return;
