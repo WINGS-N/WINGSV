@@ -203,6 +203,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_ENDPOINT);
         LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_TURN_HOST);
         LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_TURN_PORT);
+        LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_THREADS);
         LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_AUTH_MODE);
         LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_TURN_WRAP_MODE);
         LIVE_PATCHABLE_KEYS.add(AppPrefs.KEY_VK_TURN_WRAP_CIPHER);
@@ -405,6 +406,10 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 return java.util.Collections.singletonList(AppPrefs.KEY_TURN_HOST);
             case "turn_port":
                 return java.util.Collections.singletonList(AppPrefs.KEY_TURN_PORT);
+            case "threads":
+                return java.util.Collections.singletonList(AppPrefs.KEY_THREADS);
+            case "vk_links":
+                return java.util.Collections.singletonList(AppPrefs.KEY_OPEN_VK_LINKS);
             case "vk_auth":
                 return java.util.Collections.singletonList(AppPrefs.KEY_VK_AUTH_MODE);
             case "wrap":
