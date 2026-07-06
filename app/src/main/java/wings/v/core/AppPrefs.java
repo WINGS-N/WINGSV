@@ -1380,6 +1380,13 @@ public final class AppPrefs {
             }
             return;
         }
+        // Turn merge-only import (a wingsv:// link that carries only VK links):
+        // merge the links into the shared pool and touch nothing else - no endpoint,
+        // wrap, backend switch or profile creation. Mirrors the Xray merge-only path.
+        if (importedConfig.hasTurnSettings && importedConfig.turnMergeOnly) {
+            mergeImportedVkLinks(context, importedConfig);
+            return;
+        }
         SharedPreferences importPrefs = prefs(context);
         SharedPreferences.Editor editor = importPrefs.edit();
 
@@ -1556,6 +1563,34 @@ public final class AppPrefs {
 
     private static String synthesizeAmneziaTitle(Context context) {
         return "AmneziaWG #" + (AmneziaProfileStore.getProfiles(context).size() + 1);
+    }
+
+    // Merge-only VK links import: append the imported links to the shared pool
+    // (deduped, order preserved) and write nothing else. The primary link is seeded
+    // from the pool only if it was empty. Every other VK TURN setting stays as-is.
+    private static void mergeImportedVkLinks(Context context, WingsImportParser.ImportedConfig importedConfig) {
+        if (importedConfig.links == null || importedConfig.links.isEmpty()) {
+            return;
+        }
+        SharedPreferences prefs = prefs(context);
+        List<String> pool = new ArrayList<>(readVkLinks(prefs, trim(prefs.getString(KEY_VK_LINK, ""))));
+        boolean changed = false;
+        for (String entry : importedConfig.links) {
+            String trimmed = trim(entry);
+            if (!TextUtils.isEmpty(trimmed) && !pool.contains(trimmed)) {
+                pool.add(trimmed);
+                changed = true;
+            }
+        }
+        if (!changed) {
+            return;
+        }
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(KEY_VK_LINKS_JSON, encodeVkLinks(pool));
+        if (TextUtils.isEmpty(trim(prefs.getString(KEY_VK_LINK, ""))) && !pool.isEmpty()) {
+            editor.putString(KEY_VK_LINK, pool.get(0));
+        }
+        editor.apply();
     }
 
     private static void applyImportedTurnSettings(

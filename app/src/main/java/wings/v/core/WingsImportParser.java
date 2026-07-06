@@ -2551,6 +2551,7 @@ public final class WingsImportParser {
 
     private static void parseTurn(WingsvProto.Turn turn, ImportedConfig importedConfig) {
         importedConfig.hasTurnSettings = true;
+        importedConfig.turnMergeOnly = turn.hasMergeOnly() && turn.getMergeOnly();
         if (!TextUtils.isEmpty(value(turn.getTitle()))) {
             importedConfig.importedVkTurnTitle = value(turn.getTitle());
         }
@@ -3731,6 +3732,10 @@ public final class WingsImportParser {
         public XraySettings xraySettings = defaultXraySettings();
         public String xraySubscriptionJson;
         public boolean xrayMergeOnly;
+        // Turn.merge_only: import merges only the VK links into the shared pool and
+        // leaves every other VK TURN setting (endpoint, wrap, backend, profiles)
+        // untouched. Set by a links-only wingsv:// share link.
+        public boolean turnMergeOnly;
         public final List<XrayRoutingRule> xrayRoutingRules = new ArrayList<>();
         public String xrayRoutingGeoipUrl;
         public String xrayRoutingGeositeUrl;
