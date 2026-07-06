@@ -2364,6 +2364,48 @@ public final class AppPrefs {
         prefs(context).edit().putString(KEY_VK_LINKS_JSON, encodeVkLinks(links)).apply();
     }
 
+    // Persistent set of relay field keys whose live patch could not be applied and
+    // needs a restart. Written by the service (multi-process MMKV), read by the VK
+    // TURN settings UI so the warning survives leaving and returning to the screen.
+    // Cleared per field when it is successfully re-applied, and wholesale on relay
+    // restart.
+    public static final String KEY_LIVE_PATCH_FAILED_FIELDS = "pref_live_patch_failed_fields";
+
+    public static java.util.Set<String> getLivePatchFailedFields(Context context) {
+        String raw = prefs(context).getString(KEY_LIVE_PATCH_FAILED_FIELDS, "");
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        if (!TextUtils.isEmpty(raw)) {
+            for (String field : raw.split(",")) {
+                String trimmed = field.trim();
+                if (!trimmed.isEmpty()) {
+                    out.add(trimmed);
+                }
+            }
+        }
+        return out;
+    }
+
+    public static void addLivePatchFailedField(Context context, String field) {
+        if (TextUtils.isEmpty(field)) {
+            return;
+        }
+        java.util.Set<String> fields = getLivePatchFailedFields(context);
+        if (fields.add(field)) {
+            prefs(context).edit().putString(KEY_LIVE_PATCH_FAILED_FIELDS, TextUtils.join(",", fields)).apply();
+        }
+    }
+
+    public static void removeLivePatchFailedField(Context context, String field) {
+        java.util.Set<String> fields = getLivePatchFailedFields(context);
+        if (fields.remove(field)) {
+            prefs(context).edit().putString(KEY_LIVE_PATCH_FAILED_FIELDS, TextUtils.join(",", fields)).apply();
+        }
+    }
+
+    public static void clearLivePatchFailedFields(Context context) {
+        prefs(context).edit().putString(KEY_LIVE_PATCH_FAILED_FIELDS, "").apply();
+    }
+
     public static String getVkLinkSecondary(Context context) {
         return trim(prefs(context).getString(KEY_VK_LINK_SECONDARY, ""));
     }

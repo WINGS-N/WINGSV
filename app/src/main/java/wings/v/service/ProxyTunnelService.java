@@ -3707,6 +3707,7 @@ public class ProxyTunnelService extends Service {
         if (!appControlGrpcActive) {
             return;
         }
+        broadcastPatchReset();
         closeAppControl();
         try {
             appControlClient = new wings.v.ipc.AppControlClient(appControlSocketPath(), appControlToken());
@@ -4083,11 +4084,34 @@ public class ProxyTunnelService extends Service {
         if (status == null) {
             return;
         }
+        String field = status.getField();
+        String state = status.getState();
+        // Persist the failed-field set so the warning survives the user leaving and
+        // returning to the settings screen; drop it once the field is re-applied.
+        if ("failed".equals(state) || "reverted_needs_restart".equals(state)) {
+            AppPrefs.addLivePatchFailedField(this, field);
+        } else if ("applied".equals(state) || "applying".equals(state)) {
+            // Clear on applying too: the field is being retried, so a stale warning
+            // must not resurface if the user leaves and returns mid-apply.
+            AppPrefs.removeLivePatchFailedField(this, field);
+        }
         Intent intent = new Intent(ACTION_PATCH_STATUS)
             .setPackage(getPackageName())
-            .putExtra(EXTRA_PATCH_FIELD, status.getField())
-            .putExtra(EXTRA_PATCH_STATE, status.getState())
+            .putExtra(EXTRA_PATCH_FIELD, field)
+            .putExtra(EXTRA_PATCH_STATE, state)
             .putExtra(EXTRA_PATCH_MESSAGE, status.getMessage());
+        sendBroadcast(intent);
+    }
+
+    // A fresh relay session clears any stale live-patch warnings: the boot config now
+    // reflects every setting, so nothing is left pending. Broadcast a reset so the UI
+    // clears its rows, and drop the persisted failed-field set.
+    private void broadcastPatchReset() {
+        AppPrefs.clearLivePatchFailedFields(this);
+        Intent intent = new Intent(ACTION_PATCH_STATUS)
+            .setPackage(getPackageName())
+            .putExtra(EXTRA_PATCH_FIELD, "")
+            .putExtra(EXTRA_PATCH_STATE, "reset");
         sendBroadcast(intent);
     }
 
