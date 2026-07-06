@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Samsung/SESL indeterminate loader shown in a preference row's widget frame
+     (right side) while a live settings patch is being applied. Mirrors the SESL
+     preference_widget_progressbar. -->
+<androidx.appcompat.widget.SeslProgressBar
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/live_patch_progress"
+    style="@style/Widget.AppCompat.ProgressBar"
+    android:layout_width="32dp"
+    android:layout_height="32dp"
+    android:layout_gravity="center" />

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Warning shown (same footprint as the live loader) in a preference row's widget
+     frame when a live patch could not be applied and will only take effect on the
+     next relay restart. -->
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/live_patch_warning"
+    android:layout_width="32dp"
+    android:layout_height="32dp"
+    android:layout_gravity="center"
+    android:padding="4dp"
+    android:scaleType="fitCenter"
+    android:contentDescription="@string/vk_turn_live_patch_failed"
+    android:src="@drawable/ic_warning_triangle" />
