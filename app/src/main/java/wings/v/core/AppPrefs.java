@@ -2558,7 +2558,7 @@ public final class AppPrefs {
 
     private static String normalizeCaptchaAutoSolver(String value) {
         String normalized = trim(value).toLowerCase(java.util.Locale.ROOT);
-        if ("v1".equals(normalized) || "v2".equals(normalized)) {
+        if ("v1".equals(normalized) || "v2".equals(normalized) || "bypass".equals(normalized)) {
             return normalized;
         }
         return CAPTCHA_AUTO_SOLVER_DEFAULT;

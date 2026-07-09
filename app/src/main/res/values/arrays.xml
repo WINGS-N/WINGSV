@@ -96,11 +96,13 @@
     </string-array>
 
     <string-array name="captcha_auto_solver_entries">
+        <item>@string/captcha_auto_solver_bypass_label</item>
         <item>@string/captcha_auto_solver_v2_label</item>
         <item>@string/captcha_auto_solver_v1_label</item>
     </string-array>
 
     <string-array name="captcha_auto_solver_values">
+        <item>bypass</item>
         <item>v2</item>
         <item>v1</item>
     </string-array>
