@@ -712,7 +712,7 @@ public final class VkTurnProfileStore {
 
     private static String normalizeCaptchaAutoSolver(String value) {
         String normalized = ProfileStoreSupport.trim(value).toLowerCase(java.util.Locale.ROOT);
-        if ("v1".equals(normalized) || "v2".equals(normalized)) {
+        if ("v1".equals(normalized) || "v2".equals(normalized) || "bypass".equals(normalized)) {
             return normalized;
         }
         return AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT;

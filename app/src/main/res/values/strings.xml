@@ -1027,9 +1027,10 @@
     <string name="manual_captcha_title">Manual captcha</string>
     <string name="manual_captcha_summary">Do not try to solve VK captcha automatically and wait for manual confirmation right away</string>
     <string name="captcha_auto_solver_title">Captcha auto-solve</string>
-    <string name="captcha_auto_solver_summary">Algorithm for automatically passing VK captcha</string>
-    <string name="captcha_auto_solver_v2_label">Improved (default)</string>
-    <string name="captcha_auto_solver_v1_label">Classic</string>
+    <string name="captcha_auto_solver_summary">How to pass the VK captcha gate</string>
+    <string name="captcha_auto_solver_bypass_label">bypass via vk.me</string>
+    <string name="captcha_auto_solver_v2_label">v2</string>
+    <string name="captcha_auto_solver_v1_label">v1 / legacy</string>
     <string name="vk_turn_settings_restart_on_network_change_title">Restart VK TURN when network interface changes</string>
     <string name="vk_turn_settings_restart_on_network_change_summary">Re-establish VK TURN when switching between Wi-Fi, mobile data and other physical networks</string>
     <string name="captcha_browser_title">VK captcha solving</string>
