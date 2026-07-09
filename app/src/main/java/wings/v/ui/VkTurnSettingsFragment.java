@@ -536,8 +536,19 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
             Haptics.softSliderStep(getListView() != null ? getListView() : requireView());
             setClearVkCookiesVisible(Boolean.TRUE.equals(newValue));
+            setCaptchaSolverEnabled(!Boolean.TRUE.equals(newValue));
             return true;
         });
+    }
+
+    // The captcha solver only applies in anonymous mode. VK Auth sign-in mints
+    // account-bound TURN tokens through a path with no captcha gate, so the
+    // selector (including the vk.me bypass) is inert while account mode is on.
+    private void setCaptchaSolverEnabled(boolean enabled) {
+        Preference preference = findPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
+        if (preference != null) {
+            preference.setEnabled(enabled);
+        }
     }
 
     private void bindClearVkCookiesPreference() {
@@ -956,6 +967,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         setPreferenceVisible(AppPrefs.KEY_WG_ENDPOINT, plainWireGuardEndpointVisible);
         setPreferenceVisible(AmneziaStore.KEY_PEER_ENDPOINT, plainAwgPeerEndpointVisible);
         setClearVkCookiesVisible(isVkAuthModeEnabled());
+        setCaptchaSolverEnabled(!isVkAuthModeEnabled());
         applyManagedLock();
     }
 
