@@ -370,6 +370,66 @@ public final class AppPrefs {
         return filterId;
     }
 
+    // Managed-client traffic-limit usage, written by the :tunnel process from the
+    // relay heartbeat and read by the profiles UI in the main process (MMKV is
+    // multi-process safe). One compact "limit|used|remaining|disabled" value per
+    // panel client id.
+    private static final String KEY_CLIENT_TRAFFIC_USAGE_PREFIX = "client_traffic_usage_";
+
+    public static final class ClientTrafficUsage {
+
+        public final long limitBytes;
+        public final long usedBytes;
+        public final long remainingBytes;
+        public final boolean disabled;
+
+        public ClientTrafficUsage(long limitBytes, long usedBytes, long remainingBytes, boolean disabled) {
+            this.limitBytes = limitBytes;
+            this.usedBytes = usedBytes;
+            this.remainingBytes = remainingBytes;
+            this.disabled = disabled;
+        }
+    }
+
+    public static void setClientTrafficUsage(
+        Context context,
+        String clientId,
+        long limitBytes,
+        long usedBytes,
+        long remainingBytes,
+        boolean disabled
+    ) {
+        if (TextUtils.isEmpty(clientId)) {
+            return;
+        }
+        String value = limitBytes + "|" + usedBytes + "|" + remainingBytes + "|" + (disabled ? 1 : 0);
+        prefs(context).edit().putString(KEY_CLIENT_TRAFFIC_USAGE_PREFIX + clientId, value).apply();
+    }
+
+    public static ClientTrafficUsage getClientTrafficUsage(Context context, String clientId) {
+        if (TextUtils.isEmpty(clientId)) {
+            return null;
+        }
+        String value = prefs(context).getString(KEY_CLIENT_TRAFFIC_USAGE_PREFIX + clientId, "");
+        if (TextUtils.isEmpty(value)) {
+            return null;
+        }
+        String[] parts = value.split("\\|");
+        if (parts.length != 4) {
+            return null;
+        }
+        try {
+            return new ClientTrafficUsage(
+                Long.parseLong(parts[0]),
+                Long.parseLong(parts[1]),
+                Long.parseLong(parts[2]),
+                "1".equals(parts[3])
+            );
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     public static String getLastUpdateNotifiedTag(Context context) {
         return trim(prefs(context).getString(KEY_UPDATES_LAST_NOTIFIED_TAG, ""));
     }
