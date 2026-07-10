@@ -21,6 +21,7 @@ import wings.v.R;
 import wings.v.WingsApplication;
 import wings.v.core.AppPrefs;
 import wings.v.core.ByeDpiSettings;
+import wings.v.core.ByeDpiStore;
 import wings.v.core.DirectNetworkConnection;
 import wings.v.core.ProxySettings;
 import wings.v.core.XrayProfile;
@@ -53,6 +54,11 @@ public final class XrayConfigFactory {
 
     private static final String TUN_TAG = "tun-in";
     private static final String TUN_BYPASS_TAG = "tun-in-bypass";
+    // gVisor stamps connections from per-app ByeDPI UIDs with this inbound tag
+    // (route_inbound_tag) so a routing rule can divert them to the standalone
+    // ByeDPI SOCKS outbound below, independent of the app-routing mode.
+    private static final String TUN_BYEDPI_TAG = "tun-in-byedpi";
+    private static final String BYEDPI_APP_TAG = "byedpi-app";
     private static final String TPROXY_TAG = "tproxy-in";
     // Transparent REDIRECT inbound for AP/hotspot (tethering) client traffic.
     // Plain dokodemo-door with followRedirect (NO tproxy sockopt), so the app-uid
@@ -175,6 +181,13 @@ public final class XrayConfigFactory {
         // let it resolve hostnames through the internal DNS too so the DoH
         // bootstrap servers in buildDns are reachable without the system resolver.
         applyDirectResolveStrategy(outbounds, xraySettings.ipv6);
+        // Standalone ByeDPI SOCKS outbound for per-app ByeDPI routing (distinct
+        // from the byedpi-front transport chain): only relevant on the gVisor
+        // TUN path, where applyTunUidFilter stamps the selected UIDs so the
+        // routing rule below can divert them here.
+        if (includeTunInbound) {
+            appendByeDpiAppOutbound(outbounds, context, byeDpiSettings);
+        }
         root.put("outbounds", outbounds);
         root.put("routing", buildRouting(context, xraySettings, includeTunInbound, tproxyPort));
         String configJson = root.toString();
@@ -771,6 +784,38 @@ public final class XrayConfigFactory {
         return outbounds;
     }
 
+    /**
+     * Emits a standalone SOCKS outbound pointing at the local ByeDPI proxy when
+     * the user routed at least one app through ByeDPI. Unlike the byedpi-front
+     * transport chain (which wraps the VLESS outbound), this is a terminal
+     * outbound: the selected apps egress through ByeDPI directly to the origin,
+     * bypassing the Xray proxy. Gated on AppPrefs.hasByeDpiApps so the outbound
+     * is absent (and the matching routing rule too) when the feature is unused.
+     */
+    private static void appendByeDpiAppOutbound(JSONArray outbounds, Context context, ByeDpiSettings byeDpiSettings)
+        throws Exception {
+        if (context == null || !AppPrefs.hasByeDpiApps(context)) {
+            return;
+        }
+        ByeDpiSettings effective = byeDpiSettings != null ? byeDpiSettings : ByeDpiStore.getSettings(context);
+        if (effective == null) {
+            return;
+        }
+        JSONObject byeDpiAppOutbound = new JSONObject();
+        byeDpiAppOutbound.put("tag", BYEDPI_APP_TAG);
+        byeDpiAppOutbound.put("protocol", "socks");
+        JSONObject settings = new JSONObject();
+        JSONArray servers = new JSONArray();
+        JSONObject server = new JSONObject();
+        server.put("address", effective.resolveRuntimeDialHost());
+        server.put("port", effective.resolveRuntimeListenPort());
+        addByeDpiSocksAuth(server, effective);
+        servers.put(server);
+        settings.put("servers", servers);
+        byeDpiAppOutbound.put("settings", settings);
+        outbounds.put(byeDpiAppOutbound);
+    }
+
     static void enableByeDpiFrontProxy(JSONObject proxyOutbound, XraySettings xraySettings) throws Exception {
         proxyOutbound.put("proxySettings", new JSONObject().put("tag", BYEDPI_FRONT_TAG).put("transportLayer", true));
 
@@ -832,6 +877,18 @@ public final class XrayConfigFactory {
             bypassRule.put("inboundTag", new JSONArray().put(TUN_BYPASS_TAG));
             bypassRule.put("outboundTag", DIRECT_TAG);
             rules.put(bypassRule);
+        }
+        // ByeDPI per-app rule, like the bypass rule, must precede the DNS rule so
+        // the selected apps' DNS also egresses through ByeDPI. gVisor stamps their
+        // connections with TUN_BYEDPI_TAG (applyTunUidFilter route_uids); this rule
+        // sends that tag to the standalone ByeDPI SOCKS outbound. Gated on the same
+        // condition as appendByeDpiAppOutbound so the referenced tag always exists.
+        if (includeTunInbound && AppPrefs.hasByeDpiApps(context)) {
+            JSONObject byeDpiAppRule = new JSONObject();
+            byeDpiAppRule.put("type", "field");
+            byeDpiAppRule.put("inboundTag", new JSONArray().put(TUN_BYEDPI_TAG));
+            byeDpiAppRule.put("outboundTag", BYEDPI_APP_TAG);
+            rules.put(byeDpiAppRule);
         }
         JSONObject dnsRule = new JSONObject();
         dnsRule.put("type", "field");
@@ -1168,11 +1225,39 @@ public final class XrayConfigFactory {
         }
     }
 
+    private static void applyByeDpiRouteUids(Context context, JSONObject tunSettings) throws Exception {
+        Set<String> byeDpiPackages = AppPrefs.getByeDpiAppPackages(context);
+        if (byeDpiPackages.isEmpty()) {
+            return;
+        }
+        List<Integer> uids = wings.v.core.XrayTproxyRouter.resolveRoutedUids(context, byeDpiPackages);
+        JSONArray uidArray = new JSONArray();
+        for (Integer uid : uids) {
+            if (uid != null && uid > 0) {
+                uidArray.put(uid.longValue());
+            }
+        }
+        if (uidArray.length() == 0) {
+            return;
+        }
+        tunSettings.put("routeUids", uidArray);
+        tunSettings.put("routeInboundTag", TUN_BYEDPI_TAG);
+        android.util.Log.i(
+            "WINGSV-Xray",
+            "applyTunUidFilter: byedpi route uids=" + uids + " packages=" + byeDpiPackages
+        );
+    }
+
     private static void applyTunUidFilter(Context context, JSONObject tunSettings, XraySettings xraySettings)
         throws Exception {
         if (context == null) {
             return;
         }
+        // ByeDPI per-app divert is independent of the app-routing mode handled
+        // below: stamp the selected UIDs with route_inbound_tag so buildRouting
+        // sends them to the standalone ByeDPI SOCKS outbound. Applied first so it
+        // survives the early returns for plain Bypass / Whitelist / Off.
+        applyByeDpiRouteUids(context, tunSettings);
         wings.v.core.AppRoutingMode routingMode = AppPrefs.getAppRoutingMode(context);
         if (routingMode == wings.v.core.AppRoutingMode.BYPASS || routingMode == wings.v.core.AppRoutingMode.WHITELIST) {
             // Plain Bypass / Whitelist filter at the VpnService framework layer
