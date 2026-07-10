@@ -9,6 +9,9 @@
     <color name="wingsv_text_secondary">#646D7C</color>
     <color name="wingsv_success">#16965A</color>
     <color name="wingsv_error">#D13A4B</color>
+    <!-- Samsung-style Rx/Tx accent, as in WINGS V DeX: download green, upload blue. -->
+    <color name="traffic_rx">#15B76F</color>
+    <color name="traffic_tx">#0381FE</color>
     <color name="wingsv_warning">#F2A93B</color>
     <color name="wingsv_power_off">#D9E2F0</color>
     <color name="wingsv_power_on">#0A84FF</color>
