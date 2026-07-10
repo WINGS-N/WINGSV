@@ -20,6 +20,17 @@
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
 
     <PreferenceCategory
+        android:key="pref_category_bydpi_apps"
+        android:title="@string/byedpi_apps_category" />
+
+    <Preference
+        android:key="pref_open_bydpi_apps"
+        android:title="@string/byedpi_apps_title"
+        android:summary="@string/byedpi_apps_summary" />
+
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
+
+    <PreferenceCategory
         android:key="pref_category_bydpi_proxy"
         android:title="@string/byedpi_proxy_category" />
 

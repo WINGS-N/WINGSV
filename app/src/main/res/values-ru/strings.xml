@@ -1254,6 +1254,9 @@
     <string name="byedpi_open_summary">Настройки ByeDPI для Xray</string>
     <string name="byedpi_xray_only_summary">Доступно только на Xray backend</string>
     <string name="byedpi_integration_category">Интеграция с Xray</string>
+    <string name="byedpi_apps_category">Приложения</string>
+    <string name="byedpi_apps_title">Приложения через ByeDPI</string>
+    <string name="byedpi_apps_summary">Пускать выбранные приложения только через ByeDPI, минуя outbound Xray</string>
     <string name="byedpi_auto_start_title">Запускать ByeDPI при старте Xray</string>
     <string name="byedpi_auto_start_summary">При старте Xray, ByeDPI будет автоматически подключаться к нему в качестве proxy</string>
     <string name="byedpi_use_command_settings_title">Использовать командную строку</string>
