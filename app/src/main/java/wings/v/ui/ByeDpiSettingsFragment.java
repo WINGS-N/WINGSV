@@ -208,6 +208,15 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
         bindDropdown(ByeDpiStore.KEY_HOSTS_MODE);
         bindDropdown(ByeDpiStore.KEY_DESYNC_METHOD);
 
+        Preference openApps = findPreference("pref_open_bydpi_apps");
+        if (openApps != null) {
+            openApps.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(wings.v.ByeDpiAppsActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
         Preference openTargets = findPreference(ByeDpiStore.KEY_PROXYTEST_OPEN_TARGETS);
         if (openTargets != null) {
             openTargets.setOnPreferenceClickListener(preference -> {

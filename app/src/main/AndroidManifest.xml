@@ -272,6 +272,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".ByeDpiAppsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".ByeDpiTargetsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

@@ -1254,6 +1254,9 @@
     <string name="byedpi_open_summary">ByeDPI settings for Xray</string>
     <string name="byedpi_xray_only_summary">Available only on Xray backend</string>
     <string name="byedpi_integration_category">Xray integration</string>
+    <string name="byedpi_apps_category">Per-app routing</string>
+    <string name="byedpi_apps_title">Apps through ByeDPI</string>
+    <string name="byedpi_apps_summary">Route selected apps only through ByeDPI, bypassing the Xray outbound</string>
     <string name="byedpi_auto_start_title">Start ByeDPI when Xray starts</string>
     <string name="byedpi_auto_start_summary">When Xray starts, ByeDPI will automatically attach to it as a proxy</string>
     <string name="byedpi_use_command_settings_title">Use command line</string>
