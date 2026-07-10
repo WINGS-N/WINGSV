@@ -105,6 +105,37 @@
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
             </LinearLayout>
+
+            <FrameLayout
+                android:id="@+id/layout_backend_profile_quota"
+                android:layout_width="match_parent"
+                android:layout_height="24dp"
+                android:layout_marginTop="8dp"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:id="@+id/progress_backend_profile_quota"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:indeterminate="false"
+                    android:max="1000"
+                    android:minHeight="24dp"
+                    android:progress="0"
+                    android:progressDrawable="@drawable/progress_profile_quota" />
+
+                <TextView
+                    android:id="@+id/text_backend_profile_quota"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:singleLine="true"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorPrimary"
+                    android:textStyle="bold" />
+            </FrameLayout>
         </LinearLayout>
 
         <ImageView

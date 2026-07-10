@@ -54,6 +54,7 @@ import wings.v.core.XrayStore;
 import wings.v.core.XraySubscription;
 import wings.v.databinding.FragmentBackendProfilesBinding;
 import wings.v.databinding.ItemBackendProfileEntryBinding;
+import wings.v.service.ProxyTunnelService;
 
 /**
  * Backend-aware profiles screen. The first element is a backend-selector dropdown
@@ -216,6 +217,15 @@ public class BackendProfilesFragment extends Fragment {
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), selectionBackCallback);
     }
 
+    // Refreshes the per-profile quota bars when the relay reports fresh managed
+    // traffic-limit usage while this screen is open.
+    private final android.content.BroadcastReceiver trafficUsageReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context ctx, android.content.Intent intent) {
+            refreshUi();
+        }
+    };
+
     @Override
     public void onResume() {
         super.onResume();
@@ -223,7 +233,23 @@ public class BackendProfilesFragment extends Fragment {
             updateActiveFromFlatPrefs(requireContext(), pendingUiEditBackend);
             pendingUiEditBackend = null;
         }
+        ContextCompat.registerReceiver(
+            requireContext(),
+            trafficUsageReceiver,
+            new android.content.IntentFilter(ProxyTunnelService.ACTION_TRAFFIC_USAGE),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        );
         refreshUi();
+    }
+
+    @Override
+    public void onPause() {
+        try {
+            requireContext().unregisterReceiver(trafficUsageReceiver);
+        } catch (IllegalArgumentException ignored) {
+            // Was not registered - safe to ignore.
+        }
+        super.onPause();
     }
 
     @Override
@@ -702,6 +728,8 @@ public class BackendProfilesFragment extends Fragment {
         rowBinding.textBackendProfileRx.setText(UiFormatter.formatBytes(context, stats.rxBytes));
         rowBinding.textBackendProfileTx.setText(UiFormatter.formatBytes(context, stats.txBytes));
 
+        bindProfileQuota(rowBinding, profile);
+
         applyFavoriteState(rowBinding, backendType, profile.id);
 
         rowBinding.rowBackendProfileEntry.setOnClickListener(v -> {
@@ -723,6 +751,48 @@ public class BackendProfilesFragment extends Fragment {
             toggleFavorite(backendType, profile.id);
             refreshUi();
         });
+    }
+
+    // Shows the traffic-limit quota bar for a self-contained managed VK TURN
+    // profile (one with a panel client id and no parent subscription). A
+    // subscription's profiles show whole-subscription traffic elsewhere, so they
+    // get no per-profile bar. Reuses the subscription quota bar's drawable and
+    // remaining-ratio colour scale.
+    private void bindProfileQuota(ItemBackendProfileEntryBinding rowBinding, SimpleProfile profile) {
+        Context context = requireContext();
+        if (!TextUtils.isEmpty(profile.subscriptionId) || TextUtils.isEmpty(profile.provisionClientId)) {
+            rowBinding.layoutBackendProfileQuota.setVisibility(View.GONE);
+            return;
+        }
+        AppPrefs.ClientTrafficUsage usage = AppPrefs.getClientTrafficUsage(context, profile.provisionClientId);
+        if (usage == null || usage.limitBytes <= 0L) {
+            rowBinding.layoutBackendProfileQuota.setVisibility(View.GONE);
+            return;
+        }
+        long used = Math.max(0L, usage.usedBytes);
+        long limit = usage.limitBytes;
+        long remaining = Math.max(0L, usage.remainingBytes);
+        double remainingRatio = (double) remaining / (double) limit;
+        int colorResId =
+            usage.disabled || remainingRatio <= 0.1d
+                ? R.color.wingsv_error
+                : remainingRatio <= 0.4d
+                    ? R.color.wingsv_warning
+                    : R.color.wingsv_success;
+        int progress = (int) Math.round(remainingRatio * GROUP_QUOTA_PROGRESS_MAX);
+        progress = Math.max(0, Math.min(progress, GROUP_QUOTA_PROGRESS_MAX));
+        rowBinding.progressBackendProfileQuota.setProgress(progress);
+        rowBinding.progressBackendProfileQuota.setProgressTintList(
+            ColorStateList.valueOf(ContextCompat.getColor(context, colorResId))
+        );
+        rowBinding.textBackendProfileQuota.setText(
+            getString(
+                R.string.xray_profiles_subscription_quota_used,
+                UiFormatter.formatBytes(context, used),
+                UiFormatter.formatBytes(context, limit)
+            )
+        );
+        rowBinding.layoutBackendProfileQuota.setVisibility(View.VISIBLE);
     }
 
     private void applyFavoriteState(ItemBackendProfileEntryBinding rowBinding, BackendType backendType, String id) {
@@ -1655,19 +1725,24 @@ public class BackendProfilesFragment extends Fragment {
         final String summary;
         final String subscriptionId;
         final String subscriptionTitle;
+        // Panel client id of a managed VK TURN profile; empty for non-managed or
+        // non-VK-TURN profiles. Keys the per-profile traffic-limit usage.
+        final String provisionClientId;
 
         private SimpleProfile(
             String id,
             String rawTitle,
             String summary,
             String subscriptionId,
-            String subscriptionTitle
+            String subscriptionTitle,
+            String provisionClientId
         ) {
             this.id = id == null ? "" : id;
             this.rawTitle = rawTitle == null ? "" : rawTitle;
             this.summary = summary == null ? "" : summary;
             this.subscriptionId = subscriptionId == null ? "" : subscriptionId;
             this.subscriptionTitle = subscriptionTitle == null ? "" : subscriptionTitle;
+            this.provisionClientId = provisionClientId == null ? "" : provisionClientId;
         }
 
         static SimpleProfile fromWireGuard(WireGuardProfile profile) {
@@ -1676,12 +1751,20 @@ public class BackendProfilesFragment extends Fragment {
                 profile.title,
                 profile.endpoint,
                 profile.subscriptionId,
-                profile.subscriptionTitle
+                profile.subscriptionTitle,
+                ""
             );
         }
 
         static SimpleProfile fromAmnezia(AmneziaProfile profile) {
-            return new SimpleProfile(profile.id, profile.title, "", profile.subscriptionId, profile.subscriptionTitle);
+            return new SimpleProfile(
+                profile.id,
+                profile.title,
+                "",
+                profile.subscriptionId,
+                profile.subscriptionTitle,
+                ""
+            );
         }
 
         static SimpleProfile fromVkTurn(VkTurnProfile profile) {
@@ -1697,7 +1780,8 @@ public class BackendProfilesFragment extends Fragment {
                 profile.title,
                 summary,
                 profile.subscriptionId,
-                profile.subscriptionTitle
+                profile.subscriptionTitle,
+                profile.provisionClientId
             );
         }
 
