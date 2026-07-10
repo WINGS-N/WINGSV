@@ -194,6 +194,9 @@ public final class AppPrefs {
     // direct), preserving its leak-closed behavior; plain BYPASS (disallow) is new.
     private static final String KEY_APP_ROUTING_XBYPASS_MIGRATED = "pref_app_routing_xbypass_migrated";
     public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
+    // Apps whose traffic is diverted through the standalone ByeDPI SOCKS
+    // outbound (DPI bypass), independent of the app-routing mode above.
+    public static final String KEY_BYEDPI_PACKAGES = "pref_byedpi_packages";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
     public static final String KEY_XRAY_TPROXY_MODE = "pref_xray_tproxy_mode";
@@ -1262,6 +1265,43 @@ public final class AppPrefs {
         }
         String key = appRoutingPackagesKey(mode);
         prefs(context).edit().putStringSet(key, normalizedPackages).commit();
+    }
+
+    /**
+     * Packages the user routed through the standalone ByeDPI SOCKS outbound.
+     * Independent of the app-routing mode: a listed app egresses through
+     * ByeDPI (DPI bypass, direct to the origin) regardless of Bypass /
+     * Whitelist / XBypass selection. Own package is never included.
+     */
+    public static Set<String> getByeDpiAppPackages(Context context) {
+        Set<String> stored = prefs(context).getStringSet(KEY_BYEDPI_PACKAGES, null);
+        if (stored == null || stored.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+        LinkedHashSet<String> packages = new LinkedHashSet<>(stored);
+        packages.remove(context.getPackageName());
+        return packages;
+    }
+
+    public static boolean hasByeDpiApps(Context context) {
+        return !getByeDpiAppPackages(context).isEmpty();
+    }
+
+    public static boolean isByeDpiAppEnabled(Context context, String packageName) {
+        return !TextUtils.isEmpty(packageName) && getByeDpiAppPackages(context).contains(packageName);
+    }
+
+    public static void setByeDpiAppEnabled(Context context, String packageName, boolean enabled) {
+        if (TextUtils.isEmpty(packageName)) {
+            return;
+        }
+        Set<String> packages = getByeDpiAppPackages(context);
+        if (enabled && !TextUtils.equals(packageName, context.getPackageName())) {
+            packages.add(packageName);
+        } else {
+            packages.remove(packageName);
+        }
+        prefs(context).edit().putStringSet(KEY_BYEDPI_PACKAGES, new LinkedHashSet<>(packages)).commit();
     }
 
     public static Set<String> getAppRoutingRecommendedDismissedPackages(Context context) {
