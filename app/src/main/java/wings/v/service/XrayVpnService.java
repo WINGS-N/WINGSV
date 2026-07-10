@@ -3,6 +3,7 @@ package wings.v.service;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.VpnService;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemClock;
@@ -385,6 +386,10 @@ public class XrayVpnService extends VpnService implements DialerController {
     private void applyAppRouting(Builder builder) {
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(this);
         AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
+        // ByeDPI per-app routing diverts these apps at the gVisor level, so they
+        // must stay INSIDE the VpnService tunnel regardless of the routing mode:
+        // whitelist them explicitly, and never disallow them under plain Bypass.
+        Set<String> byeDpiPackages = AppPrefs.getByeDpiAppPackages(this);
         if (packages.isEmpty()) {
             if (mode == AppRoutingMode.WHITELIST) {
                 // An empty whitelist must tunnel NOTHING, not everything. Without an
@@ -393,6 +398,7 @@ public class XrayVpnService extends VpnService implements DialerController {
                 // protected (they bypass the VPN), so no other app is tunneled.
                 try {
                     builder.addAllowedApplication(getPackageName());
+                    addByeDpiAllowedApplications(builder, byeDpiPackages);
                 } catch (Exception error) {
                     throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
                 }
@@ -407,14 +413,19 @@ public class XrayVpnService extends VpnService implements DialerController {
                 for (String packageName : packages) {
                     builder.addAllowedApplication(packageName);
                 }
+                addByeDpiAllowedApplications(builder, byeDpiPackages);
                 ProxyTunnelService.writeRuntimeLogLine(
                     "App routing: WHITELIST addAllowedApplication x" + packages.size()
                 );
             } else if (mode == AppRoutingMode.BYPASS) {
                 // Plain Bypass: exclude the selected apps at the Android layer.
                 // Simple and native, but a non-excluded app could still escape the
-                // tunnel by binding directly to the underlying interface.
+                // tunnel by binding directly to the underlying interface. A ByeDPI
+                // per-app app stays tunneled so its gVisor divert can fire.
                 for (String packageName : packages) {
+                    if (byeDpiPackages.contains(packageName)) {
+                        continue;
+                    }
                     builder.addDisallowedApplication(packageName);
                 }
             }
@@ -429,6 +440,27 @@ public class XrayVpnService extends VpnService implements DialerController {
             // OFF mode: packages is empty above, so we never reach here.
         } catch (Exception error) {
             throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
+        }
+    }
+
+    // Whitelist ByeDPI per-app packages into the tunnel so their gVisor divert can
+    // fire. A missing package (uninstalled) is skipped rather than failing the
+    // whole build. Own package is never added.
+    private void addByeDpiAllowedApplications(Builder builder, Set<String> byeDpiPackages)
+        throws PackageManager.NameNotFoundException {
+        if (byeDpiPackages == null || byeDpiPackages.isEmpty()) {
+            return;
+        }
+        String ownPackage = getPackageName();
+        for (String packageName : byeDpiPackages) {
+            if (packageName == null || packageName.equals(ownPackage)) {
+                continue;
+            }
+            try {
+                builder.addAllowedApplication(packageName);
+            } catch (PackageManager.NameNotFoundException ignored) {
+                // Uninstalled ByeDPI app: skip, keep the rest of the whitelist.
+            }
         }
     }
 

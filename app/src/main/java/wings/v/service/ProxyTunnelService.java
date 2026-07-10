@@ -2065,8 +2065,13 @@ public class ProxyTunnelService extends Service {
         }
 
         ByeDpiSettings byeDpiSettings = settings != null ? settings.byeDpiSettings : null;
+        // Also start the local ByeDPI proxy when the user routed apps through it
+        // per-app (even with the front-proxy toggle off): the standalone
+        // byedpi-app outbound in the xray config dials this same SOCKS server.
         boolean launchByeDpiFrontProxy =
-            !activeXrayProxyOnly && byeDpiSettings != null && byeDpiSettings.launchOnXrayStart;
+            !activeXrayProxyOnly &&
+            byeDpiSettings != null &&
+            (byeDpiSettings.launchOnXrayStart || AppPrefs.hasByeDpiApps(this));
         boolean xrayExternalRelayEnabled = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
         ParsedLocalEndpoint xrayTcpRelayEndpoint = null;
         if (xrayExternalRelayEnabled) {
@@ -2563,7 +2568,7 @@ public class ProxyTunnelService extends Service {
 
     private void startByeDpiFrontProxy(ByeDpiSettings settings, int generation) throws Exception {
         stopByeDpiFrontProxy();
-        if (settings == null || !settings.launchOnXrayStart) {
+        if (settings == null || (!settings.launchOnXrayStart && !AppPrefs.hasByeDpiApps(this))) {
             return;
         }
         // TUN-backed VPN runtime requires the protect-socket bridge: ByeDPI's
