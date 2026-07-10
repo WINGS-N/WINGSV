@@ -215,6 +215,10 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_PATCH_STATUS = "wings.v.action.PATCH_STATUS";
     public static final String EXTRA_PATCH_FIELD = "wings.v.extra.PATCH_FIELD";
     public static final String EXTRA_PATCH_STATE = "wings.v.extra.PATCH_STATE";
+    // Broadcast when the relay reports a managed client's traffic-limit usage, so
+    // the profiles UI refreshes the per-profile quota bar.
+    public static final String ACTION_TRAFFIC_USAGE = "wings.v.action.TRAFFIC_USAGE";
+    public static final String EXTRA_TRAFFIC_CLIENT_ID = "wings.v.extra.TRAFFIC_CLIENT_ID";
     public static final String EXTRA_PATCH_MESSAGE = "wings.v.extra.PATCH_MESSAGE";
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
@@ -3848,6 +3852,10 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // The managed client id of the profile currently configured on the relay, so a
+    // heartbeat TrafficUsageEvent (which carries no id) can be attributed to it.
+    private volatile String activeProvisionClientId = "";
+
     private wings.v.proto.appcontrol.AppControlProto.ConfigureRequest buildConfigure(ProxySettings settings) {
         Context ctx = getApplicationContext();
         wings.v.proto.appcontrol.AppControlProto.ConfigureRequest.Builder b =
@@ -3884,6 +3892,13 @@ public class ProxyTunnelService extends Service {
             captchaSolver = AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT;
         }
         b.setCaptchaSolver(captchaSolver);
+        // A managed VK TURN profile announces its panel client id so the relay can
+        // attribute the mu session and echo this client's traffic-limit usage back
+        // in the heartbeat. Empty for an anonymous (non-managed) profile.
+        activeProvisionClientId = TextUtils.isEmpty(settings.provisionClientId) ? "" : settings.provisionClientId;
+        if (!TextUtils.isEmpty(settings.provisionClientId)) {
+            b.setClientId(settings.provisionClientId);
+        }
         boolean vkAccountModeRequested = AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(
             AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
         );
@@ -4073,9 +4088,38 @@ public class ProxyTunnelService extends Service {
             case PATCH_STATUS:
                 broadcastPatchStatus(event.getPatchStatus());
                 return;
+            case TRAFFIC_USAGE:
+                handleTrafficUsage(event.getTrafficUsage());
+                return;
             default:
             // EVENT_NOT_SET or a variant added by a newer relay - ignore.
         }
+    }
+
+    // Persists the managed client's traffic-limit usage the relay echoed in its
+    // heartbeat and notifies the profiles UI. The event carries no client id - the
+    // relay reports for the live session, so it belongs to the active managed
+    // profile whose id we sent in Configure.
+    private void handleTrafficUsage(wings.v.proto.appcontrol.AppControlProto.TrafficUsageEvent usage) {
+        if (usage == null) {
+            return;
+        }
+        String clientId = activeProvisionClientId;
+        if (TextUtils.isEmpty(clientId)) {
+            return;
+        }
+        AppPrefs.setClientTrafficUsage(
+            this,
+            clientId,
+            usage.getLimitBytes(),
+            usage.getUsedBytes(),
+            usage.getRemainingBytes(),
+            usage.getDisabled()
+        );
+        Intent intent = new Intent(ACTION_TRAFFIC_USAGE)
+            .setPackage(getPackageName())
+            .putExtra(EXTRA_TRAFFIC_CLIENT_ID, clientId);
+        sendBroadcast(intent);
     }
 
     // Relays a live-patch field status from the :tunnel process to the settings UI
