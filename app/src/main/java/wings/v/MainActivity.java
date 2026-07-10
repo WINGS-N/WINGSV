@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
@@ -80,6 +81,12 @@ public class MainActivity extends AppCompatActivity {
     private static final long ROOT_STATE_REPROBE_INTERVAL_MS = 30_000L;
 
     private ActivityMainBinding binding;
+    // Last known UI night-mode bit. MainActivity declares uiMode in configChanges
+    // (Samsung DeX: handle the mobile <-> desktop transition without a restart), so
+    // the framework no longer auto-recreates on a dark-mode toggle; we detect the
+    // night-bit flip in onConfigurationChanged and recreate manually so the
+    // values-night resources reload.
+    private int currentUiNightMode = Configuration.UI_MODE_NIGHT_UNDEFINED;
     private final Handler navigationHandler = new Handler(Looper.getMainLooper());
     private final Runnable navigationRefreshRunnable = new Runnable() {
         @Override
@@ -143,8 +150,24 @@ public class MainActivity extends AppCompatActivity {
     );
 
     @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Window resize / density / mobile <-> DeX-desktop transitions are absorbed
+        // here without a restart (declared in configChanges). A dark-mode toggle
+        // rides in on the same uiMode change but needs the values-night resources
+        // reloaded, which only a recreate does - so recreate only when the night
+        // bit actually flips, not on every DeX resize.
+        int nightMode = newConfig.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        if (nightMode != currentUiNightMode) {
+            currentUiNightMode = nightMode;
+            recreate();
+        }
+    }
+
+    @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        currentUiNightMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
         // The profiles screen is now backend-aware (its own backend dropdown swaps

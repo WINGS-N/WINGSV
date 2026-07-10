@@ -23,6 +23,15 @@
     <uses-feature
         android:name="android.hardware.camera.autofocus"
         android:required="false" />
+    <!-- Samsung DeX / desktop mode: a touchscreen is not required. Without this
+         the system implies touchscreen as required and can hide the app or refuse
+         to launch it in touchless desktop mode. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.faketouch"
+        android:required="false" />
 
     <uses-sdk tools:overrideLibrary="dev.oneuiproject.oneui" />
 
@@ -38,8 +47,20 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true"
+        android:resizeableActivity="true"
         android:theme="@style/Theme.WINGSV"
         tools:targetApi="34">
+
+        <!-- Samsung DeX: keep the process (and its window state) alive across the
+             density / display changes that happen when docking to or undocking
+             from a desktop, instead of being killed and cold-restarted. First key
+             covers DeX < 3.0, the second DeX 3.0+ (multi-display). -->
+        <meta-data
+            android:name="com.samsung.android.keepalive.density"
+            android:value="true" />
+        <meta-data
+            android:name="com.samsung.android.multidisplay.keep_process_alive"
+            android:value="true" />
 
         <meta-data
             android:name="SamsungBasicInteraction"
@@ -300,13 +321,14 @@
             android:name="dev.oneuiproject.oneui.qr.app.QrScanActivity"
             android:exported="false"
             android:label="@string/qr_scan_title"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation"
             android:theme="@style/Theme.WINGSV.QrScan" />
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|uiMode|keyboard|keyboardHidden|navigation"
             android:theme="@style/Theme.WINGSV">
             <meta-data
                 android:name="android.app.shortcuts"
