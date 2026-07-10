@@ -78,7 +78,7 @@
                     android:layout_height="14dp"
                     android:contentDescription="@string/traffic_rx"
                     android:src="@drawable/ic_arrow_down"
-                    app:tint="?android:textColorSecondary" />
+                    app:tint="@color/traffic_rx" />
 
                 <TextView
                     android:id="@+id/text_profile_rx"
@@ -86,7 +86,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
+                    android:textColor="@color/traffic_rx" />
 
                 <ImageView
                     android:layout_width="14dp"
@@ -94,7 +94,7 @@
                     android:layout_marginStart="12dp"
                     android:contentDescription="@string/traffic_tx"
                     android:src="@drawable/ic_arrow_up"
-                    app:tint="?android:textColorSecondary" />
+                    app:tint="@color/traffic_tx" />
 
                 <TextView
                     android:id="@+id/text_profile_tx"
@@ -102,7 +102,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
+                    android:textColor="@color/traffic_tx" />
             </LinearLayout>
         </LinearLayout>
 
