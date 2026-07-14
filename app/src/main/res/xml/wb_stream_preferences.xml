@@ -98,7 +98,7 @@
         android:key="pref_captcha_auto_solver"
         android:title="@string/captcha_auto_solver_title"
         android:summary="@string/captcha_auto_solver_summary"
-        android:defaultValue="v2"
+        android:defaultValue="bypass"
         android:entries="@array/captcha_auto_solver_entries"
         android:entryValues="@array/captcha_auto_solver_values" />
 
