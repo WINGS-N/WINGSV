@@ -177,6 +177,16 @@ public final class WingsImportParser {
 
     public static String buildVkTurnSettingsLink(Context context) throws Exception {
         requireContext(context);
+        // VK TURN composes its transport (WireGuard/AmneziaWG) by reference, so a
+        // bare VK_TURN scope drops the WG fields shown at the bottom of the screen.
+        // Export the active profile through buildTurnProfileLink, which resolves and
+        // embeds the transport (same self-contained link the profile long-press
+        // share produces). Fall back to the flat scope only when there is no active
+        // profile to resolve.
+        VkTurnProfile active = VkTurnProfileStore.getActiveProfile(context);
+        if (active != null && !TextUtils.isEmpty(value(active.vkTurnEndpoint))) {
+            return buildTurnProfileLink(context, active);
+        }
         WingsvProto.Config config = buildProtoConfig(
             context,
             scopedSettings(context, ExportScope.VK_TURN),
