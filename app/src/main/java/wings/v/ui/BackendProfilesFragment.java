@@ -1030,34 +1030,66 @@ public class BackendProfilesFragment extends Fragment {
             shareProfile(backendType, selected.get(0));
             return;
         }
-        List<String> links = new ArrayList<>();
-        for (SimpleProfile profile : selected) {
-            String link = buildShareLink(context, backendType, profile);
-            if (!TextUtils.isEmpty(link)) {
-                links.add(link);
-            }
-        }
-        if (links.isEmpty()) {
+        String bundleLink = buildBundleShareLink(context, backendType, selected);
+        if (TextUtils.isEmpty(bundleLink)) {
             Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
             return;
         }
-        sendShareText(TextUtils.join("\n", links));
+        sendShareText(bundleLink);
         clearBackendSelectionMode();
     }
 
+    // Multi-select share: one self-contained wingsv:// link carrying every selected
+    // profile (and, for VK TURN, the transports they reference), so it round-trips
+    // through a single paste. A newline-joined list of single links would not: the
+    // importer only decodes the first wingsv:// it finds in pasted text.
     @Nullable
-    private String buildShareLink(Context context, BackendType backendType, SimpleProfile profile) {
+    private String buildBundleShareLink(Context context, BackendType backendType, List<SimpleProfile> selected) {
         try {
             if (isVkTurn(backendType)) {
-                VkTurnProfile vkTurn = VkTurnProfileStore.getProfileById(context, profile.id);
-                return vkTurn == null ? null : WingsImportParser.buildTurnProfileLink(context, vkTurn);
+                List<VkTurnProfile> profiles = new ArrayList<>();
+                for (SimpleProfile profile : selected) {
+                    VkTurnProfile resolved = VkTurnProfileStore.getProfileById(context, profile.id);
+                    if (resolved != null) {
+                        profiles.add(resolved);
+                    }
+                }
+                return profiles.isEmpty()
+                    ? null
+                    : WingsImportParser.buildTurnProfilesLink(
+                          context,
+                          profiles,
+                          VkTurnProfileStore.getActiveProfileId(context)
+                      );
             }
             if (backendType == BackendType.AMNEZIAWG_PLAIN) {
-                AmneziaProfile amnezia = AmneziaProfileStore.getProfileById(context, profile.id);
-                return amnezia == null ? null : WingsImportParser.buildAmneziaProfileLink(amnezia);
+                List<AmneziaProfile> profiles = new ArrayList<>();
+                for (SimpleProfile profile : selected) {
+                    AmneziaProfile resolved = AmneziaProfileStore.getProfileById(context, profile.id);
+                    if (resolved != null) {
+                        profiles.add(resolved);
+                    }
+                }
+                return profiles.isEmpty()
+                    ? null
+                    : WingsImportParser.buildAmneziaProfilesLink(
+                          profiles,
+                          AmneziaProfileStore.getActiveProfileId(context)
+                      );
             }
-            WireGuardProfile wireGuard = WireGuardProfileStore.getProfileById(context, profile.id);
-            return wireGuard == null ? null : WingsImportParser.buildWireGuardProfileLink(wireGuard);
+            List<WireGuardProfile> profiles = new ArrayList<>();
+            for (SimpleProfile profile : selected) {
+                WireGuardProfile resolved = WireGuardProfileStore.getProfileById(context, profile.id);
+                if (resolved != null) {
+                    profiles.add(resolved);
+                }
+            }
+            return profiles.isEmpty()
+                ? null
+                : WingsImportParser.buildWireGuardProfilesLink(
+                      profiles,
+                      WireGuardProfileStore.getActiveProfileId(context)
+                  );
         } catch (Exception ignored) {
             return null;
         }
