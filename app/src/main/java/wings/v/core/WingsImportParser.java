@@ -465,17 +465,26 @@ public final class WingsImportParser {
 
         WingsvProto.Turn.Builder turn = WingsvProto.Turn.newBuilder();
         String resolvedActiveId = value(activeProfileId);
-        boolean activeInSelection = false;
+        VkTurnProfile activeProfile = null;
         for (VkTurnProfile profile : deduped.values()) {
             if (value(profile.id).equals(resolvedActiveId)) {
-                activeInSelection = true;
+                activeProfile = profile;
                 break;
             }
         }
-        if (!activeInSelection) {
-            resolvedActiveId = value(deduped.values().iterator().next().id);
+        if (activeProfile == null) {
+            activeProfile = deduped.values().iterator().next();
+            resolvedActiveId = value(activeProfile.id);
         }
         turn.setActiveProfileId(resolvedActiveId);
+        // tunnel_mode follows the active profile so the coarse backend resolves to
+        // AmneziaWG when it is AWG-backed; the per-profile transport still lives in
+        // each merged TurnProfile.transport_kind.
+        turn.setTunnelMode(
+            activeProfile.usesAmneziaTransport()
+                ? WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG
+                : WingsvProto.TunnelMode.TUNNEL_MODE_WIREGUARD
+        );
 
         LinkedHashMap<String, WireGuardProfile> wgTransports = new LinkedHashMap<>();
         LinkedHashMap<String, AmneziaProfile> awgTransports = new LinkedHashMap<>();
