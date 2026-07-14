@@ -440,6 +440,165 @@ public final class WingsImportParser {
         return encodeConfig(config.build());
     }
 
+    // Multi-select share for VK TURN profiles: one self-contained wingsv:// link
+    // carrying all selected profiles (turn.profiles, referencing their transport by
+    // id) plus every referenced WG/AWG transport (wg.profiles / awg.profiles), the
+    // same shape a subset of the ALL backup uses. On import parseBackendProfileLists
+    // merges them into the profile stores; the profiles-carrying messages skip the
+    // flat apply. Mirrors buildXrayProfilesLink for the Xray backend.
+    public static String buildTurnProfilesLink(Context context, List<VkTurnProfile> profiles, String activeProfileId)
+        throws Exception {
+        if (context == null) {
+            throw new IllegalArgumentException("Context is required");
+        }
+        LinkedHashMap<String, VkTurnProfile> deduped = new LinkedHashMap<>();
+        if (profiles != null) {
+            for (VkTurnProfile profile : profiles) {
+                if (profile != null && !TextUtils.isEmpty(value(profile.vkTurnEndpoint))) {
+                    deduped.put(profile.stableDedupKey(), profile);
+                }
+            }
+        }
+        if (deduped.isEmpty()) {
+            throw new IllegalArgumentException("No VK TURN profiles to export");
+        }
+
+        WingsvProto.Turn.Builder turn = WingsvProto.Turn.newBuilder();
+        String resolvedActiveId = value(activeProfileId);
+        boolean activeInSelection = false;
+        for (VkTurnProfile profile : deduped.values()) {
+            if (value(profile.id).equals(resolvedActiveId)) {
+                activeInSelection = true;
+                break;
+            }
+        }
+        if (!activeInSelection) {
+            resolvedActiveId = value(deduped.values().iterator().next().id);
+        }
+        turn.setActiveProfileId(resolvedActiveId);
+
+        LinkedHashMap<String, WireGuardProfile> wgTransports = new LinkedHashMap<>();
+        LinkedHashMap<String, AmneziaProfile> awgTransports = new LinkedHashMap<>();
+        for (VkTurnProfile profile : deduped.values()) {
+            turn.addProfiles(toProtoTurnProfile(profile));
+            if (TextUtils.isEmpty(value(profile.transportProfileId))) {
+                continue;
+            }
+            if (profile.usesAmneziaTransport()) {
+                AmneziaProfile transport = AmneziaProfileStore.getProfileById(context, profile.transportProfileId);
+                if (transport != null && !transport.isEmpty()) {
+                    awgTransports.put(transport.stableDedupKey(), transport);
+                }
+            } else {
+                WireGuardProfile transport = WireGuardProfileStore.getProfileById(context, profile.transportProfileId);
+                if (transport != null && !transport.isEmpty()) {
+                    wgTransports.put(transport.stableDedupKey(), transport);
+                }
+            }
+        }
+
+        WingsvProto.Config.Builder config = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_VK_TURN)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_VK_TURN_PROFILE)
+            .setTurn(turn.build());
+        if (!wgTransports.isEmpty()) {
+            WingsvProto.WireGuard.Builder wg = WingsvProto.WireGuard.newBuilder();
+            for (WireGuardProfile transport : wgTransports.values()) {
+                wg.addProfiles(toProtoWgProfile(transport));
+            }
+            config.setWg(wg.build());
+        }
+        if (!awgTransports.isEmpty()) {
+            WingsvProto.AmneziaWG.Builder awg = WingsvProto.AmneziaWG.newBuilder();
+            for (AmneziaProfile transport : awgTransports.values()) {
+                awg.addProfiles(toProtoAwgProfile(transport));
+            }
+            config.setAwg(awg.build());
+        }
+        return encodeConfig(config.build());
+    }
+
+    // Multi-select share for plain WireGuard profiles: one wingsv:// link carrying
+    // all selected profiles as wg.profiles. Merged on import, no flat apply.
+    public static String buildWireGuardProfilesLink(List<WireGuardProfile> profiles, String activeProfileId)
+        throws Exception {
+        LinkedHashMap<String, WireGuardProfile> deduped = new LinkedHashMap<>();
+        if (profiles != null) {
+            for (WireGuardProfile profile : profiles) {
+                if (profile != null && !profile.isEmpty()) {
+                    deduped.put(profile.stableDedupKey(), profile);
+                }
+            }
+        }
+        if (deduped.isEmpty()) {
+            throw new IllegalArgumentException("No WireGuard profiles to export");
+        }
+        WingsvProto.WireGuard.Builder wg = WingsvProto.WireGuard.newBuilder();
+        String resolvedActiveId = value(activeProfileId);
+        boolean activeInSelection = false;
+        for (WireGuardProfile profile : deduped.values()) {
+            if (value(profile.id).equals(resolvedActiveId)) {
+                activeInSelection = true;
+                break;
+            }
+        }
+        if (!activeInSelection) {
+            resolvedActiveId = value(deduped.values().iterator().next().id);
+        }
+        wg.setActiveProfileId(resolvedActiveId);
+        for (WireGuardProfile profile : deduped.values()) {
+            wg.addProfiles(toProtoWgProfile(profile));
+        }
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_WIREGUARD)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_VK)
+            .setWg(wg.build())
+            .build();
+        return encodeConfig(config);
+    }
+
+    // Multi-select share for plain AmneziaWG profiles: one wingsv:// link carrying
+    // all selected profiles as awg.profiles. Merged on import, no flat apply.
+    public static String buildAmneziaProfilesLink(List<AmneziaProfile> profiles, String activeProfileId)
+        throws Exception {
+        LinkedHashMap<String, AmneziaProfile> deduped = new LinkedHashMap<>();
+        if (profiles != null) {
+            for (AmneziaProfile profile : profiles) {
+                if (profile != null && !profile.isEmpty()) {
+                    deduped.put(profile.stableDedupKey(), profile);
+                }
+            }
+        }
+        if (deduped.isEmpty()) {
+            throw new IllegalArgumentException("No AmneziaWG profiles to export");
+        }
+        WingsvProto.AmneziaWG.Builder awg = WingsvProto.AmneziaWG.newBuilder();
+        String resolvedActiveId = value(activeProfileId);
+        boolean activeInSelection = false;
+        for (AmneziaProfile profile : deduped.values()) {
+            if (value(profile.id).equals(resolvedActiveId)) {
+                activeInSelection = true;
+                break;
+            }
+        }
+        if (!activeInSelection) {
+            resolvedActiveId = value(deduped.values().iterator().next().id);
+        }
+        awg.setActiveProfileId(resolvedActiveId);
+        for (AmneziaProfile profile : deduped.values()) {
+            awg.addProfiles(toProtoAwgProfile(profile));
+        }
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(CURRENT_VERSION)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_AMNEZIAWG_TL)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_AMNEZIAWG)
+            .setAwg(awg.build())
+            .build();
+        return encodeConfig(config);
+    }
+
     private static ProxySettings wireGuardProfileToSettings(WireGuardProfile profile) {
         ProxySettings settings = new ProxySettings();
         settings.backendType = BackendType.WIREGUARD;
@@ -2373,14 +2532,14 @@ public final class WingsImportParser {
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
-            if (config.hasAwg()) {
+            if (config.hasAwg() && (allSettings || config.getAwg().getProfilesCount() == 0)) {
                 importedConfig.hasAmneziaSettings = true;
                 importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
                 if (!TextUtils.isEmpty(value(config.getAwg().getTitle()))) {
                     importedConfig.importedAmneziaTitle = value(config.getAwg().getTitle());
                 }
             }
-            if (config.hasWg()) {
+            if (config.hasWg() && (allSettings || config.getWg().getProfilesCount() == 0)) {
                 parseWireGuard(config.getWg(), importedConfig);
             }
             return importedConfig;
@@ -2419,7 +2578,7 @@ public final class WingsImportParser {
             if (!allSettings && importedConfig.backendType != BackendType.AMNEZIAWG_PLAIN) {
                 importedConfig.backendType = BackendType.AMNEZIAWG;
             }
-            if (config.hasAwg()) {
+            if (config.hasAwg() && (allSettings || config.getAwg().getProfilesCount() == 0)) {
                 importedConfig.hasAmneziaSettings = true;
                 importedConfig.awgQuickConfig = value(config.getAwg().getAwgQuickConfig());
                 if (!TextUtils.isEmpty(value(config.getAwg().getTitle()))) {
@@ -2456,7 +2615,7 @@ public final class WingsImportParser {
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
-            if (config.hasWg()) {
+            if (config.hasWg() && (allSettings || config.getWg().getProfilesCount() == 0)) {
                 parseWireGuard(config.getWg(), importedConfig);
             }
             handled = true;
@@ -2479,7 +2638,7 @@ public final class WingsImportParser {
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
-            if (config.hasWg()) {
+            if (config.hasWg() && (allSettings || config.getWg().getProfilesCount() == 0)) {
                 parseWireGuard(config.getWg(), importedConfig);
             }
             handled = true;
