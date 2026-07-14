@@ -53,7 +53,7 @@ public final class AppPrefs {
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
     public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
     public static final String KEY_CAPTCHA_AUTO_SOLVER = "pref_captcha_auto_solver";
-    public static final String CAPTCHA_AUTO_SOLVER_DEFAULT = "v2";
+    public static final String CAPTCHA_AUTO_SOLVER_DEFAULT = "bypass";
     public static final String KEY_VK_AUTH_MODE = "pref_vk_auth_mode";
     public static final String VK_AUTH_MODE_ACCOUNT = "account";
     public static final String VK_AUTH_MODE_ANONYMOUS = "anonymous";
@@ -165,6 +165,7 @@ public final class AppPrefs {
     public static final String KEY_VK_TURN_PROFILE_TRAFFIC_JSON = "pref_vk_turn_profile_traffic_json";
     public static final String KEY_VK_TURN_PROFILES_MIGRATED = "pref_vk_turn_profiles_migrated";
     private static final String KEY_VK_TURN_MU_SAFARI_MIGRATED = "pref_vk_turn_mu_safari_migrated";
+    private static final String KEY_CAPTCHA_SOLVER_BYPASS_MIGRATED = "pref_captcha_solver_bypass_migrated";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_HOURS = "pref_xray_subscriptions_refresh_hours";
     public static final String KEY_XRAY_SUBSCRIPTIONS_REFRESH_MINUTES = "pref_xray_subscriptions_refresh_minutes";
     public static final String KEY_XRAY_SUBSCRIPTIONS_AUTO_REFRESH_ENABLED =
@@ -293,6 +294,23 @@ public final class AppPrefs {
         XrayRoutingStore.ensureGeoFilesBootstrap(context);
         migrateBackendProfiles(context);
         migrateVkTurnSessionAndFingerprint(context);
+        migrateCaptchaAutoSolverBypass(context);
+    }
+
+    // One-time move of the captcha auto-solver to the new "bypass" (via vk.me)
+    // default. Idempotent, gated by its own flag. Carries every existing install
+    // forward regardless of the prior "v2" or "v1 / legacy" value; new installs
+    // get "bypass" through CAPTCHA_AUTO_SOLVER_DEFAULT.
+    private static void migrateCaptchaAutoSolverBypass(Context context) {
+        SharedPreferences preferences = prefs(context);
+        if (preferences.getBoolean(KEY_CAPTCHA_SOLVER_BYPASS_MIGRATED, false)) {
+            return;
+        }
+        preferences
+            .edit()
+            .putString(KEY_CAPTCHA_AUTO_SOLVER, CAPTCHA_AUTO_SOLVER_DEFAULT)
+            .putBoolean(KEY_CAPTCHA_SOLVER_BYPASS_MIGRATED, true)
+            .apply();
     }
 
     // One-time move of the global VK TURN session mode to mu/v1 and the browser
