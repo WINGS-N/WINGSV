@@ -273,6 +273,19 @@ public class BackendProfileRoundTripTest {
         assertFalse(back.usesAmneziaTransport());
     }
 
+    // The bypass captcha default rides inside the embedded Turn of a shared profile,
+    // so it must survive the proto round-trip (a lost value would silently fall back
+    // to the app default on the importing device).
+    @Test
+    public void captchaAutoSolverBypassSurvivesProtoRoundTrip() throws Exception {
+        VkTurnProfile original = vkTurn("id-c", VkTurnProfile.TRANSPORT_KIND_WG, "wg-1");
+        assertEquals("bypass", original.captchaAutoSolver);
+        VkTurnProfile back = WingsImportParser.fromProtoTurnProfile(
+            WingsImportParser.toProtoTurnProfile(original)
+        );
+        assertEquals("bypass", back.captchaAutoSolver);
+    }
+
     private static VkTurnProfile vkTurn(String id, String transportKind, String transportProfileId) {
         return new VkTurnProfile(
             id, id, transportKind, transportProfileId, "1.1.1.1:443",
