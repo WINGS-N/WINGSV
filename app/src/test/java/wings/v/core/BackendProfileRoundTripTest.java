@@ -222,6 +222,34 @@ public class BackendProfileRoundTripTest {
         assertFalse(imported.hasAmneziaSettings);
     }
 
+    // A full backup (CONFIG_TYPE_ALL) must STILL flat-apply the wg message even when
+    // it also carries a profiles list - the merge guard has an allSettings escape so
+    // restoring a backup keeps both the active transport and the profile list.
+    @Test
+    public void fullBackupFlatAppliesWireGuardAlongsideProfiles() throws Exception {
+        WingsvProto.Interface iface = WingsvProto.Interface.newBuilder()
+            .setPrivateKey(com.google.protobuf.ByteString.copyFrom(new byte[32]))
+            .build();
+        WingsvProto.WireGuard wg = WingsvProto.WireGuard.newBuilder()
+            .setIface(iface)
+            .addProfiles(WingsvProto.WireGuardProfile.newBuilder().setId("wg-1").build())
+            .build();
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(1)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_WIREGUARD)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_ALL)
+            .setWg(wg)
+            .build();
+
+        WingsImportParser.ImportedConfig imported = WingsImportParser.parseProtoConfig(config);
+
+        assertTrue(imported.hasWgProfiles);
+        assertEquals(1, imported.wgProfiles.size());
+        // allSettings escape: the flat transport is restored too.
+        assertTrue(imported.hasWireGuardSettings);
+        assertNotEquals("", imported.wgPrivateKey);
+    }
+
     // Why a bundle is required: pasted text yields only the FIRST wingsv:// link, so
     // newline-joined single-profile links would drop every profile after the first.
     @Test
