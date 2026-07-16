@@ -28,3 +28,6 @@ keystore.properties
 # Local
 /tmp
 .claude/
+
+# Release staging for the root helper module zip
+/dist
