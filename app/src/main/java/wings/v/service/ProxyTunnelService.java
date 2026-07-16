@@ -114,7 +114,10 @@ import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTproxyRouter;
 import wings.v.core.XrayTransportMode;
+import wings.v.proto.RootdProto;
 import wings.v.qs.QuickSettingsTiles;
+import wings.v.root.rootd.RootExecutor;
+import wings.v.root.rootd.RootdClient;
 import wings.v.root.server.RootProcessResult;
 import wings.v.vpnhotspot.bridge.SharingApiGuard;
 import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
@@ -7477,6 +7480,55 @@ public class ProxyTunnelService extends Service {
         return result;
     }
 
+    /**
+     * Hands the routing to the wingsvd module, returning false when there is no usable
+     * daemon and the su path below must run instead.
+     *
+     * <p>Worth the detour because the daemon outlives us: rules it owns cannot be
+     * stranded by the app being killed mid-teardown, which is the failure the su path
+     * can only paper over by staying in the foreground long enough.
+     */
+    private boolean applyRootRoutingViaDaemon(RootRoutingState routingState) {
+        RootdClient client = RootExecutor.acquire(getApplicationContext());
+        if (client == null) {
+            return false;
+        }
+        try {
+            client.applyRouting(buildRoutingSpec(routingState));
+            appendRuntimeLogLine("Root routing applied by the wingsvd module");
+            return true;
+        } catch (IOException error) {
+            // Never fatal: fall back to su so a broken module cannot stop the tunnel.
+            appendRuntimeLogLine("wingsvd apply failed, using su: " + error.getMessage());
+            Log.w(TAG, "wingsvd apply failed", error);
+            RootExecutor.invalidate();
+            return false;
+        }
+    }
+
+    private RootdProto.RoutingSpec buildRoutingSpec(RootRoutingState routingState) {
+        RootdProto.RoutingSpec.Builder spec = RootdProto.RoutingSpec.newBuilder()
+            .setTunnelName(ROOT_TUNNEL_NAME)
+            .setAppUid(android.os.Process.myUid())
+            .setUpstreamTable(ROOT_UPSTREAM_TABLE)
+            .setRulePriorityStart(ROOT_RULE_PRIORITY_START)
+            .setRulePriorityEnd(ROOT_RULE_PRIORITY_END)
+            .setAppTunnelPriority(ROOT_APP_TUNNEL_PRIORITY)
+            .setBypassMarkChain(ROOT_BYPASS_MARK_CHAIN)
+            .setDhcpWorkaroundEnabled(AppPrefs.isSharingDhcpWorkaroundEnabled(getApplicationContext()))
+            .setDhcpWorkaroundPriority(ROOT_DHCP_WORKAROUND_PRIORITY);
+        spec.addAllIpv4DefaultRoutes(routingState.ipv4Routes);
+        spec.addAllIpv6DefaultRoutes(routingState.ipv6Routes);
+        for (Integer uid : routingState.bypassUids) {
+            if (uid != null && uid >= 0) {
+                spec.addBypassUids(uid);
+            }
+        }
+        // The mark chain only makes sense when there is something to divert into it.
+        spec.setBypassMarkEnabled(!routingState.bypassUids.isEmpty());
+        return spec.build();
+    }
+
     private void applyRootRouting(@Nullable RootRoutingState routingState) throws Exception {
         if (!kernelWireguardActive || routingState == null) {
             return;
@@ -7486,6 +7538,9 @@ public class ProxyTunnelService extends Service {
         } catch (Exception error) {
             appendRuntimeLogLine("Root firewall setup warning: " + error.getMessage());
             Log.w(TAG, "Root firewall setup warning", error);
+        }
+        if (applyRootRoutingViaDaemon(routingState)) {
+            return;
         }
         StringBuilder script = new StringBuilder("set -e;");
         appendRootCleanupCommands(script, null);
@@ -7669,6 +7724,9 @@ public class ProxyTunnelService extends Service {
     private void clearRootRouting() {
         RootRoutingState routingState = rootRoutingState;
         rootRoutingState = null;
+        if (clearRootRoutingViaDaemon()) {
+            return;
+        }
         if (!kernelWireguardActive && rootShell == null) {
             return;
         }
@@ -7677,6 +7735,34 @@ public class ProxyTunnelService extends Service {
             appendRootCleanupCommands(script, routingState);
             runRootRoutingCommand(script.toString());
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * Asks the module to drop whatever it installed. Unlike the su path this is a
+     * single message rather than seconds of shelling out, which is what let a stop from
+     * the QS tile lose the race against the process being killed.
+     *
+     * <p>Returns false when there is no usable daemon, or when it never had a session -
+     * then the rules, if any, are ours to remove below.
+     */
+    private boolean clearRootRoutingViaDaemon() {
+        RootdClient client = RootExecutor.acquire(getApplicationContext());
+        if (client == null) {
+            return false;
+        }
+        try {
+            if (!client.sessionState().getRoutingActive()) {
+                return false;
+            }
+            client.clearRouting();
+            appendRuntimeLogLine("Root routing cleared by the wingsvd module");
+            return true;
+        } catch (IOException error) {
+            appendRuntimeLogLine("wingsvd clear failed, using su: " + error.getMessage());
+            Log.w(TAG, "wingsvd clear failed", error);
+            RootExecutor.invalidate();
+            return false;
+        }
     }
 
     private void appendRootCleanupCommands(StringBuilder script, @Nullable RootRoutingState routingState) {
