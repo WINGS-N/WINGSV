@@ -46,6 +46,8 @@ import org.json.JSONObject;
 final class RootXrayCommands {
 
     private static final Object LOCK = new Object();
+    private static final int API_SOCKET_WAIT_MS = 2000;
+    private static final int API_SOCKET_POLL_MS = 50;
     private static volatile boolean stopRequested;
 
     private RootXrayCommands() {}
@@ -88,6 +90,12 @@ final class RootXrayCommands {
         String response = LibXray.runXrayFromJSON(request);
         decodeResponse(response);
 
+        handApiSocketToApp(
+            parseArg(args, "--api-socket"),
+            parseArg(args, "--api-peer-uid"),
+            parseArg(args, "--api-peer-context")
+        );
+
         System.out.println("PROXY_STATUS:ok");
 
         synchronized (LOCK) {
@@ -99,6 +107,52 @@ final class RootXrayCommands {
                     break;
                 }
             }
+        }
+    }
+
+    /**
+     * Gives the app back the stats api socket Xray just bound.
+     *
+     * Xray runs as root here, so the socket it created is owned by uid 0 and carries the
+     * bare app_data_file label without the app's MLS categories - the app would be
+     * SELinux-denied connecting to its own socket. Xray's listener can only chmod, so the
+     * chown and the relabel have to happen here. Nothing is fatal: losing this only costs
+     * exact statistics, and the caller falls back to reconstructing them.
+     *
+     * Ownership and label ARE the authentication - Xray's gRPC api authenticates nothing
+     * on its own, so a socket left owned by root and world-labelled would be an open
+     * counter feed for every app on the device.
+     */
+    private static void handApiSocketToApp(String socketPath, String peerUid, String peerContext) {
+        if (TextUtils.isEmpty(socketPath) || TextUtils.isEmpty(peerUid)) {
+            return;
+        }
+        try {
+            java.io.File socket = new java.io.File(socketPath);
+            // runXrayFromJSON returns once the runtime is up, but the commander binds on
+            // its own goroutine, so the socket may not have appeared yet.
+            for (int waited = 0; !socket.exists() && waited < API_SOCKET_WAIT_MS; waited += API_SOCKET_POLL_MS) {
+                Thread.sleep(API_SOCKET_POLL_MS);
+            }
+            if (!socket.exists()) {
+                System.out.println("API_SOCKET:missing");
+                return;
+            }
+            int uid = Integer.parseInt(peerUid);
+            android.system.Os.chown(socketPath, uid, uid);
+            if (!TextUtils.isEmpty(peerContext)) {
+                android.system.Os.setxattr(
+                    socketPath,
+                    "security.selinux",
+                    (peerContext + "\0").getBytes(StandardCharsets.UTF_8),
+                    0
+                );
+            }
+            System.out.println("API_SOCKET:ok");
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        } catch (Exception error) {
+            System.out.println("API_SOCKET:failed " + error.getMessage());
         }
     }
 

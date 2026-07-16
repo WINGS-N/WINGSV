@@ -121,6 +121,7 @@ import wings.v.vpnhotspot.bridge.VpnHotspotBridge;
 import wings.v.vpnhotspot.sharing.bridge.VpnHotspotSharingConfig;
 import wings.v.xray.XrayBridge;
 import wings.v.xray.XrayConfigFactory;
+import wings.v.xray.XrayStatsClient;
 
 @SuppressWarnings(
     {
@@ -519,6 +520,7 @@ public class ProxyTunnelService extends Service {
     private RootShell rootShell;
     private ToolsInstaller toolsInstaller;
     private RootRoutingState rootRoutingState;
+    private volatile XrayStatsClient xrayStatsClient;
     private boolean rootModeActive;
     private boolean kernelWireguardActive;
     private boolean byeDpiFrontProxyActive;
@@ -6970,6 +6972,11 @@ public class ProxyTunnelService extends Service {
         reapOrphanXrayTproxyRuntime(appContext);
         tproxyListenerReady.set(false);
         startXrayTproxyErrorLogTailer(appContext);
+        // Xray binds its stats api socket as root, so it lands owned by uid 0 with the
+        // plain app_data_file label and no per-app MLS categories, and we would be
+        // SELinux-denied on connect. Hand the helper our uid and socket context so it
+        // can hand the socket back to us once Xray has bound it - the same deal the
+        // vk-turn-proxy relay gets via -app-grpc-peer-uid/-app-grpc-peer-context.
         Process process = RootUtils.spawnRootHelperProcess(
             appContext,
             "xray-tproxy",
@@ -6978,7 +6985,13 @@ public class ProxyTunnelService extends Service {
             "--lib-dir",
             libDir,
             "--data-dir",
-            datDir.getAbsolutePath()
+            datDir.getAbsolutePath(),
+            "--api-socket",
+            XrayConfigFactory.apiSocketFile(appContext).getAbsolutePath(),
+            "--api-peer-uid",
+            Integer.toString(android.os.Process.myUid()),
+            "--api-peer-context",
+            appControlSocketContext()
         );
         tproxyXrayProcess = process;
         startProxyOutputReader(process, new AtomicReference<>());
@@ -9695,8 +9708,17 @@ public class ProxyTunnelService extends Service {
      * known-TX leaves the inbound replies. Background lo activity (DNS,
      * binder-over-tcp) leaks in as small RX noise; acceptable trade-off
      * for a non-zero per-direction split.
+     *
+     * <p>All of the above is now the fallback: Xray's own counters are exact in both
+     * directions and carry no loopback noise, so they win whenever the api socket
+     * answers. The reconstruction stays for the window before the first bytes flow
+     * (the counters do not exist until then) and for configs whose api never came up.
      */
     private InterfaceTrafficSnapshot readTproxyTrafficSnapshot() {
+        InterfaceTrafficSnapshot exact = readXrayStatsSnapshot();
+        if (exact != null) {
+            return exact;
+        }
         long loTx = readLoopbackTxBytes();
         if (tproxyLoBaselineTxBytes < 0L) {
             tproxyLoBaselineTxBytes = loTx;
@@ -9721,6 +9743,45 @@ public class ProxyTunnelService extends Service {
 
         long rxTotal = Math.max(0L, loDelta - tproxyMarkAbsoluteBytes);
         return new InterfaceTrafficSnapshot(rxTotal, tproxyMarkAbsoluteBytes);
+    }
+
+    /**
+     * Exact per-direction totals straight from Xray, or null when they are not
+     * available yet and the caller should fall back.
+     */
+    @Nullable
+    private InterfaceTrafficSnapshot readXrayStatsSnapshot() {
+        XrayStatsClient client = xrayStatsClient;
+        if (client == null) {
+            File socket = XrayConfigFactory.apiSocketFile(getApplicationContext());
+            if (!socket.exists()) {
+                return null;
+            }
+            client = new XrayStatsClient(socket.getAbsolutePath());
+            xrayStatsClient = client;
+        }
+        long tx = client.readUplinkBytes();
+        long rx = client.readDownlinkBytes();
+        if (tx >= 0L && rx >= 0L) {
+            return new InterfaceTrafficSnapshot(rx, tx);
+        }
+        // Both directions failing means the channel is broken rather than idle (an idle
+        // counter reports zero, not an error), so drop it and let the next sample redial
+        // the socket a restarted Xray recreated.
+        if (tx < 0L && rx < 0L) {
+            closeXrayStatsClient();
+        }
+        return null;
+    }
+
+    private void closeXrayStatsClient() {
+        XrayStatsClient client = xrayStatsClient;
+        xrayStatsClient = null;
+        if (client != null) {
+            try {
+                client.close();
+            } catch (RuntimeException ignored) {}
+        }
     }
 
     private long readLoopbackTxBytes() {
@@ -9761,6 +9822,9 @@ public class ProxyTunnelService extends Service {
         tproxyMarkAbsoluteBytes = 0L;
         tproxyMarkLastReadingBytes = -1L;
         tproxyMarkLastReadElapsedMs = 0L;
+        // The channel belongs to the Xray instance whose counters we were reading; a
+        // new run recreates the socket, so hold no fd across the gap.
+        closeXrayStatsClient();
     }
 
     @Nullable
