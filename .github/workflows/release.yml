@@ -137,6 +137,13 @@ jobs:
       - name: Assemble release APK
         run: ./gradlew :app:assembleRelease -Pver=${{ steps.resolve-version.outputs.version }}
 
+      # The root helper is optional and not part of the APK, so it is built on its own
+      # rather than by Gradle. The cargo-ndk step above already installed what it needs.
+      - name: Build root helper module
+        run: |
+          module/build-module.sh dist
+          sha256sum dist/wingsv-root-module.zip | cut -d' ' -f1 > dist/wingsv-root-module.zip.sha256
+
       - name: Save vk-turn-proxy Go build state
         if: always()
         uses: actions/cache/save@v5
@@ -256,6 +263,8 @@ jobs:
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/release/app-release.apk.sha256
             app/build/outputs/apk/release/app-release.apk.sha512
+            dist/wingsv-root-module.zip
+            dist/wingsv-root-module.zip.sha256
 
       - name: Publish GitHub release patch
         if: steps.build-patch.outputs.patch_generated == 'true'
