@@ -34,6 +34,13 @@ use rootd::{
     SessionState,
 };
 use std::io;
+// std gates the abstract-socket extension on target_os, so the same trait lives under
+// two names even though the kernel behaviour is identical. The daemon only ever ships
+// for Android; the linux arm exists so it still builds - and so clippy still runs - on
+// a development host.
+#[cfg(target_os = "android")]
+use std::os::android::net::SocketAddrExt;
+#[cfg(target_os = "linux")]
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::{SocketAddr, UnixListener, UnixStream};
