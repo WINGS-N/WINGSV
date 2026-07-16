@@ -77,6 +77,7 @@ public final class XrayConfigFactory {
     private static final String DNS_OUT_TAG = "dns-out";
     private static final String DIRECT_TAG = "direct";
     private static final String BLOCK_TAG = "block";
+    private static final String API_TAG = "api";
     private static final int DEFAULT_MTU = 1500;
 
     private XrayConfigFactory() {}
@@ -190,9 +191,56 @@ public final class XrayConfigFactory {
         }
         root.put("outbounds", outbounds);
         root.put("routing", buildRouting(context, xraySettings, includeTunInbound, tproxyPort));
+        appendStatsApi(context, root);
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, proxyOutbound);
         return configJson;
+    }
+
+    /**
+     * Path of the unix socket xray's gRPC api listens on. Deliberately a filesystem
+     * socket rather than an abstract one: xray's commander has no authentication of any
+     * kind, so the only access control available is what the kernel enforces on the
+     * socket, and abstract sockets carry no ownership or permissions.
+     */
+    public static File apiSocketFile(Context context) {
+        return new File(context.getFilesDir(), "xray/api.sock");
+    }
+
+    /**
+     * Enables xray's own traffic counters and exposes them over the StatsService.
+     * The counters this turns on are named outbound&gt;&gt;&gt;{tag}&gt;&gt;&gt;traffic&gt;&gt;&gt;uplink|downlink.
+     *
+     * &lt;p&gt;A non-empty api listen makes the commander bind the socket itself instead of
+     * registering an outbound handler, so no routing rule to the api tag is needed.
+     * The ,0600 suffix is consumed by xray's listener, which chmods the socket after bind.
+     */
+    private static void appendStatsApi(Context context, JSONObject root) throws Exception {
+        File socket = apiSocketFile(context);
+        File parent = socket.getParentFile();
+        if (parent != null) {
+            parent.mkdirs();
+        }
+        // A socket left behind by a previous run makes bind fail with EADDRINUSE.
+        // The lock file xray keeps beside it is recreated on demand.
+        if (socket.exists()) {
+            socket.delete();
+        }
+        root.put("stats", new JSONObject());
+        root.put(
+            "api",
+            new JSONObject()
+                .put("tag", API_TAG)
+                .put("listen", socket.getAbsolutePath() + ",0600")
+                .put("services", new JSONArray().put("StatsService"))
+        );
+        root.put(
+            "policy",
+            new JSONObject().put(
+                "system",
+                new JSONObject().put("statsOutboundUplink", true).put("statsOutboundDownlink", true)
+            )
+        );
     }
 
     /**
@@ -256,6 +304,7 @@ public final class XrayConfigFactory {
         // out via direct/freedom on the underlying physical network.
         String internalDnsOutbound = turnFlavor ? PROXY_TAG : DIRECT_TAG;
         root.put("routing", buildRouting(context, effectiveXraySettings, true, 0, internalDnsOutbound, directDnsPlan));
+        appendStatsApi(context, root);
         String configJson = root.toString();
         writeDebugArtifacts(context, configJson, wgOutbound);
         return configJson;
