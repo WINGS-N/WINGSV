@@ -34,6 +34,7 @@ public final class XrayStatsClient implements Closeable {
 
     private final ManagedChannel channel;
     private final StatsServiceGrpc.StatsServiceBlockingStub stub;
+    private volatile String lastError = "";
 
     public XrayStatsClient(String socketPath) {
         // An IP-literal target keeps grpc's dns resolver from resolving "localhost",
@@ -57,16 +58,25 @@ public final class XrayStatsClient implements Closeable {
         return readCounter(DOWNLINK_COUNTER);
     }
 
+    /** Why the last read failed, for the caller to log. Empty while things work. */
+    public String lastError() {
+        return lastError;
+    }
+
     private long readCounter(String name) {
         try {
             GetStatsResponse response = stub
                 .withDeadlineAfter(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
                 .getStats(GetStatsRequest.newBuilder().setName(name).setReset(false).build());
+            lastError = "";
             return response.hasStat() ? response.getStat().getValue() : 0L;
         } catch (RuntimeException error) {
             // A counter that has seen no traffic yet does not exist, which surfaces as
             // NOT_FOUND rather than a zero - treat it as unavailable and let the caller
             // keep its previous sample instead of reporting a bogus drop to zero.
+            // Keep the reason: falling back silently leaves no way to tell a missing
+            // socket from a denied one from an idle counter.
+            lastError = name + ": " + error.getMessage();
             return -1L;
         }
     }

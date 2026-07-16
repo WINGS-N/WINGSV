@@ -524,6 +524,10 @@ public class ProxyTunnelService extends Service {
     private ToolsInstaller toolsInstaller;
     private RootRoutingState rootRoutingState;
     private volatile XrayStatsClient xrayStatsClient;
+
+    @Nullable
+    private volatile String xrayStatsUnavailableReason;
+
     private boolean rootModeActive;
     private boolean kernelWireguardActive;
     private boolean byeDpiFrontProxyActive;
@@ -9841,6 +9845,7 @@ public class ProxyTunnelService extends Service {
         if (client == null) {
             File socket = XrayConfigFactory.apiSocketFile(getApplicationContext());
             if (!socket.exists()) {
+                noteXrayStatsUnavailable("api socket was never created: " + socket.getAbsolutePath());
                 return null;
             }
             client = new XrayStatsClient(socket.getAbsolutePath());
@@ -9849,8 +9854,14 @@ public class ProxyTunnelService extends Service {
         long tx = client.readUplinkBytes();
         long rx = client.readDownlinkBytes();
         if (tx >= 0L && rx >= 0L) {
+            // Say so once, so a log that mentions the fallback also shows the recovery.
+            if (xrayStatsUnavailableReason != null) {
+                appendRuntimeLogLine("Xray stats api is answering; traffic counters are exact again");
+                xrayStatsUnavailableReason = null;
+            }
             return new InterfaceTrafficSnapshot(rx, tx);
         }
+        noteXrayStatsUnavailable(client.lastError());
         // Both directions failing means the channel is broken rather than idle (an idle
         // counter reports zero, not an error), so drop it and let the next sample redial
         // the socket a restarted Xray recreated.
@@ -9858,6 +9869,23 @@ public class ProxyTunnelService extends Service {
             closeXrayStatsClient();
         }
         return null;
+    }
+
+    /**
+     * Records why the exact counters are unavailable, once per reason.
+     *
+     * <p>The sampler runs several times a second, so this cannot log every miss - but it
+     * has to log something: the fallback reconstruction reports RX as zero whenever
+     * /proc/net/dev is denied, and a silent zero is indistinguishable from an idle
+     * tunnel. Whoever reads the log needs to know which of the two they are looking at.
+     */
+    private void noteXrayStatsUnavailable(String reason) {
+        String text = TextUtils.isEmpty(reason) ? "unknown" : reason;
+        if (text.equals(xrayStatsUnavailableReason)) {
+            return;
+        }
+        xrayStatsUnavailableReason = text;
+        appendRuntimeLogLine("Xray stats api unavailable, falling back to reconstructed traffic: " + text);
     }
 
     private void closeXrayStatsClient() {
@@ -9911,6 +9939,8 @@ public class ProxyTunnelService extends Service {
         // The channel belongs to the Xray instance whose counters we were reading; a
         // new run recreates the socket, so hold no fd across the gap.
         closeXrayStatsClient();
+        // A new run gets to report its own reason rather than inheriting the old one.
+        xrayStatsUnavailableReason = null;
     }
 
     @Nullable
