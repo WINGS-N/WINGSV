@@ -1,7 +1,0 @@
-id=wingsv_rootd
-name=WINGS V root helper
-version=v1
-versionCode=1
-author=WINGS-N
-description=Optional helper for WINGS V. Keeps VPN routing from being left behind when Android kills the app.
-updateJson=https://github.com/WINGS-N/WINGSV/releases/latest/download/module-update.json

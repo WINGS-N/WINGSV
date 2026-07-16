@@ -160,6 +160,10 @@ All are WINGS-N forks (the single source of truth) except `external/zstd-jni`
 - `external/VPNHotspot` - Mygod VPNHotspot fork for root tethering (the in-repo
   `:vpnhotspot:*` modules are the bridge to it).
 - `external/librustoreparser` - RuStore recommended-apps parsing for codegen assets.
+- `external/WINGSV_Magisk` - optional root helper module (Rust daemon `wingsvd`, built to
+  a flashable zip by its own `build-module.sh`, attached to each release). It owns
+  `proto/rootd.proto`, the app<->daemon contract, which `app/src/main/proto/rootd.proto`
+  symlinks - same arrangement as `appcontrol.proto` and vk-turn-proxy.
 - `external/zstd-jni` - upstream luben/zstd-jni (the one non-WINGS-N submodule).
 
 Bump rule: commit inside the submodule first (zstd-jni uses upstream's style; WINGS-N forks use

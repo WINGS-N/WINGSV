@@ -23,3 +23,6 @@
 [submodule "external/zstd-jni"]
 	path = external/zstd-jni
 	url = https://github.com/luben/zstd-jni.git
+[submodule "external/WINGSV_Magisk"]
+	path = external/WINGSV_Magisk
+	url = https://github.com/WINGS-N/WINGSV_Magisk.git
