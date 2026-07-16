@@ -1559,7 +1559,7 @@ public class ProxyTunnelService extends Service {
             // ForegroundServiceDidNotStartInTimeException. The stop path only ever
             // calls stopForeground/stopSelf (asynchronously), so promote to
             // foreground first to satisfy the contract; stopWork/abortConnectingNow
-            // tear the notification right back down.
+            // drop it again once the teardown has finished.
             ensureStartedForeground();
             if (isConnecting()) {
                 abortConnectingNow(true);
@@ -1877,38 +1877,42 @@ public class ProxyTunnelService extends Service {
         });
     }
 
+    // Foreground is dropped only once stopWorkInternal has torn the root rules down.
+    // Dropping it first leaves this process killable for the seconds the su-driven
+    // teardown takes, and nothing else holds the app up when the stop came from the
+    // QS tile rather than a visible activity - the process dies mid-cleanup and the
+    // leftover ip rules take the device's connectivity with them until the next
+    // launch reconciles them.
     private void stopWork(boolean removeNotification) {
         invalidateRuntimeOperations();
         stopping = true;
         sRunning = false;
         setServiceState(ServiceState.STOPPING);
-        if (removeNotification) {
-            try {
-                stopForeground(STOP_FOREGROUND_REMOVE);
-            } catch (RuntimeException ignored) {}
-        }
         workExecutor.execute(() -> {
             stopWorkInternal();
             if (removeNotification) {
+                try {
+                    stopForeground(STOP_FOREGROUND_REMOVE);
+                } catch (RuntimeException ignored) {}
                 stopSelf();
             }
         });
     }
 
+    // Same ordering as stopWork: stay foreground until the teardown is done, or the
+    // process can be killed mid-cleanup and leave the root rules behind.
     private void abortConnectingNow(boolean removeNotification) {
         invalidateRuntimeOperations();
         stopping = true;
         sRunning = false;
         setServiceState(ServiceState.STOPPING);
-        if (removeNotification) {
-            try {
-                stopForeground(STOP_FOREGROUND_REMOVE);
-            } catch (RuntimeException ignored) {}
-        }
         Thread abortThread = new Thread(
             () -> {
                 stopWorkInternal();
                 if (removeNotification) {
+                    try {
+                        stopForeground(STOP_FOREGROUND_REMOVE);
+                    } catch (RuntimeException ignored) {}
                     stopSelf();
                 }
             },
