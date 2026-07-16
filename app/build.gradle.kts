@@ -36,6 +36,7 @@ val vkTurnProtoSourceDir: File = vkTurnRepoDir.resolve("proto")
 val vkTurnGeneratedProtoGo: File = vkTurnRepoDir.resolve("sessionproto/session.pb.go")
 val generatedVkTurnJniLibsDir: Provider<Directory> = layout.buildDirectory.dir("generated/jni/libs")
 val generatedVkTurnBinary: Provider<File> = generatedVkTurnJniLibsDir.map { File(it.asFile, "arm64-v8a/libvkturn.so") }
+val generatedVkTurnBinaryArm32: Provider<File> = generatedVkTurnJniLibsDir.map { File(it.asFile, "armeabi-v7a/libvkturn.so") }
 val libXrayRepoDir: File = rootProject.file("external/libXray")
 val xrayCoreRepoDir: File = rootProject.file("external/Xray-core")
 val libXrayGoModCacheDir: File = rootProject.file(".gradle/libxray/go-mod-cache")
@@ -133,10 +134,11 @@ fun resolveAndroidNdkDir(): File {
         ?: error("Android NDK not found. Install it under the Android SDK or set ANDROID_NDK_HOME.")
 }
 
-fun resolveVkTurnAndroidClang(): File {
+fun resolveVkTurnAndroidClang(abi: String = "arm64-v8a"): File {
     val ndkDir: File = resolveAndroidNdkDir()
     val prebuilt: File = ndkDir.resolve("toolchains/llvm/prebuilt/linux-x86_64/bin")
-    val clang: File = prebuilt.resolve("aarch64-linux-android21-clang")
+    val clangName = if (abi == "armeabi-v7a") "armv7a-linux-androideabi21-clang" else "aarch64-linux-android21-clang"
+    val clang: File = prebuilt.resolve(clangName)
     return clang.takeIf { it.isFile }
         ?: error("Android clang not found at ${clang.absolutePath}")
 }
@@ -302,6 +304,61 @@ val buildVkTurnProxyArm64: TaskProvider<Exec> by tasks.registering(Exec::class) 
     }
 }
 
+val buildVkTurnProxyArm32: TaskProvider<Exec> by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Builds libvkturn.so from external/vk-turn-proxy for Android arm32 via Go + NDK."
+
+    inputs.files(fileTree(vkTurnRepoDir) {
+        exclude(".git/**")
+        exclude("**/build/**")
+    })
+    inputs.property("vkTurnGoToolchain", "go1.25.5")
+    outputs.file(generatedVkTurnBinaryArm32)
+
+    doFirst {
+        check(vkTurnRepoDir.isDirectory) {
+            "vk-turn-proxy submodule not found at ${vkTurnRepoDir.absolutePath}. Run git submodule update --init --recursive."
+        }
+
+        val outputFile: File = generatedVkTurnBinaryArm32.get()
+        val goModCacheDir: File = rootProject.file(".gradle/vkturn/go-mod-cache")
+        val goCacheDir: File = rootProject.file(".gradle/vkturn/go-cache")
+        goModCacheDir.mkdirs()
+        goCacheDir.mkdirs()
+        outputFile.parentFile.mkdirs()
+
+        workingDir = vkTurnRepoDir
+        environment(
+            mapOf(
+                "GOMODCACHE" to goModCacheDir.absolutePath,
+                "GOCACHE" to goCacheDir.absolutePath,
+                "GOTOOLCHAIN" to "go1.25.5",
+                "CGO_ENABLED" to "1",
+                "GOOS" to "android",
+                "GOARCH" to "arm",
+                "CC" to resolveVkTurnAndroidClang("armeabi-v7a").absolutePath
+            )
+        )
+        val vkTurnVersion = runCatching {
+            val proc = ProcessBuilder(
+                "git", "-C", vkTurnRepoDir.absolutePath,
+                "describe", "--tags", "--always", "--dirty"
+            ).redirectErrorStream(true).start()
+            proc.inputStream.bufferedReader().readText().trim().also { proc.waitFor() }
+        }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "dev"
+        commandLine(
+            "go",
+            "build",
+            "-trimpath",
+            "-ldflags",
+            "-checklinkname=0 -s -w -X main.clientVersion=$vkTurnVersion",
+            "-o",
+            outputFile.absolutePath,
+            "./client"
+        )
+    }
+}
+
 val generateVkTurnProxyProtoGo: TaskProvider<Exec> by tasks.registering(Exec::class) {
     group = "build"
     description = "Generates Go protobuf sources for external/vk-turn-proxy."
@@ -321,6 +378,10 @@ val generateVkTurnProxyProtoGo: TaskProvider<Exec> by tasks.registering(Exec::cl
 }
 
 buildVkTurnProxyArm64.configure {
+    dependsOn(generateVkTurnProxyProtoGo)
+}
+
+buildVkTurnProxyArm32.configure {
     dependsOn(generateVkTurnProxyProtoGo)
 }
 
@@ -709,6 +770,7 @@ if (!isLintInvocation()) {
         dependsOn(
             generateVkTurnProxyProtoGo,
             buildVkTurnProxyArm64,
+            buildVkTurnProxyArm32,
             generateWingsProtoJava,
             buildLibXrayAndroidAar
         )
