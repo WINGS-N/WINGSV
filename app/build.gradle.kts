@@ -526,7 +526,8 @@ val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class)
             "${protoSourceDir.resolve("wingsv.proto").absolutePath}",
             "${protoSourceDir.resolve("guardian.proto").absolutePath}",
             "${protoSourceDir.resolve("appcontrol.proto").absolutePath}",
-            "${protoSourceDir.resolve("xray_stats.proto").absolutePath}"
+            "${protoSourceDir.resolve("xray_stats.proto").absolutePath}",
+            "${protoSourceDir.resolve("rootd.proto").absolutePath}"
         )
     }
 }
