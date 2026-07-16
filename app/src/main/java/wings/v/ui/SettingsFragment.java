@@ -49,6 +49,9 @@ import wings.v.core.UpdateBadgeUtils;
 import wings.v.core.XposedModulePrefs;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTransportMode;
+import wings.v.proto.RootdProto;
+import wings.v.root.rootd.RootExecutor;
+import wings.v.root.rootd.RootdMismatchNotifier;
 import wings.v.service.ProxyTunnelService;
 
 @SuppressWarnings(
@@ -426,6 +429,49 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         configureRootPreferences(XrayStore.getBackendType(context));
     }
 
+    /**
+     * Shows whether the optional root helper module is doing anything. Worth a row of
+     * its own: when the module is absent or mismatched nothing breaks, so without this
+     * the user has no way to tell whether the thing they flashed is actually in use.
+     */
+    private void configureRootdStatusPreference(Context context, boolean rootModeEnabled) {
+        Preference statusPreference = findPreference("pref_rootd_status");
+        if (statusPreference == null) {
+            return;
+        }
+        statusPreference.setVisible(rootModeEnabled);
+        if (!rootModeEnabled) {
+            return;
+        }
+        statusPreference.setSummary(summaryForRootdStatus(context, RootExecutor.lastKnownStatus()));
+        // Probing opens a socket, so it cannot happen on the main thread; refresh the
+        // row once the answer is in.
+        Context appContext = context.getApplicationContext();
+        executor.execute(() -> {
+            RootExecutor.acquire(appContext);
+            RootExecutor.Status status = RootExecutor.lastKnownStatus();
+            RootdMismatchNotifier.notifyIfMismatched(appContext);
+            mainHandler.post(() -> {
+                if (isAdded()) {
+                    statusPreference.setSummary(summaryForRootdStatus(appContext, status));
+                }
+            });
+        });
+    }
+
+    private String summaryForRootdStatus(Context context, RootExecutor.Status status) {
+        switch (status) {
+            case AVAILABLE:
+                RootdProto.HelloReply hello = RootExecutor.lastHello();
+                String version = hello == null ? "?" : hello.getModuleVersion();
+                return context.getString(R.string.rootd_status_active, version);
+            case VERSION_MISMATCH:
+                return context.getString(R.string.rootd_status_mismatch);
+            default:
+                return context.getString(R.string.rootd_status_absent);
+        }
+    }
+
     private void configureRootPreferences(@Nullable BackendType backendType) {
         Context context = getContext();
         if (context == null) {
@@ -480,6 +526,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 xrayTproxyPreference.setSummary(getString(R.string.xray_tproxy_summary));
             }
         }
+        configureRootdStatusPreference(context, rootModeEnabled);
         if (rootInterfaceSettingsPreference != null) {
             rootInterfaceSettingsPreference.setVisible(rootModeEnabled);
             rootInterfaceSettingsPreference.setEnabled(rootModeEnabled);

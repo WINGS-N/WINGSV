@@ -337,6 +337,13 @@
     <string name="root_mode_title">Root функции</string>
     <string name="root_mode_summary">Включает root-возможности приложения и позволяет раздавать Интернет с VPN</string>
     <string name="root_mode_unavailable">Root функции недоступны: %1$s</string>
+    <string name="rootd_mismatch_title">Root-модуль не используется</string>
+    <string name="rootd_mismatch_update_module">Установленный root-модуль старее приложения. Обновите модуль, иначе маршрутизацией продолжит заниматься само приложение.</string>
+    <string name="rootd_mismatch_update_app">Root-модуль новее приложения. Обновите WINGS V, иначе маршрутизацией продолжит заниматься само приложение.</string>
+    <string name="rootd_status_title">Root-модуль</string>
+    <string name="rootd_status_active">Активен (v%1$s)</string>
+    <string name="rootd_status_absent">Не установлен - маршрутизацией занимается приложение</string>
+    <string name="rootd_status_mismatch">Несовпадение версий - не используется</string>
     <string name="kernel_wireguard_title">Kernel WireGuard</string>
     <string name="kernel_wireguard_summary">Для VK TURN + WireGuard использует kernel WireGuard вместо Android VpnService</string>
     <string name="kernel_wireguard_unavailable">Kernel WireGuard недоступен: %1$s</string>

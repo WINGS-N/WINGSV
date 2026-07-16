@@ -231,6 +231,7 @@ public final class AppPrefs {
     public static final String KEY_EXTERNAL_ACTION_TRANSIENT_LAUNCH = "pref_external_action_transient_launch";
     public static final String KEY_PENDING_PROFILES_FILTER_ID = "pref_pending_profiles_filter_id";
     public static final String KEY_UPDATES_LAST_NOTIFIED_TAG = "pref_updates_last_notified_tag";
+    public static final String KEY_ROOTD_MISMATCH_NOTIFIED_TAG = "pref_rootd_mismatch_notified_tag";
     public static final String SHARING_MASQUERADE_NONE = "none";
     public static final String SHARING_MASQUERADE_SIMPLE = "simple";
     public static final String SHARING_MASQUERADE_NETD = "netd";
@@ -457,6 +458,15 @@ public final class AppPrefs {
 
     public static void setLastUpdateNotifiedTag(Context context, String tagName) {
         prefs(context).edit().putString(KEY_UPDATES_LAST_NOTIFIED_TAG, trim(tagName)).apply();
+    }
+
+    /** Version pair the root-helper mismatch was last announced for; keeps it to one notice. */
+    public static String getLastRootdMismatchNotifiedTag(Context context) {
+        return trim(prefs(context).getString(KEY_ROOTD_MISMATCH_NOTIFIED_TAG, ""));
+    }
+
+    public static void setLastRootdMismatchNotifiedTag(Context context, String tag) {
+        prefs(context).edit().putString(KEY_ROOTD_MISMATCH_NOTIFIED_TAG, trim(tag)).apply();
     }
 
     public static boolean isRootModeEnabled(Context context) {

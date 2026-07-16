@@ -84,6 +84,11 @@
         android:summary="@string/root_mode_summary"
         android:defaultValue="false" />
 
+    <Preference
+        android:key="pref_rootd_status"
+        android:title="@string/rootd_status_title"
+        android:selectable="false" />
+
     <SwitchPreferenceCompat
         android:key="pref_kernel_wireguard"
         android:title="@string/kernel_wireguard_title"

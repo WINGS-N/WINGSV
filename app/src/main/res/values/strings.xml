@@ -337,6 +337,13 @@
     <string name="root_mode_title">Root features</string>
     <string name="root_mode_summary">Enables the app\'s root capabilities and allows sharing Internet via VPN</string>
     <string name="root_mode_unavailable">Root features unavailable: %1$s</string>
+    <string name="rootd_mismatch_title">Root helper is inactive</string>
+    <string name="rootd_mismatch_update_module">The installed root helper module is older than the app. Update the module, or the app keeps handling routing itself.</string>
+    <string name="rootd_mismatch_update_app">The root helper module is newer than the app. Update WINGS V, or the app keeps handling routing itself.</string>
+    <string name="rootd_status_title">Root helper module</string>
+    <string name="rootd_status_active">Active (v%1$s)</string>
+    <string name="rootd_status_absent">Not installed - routing is handled by the app</string>
+    <string name="rootd_status_mismatch">Version mismatch - not in use</string>
     <string name="kernel_wireguard_title">Kernel WireGuard</string>
     <string name="kernel_wireguard_summary">For VK TURN + WireGuard, use kernel WireGuard instead of Android VpnService</string>
     <string name="kernel_wireguard_unavailable">Kernel WireGuard unavailable: %1$s</string>
