@@ -111,6 +111,10 @@ message TproxySpec {
   uint32 rule_priority = 4;
   AppRoutingMode app_mode = 5;
   repeated uint32 routed_uids = 6;
+  // Mangle chains holding the MARK rules whose byte counters are the exact TX. The
+  // app still installs these chains itself, so it names them here rather than the
+  // daemon assuming them - two hardcoded copies would drift apart silently.
+  repeated string mark_chains = 7;
 }
 
 enum AppRoutingMode {
