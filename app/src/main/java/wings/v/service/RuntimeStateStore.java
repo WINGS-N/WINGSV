@@ -227,9 +227,11 @@ public final class RuntimeStateStore {
             return;
         }
         trimLogIfNeeded(file);
+        // One write, not line-then-newline: this lock only covers our own process, and writers now
+        // live in both the main and the tunnel process. O_APPEND makes a single write atomic, so
+        // emitting the newline separately is what would let two processes tear each other's lines.
         try (FileOutputStream output = new FileOutputStream(file, true)) {
-            output.write(line.getBytes(StandardCharsets.UTF_8));
-            output.write('\n');
+            output.write((line + '\n').getBytes(StandardCharsets.UTF_8));
         } catch (Exception ignored) {}
         updateProperties(properties ->
             properties.setProperty(versionKey, String.valueOf(readLong(properties, versionKey) + 1L))
