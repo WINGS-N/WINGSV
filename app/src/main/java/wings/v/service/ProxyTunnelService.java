@@ -445,6 +445,11 @@ public class ProxyTunnelService extends Service {
     }
 
     private final Object vpnBackendLock = new Object();
+    // Взводится, пока мы сами опускаем бэкенд. Наш setState(DOWN) доходит до
+    // Tunnel.onStateChange тем же путём, что и системный снос VpnService, и без
+    // этого флага штатная остановка выглядела бы как аварийная и планировала
+    // реконнект поверх собственного shutdown'а.
+    private final AtomicBoolean vpnBackendShutdownInProgress = new AtomicBoolean();
     private final ExecutorService workExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService byeDpiExecutor = Executors.newSingleThreadExecutor();
     // Iptables/ip-rule скрипты для split-tunnel lockdown идут через отдельный
@@ -2315,7 +2320,7 @@ public class ProxyTunnelService extends Service {
         }
 
         awgBackend = new org.amnezia.awg.backend.GoBackend(getApplicationContext());
-        awgTunnel = new LocalAwgTunnel(activeTunnelName);
+        awgTunnel = new LocalAwgTunnel(activeTunnelName, this);
         awgConfig = AmneziaConfigFactory.build(getApplicationContext(), settings);
         ensureRuntimeStillWanted(generation);
         ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
@@ -2397,7 +2402,7 @@ public class ProxyTunnelService extends Service {
         if (!kernelWireguardActive) {
             ensureXrayVpnServiceQuiescedBeforeUserspaceBackend(generation);
         }
-        currentTunnel = new LocalTunnel(activeTunnelName);
+        currentTunnel = new LocalTunnel(activeTunnelName, this);
         currentConfig = WireGuardConfigFactory.build(getApplicationContext(), settings, !kernelWireguardActive);
         synchronized (vpnBackendLock) {
             try {
@@ -3644,7 +3649,7 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.writeBackendType(activeBackendType.prefValue);
         prepareBackend(settings, tunnelName);
         ensureRuntimeStillWanted(generation);
-        currentTunnel = new LocalTunnel(activeTunnelName);
+        currentTunnel = new LocalTunnel(activeTunnelName, this);
         currentConfig = WireGuardConfigFactory.build(getApplicationContext(), settings, false);
 
         boolean recoveredAlive;
@@ -9529,30 +9534,40 @@ public class ProxyTunnelService extends Service {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void shutdownVpnBackendsLocked() {
         synchronized (vpnBackendLock) {
-            if (awgBackend != null && awgTunnel != null && awgConfig != null) {
-                AwgBackendVpnAccess.clearServiceOwner();
-                try {
-                    awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.DOWN, awgConfig);
-                } catch (Exception ignored) {}
-                AwgBackendVpnAccess.clearServiceOwner();
+            vpnBackendShutdownInProgress.set(true);
+            try {
+                if (awgBackend != null && awgTunnel != null && awgConfig != null) {
+                    AwgBackendVpnAccess.clearServiceOwner();
+                    try {
+                        awgBackend.setState(awgTunnel, org.amnezia.awg.backend.Tunnel.State.DOWN, awgConfig);
+                    } catch (Exception ignored) {}
+                    AwgBackendVpnAccess.clearServiceOwner();
+                }
+                if (backend != null && currentTunnel != null) {
+                    // GoBackend.VpnService.onDestroy may race our shutdown path and call wgTurnOff too.
+                    GoBackendVpnAccess.clearServiceOwner();
+                    try {
+                        backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
+                    } catch (Exception ignored) {}
+                    GoBackendVpnAccess.clearServiceOwner();
+                }
+                clearVpnBackendReferences();
+            } finally {
+                vpnBackendShutdownInProgress.set(false);
             }
-            if (backend != null && currentTunnel != null) {
-                // GoBackend.VpnService.onDestroy may race our shutdown path and call wgTurnOff too.
-                GoBackendVpnAccess.clearServiceOwner();
-                try {
-                    backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
-                } catch (Exception ignored) {}
-                GoBackendVpnAccess.clearServiceOwner();
-            }
-            clearVpnBackendReferences();
         }
     }
 
     private void detachVpnBackendsForProcessRestart() {
         synchronized (vpnBackendLock) {
-            GoBackendVpnAccess.clearServiceOwner();
-            AwgBackendVpnAccess.clearServiceOwner();
-            clearVpnBackendReferences();
+            vpnBackendShutdownInProgress.set(true);
+            try {
+                GoBackendVpnAccess.clearServiceOwner();
+                AwgBackendVpnAccess.clearServiceOwner();
+                clearVpnBackendReferences();
+            } finally {
+                vpnBackendShutdownInProgress.set(false);
+            }
         }
     }
 
@@ -10526,6 +10541,22 @@ public class ProxyTunnelService extends Service {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void scheduleRuntimeReconnect(String reason, long delayMs) {
         scheduleRuntimeReconnect(reason, delayMs, false);
+    }
+
+    /**
+     * Реакция на DOWN от userspace-бэкенда. Бэкенд репортит его из
+     * VpnService.onDestroy, и это единственное уведомление, которое мы получаем,
+     * когда систему сносит туннель под нами: исключения нет, сокеты живы, отвал
+     * виден только по пропавшему системному значку VPN. AmneziaWG сюда попадает
+     * тем более: её runtime не покрыт liveness-вотчдогом, так что этот колбэк -
+     * вообще единственный сигнал.
+     */
+    private void onBackendTunnelDown(String backendLabel) {
+        if (vpnBackendShutdownInProgress.get() || sServiceState != ServiceState.RUNNING) {
+            return;
+        }
+        appendRuntimeLogLine(backendLabel + ": VPN service destroyed by the system, tunnel is down");
+        scheduleRuntimeReconnect(backendLabel + " VPN service destroyed", RUNTIME_RECONNECT_DELAY_MS);
     }
 
     private void scheduleRuntimeReconnect(String reason, long delayMs, boolean allowTunnelProcessRestart) {
@@ -11608,8 +11639,11 @@ public class ProxyTunnelService extends Service {
 
         private final String name;
 
-        private LocalTunnel(String name) {
+        private final WeakReference<ProxyTunnelService> owner;
+
+        private LocalTunnel(String name, ProxyTunnelService owner) {
             this.name = name;
+            this.owner = new WeakReference<>(owner);
         }
 
         @Override
@@ -11618,15 +11652,26 @@ public class ProxyTunnelService extends Service {
         }
 
         @Override
-        public void onStateChange(State newState) {}
+        public void onStateChange(State newState) {
+            if (newState != State.DOWN) {
+                return;
+            }
+            ProxyTunnelService service = owner.get();
+            if (service != null) {
+                service.onBackendTunnelDown("Userspace WireGuard");
+            }
+        }
     }
 
     private static final class LocalAwgTunnel implements org.amnezia.awg.backend.Tunnel {
 
         private final String name;
 
-        private LocalAwgTunnel(String name) {
+        private final WeakReference<ProxyTunnelService> owner;
+
+        private LocalAwgTunnel(String name, ProxyTunnelService owner) {
             this.name = name;
+            this.owner = new WeakReference<>(owner);
         }
 
         @Override
@@ -11635,6 +11680,14 @@ public class ProxyTunnelService extends Service {
         }
 
         @Override
-        public void onStateChange(org.amnezia.awg.backend.Tunnel.State newState) {}
+        public void onStateChange(org.amnezia.awg.backend.Tunnel.State newState) {
+            if (newState != org.amnezia.awg.backend.Tunnel.State.DOWN) {
+                return;
+            }
+            ProxyTunnelService service = owner.get();
+            if (service != null) {
+                service.onBackendTunnelDown("Userspace AmneziaWG");
+            }
+        }
     }
 }
