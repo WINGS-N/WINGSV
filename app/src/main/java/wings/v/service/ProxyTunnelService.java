@@ -3032,7 +3032,11 @@ public class ProxyTunnelService extends Service {
             // establishing a throwaway VPN revokes the stuck tun, which fires
             // onRevoke and lets the service finally reach DOWN.
             appendRuntimeLogLine(reason + " timed out after " + normalizedTimeoutMs + "ms; displacing the stuck VPN");
-            EmergencyVpnResetService.pulse(getApplicationContext(), EMERGENCY_VPN_DISPLACE_HOLD_MS);
+            EmergencyVpnResetService.pulse(
+                getApplicationContext(),
+                EMERGENCY_VPN_DISPLACE_HOLD_MS,
+                "displacing a wedged tun: " + reason
+            );
             stopped = XrayVpnService.waitForStopped(XRAY_VPN_STOP_WAIT_MS);
             if (!stopped) {
                 appendRuntimeLogLine(reason + " still not DOWN after VPN displacement; continuing best-effort");

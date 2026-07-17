@@ -575,7 +575,11 @@ public final class AutoSearchManager {
         } catch (RuntimeException ignored) {}
         if (ProxyTunnelService.hasOwnedVpnServiceRuntime()) {
             try {
-                EmergencyVpnResetService.pulse(appContext, EMERGENCY_VPN_RESET_HOLD_MS);
+                EmergencyVpnResetService.pulse(
+                    appContext,
+                    EMERGENCY_VPN_RESET_HOLD_MS,
+                    "auto-search force-stopping our own runtime"
+                );
             } catch (RuntimeException ignored) {}
         }
     }
@@ -585,7 +589,11 @@ public final class AutoSearchManager {
             return;
         }
         try {
-            EmergencyVpnResetService.pulse(appContext, EMERGENCY_VPN_RESET_HOLD_MS);
+            EmergencyVpnResetService.pulse(
+                appContext,
+                EMERGENCY_VPN_RESET_HOLD_MS,
+                "auto-search clearing the VPN slot before probing"
+            );
         } catch (RuntimeException ignored) {
             return;
         }
