@@ -28,6 +28,10 @@ public final class RootCommandMain {
             RootXrayCommands.handle(commandArgs);
             return;
         }
+        if ("byedpi".equals(command)) {
+            RootByeDpiCommands.handle(commandArgs);
+            return;
+        }
         throw new IllegalArgumentException("Unknown root command: " + command);
     }
 

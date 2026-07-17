@@ -523,6 +523,11 @@ public class ProxyTunnelService extends Service {
     private RootShell rootShell;
     private ToolsInstaller toolsInstaller;
     private RootRoutingState rootRoutingState;
+
+    /** The su-forked ByeDPI on the TPROXY path; null when it runs in-process. */
+    @Nullable
+    private volatile Process byeDpiRootProcess;
+
     private volatile XrayStatsClient xrayStatsClient;
 
     @Nullable
@@ -2579,6 +2584,30 @@ public class ProxyTunnelService extends Service {
         startPolling();
     }
 
+    /**
+     * Starts ByeDPI under su for the TPROXY path. Readiness is decided by probing the
+     * listen port, the same way the in-process proxy is, so the two paths agree on what
+     * "ready" means.
+     */
+    private void startByeDpiRootProxy(ByeDpiSettings settings, int generation) throws Exception {
+        byeDpiFrontProxyActive = true;
+        byeDpiDialHost = settings.resolveRuntimeDialHost();
+        byeDpiDialPort = settings.resolveRuntimeListenPort();
+        // No protect path: there is no VpnService to protect from here.
+        List<String> proxyArgs = settings.buildRuntimeArguments(null);
+        List<String> command = new ArrayList<>();
+        command.add("byedpi");
+        command.add("--lib-dir");
+        command.add(getApplicationInfo().nativeLibraryDir);
+        command.add("--");
+        command.addAll(proxyArgs);
+        appendRuntimeLogLine("Starting ByeDPI front proxy as root on " + byeDpiDialHost + ":" + byeDpiDialPort);
+        Process process = RootUtils.spawnRootHelperProcess(getApplicationContext(), command.toArray(new String[0]));
+        byeDpiRootProcess = process;
+        startProxyOutputReader(process, new AtomicReference<>());
+        waitForByeDpiFrontProxy(generation);
+    }
+
     private void startByeDpiFrontProxy(ByeDpiSettings settings, int generation) throws Exception {
         stopByeDpiFrontProxy();
         if (settings == null || (!settings.launchOnXrayStart && !AppPrefs.hasByeDpiApps(this))) {
@@ -2587,10 +2616,16 @@ public class ProxyTunnelService extends Service {
         // TUN-backed VPN runtime requires the protect-socket bridge: ByeDPI's
         // upstream dials would otherwise loop back through the TUN under the
         // VpnService's catch-all default route and never reach the network.
-        // TPROXY runtime has no TUN and the helper bypasses our mangle rules
-        // via the UID 0 owner exclusion, so protect(fd) is neither needed nor
-        // available.
-        boolean requireProtect = !activeXrayTproxyMode;
+        // TPROXY has no VpnService and therefore no protect(fd); its equivalent is
+        // running ByeDPI as root, where the mangle chain's "--uid-owner 0 -j RETURN"
+        // lets the dials out. In-process it would run as our uid, get marked, be
+        // TPROXYed back into Xray and handed to ByeDPI again - a loop that shows up as
+        // every connection being reset.
+        if (activeXrayTproxyMode) {
+            startByeDpiRootProxy(settings, generation);
+            return;
+        }
+        boolean requireProtect = true;
         if (requireProtect && TextUtils.isEmpty(protectSocketName)) {
             throw new IllegalStateException(getString(R.string.proxy_byedpi_protect_socket_missing));
         }
@@ -2618,6 +2653,12 @@ public class ProxyTunnelService extends Service {
         long deadline = SystemClock.elapsedRealtime() + BYEDPI_START_TIMEOUT_MS;
         while (SystemClock.elapsedRealtime() < deadline) {
             ensureRuntimeStillWanted(generation);
+            // The root helper is a process, not a Future: if it died the port will never
+            // open, so notice now rather than after the full start timeout.
+            Process rootProcess = byeDpiRootProcess;
+            if (rootProcess != null && !rootProcess.isAlive()) {
+                throw new IllegalStateException(getString(R.string.proxy_byedpi_exited_before_start));
+            }
             Future<?> task = byeDpiWorkTask;
             if (task != null && task.isDone()) {
                 try {
@@ -2734,6 +2775,15 @@ public class ProxyTunnelService extends Service {
 
     private void stopByeDpiFrontProxy() {
         byeDpiFrontProxyActive = false;
+        Process rootProcess = byeDpiRootProcess;
+        byeDpiRootProcess = null;
+        if (rootProcess != null) {
+            // SIGTERM; the helper's shutdown hook stops the proxy. Nothing else to wind
+            // down here - the in-process fields below are untouched on this path.
+            try {
+                rootProcess.destroy();
+            } catch (Exception ignored) {}
+        }
         ByeDpiNative nativeInstance = byeDpiNative;
         Future<?> task = byeDpiWorkTask;
         if (nativeInstance != null) {
