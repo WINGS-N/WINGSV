@@ -528,6 +528,9 @@ public class ProxyTunnelService extends Service {
     @Nullable
     private volatile Process byeDpiRootProcess;
 
+    /** Non-zero when the wingsvd module owns ByeDPI instead of us. */
+    private volatile long byeDpiDaemonChildId;
+
     private volatile XrayStatsClient xrayStatsClient;
 
     @Nullable
@@ -2585,6 +2588,41 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
+     * Hands ByeDPI to the wingsvd module, which owns it the way it owns the routing:
+     * the proxy then outlives us, so an app the system kills mid-session no longer
+     * takes the front proxy down with it and leaves the tunnel half-alive.
+     *
+     * <p>Returns false when there is no usable daemon; the su path below runs instead.
+     */
+    private boolean startByeDpiViaDaemon(List<String> proxyArgs, int generation) throws Exception {
+        RootdClient client = RootExecutor.acquire(getApplicationContext());
+        if (client == null) {
+            return false;
+        }
+        try {
+            RootdProto.ChildHandle handle = client.spawnChild(
+                RootdProto.SpawnChildCommand.newBuilder()
+                    .setKind(RootdProto.ChildKind.CHILD_KIND_BYEDPI)
+                    .setClasspath(getApplicationInfo().sourceDir)
+                    .setLibDir(getApplicationInfo().nativeLibraryDir)
+                    .addAllArgs(proxyArgs)
+                    .build()
+            );
+            byeDpiDaemonChildId = handle.getChildId();
+            appendRuntimeLogLine("ByeDPI front proxy started by the wingsvd module (pid " + handle.getPid() + ")");
+            waitForByeDpiFrontProxy(generation);
+            return true;
+        } catch (IOException error) {
+            // Never fatal: fall through to su so a broken module cannot stop the tunnel.
+            appendRuntimeLogLine("wingsvd could not start byedpi, using su: " + error.getMessage());
+            Log.w(TAG, "wingsvd byedpi spawn failed", error);
+            RootExecutor.invalidate();
+            byeDpiDaemonChildId = 0L;
+            return false;
+        }
+    }
+
+    /**
      * Starts ByeDPI under su for the TPROXY path. Readiness is decided by probing the
      * listen port, the same way the in-process proxy is, so the two paths agree on what
      * "ready" means.
@@ -2595,6 +2633,9 @@ public class ProxyTunnelService extends Service {
         byeDpiDialPort = settings.resolveRuntimeListenPort();
         // No protect path: there is no VpnService to protect from here.
         List<String> proxyArgs = settings.buildRuntimeArguments(null);
+        if (startByeDpiViaDaemon(proxyArgs, generation)) {
+            return;
+        }
         List<String> command = new ArrayList<>();
         command.add("byedpi");
         command.add("--lib-dir");
@@ -2775,6 +2816,21 @@ public class ProxyTunnelService extends Service {
 
     private void stopByeDpiFrontProxy() {
         byeDpiFrontProxyActive = false;
+        long daemonChildId = byeDpiDaemonChildId;
+        byeDpiDaemonChildId = 0L;
+        if (daemonChildId != 0L) {
+            // The module owns this one. Its clear_routing reaps children anyway, so a
+            // failure here is not worth surfacing.
+            RootdClient client = RootExecutor.acquire(getApplicationContext());
+            if (client != null) {
+                try {
+                    client.killChild(daemonChildId);
+                } catch (IOException error) {
+                    Log.w(TAG, "wingsvd could not kill byedpi", error);
+                    RootExecutor.invalidate();
+                }
+            }
+        }
         Process rootProcess = byeDpiRootProcess;
         byeDpiRootProcess = null;
         if (rootProcess != null) {
