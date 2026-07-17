@@ -2588,6 +2588,22 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
+     * Whether the front proxy is still up, for whichever way it was started.
+     *
+     * <p>Only the in-process runtime is a Future we own. Started under su - by us or by
+     * the module - it is not ours to poll, and Process.isAlive() lies about su-forks
+     * anyway because the fork reparents the child and Java loses the exit status. So the
+     * listener is the honest signal, exactly as the TPROXY Xray check below decided.
+     */
+    private boolean isByeDpiFrontProxyAlive() {
+        Future<?> task = byeDpiWorkTask;
+        if (task != null) {
+            return !task.isDone();
+        }
+        return isLocalTcpPortReady(byeDpiDialHost, byeDpiDialPort);
+    }
+
+    /**
      * Hands ByeDPI to the wingsvd module, which owns it the way it owns the routing:
      * the proxy then outlives us, so an app the system kills mid-session no longer
      * takes the front proxy down with it and leaves the tunnel half-alive.
@@ -10268,12 +10284,9 @@ public class ProxyTunnelService extends Service {
                 scheduleRuntimeReconnect("Xray TCP relay disappeared", RUNTIME_RECONNECT_DELAY_MS);
                 return;
             }
-            if (byeDpiFrontProxyActive) {
-                Future<?> byeDpiTask = byeDpiWorkTask;
-                if (byeDpiTask == null || byeDpiTask.isDone()) {
-                    scheduleRuntimeReconnect("ByeDPI front proxy stopped unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
-                    return;
-                }
+            if (byeDpiFrontProxyActive && !isByeDpiFrontProxyAlive()) {
+                scheduleRuntimeReconnect("ByeDPI front proxy stopped unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
+                return;
             }
             if (activeXrayTproxyMode) {
                 Process xrayProcess = tproxyXrayProcess;
