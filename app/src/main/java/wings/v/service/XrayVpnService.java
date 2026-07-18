@@ -12,8 +12,10 @@ import androidx.annotation.Nullable;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -23,6 +25,7 @@ import libXray.DialerController;
 import wings.v.MainActivity;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppRoutingMode;
+import wings.v.core.BackendType;
 import wings.v.core.ProxySettings;
 import wings.v.core.XraySettings;
 import wings.v.xray.XrayBridge;
@@ -465,10 +468,59 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     private void addDnsServers(Builder builder, ProxySettings settings) {
+        if (addWireGuardDnsServers(builder, settings)) {
+            return;
+        }
         String remoteDns = settings.xraySettings != null ? settings.xraySettings.remoteDns : null;
         String directDns = settings.xraySettings != null ? settings.xraySettings.directDns : null;
         String advertisedDns = resolveAdvertisedDnsForVpn(trim(remoteDns), trim(directDns));
         addDnsServer(builder, advertisedDns);
+    }
+
+    /**
+     * Advertises the WireGuard [Interface] DNS line on backends that have one, which is also what
+     * XrayConfigFactory feeds to xray's own resolver. Without this the tun advertised 1.1.1.1 no
+     * matter what the user configured: the xray DNS fields it used to read default to a DoH URL,
+     * and a URL cannot be handed to VpnService at all, so both lookups came back empty and fell
+     * through to the hardcoded fallback.
+     */
+    private boolean addWireGuardDnsServers(Builder builder, ProxySettings settings) {
+        if (settings.backendType == null || !usesWireGuardDnsPreference(settings.backendType)) {
+            return false;
+        }
+        boolean ipv6Enabled = settings.xraySettings == null || settings.xraySettings.ipv6;
+        boolean added = false;
+        for (String candidate : splitDnsList(settings.wgDns)) {
+            String normalized = normalizeDnsServerForVpn(candidate);
+            // An IPv6 resolver is unreachable when the tun carries no IPv6 address or route.
+            if (TextUtils.isEmpty(normalized) || (!ipv6Enabled && normalized.indexOf(':') >= 0)) {
+                continue;
+            }
+            try {
+                builder.addDnsServer(normalized);
+                added = true;
+            } catch (Exception ignored) {}
+        }
+        return added;
+    }
+
+    private static boolean usesWireGuardDnsPreference(BackendType backendType) {
+        return backendType.usesWireGuardSettings() || backendType.usesTurnProxy();
+    }
+
+    // Package-visible for XrayVpnDnsTest.
+    static List<String> splitDnsList(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return Collections.emptyList();
+        }
+        List<String> result = new ArrayList<>();
+        for (String part : value.split("[,;\\s]+")) {
+            String trimmed = trim(part);
+            if (!TextUtils.isEmpty(trimmed)) {
+                result.add(trimmed);
+            }
+        }
+        return result;
     }
 
     private String resolveAdvertisedDnsForVpn(String remoteDns, String directDns) {
@@ -508,6 +560,13 @@ public class XrayVpnService extends VpnService implements DialerController {
             .append(trim(xraySettings != null ? xraySettings.remoteDns : null))
             .append('|')
             .append(trim(xraySettings != null ? xraySettings.directDns : null))
+            // The advertised DNS now also depends on the WireGuard DNS line and on which backend
+            // is active, so both have to be part of the signature or editing the DNS reuses the
+            // existing tun and the new server silently never reaches the system.
+            .append('|')
+            .append(trim(settings != null ? settings.wgDns : null))
+            .append('|')
+            .append(settings != null && settings.backendType != null ? settings.backendType.name() : "")
             .append('|')
             .append(
                 trim(settings != null && settings.activeXrayProfile != null ? settings.activeXrayProfile.id : null)
@@ -579,7 +638,8 @@ public class XrayVpnService extends VpnService implements DialerController {
         return value == null ? "" : value.trim();
     }
 
-    private static String normalizeDnsServerForVpn(String value) {
+    // Package-visible for XrayVpnDnsTest.
+    static String normalizeDnsServerForVpn(String value) {
         if (TextUtils.isEmpty(value)) {
             return "";
         }
