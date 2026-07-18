@@ -37,7 +37,7 @@ sesl-swiperefreshlayout = "1.2.0-alpha01+1.0.0-sesl8+rev0"
 sesl-viewpager2 = "1.1.0+1.0.0-sesl8+rev0"
 mpandroidchart = "3.1.0"
 workRuntime = "2.11.2"
-zstdJni = "1.5.7-4"
+zstdJni = "1.5.7-7"
 dexkit = "2.2.0"
 livekit = "2.26.0"
 

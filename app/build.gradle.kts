@@ -826,6 +826,9 @@ dependencies {
     implementation(libs.xhook)
     implementation(libs.mpandroidchart)
     implementation(libs.androidx.work.runtime)
+    // Classes only - the native side is compiled from the external/zstd-jni submodule by
+    // src/main/cpp/CMakeLists.txt. Native.java loads "zstd-jni-" + ZstdVersion.VERSION, so this
+    // version MUST equal the submodule's version file or the lookup misses the built .so.
     implementation(libs.zstd.jni)
     implementation(libs.dexkit)
     implementation(libs.livekit.android)
