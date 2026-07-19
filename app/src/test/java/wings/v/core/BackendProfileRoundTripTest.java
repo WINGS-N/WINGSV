@@ -25,14 +25,30 @@ public class BackendProfileRoundTripTest {
         WireGuardProfile a = new WireGuardProfile(
             "a", "A", "priv", "10.0.0.1/32", "1.1.1.1", 1280, "PubKey", "", "0.0.0.0/0", "Host.Example:51820", "", ""
         );
-        WireGuardProfile sameServer = new WireGuardProfile(
-            "b", "B", "priv2", "10.0.0.2/32", "1.1.1.1", 1280, "pubkey", "", "0.0.0.0/0", "host.example:51820 ", "", ""
+        // Same server and same private key, differing only in case/whitespace, still
+        // dedup to one profile.
+        WireGuardProfile sameIdentity = new WireGuardProfile(
+            "b", "B", "priv ", "10.0.0.2/32", "1.1.1.1", 1280, "pubkey", "", "0.0.0.0/0", "host.example:51820 ", "", ""
         );
-        assertEquals(a.stableDedupKey(), sameServer.stableDedupKey());
+        assertEquals(a.stableDedupKey(), sameIdentity.stableDedupKey());
         WireGuardProfile otherServer = new WireGuardProfile(
             "c", "C", "priv", "10.0.0.1/32", "1.1.1.1", 1280, "OtherKey", "", "0.0.0.0/0", "Host.Example:51820", "", ""
         );
         assertNotEquals(a.stableDedupKey(), otherServer.stableDedupKey());
+    }
+
+    // A different client private key on the SAME server is a distinct identity: it
+    // must NOT dedup, or importing a wingsv:// link to an already-known server would
+    // reuse the stored profile and drop the imported private key (issue #73).
+    @Test
+    public void wireGuardDedupKeyDistinguishesPrivateKey() {
+        WireGuardProfile a = new WireGuardProfile(
+            "a", "A", "privA", "10.0.0.1/32", "1.1.1.1", 1280, "PubKey", "", "0.0.0.0/0", "host.example:51820", "", ""
+        );
+        WireGuardProfile sameServerOtherKey = new WireGuardProfile(
+            "b", "B", "privB", "10.0.0.1/32", "1.1.1.1", 1280, "PubKey", "", "0.0.0.0/0", "host.example:51820", "", ""
+        );
+        assertNotEquals(a.stableDedupKey(), sameServerOtherKey.stableDedupKey());
     }
 
     @Test

@@ -108,7 +108,12 @@ public final class WireGuardProfile {
     }
 
     public String stableDedupKey() {
-        return (publicKey + "|" + endpoint).trim().toLowerCase(Locale.ROOT);
+        // The interface private key is the client identity, so it is part of the
+        // key: two configs to the same server (same peer public key + endpoint) but
+        // with different private keys are distinct profiles, not duplicates. Keying
+        // on the server alone let an import to an already-known server silently reuse
+        // the stored profile and drop the imported private key, breaking the tunnel.
+        return (privateKey.trim() + "|" + publicKey.trim() + "|" + endpoint.trim()).toLowerCase(Locale.ROOT);
     }
 
     public JSONObject toJson() throws JSONException {
