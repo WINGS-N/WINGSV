@@ -185,7 +185,10 @@ public final class WingsImportParser {
         // profile to resolve.
         VkTurnProfile active = VkTurnProfileStore.getActiveProfile(context);
         if (active != null && !TextUtils.isEmpty(value(active.vkTurnEndpoint))) {
-            return buildTurnProfileLink(context, active);
+            // This is the settings export (moving your own VK TURN setup), so it
+            // carries the global VK account links too (issue #72). A per-profile
+            // share must not - see buildTurnProfileLink.
+            return buildTurnProfileLink(context, active, true);
         }
         WingsvProto.Config config = buildProtoConfig(
             context,
@@ -388,7 +391,15 @@ public final class WingsImportParser {
      * AND the embedded transport message (wg OR awg). Resolution of the transport
      * reference happens here against the matching transport store.
      */
+    // Per-profile share: NO VK account links (they are global and shared across
+    // profiles, so sharing one profile must not leak them). The settings export
+    // uses the includeVkLinks overload.
     public static String buildTurnProfileLink(Context context, VkTurnProfile profile) throws Exception {
+        return buildTurnProfileLink(context, profile, false);
+    }
+
+    private static String buildTurnProfileLink(Context context, VkTurnProfile profile, boolean includeVkLinks)
+        throws Exception {
         if (context == null) {
             throw new IllegalArgumentException("Context is required");
         }
@@ -396,6 +407,12 @@ public final class WingsImportParser {
             throw new IllegalArgumentException("No VK TURN profile to export");
         }
         ProxySettings settings = vkTurnProfileToSettings(profile);
+        // VK account links live globally in AppPrefs, not on the profile, so the
+        // profile-to-settings mapping cannot carry them. Only the settings export
+        // folds them in (issue #72); the importer merges them back into the pool.
+        if (includeVkLinks) {
+            applyVkLinks(context, settings);
+        }
         WingsvProto.Turn.Builder turn = buildTurn(settings, false).toBuilder();
         // tunnel_mode tells the importer whether the transport below is WG or AWG.
         turn.setTunnelMode(
@@ -485,6 +502,8 @@ public final class WingsImportParser {
                 ? WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG
                 : WingsvProto.TunnelMode.TUNNEL_MODE_WIREGUARD
         );
+        // No VK account links here: this is a multi-select profile share, and the
+        // global links must not ride along (they belong to the exporter's account).
 
         LinkedHashMap<String, WireGuardProfile> wgTransports = new LinkedHashMap<>();
         LinkedHashMap<String, AmneziaProfile> awgTransports = new LinkedHashMap<>();
@@ -645,6 +664,16 @@ public final class WingsImportParser {
         settings.turnHost = value(profile.turnHost);
         settings.turnPort = value(profile.turnPort);
         return settings;
+    }
+
+    // Copies the globally-stored VK account links onto the settings so buildTurn
+    // emits them. VkTurnProfile has no link fields (the links are shared across
+    // profiles in AppPrefs), so a profile export would otherwise ship none.
+    private static void applyVkLinks(Context context, ProxySettings settings) {
+        java.util.List<String> links = AppPrefs.getVkLinks(context);
+        settings.vkLinks = links;
+        settings.vkLink = links.isEmpty() ? "" : links.get(0);
+        settings.vkLinkSecondary = AppPrefs.getVkLinkSecondary(context);
     }
 
     public static String buildXraySubscriptionsLink(Context context, List<XraySubscription> subscriptions)
@@ -1231,11 +1260,15 @@ public final class WingsImportParser {
             ) {
                 builder.setTurn(turn);
             }
-            if (scope != ExportScope.VK_TURN) {
-                WingsvProto.WireGuard wg = buildWireGuard(settings, scope != ExportScope.ACTIVE);
-                if (scope == ExportScope.WIREGUARD || !wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
-                    builder.setWg(wg);
-                }
+            // VK TURN composes its WG/AWG transport by reference, so this flat scope
+            // is only the fallback for a config with no resolvable transport profile
+            // (buildTurnProfileLink handles the by-reference case). Include the WG
+            // block here too: the flat KEY_WG_* keys shown at the bottom of the VK
+            // TURN screen ARE the transport in that case, and dropping them shipped a
+            // VK TURN link with no WireGuard (issue #71).
+            WingsvProto.WireGuard wg = buildWireGuard(settings, scope != ExportScope.ACTIVE);
+            if (scope == ExportScope.WIREGUARD || !wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
+                builder.setWg(wg);
             }
         }
         return builder.build();
