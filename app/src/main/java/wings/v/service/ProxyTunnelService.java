@@ -615,6 +615,15 @@ public class ProxyTunnelService extends Service {
     private int sharingWifiLockMode = -1;
     private long xrayTrafficBaseRx = -1L;
     private long xrayTrafficBaseTx = -1L;
+    // Session totals carried across a change of stats SOURCE. The TPROXY path reads
+    // either Xray's exact counters or the loopback/mark reconstruction, and the two
+    // are not comparable: rebasing without carrying the total forward either freezes
+    // the counters at zero (small reconstruction minus a large Xray baseline clamps
+    // to 0 forever) or makes them jump by a whole Xray counter.
+    private long xrayTrafficCarryRx;
+    private long xrayTrafficCarryTx;
+    // Which source produced the last TPROXY sample; null until the first one.
+    private Boolean tproxyStatsFromXrayApi;
     private long userspaceTrafficBaseRx = -1L;
     private long userspaceTrafficBaseTx = -1L;
     private String lastUnderlyingNetworkFingerprint;
@@ -4869,6 +4878,9 @@ public class ProxyTunnelService extends Service {
         trafficSpeedSamples.clear();
         xrayTrafficBaseRx = -1L;
         xrayTrafficBaseTx = -1L;
+        xrayTrafficCarryRx = 0L;
+        xrayTrafficCarryTx = 0L;
+        tproxyStatsFromXrayApi = null;
         userspaceTrafficBaseRx = -1L;
         userspaceTrafficBaseTx = -1L;
         lastUnderlyingNetworkFingerprint = null;
@@ -9706,8 +9718,8 @@ public class ProxyTunnelService extends Service {
                 xrayTrafficBaseRx = rxTotal;
                 xrayTrafficBaseTx = txTotal;
             }
-            rxTotal = Math.max(0L, rxTotal - xrayTrafficBaseRx);
-            txTotal = Math.max(0L, txTotal - xrayTrafficBaseTx);
+            rxTotal = xrayTrafficCarryRx + Math.max(0L, rxTotal - xrayTrafficBaseRx);
+            txTotal = xrayTrafficCarryTx + Math.max(0L, txTotal - xrayTrafficBaseTx);
         }
         long rxDelta = previousRx >= 0L ? Math.max(0L, rxTotal - previousRx) : 0L;
         long txDelta = previousTx >= 0L ? Math.max(0L, txTotal - previousTx) : 0L;
@@ -9967,8 +9979,10 @@ public class ProxyTunnelService extends Service {
     private InterfaceTrafficSnapshot readTproxyTrafficSnapshot() {
         InterfaceTrafficSnapshot exact = readXrayStatsSnapshot();
         if (exact != null) {
+            noteTproxyStatsSource(true);
             return exact;
         }
+        noteTproxyStatsSource(false);
         long loTx = readLoopbackTxBytes();
         if (tproxyLoBaselineTxBytes < 0L) {
             tproxyLoBaselineTxBytes = loTx;
@@ -9993,6 +10007,39 @@ public class ProxyTunnelService extends Service {
 
         long rxTotal = Math.max(0L, loDelta - tproxyMarkAbsoluteBytes);
         return new InterfaceTrafficSnapshot(rxTotal, tproxyMarkAbsoluteBytes);
+    }
+
+    /**
+     * Pins the running session total when the TPROXY sampler switches between Xray's
+     * exact counters and the loopback/mark reconstruction.
+     *
+     * The two sources count different things from different origins, so the old
+     * baseline is meaningless against the new one. Carry the total accumulated so far
+     * and re-baseline on the next sample: without this the counters either freeze at
+     * zero (reconstruction minus a larger Xray baseline clamps to 0 for good) or jump
+     * by a whole Xray counter. Xray reports a counter that has seen no traffic as
+     * NOT_FOUND rather than zero, so this flip happens on every normal session start,
+     * not only in edge cases.
+     */
+    private void noteTproxyStatsSource(boolean fromXrayApi) {
+        if (tproxyStatsFromXrayApi != null && tproxyStatsFromXrayApi == fromXrayApi) {
+            return;
+        }
+        if (tproxyStatsFromXrayApi != null) {
+            xrayTrafficCarryRx = sRxBytes;
+            xrayTrafficCarryTx = sTxBytes;
+            xrayTrafficBaseRx = -1L;
+            xrayTrafficBaseTx = -1L;
+            // Skip one delta so the re-baseline is not attributed as a burst of traffic.
+            lastRxSample = -1L;
+            lastTxSample = -1L;
+            appendRuntimeLogLine(
+                "Traffic stats source switched to " +
+                    (fromXrayApi ? "the Xray api" : "reconstruction") +
+                    "; totals carried over"
+            );
+        }
+        tproxyStatsFromXrayApi = fromXrayApi;
     }
 
     /**
@@ -10096,6 +10143,16 @@ public class ProxyTunnelService extends Service {
         tproxyMarkAbsoluteBytes = 0L;
         tproxyMarkLastReadingBytes = -1L;
         tproxyMarkLastReadElapsedMs = 0L;
+        // A restarted Xray counts from zero again, so the old baseline would clamp
+        // every later sample to 0. Carry the session total and re-baseline, the same
+        // way a source switch does.
+        xrayTrafficCarryRx = sRxBytes;
+        xrayTrafficCarryTx = sTxBytes;
+        xrayTrafficBaseRx = -1L;
+        xrayTrafficBaseTx = -1L;
+        lastRxSample = -1L;
+        lastTxSample = -1L;
+        tproxyStatsFromXrayApi = null;
         // The channel belongs to the Xray instance whose counters we were reading; a
         // new run recreates the socket, so hold no fd across the gap.
         closeXrayStatsClient();
