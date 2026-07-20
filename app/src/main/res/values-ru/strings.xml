@@ -1086,7 +1086,7 @@
     <string name="ui_settings_drag_hint">Тяните за ручку справа для смены порядка. Переключателем скрывайте пункты.</string>
     <string name="ui_settings_locked_hint">Этот пункт всегда виден.</string>
     <string name="navbar_item_home">Главная</string>
-    <string name="navbar_item_profiles">Профили Xray</string>
+    <string name="navbar_item_profiles">Профили</string>
     <string name="navbar_item_apps">Приложения</string>
     <string name="navbar_item_sharing">Раздача</string>
     <string name="navbar_item_settings">Настройки</string>

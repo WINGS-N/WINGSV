@@ -1086,7 +1086,7 @@
     <string name="ui_settings_drag_hint">Drag the handle on the right to reorder. Toggle to hide an entry.</string>
     <string name="ui_settings_locked_hint">This entry stays visible and cannot be hidden.</string>
     <string name="navbar_item_home">Home</string>
-    <string name="navbar_item_profiles">Xray profiles</string>
+    <string name="navbar_item_profiles">Profiles</string>
     <string name="navbar_item_apps">Apps</string>
     <string name="navbar_item_sharing">Sharing</string>
     <string name="navbar_item_settings">Settings</string>
