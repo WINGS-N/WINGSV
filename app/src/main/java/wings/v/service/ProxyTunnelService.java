@@ -77,7 +77,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -458,6 +460,15 @@ public class ProxyTunnelService extends Service {
     // главный поток коннекта удлиняет видимую задержку подключения. Single-
     // thread executor сохраняет упорядоченность apply/clear/reapply.
     private final ExecutorService rootRoutingExecutor = Executors.newSingleThreadExecutor();
+    // Задержка перед реконнектом ждёт ЗДЕСЬ, а не на workExecutor. workExecutor -
+    // один общий поток: припарковать его на время паузы (до 60с по лестнице
+    // ретраев, а под captcha-lockout и дольше) значит заблокировать всё, что
+    // встало в очередь следом - в первую очередь stopWorkInternal, из-за чего
+    // сервис залипал в STOPPING ("Останавливаем vk-turn-proxy..."), и обработку
+    // смены сетевого интерфейса. Планировщик только ждёт и отдаёт работу на
+    // workExecutor, так что общий поток занят лишь на саму работу.
+    private final ScheduledExecutorService reconnectScheduler = Executors.newSingleThreadScheduledExecutor();
+    private volatile ScheduledFuture<?> pendingReconnectTask;
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
     private static final long APP_CONTROL_COOKIE_POLL_INTERVAL_MS = 3000L;
     // Telemetry rides a blocking server stream (event-driven, no poll). This is only
@@ -8895,6 +8906,14 @@ public class ProxyTunnelService extends Service {
         if (task != null) {
             task.cancel(true);
         }
+        // Drop a reconnect that is still waiting out its delay: the generation bump
+        // above would make it bail anyway, but cancelling frees the latch now rather
+        // than at the end of a delay that can run to minutes.
+        ScheduledFuture<?> pendingReconnect = pendingReconnectTask;
+        pendingReconnectTask = null;
+        if (pendingReconnect != null && pendingReconnect.cancel(false)) {
+            runtimeReconnectQueued.set(false);
+        }
     }
 
     private void ensureRuntimeStillWanted(int generation) throws InterruptedException {
@@ -10598,31 +10617,36 @@ public class ProxyTunnelService extends Service {
                 firstNonEmpty(reason, "unknown reason") +
                 (effectiveDelayMs > delayMs ? " (captcha lockout hold)" : "")
         );
-        workExecutor.execute(() -> {
-            try {
-                if (effectiveDelayMs > 0L) {
-                    try {
-                        Thread.sleep(effectiveDelayMs);
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
+        Runnable dispatch = () ->
+            workExecutor.execute(() -> {
+                try {
+                    if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
                         return;
                     }
+                    performRuntimeReconnect(
+                        scheduledGeneration,
+                        reason,
+                        activeBackendType,
+                        getConfiguredBackendType(),
+                        allowTunnelProcessRestart,
+                        preferSoftRecovery
+                    );
+                } finally {
+                    runtimeReconnectQueued.set(false);
                 }
-                if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
-                    return;
-                }
-                performRuntimeReconnect(
-                    scheduledGeneration,
-                    reason,
-                    activeBackendType,
-                    getConfiguredBackendType(),
-                    allowTunnelProcessRestart,
-                    preferSoftRecovery
-                );
-            } finally {
-                runtimeReconnectQueued.set(false);
-            }
-        });
+            });
+        if (effectiveDelayMs <= 0L) {
+            dispatch.run();
+            return;
+        }
+        try {
+            pendingReconnectTask = reconnectScheduler.schedule(dispatch, effectiveDelayMs, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException rejected) {
+            // Nothing will ever clear the latch if the schedule failed, and a stuck
+            // latch permanently disables auto-restart (every later attempt bails on
+            // the compareAndSet above).
+            runtimeReconnectQueued.set(false);
+        }
     }
 
     private void performRuntimeReconnect(int scheduledGeneration, @Nullable String reason) {
