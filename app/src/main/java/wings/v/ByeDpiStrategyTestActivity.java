@@ -82,7 +82,15 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
             }
         });
 
-        renderIdleState();
+        List<ByeDpiStrategyResult> stored = ByeDpiStore.getStrategyResults(this);
+        if (stored.isEmpty()) {
+            renderIdleState();
+        } else {
+            adapter.replaceItems(stored);
+            binding.buttonStartStopTest.setText(R.string.byedpi_proxytest_start);
+            binding.progressIndicator.setVisibility(View.GONE);
+            bindCompletionSummary(stored);
+        }
     }
 
     @Override
@@ -163,6 +171,9 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     results.sort(Comparator.comparingInt((ByeDpiStrategyResult item) -> item.successCount).reversed());
                     adapter.replaceItems(results);
+                    // Persist as we go, so a run that is stopped early (or killed with
+                    // the process) still leaves the strategies it did finish.
+                    ByeDpiStore.setStrategyResults(getApplicationContext(), results);
                     binding.textStatus.setText(
                         getString(R.string.byedpi_proxytest_progress, currentIndex, strategies.size())
                     );

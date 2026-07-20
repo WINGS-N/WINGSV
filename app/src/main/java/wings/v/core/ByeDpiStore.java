@@ -11,6 +11,10 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import wings.v.byedpi.ByeDpiStrategyResult;
 
 @SuppressWarnings(
     {
@@ -70,6 +74,7 @@ public final class ByeDpiStore {
     public static final String KEY_PROXYTEST_TARGETS = "pref_bydpi_proxytest_targets";
     public static final String KEY_PROXYTEST_OPEN_TARGETS = "pref_open_bydpi_proxytest_targets";
     public static final String KEY_PROXYTEST_OPEN_RUNNER = "pref_open_bydpi_proxytest_runner";
+    public static final String KEY_PROXYTEST_RESULTS = "pref_bydpi_proxytest_results";
 
     private static final String STRATEGY_ASSET_PATH = "byedpi_proxytest_strategies.list";
 
@@ -178,6 +183,66 @@ public final class ByeDpiStore {
             }
         } catch (java.io.IOException ignored) {}
         return result;
+    }
+
+    /**
+     * Results of the last strategy test run. Kept so reopening the screen shows what
+     * the run found instead of an empty list - the run itself can take minutes, and
+     * the Activity holding them only in memory lost them on every rotation or tab
+     * switch. Only finished entries are stored; the untested remainder of an aborted
+     * run carries no information.
+     */
+    public static List<ByeDpiStrategyResult> getStrategyResults(@Nullable Context context) {
+        ArrayList<ByeDpiStrategyResult> results = new ArrayList<>();
+        if (context == null) {
+            return results;
+        }
+        String raw = trim(prefs(context).getString(KEY_PROXYTEST_RESULTS, ""));
+        if (TextUtils.isEmpty(raw)) {
+            return results;
+        }
+        try {
+            JSONArray array = new JSONArray(raw);
+            for (int index = 0; index < array.length(); index++) {
+                JSONObject object = array.optJSONObject(index);
+                if (object == null) {
+                    continue;
+                }
+                String command = trim(object.optString("command"));
+                if (TextUtils.isEmpty(command)) {
+                    continue;
+                }
+                ByeDpiStrategyResult result = new ByeDpiStrategyResult(command);
+                result.successCount = object.optInt("success");
+                result.totalRequests = object.optInt("total");
+                result.completed = true;
+                results.add(result);
+            }
+        } catch (JSONException ignored) {}
+        return results;
+    }
+
+    public static void setStrategyResults(@Nullable Context context, @Nullable List<ByeDpiStrategyResult> results) {
+        if (context == null) {
+            return;
+        }
+        JSONArray array = new JSONArray();
+        if (results != null) {
+            for (ByeDpiStrategyResult result : results) {
+                if (result == null || !result.completed || TextUtils.isEmpty(trim(result.command))) {
+                    continue;
+                }
+                try {
+                    array.put(
+                        new JSONObject()
+                            .put("command", trim(result.command))
+                            .put("success", result.successCount)
+                            .put("total", result.totalRequests)
+                    );
+                } catch (JSONException ignored) {}
+            }
+        }
+        prefs(context).edit().putString(KEY_PROXYTEST_RESULTS, array.length() == 0 ? "" : array.toString()).commit();
     }
 
     public static void applyStrategy(@Nullable Context context, @Nullable String command) {
