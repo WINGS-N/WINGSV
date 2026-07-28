@@ -118,6 +118,12 @@ public class ProxySettings {
                     return null;
                 }
             }
+            // Managed profiles provision their tunnel config over DTLS PROVISION at
+            // connect time, so an empty quick-config here is expected - skip it or the
+            // connect aborts before it can provision.
+            if (wgProvisioned) {
+                return null;
+            }
             if (TextUtils.isEmpty(awgQuickConfig)) {
                 return context.getString(R.string.proxy_amneziawg_config_required);
             }
@@ -141,6 +147,14 @@ public class ProxySettings {
             if (vkTurnRuntimeMode != null && vkTurnRuntimeMode.isProxyOnly()) {
                 return null;
             }
+        }
+        // A managed profile carries no wg keys: they are minted server-side and
+        // delivered over DTLS PROVISION at connect time. Requiring them here would
+        // abort the connect before the provisioning step runs, so a freshly imported
+        // managed profile could never fetch its first config. The provisioning step
+        // itself surfaces a real failure.
+        if (wgProvisioned) {
+            return null;
         }
         if (TextUtils.isEmpty(wgPrivateKey)) {
             return context.getString(R.string.proxy_wireguard_private_key_required);
