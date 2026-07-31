@@ -115,6 +115,7 @@
     <string name="clipboard_empty">No WINGSV or VLESS link in clipboard</string>
     <string name="clipboard_import_success">Settings imported</string>
     <string name="clipboard_import_invalid">Failed to parse wingsv://, vless:// or subscription URL</string>
+    <string name="clipboard_import_multi_summary">Imported %1$d, skipped %2$d</string>
     <string name="vk_turn_user_dns_title">Custom DNS resolvers</string>
     <string name="vk_turn_user_dns_summary">Add custom DNS in front of the built-in list (Yandex → Google → Cloudflare). One per line.</string>
     <string name="vk_turn_user_dns_dialog_message">Formats:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — plain UDP\n• 77.88.8.8 — same, plain UDP/53\nEntries that don\'t respond on bootstrap are dropped; the built-in list remains as fallback.</string>

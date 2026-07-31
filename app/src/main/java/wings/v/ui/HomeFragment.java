@@ -597,8 +597,13 @@ public class HomeFragment extends Fragment {
         }
 
         CharSequence text = clipData.getItemAt(0).coerceToText(context);
+        String rawText = text != null ? text.toString() : null;
+        java.util.List<String> candidates = WingsImportParser.splitConfigCandidates(rawText);
+        if (candidates.size() > 1) {
+            importManyFromClipboard(context, candidates);
+            return;
+        }
         try {
-            String rawText = text != null ? text.toString() : null;
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(rawText);
             if (WingsImportParser.isSubscriptionOnlyXrayImport(importedConfig)) {
                 importSubscriptionUrls(context, rawText, importedConfig);
@@ -625,6 +630,31 @@ public class HomeFragment extends Fragment {
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.clipboard_import_invalid, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // Batch paste: every candidate is a proxy link URI (splitConfigCandidates guarantees
+    // it), so add each as its own profile without the per-item reconnect/toast the single
+    // path does, then report one summary. See issue #77.
+    private void importManyFromClipboard(Context context, java.util.List<String> candidates) {
+        int imported = 0;
+        int skipped = 0;
+        for (String candidate : candidates) {
+            try {
+                AppPrefs.applyImportedConfig(context, WingsImportParser.parseFromText(candidate));
+                imported++;
+            } catch (Exception ignored) {
+                skipped++;
+            }
+        }
+        if (imported > 0 && binding != null) {
+            Haptics.softConfirm(binding.buttonImportClipboard);
+        }
+        refreshUi();
+        Toast.makeText(
+            context,
+            getString(R.string.clipboard_import_multi_summary, imported, skipped),
+            Toast.LENGTH_LONG
+        ).show();
     }
 
     private final ActivityResultLauncher<android.content.Intent> guardianConfirmLauncher = registerForActivityResult(

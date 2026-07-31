@@ -1403,6 +1403,11 @@ public class BackendProfilesFragment extends Fragment {
         }
         CharSequence text = clipData.getItemAt(0).coerceToText(context);
         String rawText = text == null ? null : text.toString();
+        List<String> candidates = WingsImportParser.splitConfigCandidates(rawText);
+        if (candidates.size() > 1) {
+            importManyFromClipboard(context, candidates);
+            return;
+        }
         try {
             WingsImportParser.ImportedConfig importedConfig = WingsImportParser.parseFromText(rawText);
             AppPrefs.applyImportedConfig(context, importedConfig);
@@ -1412,6 +1417,28 @@ public class BackendProfilesFragment extends Fragment {
         } catch (Exception ignored) {
             Toast.makeText(context, R.string.backend_profiles_import_invalid, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // Batch paste: every candidate is a proxy link URI (splitConfigCandidates guarantees
+    // it), so add each as its own profile and report one summary rather than reconnecting
+    // and toasting per item. See issue #77.
+    private void importManyFromClipboard(Context context, List<String> candidates) {
+        int imported = 0;
+        int skipped = 0;
+        for (String candidate : candidates) {
+            try {
+                AppPrefs.applyImportedConfig(context, WingsImportParser.parseFromText(candidate));
+                imported++;
+            } catch (Exception ignored) {
+                skipped++;
+            }
+        }
+        refreshUi();
+        Toast.makeText(
+            context,
+            getString(R.string.clipboard_import_multi_summary, imported, skipped),
+            Toast.LENGTH_LONG
+        ).show();
     }
 
     // Store dispatch helpers. Each maps a non-Xray BackendType to its store.
