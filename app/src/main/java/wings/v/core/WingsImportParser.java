@@ -728,6 +728,47 @@ public final class WingsImportParser {
         return SCHEME_PREFIX + Base64.encodeToString(framedPayload, Base64.URL_SAFE | Base64.NO_WRAP);
     }
 
+    private static final String[] LINK_URI_SCHEMES = { "vless://", "vmess://", "trojan://", "ss://", "wingsv://" };
+
+    /**
+     * Splits pasted text into separate importable configs. Returns more than one entry
+     * ONLY when every non-blank line is a proxy link URI (vless://, trojan://, wingsv://,
+     * ...), so a single multi-line config - an AmneziaWG quick-config, say - is never
+     * chopped into pieces. Callers that get one entry import it the usual way. See issue #77.
+     */
+    public static List<String> splitConfigCandidates(String rawText) {
+        List<String> candidates = new ArrayList<>();
+        if (rawText == null) {
+            return candidates;
+        }
+        List<String> links = new ArrayList<>();
+        boolean allLinks = true;
+        for (String line : rawText.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            links.add(trimmed);
+            if (!isLinkUri(trimmed)) {
+                allLinks = false;
+            }
+        }
+        if (allLinks && links.size() >= 2) {
+            return links;
+        }
+        candidates.add(rawText.trim());
+        return candidates;
+    }
+
+    private static boolean isLinkUri(String line) {
+        for (String scheme : LINK_URI_SCHEMES) {
+            if (line.regionMatches(true, 0, scheme, 0, scheme.length())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static ImportedConfig parseFromText(String rawText) throws Exception {
         XrayProfile directProfile = VlessLinkParser.parseProfile(rawText, "", "");
         if (directProfile != null) {
