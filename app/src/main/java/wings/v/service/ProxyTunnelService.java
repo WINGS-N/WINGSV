@@ -9888,20 +9888,25 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return null;
         }
+        // Daemon path: a cheap socket round trip, so read fresh every sample. Gate on the
+        // cached status - acquire() redials whenever the client is null, so calling it
+        // every sample with no module installed would hammer connect().
+        if (RootExecutor.lastKnownStatus() == RootExecutor.Status.AVAILABLE) {
+            String viaDaemon = RootExecutor.readNetDevViaDaemon(getApplicationContext());
+            if (!TextUtils.isEmpty(viaDaemon)) {
+                return viaDaemon;
+            }
+        }
+        // su fallback: a process spawn, so coalesce the per-sample readers onto one read.
         long nowElapsedMs = SystemClock.elapsedRealtime();
         if (cachedProcNetDev != null && nowElapsedMs - cachedProcNetDevAtElapsedMs < PROC_NET_DEV_ROOT_CACHE_MS) {
             return cachedProcNetDev;
         }
-        String content = RootExecutor.readNetDevViaDaemon(getApplicationContext());
-        if (TextUtils.isEmpty(content)) {
-            List<String> lines = runRootRoutingCommandLines("cat " + PROC_NET_DEV_PATH);
-            if (!lines.isEmpty()) {
-                content = TextUtils.join("\n", lines);
-            }
-        }
-        if (TextUtils.isEmpty(content)) {
+        List<String> lines = runRootRoutingCommandLines("cat " + PROC_NET_DEV_PATH);
+        if (lines.isEmpty()) {
             return null;
         }
+        String content = TextUtils.join("\n", lines);
         cachedProcNetDev = content;
         cachedProcNetDevAtElapsedMs = nowElapsedMs;
         return content;
@@ -10034,8 +10039,19 @@ public class ProxyTunnelService extends Service {
         long loDelta = Math.max(0L, loTx - tproxyLoBaselineTxBytes);
 
         long now = SystemClock.elapsedRealtime();
-        if (tproxyMarkLastReadingBytes < 0L || now - tproxyMarkLastReadElapsedMs >= TPROXY_MARK_REFRESH_INTERVAL_MS) {
-            long markNow = XrayTproxyRouter.readMarkBytesQuiet(getApplicationContext());
+        Long daemonMark =
+            RootExecutor.lastKnownStatus() == RootExecutor.Status.AVAILABLE
+                ? RootExecutor.readTproxyMarkBytesViaDaemon(getApplicationContext())
+                : null;
+        // The daemon read is a cheap socket round trip, so take it every sample; only the
+        // shell fallback needs the ~1 Hz throttle to keep su spawns down.
+        boolean shouldRead =
+            daemonMark != null ||
+            tproxyMarkLastReadingBytes < 0L ||
+            now - tproxyMarkLastReadElapsedMs >= TPROXY_MARK_REFRESH_INTERVAL_MS;
+        if (shouldRead) {
+            long markNow =
+                daemonMark != null ? daemonMark : XrayTproxyRouter.readMarkBytesQuiet(getApplicationContext());
             if (tproxyMarkLastReadingBytes < 0L) {
                 tproxyMarkAbsoluteBytes = markNow;
             } else if (markNow >= tproxyMarkLastReadingBytes) {
