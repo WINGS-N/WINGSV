@@ -181,4 +181,29 @@ public final class RootExecutor {
             return null;
         }
     }
+
+    /**
+     * Bytes matched by the tproxy mark rule, read via the daemon's counters RPC, or null
+     * when there is no usable daemon or it is too old (no "counters" cap). This is a cheap
+     * socket round trip, so the caller can poll it every sample instead of living with the
+     * ~1 Hz throttle that shelling out iptables for the same number forces.
+     */
+    @Nullable
+    public static Long readTproxyMarkBytesViaDaemon(Context context) {
+        RootdClient active = acquire(context);
+        if (active == null) {
+            return null;
+        }
+        RootdProto.HelloReply reply = lastHello();
+        if (reply == null || !reply.getCapsList().contains("counters")) {
+            return null;
+        }
+        try {
+            return active.readTproxyMarkBytes();
+        } catch (IOException error) {
+            Log.w(TAG, "read tproxy mark bytes failed", error);
+            invalidate();
+            return null;
+        }
+    }
 }
