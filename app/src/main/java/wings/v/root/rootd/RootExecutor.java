@@ -156,4 +156,29 @@ public final class RootExecutor {
             return null;
         }
     }
+
+    /**
+     * /proc/net/dev read by the daemon in its own permitted context, or null when there
+     * is no usable daemon or it is too old to support the read (no "netdev" cap). The
+     * app's own untrusted_app context is denied this read on Android 16, which broke the
+     * speed graph and per-interface traffic accounting in root/tproxy mode. See issue #76.
+     */
+    @Nullable
+    public static String readNetDevViaDaemon(Context context) {
+        RootdClient active = acquire(context);
+        if (active == null) {
+            return null;
+        }
+        RootdProto.HelloReply reply = lastHello();
+        if (reply == null || !reply.getCapsList().contains("netdev")) {
+            return null;
+        }
+        try {
+            return active.readNetDev();
+        } catch (IOException error) {
+            Log.w(TAG, "read net dev failed", error);
+            invalidate();
+            return null;
+        }
+    }
 }

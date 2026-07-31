@@ -97,6 +97,13 @@ public final class RootdClient implements Closeable {
             .getTproxyMarkBytes();
     }
 
+    /** Raw /proc/net/dev the daemon reads in its permitted context. Needs the "netdev" cap. */
+    public String readNetDev() throws IOException {
+        return call(envelope().setReadNetDev(RootdProto.ReadNetDevCommand.getDefaultInstance()).build())
+            .getNetDev()
+            .getContent();
+    }
+
     private RootdProto.ClientEnvelope.Builder envelope() {
         long callId = nextCallId;
         nextCallId++;
