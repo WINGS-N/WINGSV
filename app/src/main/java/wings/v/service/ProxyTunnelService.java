@@ -186,6 +186,9 @@ public class ProxyTunnelService extends Service {
     private static final int CAPTCHA_LOCKOUT_PARTS_MIN = 2;
     private static final int PROC_NET_DEV_MIN_COLUMNS = 9;
     private static final String PROC_NET_DEV_PATH = "/proc/net/dev";
+    // Coalesces the two per-tick readers onto one root read (a su spawn in standalone
+    // mode) when the app process itself is denied /proc/net/dev.
+    private static final long PROC_NET_DEV_ROOT_CACHE_MS = 750L;
     private static final String DUMPSYS_TETHER_STATE_HEADER = "Tether state:";
     private static final String PROXY_STATUS_AUTH_READY = "auth_ready";
     private static final String PROXY_STATUS_CAPTCHA_LOCKOUT = "captcha_lockout";
@@ -642,6 +645,8 @@ public class ProxyTunnelService extends Service {
     private volatile boolean proxyWarmupAuthReady;
     private volatile boolean proxyCaptchaInProgress;
     private volatile boolean procNetDevAccessDenied;
+    private String cachedProcNetDev;
+    private long cachedProcNetDevAtElapsedMs;
     private long lastProxyStartedAtElapsedMs;
     private volatile long lastProxyDtlsActivityAtElapsedMs;
     // Number of VK TURN streams currently connected, reported by vktp telemetry.
@@ -9848,82 +9853,121 @@ public class ProxyTunnelService extends Service {
         updateNotification();
     }
 
+    /**
+     * /proc/net/dev contents, or null when it cannot be read. Android 16 tightened
+     * SELinux so the app's own untrusted_app context is denied the read directly; in
+     * root mode the daemon (module) or a su shell (standalone, moduleless) reads it in a
+     * permitted context instead, which is what keeps the speed graph and per-interface
+     * traffic accounting alive there. See issue #76.
+     */
+    @Nullable
+    private String readProcNetDevContent() {
+        if (!procNetDevAccessDenied) {
+            try (
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(PROC_NET_DEV_PATH), StandardCharsets.UTF_8)
+                )
+            ) {
+                StringBuilder builder = new StringBuilder();
+                String line = reader.readLine();
+                while (line != null) {
+                    builder.append(line).append('\n');
+                    line = reader.readLine();
+                }
+                return builder.toString();
+            } catch (IOException | RuntimeException error) {
+                if (!isProcNetDevPermissionDenied(error)) {
+                    return null;
+                }
+                procNetDevAccessDenied = true;
+                appendRuntimeLogLine(
+                    PROC_NET_DEV_PATH + " denied for the app process; reading it through the root backend"
+                );
+            }
+        }
+        if (!rootModeActive) {
+            return null;
+        }
+        long nowElapsedMs = SystemClock.elapsedRealtime();
+        if (cachedProcNetDev != null && nowElapsedMs - cachedProcNetDevAtElapsedMs < PROC_NET_DEV_ROOT_CACHE_MS) {
+            return cachedProcNetDev;
+        }
+        String content = RootExecutor.readNetDevViaDaemon(getApplicationContext());
+        if (TextUtils.isEmpty(content)) {
+            List<String> lines = runRootRoutingCommandLines("cat " + PROC_NET_DEV_PATH);
+            if (!lines.isEmpty()) {
+                content = TextUtils.join("\n", lines);
+            }
+        }
+        if (TextUtils.isEmpty(content)) {
+            return null;
+        }
+        cachedProcNetDev = content;
+        cachedProcNetDevAtElapsedMs = nowElapsedMs;
+        return content;
+    }
+
     private InterfaceTrafficSnapshot readActiveVpnTrafficSnapshot() {
-        if (procNetDevAccessDenied) {
+        String content = readProcNetDevContent();
+        if (TextUtils.isEmpty(content)) {
             return InterfaceTrafficSnapshot.ZERO;
         }
         String interfaceName = resolveActiveVpnInterfaceName();
-        try (
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new FileInputStream(PROC_NET_DEV_PATH), StandardCharsets.UTF_8)
-            )
-        ) {
-            java.util.LinkedHashMap<String, InterfaceTrafficSnapshot> snapshots = new java.util.LinkedHashMap<>();
-            String line;
-            line = reader.readLine();
-            while (line != null) {
-                int separator = line.indexOf(':');
-                if (separator <= 0) {
-                    line = reader.readLine();
-                    continue;
-                }
-                String candidate = line.substring(0, separator).trim();
-                String[] columns = line.substring(separator + 1).trim().split("\\s+");
-                if (columns.length < PROC_NET_DEV_MIN_COLUMNS) {
-                    line = reader.readLine();
-                    continue;
-                }
-                long rxBytes = parseLong(columns[0]);
-                long txBytes = parseLong(columns[8]);
-                snapshots.put(candidate, new InterfaceTrafficSnapshot(rxBytes, txBytes));
-                line = reader.readLine();
+        java.util.LinkedHashMap<String, InterfaceTrafficSnapshot> snapshots = new java.util.LinkedHashMap<>();
+        for (String line : content.split("\\r?\\n")) {
+            int separator = line.indexOf(':');
+            if (separator <= 0) {
+                continue;
             }
-            if (snapshots.isEmpty()) {
-                return InterfaceTrafficSnapshot.ZERO;
+            String candidate = line.substring(0, separator).trim();
+            String[] columns = line.substring(separator + 1).trim().split("\\s+");
+            if (columns.length < PROC_NET_DEV_MIN_COLUMNS) {
+                continue;
             }
+            long rxBytes = parseLong(columns[0]);
+            long txBytes = parseLong(columns[8]);
+            snapshots.put(candidate, new InterfaceTrafficSnapshot(rxBytes, txBytes));
+        }
+        if (snapshots.isEmpty()) {
+            return InterfaceTrafficSnapshot.ZERO;
+        }
 
-            if (!TextUtils.isEmpty(interfaceName)) {
-                InterfaceTrafficSnapshot exact = snapshots.get(interfaceName);
-                if (exact != null) {
-                    return exact;
-                }
+        if (!TextUtils.isEmpty(interfaceName)) {
+            InterfaceTrafficSnapshot exact = snapshots.get(interfaceName);
+            if (exact != null) {
+                return exact;
             }
+        }
 
-            InterfaceTrafficSnapshot tun0 = snapshots.get("tun0");
-            if (tun0 != null) {
-                return tun0;
+        InterfaceTrafficSnapshot tun0 = snapshots.get("tun0");
+        if (tun0 != null) {
+            return tun0;
+        }
+
+        InterfaceTrafficSnapshot selectedTun = null;
+        long selectedTraffic = -1L;
+        for (java.util.Map.Entry<String, InterfaceTrafficSnapshot> entry : snapshots.entrySet()) {
+            String candidate = entry.getKey();
+            if (!candidate.startsWith("tun") || TextUtils.equals(candidate, "tunl0")) {
+                continue;
             }
+            InterfaceTrafficSnapshot snapshot = entry.getValue();
+            long totalTraffic = snapshot.rxBytes + snapshot.txBytes;
+            if (selectedTun == null || totalTraffic > selectedTraffic) {
+                selectedTun = snapshot;
+                selectedTraffic = totalTraffic;
+            }
+        }
+        if (selectedTun != null) {
+            return selectedTun;
+        }
 
-            InterfaceTrafficSnapshot selectedTun = null;
-            long selectedTraffic = -1L;
+        if (!TextUtils.isEmpty(interfaceName) && isManagedRootTunnelName(interfaceName)) {
             for (java.util.Map.Entry<String, InterfaceTrafficSnapshot> entry : snapshots.entrySet()) {
                 String candidate = entry.getKey();
-                if (!candidate.startsWith("tun") || TextUtils.equals(candidate, "tunl0")) {
-                    continue;
+                if (candidate.startsWith("tun") && !TextUtils.equals(candidate, "tunl0")) {
+                    return entry.getValue();
                 }
-                InterfaceTrafficSnapshot snapshot = entry.getValue();
-                long totalTraffic = snapshot.rxBytes + snapshot.txBytes;
-                if (selectedTun == null || totalTraffic > selectedTraffic) {
-                    selectedTun = snapshot;
-                    selectedTraffic = totalTraffic;
-                }
-            }
-            if (selectedTun != null) {
-                return selectedTun;
-            }
-
-            if (!TextUtils.isEmpty(interfaceName) && isManagedRootTunnelName(interfaceName)) {
-                for (java.util.Map.Entry<String, InterfaceTrafficSnapshot> entry : snapshots.entrySet()) {
-                    String candidate = entry.getKey();
-                    if (candidate.startsWith("tun") && !TextUtils.equals(candidate, "tunl0")) {
-                        return entry.getValue();
-                    }
-                }
-            }
-        } catch (IOException | RuntimeException error) {
-            if (isProcNetDevPermissionDenied(error) && !procNetDevAccessDenied) {
-                procNetDevAccessDenied = true;
-                appendRuntimeLogLine(PROC_NET_DEV_PATH + " denied, falling back to uid traffic stats");
             }
         }
         return InterfaceTrafficSnapshot.ZERO;
@@ -10106,33 +10150,21 @@ public class ProxyTunnelService extends Service {
     }
 
     private long readLoopbackTxBytes() {
-        if (procNetDevAccessDenied) {
+        String content = readProcNetDevContent();
+        if (TextUtils.isEmpty(content)) {
             return 0L;
         }
-        try (
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(new FileInputStream(PROC_NET_DEV_PATH), StandardCharsets.UTF_8)
-            )
-        ) {
-            String line = reader.readLine();
-            while (line != null) {
-                int separator = line.indexOf(':');
-                if (separator > 0) {
-                    String iface = line.substring(0, separator).trim();
-                    if ("lo".equals(iface)) {
-                        String[] columns = line.substring(separator + 1).trim().split("\\s+");
-                        if (columns.length >= PROC_NET_DEV_MIN_COLUMNS) {
-                            return parseLong(columns[8]);
-                        }
-                        break;
+        for (String line : content.split("\\r?\\n")) {
+            int separator = line.indexOf(':');
+            if (separator > 0) {
+                String iface = line.substring(0, separator).trim();
+                if ("lo".equals(iface)) {
+                    String[] columns = line.substring(separator + 1).trim().split("\\s+");
+                    if (columns.length >= PROC_NET_DEV_MIN_COLUMNS) {
+                        return parseLong(columns[8]);
                     }
+                    break;
                 }
-                line = reader.readLine();
-            }
-        } catch (IOException | RuntimeException error) {
-            if (isProcNetDevPermissionDenied(error) && !procNetDevAccessDenied) {
-                procNetDevAccessDenied = true;
-                appendRuntimeLogLine(PROC_NET_DEV_PATH + " denied; tproxy traffic stats disabled");
             }
         }
         return 0L;
