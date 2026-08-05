@@ -572,7 +572,12 @@ public class ProxyTunnelService extends Service {
     private final AtomicBoolean tproxyListenerReady = new AtomicBoolean(false);
     private Thread tproxyErrorLogTailer;
     private volatile boolean tproxyErrorLogTailerStop;
-    private static final int XRAY_TPROXY_PORT = 55555;
+    // The Xray TPROXY listener binds a fresh random free port on each start
+    // (allocated by allocateFreeTproxyPort at connect and reused for the config,
+    // iptables and readiness checks). This constant is only the fallback when the
+    // free-port probe fails.
+    private static final int XRAY_TPROXY_PORT_FALLBACK = 55555;
+    private volatile int xrayTproxyPort = XRAY_TPROXY_PORT_FALLBACK;
     private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
     private static final String XRAY_TPROXY_LISTENER_LOG_MARKER = "listening TCP on";
     private static final long TPROXY_MARK_REFRESH_INTERVAL_MS = 1_000L;
@@ -2029,6 +2034,11 @@ public class ProxyTunnelService extends Service {
         final boolean preBuildRelayFlow = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
         final boolean fProxyOnly = activeXrayProxyOnly;
         final boolean fTproxy = activeXrayTproxyMode;
+        if (fTproxy) {
+            // Fresh random free port for this TPROXY session, reused below for the
+            // config, iptables rules and the listener-readiness checks.
+            xrayTproxyPort = allocateFreeTproxyPort();
+        }
         final ProxySettings fSettings = settings;
         final Context appCtxForConfig = getApplicationContext();
         java.util.concurrent.CompletableFuture<String> configBuildFuture = null;
@@ -2039,7 +2049,7 @@ public class ProxyTunnelService extends Service {
                 () -> {
                     try {
                         String built = fTproxy
-                            ? XrayConfigFactory.buildTproxyConfigJson(appCtxForConfig, fSettings, XRAY_TPROXY_PORT)
+                            ? XrayConfigFactory.buildTproxyConfigJson(appCtxForConfig, fSettings, xrayTproxyPort)
                             : XrayConfigFactory.buildConfigJson(
                                   appCtxForConfig,
                                   fSettings,
@@ -2178,11 +2188,11 @@ public class ProxyTunnelService extends Service {
                 configJson =
                     configBuildFuture != null
                         ? configBuildFuture.get()
-                        : XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, XRAY_TPROXY_PORT);
+                        : XrayConfigFactory.buildTproxyConfigJson(getApplicationContext(), settings, xrayTproxyPort);
             } catch (java.util.concurrent.ExecutionException error) {
                 throw error.getCause() instanceof Exception ? (Exception) error.getCause() : error;
             }
-            appendRuntimeLogLine("Starting Xray backend via TPROXY on port " + XRAY_TPROXY_PORT);
+            appendRuntimeLogLine("Starting Xray backend via TPROXY on port " + xrayTproxyPort);
         } else if (xrayExternalRelayEnabled) {
             configJson = XrayConfigFactory.buildConfigJson(
                 getApplicationContext(),
@@ -2245,7 +2255,7 @@ public class ProxyTunnelService extends Service {
                 getApplicationContext(),
                 routedPackages
             );
-            XrayTproxyRouter.apply(getApplicationContext(), XRAY_TPROXY_PORT, tproxyAppMode, routedUids);
+            XrayTproxyRouter.apply(getApplicationContext(), xrayTproxyPort, tproxyAppMode, routedUids);
             appendRuntimeLogLine(
                 "Xray TPROXY routing applied (mode=" + tproxyAppMode + ", apps=" + routedUids.size() + ")"
             );
@@ -2768,6 +2778,22 @@ public class ProxyTunnelService extends Service {
             sleepInterruptibly(BYEDPI_START_POLL_MS, generation);
         }
         throw new IllegalStateException(getString(R.string.proxy_byedpi_local_proxy_timeout));
+    }
+
+    // Probes for a currently-free TCP port for the Xray TPROXY listener so it never
+    // collides with whatever else is bound. There is a small window between the probe
+    // and xray binding the port, acceptable for an ephemeral port; on any failure it
+    // falls back to the fixed port.
+    private static int allocateFreeTproxyPort() {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket()) {
+            socket.setReuseAddress(true);
+            socket.bind(new java.net.InetSocketAddress("127.0.0.1", 0));
+            int port = socket.getLocalPort();
+            if (port > 0) {
+                return port;
+            }
+        } catch (Exception ignored) {}
+        return XRAY_TPROXY_PORT_FALLBACK;
     }
 
     private boolean isLocalTcpPortReady(String host, int port) {
@@ -5480,12 +5506,12 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    private static boolean matchesXrayTproxyListenerLogLine(String line) {
+    private boolean matchesXrayTproxyListenerLogLine(String line) {
         int markerIdx = line.indexOf(XRAY_TPROXY_LISTENER_LOG_MARKER);
         if (markerIdx < 0) {
             return false;
         }
-        String portTail = ":" + XRAY_TPROXY_PORT;
+        String portTail = ":" + xrayTproxyPort;
         int portIdx = line.indexOf(portTail, markerIdx);
         if (portIdx < 0) {
             return false;
@@ -7167,10 +7193,10 @@ public class ProxyTunnelService extends Service {
                 process.destroy();
             } catch (Exception ignored) {}
             tproxyXrayProcess = null;
-            throw new IllegalStateException(getString(R.string.proxy_xray_tproxy_listener_timeout, XRAY_TPROXY_PORT));
+            throw new IllegalStateException(getString(R.string.proxy_xray_tproxy_listener_timeout, xrayTproxyPort));
         }
         stopXrayTproxyErrorLogTailer();
-        appendRuntimeLogLine("Xray TPROXY runtime started under root, listener on :" + XRAY_TPROXY_PORT);
+        appendRuntimeLogLine("Xray TPROXY runtime started under root, listener on :" + xrayTproxyPort);
     }
 
     private boolean waitForXrayTproxyListenerSignal(long timeoutMs, int generation) {
@@ -7321,7 +7347,7 @@ public class ProxyTunnelService extends Service {
     private void waitForTproxyListenerGone(long timeoutMs) {
         long deadline = SystemClock.elapsedRealtime() + Math.max(0L, timeoutMs);
         while (SystemClock.elapsedRealtime() < deadline) {
-            if (!isLocalTcpPortReady("127.0.0.1", XRAY_TPROXY_PORT)) {
+            if (!isLocalTcpPortReady("127.0.0.1", xrayTproxyPort)) {
                 return;
             }
             try {
@@ -7384,7 +7410,7 @@ public class ProxyTunnelService extends Service {
                     mode = XrayTproxyRouter.AppRoutingMode.BYPASS;
                 }
                 java.util.List<Integer> uids = XrayTproxyRouter.resolveRoutedUids(getApplicationContext(), packages);
-                XrayTproxyRouter.apply(getApplicationContext(), XRAY_TPROXY_PORT, mode, uids);
+                XrayTproxyRouter.apply(getApplicationContext(), xrayTproxyPort, mode, uids);
                 appendRuntimeLogLine("Xray TPROXY routing reapplied (" + reason + ")");
                 reconcileTproxyForwardedExclusion();
             } catch (Exception error) {
@@ -10440,7 +10466,7 @@ public class ProxyTunnelService extends Service {
                 // объявлять "Xray умер" и убивать его сами своим reconnect-ом,
                 // проверим что local listener живой — если порт принимает TCP,
                 // значит Xray на месте и трогать его не надо.
-                if (processDead && !isLocalTcpPortReady("127.0.0.1", XRAY_TPROXY_PORT)) {
+                if (processDead && !isLocalTcpPortReady("127.0.0.1", xrayTproxyPort)) {
                     scheduleRuntimeReconnect("Xray TPROXY runtime exited unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
                     return;
                 }
