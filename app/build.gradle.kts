@@ -94,7 +94,7 @@ fun parseVersionSpec(versionSpec: String?, defaultVersionName: String, defaultVe
     return versionName to versionCode
 }
 
-val defaultAppVersionName = "4.10.0"
+val defaultAppVersionName = "5.3.0"
 val defaultAppVersionCode = versionCodeFromSemanticVersion(defaultAppVersionName)
 val configuredAppVersionSpec = providers.gradleProperty("ver").orNull
 require(configuredAppVersionSpec == null || Regex("""[^/\s]+(?:/\d+)?""").matches(configuredAppVersionSpec)) {
