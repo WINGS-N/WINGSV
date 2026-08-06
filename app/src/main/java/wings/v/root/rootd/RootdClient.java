@@ -7,6 +7,7 @@ import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 import wings.v.proto.RootdProto;
 
 /**
@@ -34,7 +35,12 @@ public final class RootdClient implements Closeable {
     private final LocalSocket socket;
     private final DataInputStream input;
     private final DataOutputStream output;
-    private long nextCallId = 1;
+    private final AtomicLong nextCallId = new AtomicLong(1);
+    // Serializes each write+read round trip. The client is shared across threads
+    // (routing apply/clear plus the traffic and net-dev pollers), and interleaving
+    // two calls on the one socket desynchronizes the framing - call-id mismatch or a
+    // broken pipe - which drops the daemon connection and forces the su fallback.
+    private final Object callLock = new Object();
 
     private RootdClient(LocalSocket socket) throws IOException {
         this.socket = socket;
@@ -105,24 +111,26 @@ public final class RootdClient implements Closeable {
     }
 
     private RootdProto.ClientEnvelope.Builder envelope() {
-        long callId = nextCallId;
-        nextCallId++;
-        return RootdProto.ClientEnvelope.newBuilder().setCallId(callId);
+        return RootdProto.ClientEnvelope.newBuilder().setCallId(nextCallId.getAndIncrement());
     }
 
     private RootdProto.ReplyFrame call(RootdProto.ClientEnvelope request) throws IOException {
-        writeFrame(request.toByteArray());
-        RootdProto.DaemonEnvelope response = RootdProto.DaemonEnvelope.parseFrom(readFrame());
-        if (response.getCallId() != request.getCallId()) {
-            throw new IOException("call id mismatch: sent " + request.getCallId() + ", got " + response.getCallId());
+        synchronized (callLock) {
+            writeFrame(request.toByteArray());
+            RootdProto.DaemonEnvelope response = RootdProto.DaemonEnvelope.parseFrom(readFrame());
+            if (response.getCallId() != request.getCallId()) {
+                throw new IOException(
+                    "call id mismatch: sent " + request.getCallId() + ", got " + response.getCallId()
+                );
+            }
+            if (response.hasError()) {
+                throw new IOException("wingsvd: " + response.getError().getMessage());
+            }
+            if (!response.hasReply()) {
+                throw new IOException("wingsvd sent an empty frame");
+            }
+            return response.getReply();
         }
-        if (response.hasError()) {
-            throw new IOException("wingsvd: " + response.getError().getMessage());
-        }
-        if (!response.hasReply()) {
-            throw new IOException("wingsvd sent an empty frame");
-        }
-        return response.getReply();
     }
 
     private void writeFrame(byte[] body) throws IOException {
