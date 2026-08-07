@@ -27,7 +27,11 @@ public final class RootdClient implements Closeable {
     private static final String TAG = "WINGSV-Rootd";
     private static final String SOCKET_NAME = "wings.v.rootd";
     private static final int MAX_FRAME_SIZE = 1024 * 1024;
-    private static final int IO_TIMEOUT_MS = 3000;
+    // A ceiling, not an expected latency: calls are serialized and return the moment the
+    // reply lands. It has to clear the worst case - apply_routing running several iptables
+    // and ip rule invocations on a slow device under load - or a real success reads as a
+    // timeout, drops the daemon connection and forces the su fallback.
+    private static final int IO_TIMEOUT_MS = 10000;
 
     /** Bumped only when semantics change; added fields do not move it. */
     public static final int PROTOCOL_VERSION = 1;
