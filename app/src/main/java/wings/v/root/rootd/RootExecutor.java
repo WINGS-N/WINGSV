@@ -1,9 +1,11 @@
 package wings.v.root.rootd;
 
 import android.content.Context;
+import android.text.TextUtils;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import java.io.IOException;
+import java.util.Collection;
 import wings.v.BuildConfig;
 import wings.v.proto.RootdProto;
 
@@ -204,6 +206,86 @@ public final class RootExecutor {
             Log.w(TAG, "read tproxy mark bytes failed", error);
             invalidate();
             return null;
+        }
+    }
+
+    /**
+     * Whether the daemon is usable and speaks the sharing carve-out commands. Callers use
+     * this to decide up front whether the daemon or the su path owns the carve-out, so a
+     * later daemon failure sends them to su rather than silently dropping the rule.
+     */
+    private static boolean daemonSpeaksSharing() {
+        RootdProto.HelloReply reply = lastHello();
+        return reply != null && reply.getCapsList().contains("sharing");
+    }
+
+    /**
+     * Installs (or, with an empty interface set, clears) the forwarded-client REDIRECT
+     * carve-out through the daemon, so it outlives the app instead of being stranded on
+     * the su path. Returns false when there is no usable daemon or it is too old, and the
+     * caller must run the su path instead.
+     */
+    public static boolean applyForwardedRedirectViaDaemon(
+        Context context,
+        @Nullable Collection<String> interfaces,
+        int redirectPort
+    ) {
+        RootdClient active = acquire(context);
+        if (active == null || !daemonSpeaksSharing()) {
+            return false;
+        }
+        RootdProto.ForwardedRedirectSpec.Builder spec = RootdProto.ForwardedRedirectSpec.newBuilder().setRedirectPort(
+            Math.max(0, redirectPort)
+        );
+        if (interfaces != null) {
+            for (String iface : interfaces) {
+                if (!TextUtils.isEmpty(iface)) {
+                    spec.addDownstreamInterfaces(iface);
+                }
+            }
+        }
+        try {
+            active.applyForwardedRedirect(spec.build());
+            return true;
+        } catch (IOException error) {
+            Log.w(TAG, "forwarded redirect via daemon failed", error);
+            invalidate();
+            return false;
+        }
+    }
+
+    /**
+     * Installs (or, with an empty interface set, clears) the device-tproxy forwarded
+     * carve-out through the daemon. Returns false when there is no usable daemon or it is
+     * too old, and the caller must run the su path instead.
+     */
+    public static boolean applyForwardedExclusionViaDaemon(
+        Context context,
+        @Nullable Collection<String> interfaces,
+        boolean dnsOnly,
+        String tproxyPreChain
+    ) {
+        RootdClient active = acquire(context);
+        if (active == null || !daemonSpeaksSharing()) {
+            return false;
+        }
+        RootdProto.ForwardedExclusionSpec.Builder spec = RootdProto.ForwardedExclusionSpec.newBuilder()
+            .setDnsOnly(dnsOnly)
+            .setTproxyPreChain(tproxyPreChain == null ? "" : tproxyPreChain);
+        if (interfaces != null) {
+            for (String iface : interfaces) {
+                if (!TextUtils.isEmpty(iface)) {
+                    spec.addDownstreamInterfaces(iface);
+                }
+            }
+        }
+        try {
+            active.applyForwardedExclusion(spec.build());
+            return true;
+        } catch (IOException error) {
+            Log.w(TAG, "forwarded exclusion via daemon failed", error);
+            invalidate();
+            return false;
         }
     }
 }

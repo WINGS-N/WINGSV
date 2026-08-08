@@ -7047,8 +7047,23 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return;
         }
+        boolean hasInterfaces = downstreamInterfaces != null && !downstreamInterfaces.isEmpty();
+        // Daemon-first: the module owns the carve-out so it is not stranded when the app
+        // dies. Falls back to su only when there is no usable daemon.
+        if (
+            RootExecutor.applyForwardedRedirectViaDaemon(
+                getApplicationContext(),
+                downstreamInterfaces,
+                XrayConfigFactory.REDIRECT_PORT
+            )
+        ) {
+            if (hasInterfaces) {
+                appendRuntimeLogLine("Shared-client redirect applied by wingsvd: " + downstreamInterfaces);
+            }
+            return;
+        }
         try {
-            if (downstreamInterfaces == null || downstreamInterfaces.isEmpty()) {
+            if (!hasInterfaces) {
                 XrayTproxyRouter.revertForwardedRedirectQuietly(getApplicationContext());
             } else {
                 XrayTproxyRouter.applyForwardedRedirect(
@@ -7069,8 +7084,12 @@ public class ProxyTunnelService extends Service {
     // carve-out; on carves out only the clients' DNS.
     private void reconcileTproxyForwardedExclusion() {
         Context appContext = getApplicationContext();
+        String preChain = XrayTproxyRouter.tproxyPreChain();
         if (!rootModeActive || !activeXrayTproxyMode) {
-            XrayTproxyRouter.revertForwardedTproxyExclusionQuietly(appContext);
+            // An empty interface set clears the carve-out; daemon-first, su on fallback.
+            if (!RootExecutor.applyForwardedExclusionViaDaemon(appContext, new LinkedHashSet<>(), false, preChain)) {
+                XrayTproxyRouter.revertForwardedTproxyExclusionQuietly(appContext);
+            }
             return;
         }
         Set<String> downstream = new LinkedHashSet<>();
@@ -7080,10 +7099,12 @@ public class ProxyTunnelService extends Service {
             }
         }
         boolean appSharingOn = AppPrefs.isAppSharingIntended(appContext);
-        try {
-            XrayTproxyRouter.applyForwardedTproxyExclusion(appContext, downstream, appSharingOn);
-        } catch (Exception error) {
-            appendRuntimeLogLine("TPROXY forwarded exclusion failed: " + error.getMessage());
+        if (!RootExecutor.applyForwardedExclusionViaDaemon(appContext, downstream, appSharingOn, preChain)) {
+            try {
+                XrayTproxyRouter.applyForwardedTproxyExclusion(appContext, downstream, appSharingOn);
+            } catch (Exception error) {
+                appendRuntimeLogLine("TPROXY forwarded exclusion failed: " + error.getMessage());
+            }
         }
         refreshSupervisorSchedule();
     }

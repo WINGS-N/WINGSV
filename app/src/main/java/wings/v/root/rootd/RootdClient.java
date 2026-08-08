@@ -87,6 +87,22 @@ public final class RootdClient implements Closeable {
         call(envelope().setClearRouting(RootdProto.ClearRoutingCommand.getDefaultInstance()).build());
     }
 
+    public void applyForwardedRedirect(RootdProto.ForwardedRedirectSpec spec) throws IOException {
+        call(
+            envelope()
+                .setApplyForwardedRedirect(RootdProto.ApplyForwardedRedirectCommand.newBuilder().setSpec(spec))
+                .build()
+        );
+    }
+
+    public void applyForwardedExclusion(RootdProto.ForwardedExclusionSpec spec) throws IOException {
+        call(
+            envelope()
+                .setApplyForwardedExclusion(RootdProto.ApplyForwardedExclusionCommand.newBuilder().setSpec(spec))
+                .build()
+        );
+    }
+
     public RootdProto.SessionState sessionState() throws IOException {
         return call(
             envelope().setSessionState(RootdProto.SessionStateCommand.getDefaultInstance()).build()

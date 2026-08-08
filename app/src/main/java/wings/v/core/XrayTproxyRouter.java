@@ -61,6 +61,15 @@ public final class XrayTproxyRouter {
 
     private XrayTproxyRouter() {}
 
+    /**
+     * Name of the device tproxy PREROUTING mangle chain the forwarded carve-out jumps
+     * into. Exposed so the daemon path can name the same chain the su path builds,
+     * rather than the two hardcoding it apart.
+     */
+    public static String tproxyPreChain() {
+        return CHAIN_PRE;
+    }
+
     public enum AppRoutingMode {
         NONE,
         BYPASS,
