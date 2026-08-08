@@ -447,6 +447,31 @@ public final class XrayTproxyRouter {
     }
 
     /**
+     * Whether the forwarded-client REDIRECT carve-out is currently in place: the jump
+     * from nat PREROUTING into CHAIN_REDIR exists and CHAIN_REDIR still holds its
+     * REDIRECT rules. Lets the tether sync catch the carve-out being flushed under it
+     * (vpnhotspot / system tether rebuilding nat) during active sharing and re-assert it
+     * without waiting out the blind reapply cadence.
+     */
+    public static boolean isForwardedRedirectApplied(@NonNull Context context) {
+        String probe =
+            IPT4 +
+            " -t nat -C PREROUTING -j " +
+            CHAIN_REDIR +
+            " 2>/dev/null && " +
+            IPT4 +
+            " -t nat -S " +
+            CHAIN_REDIR +
+            " 2>/dev/null | grep -q REDIRECT && echo OK";
+        try {
+            String result = RootShellCommand.exec(context, probe);
+            return result != null && result.contains("OK");
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /**
      * Reads cumulative bytes counted by the {@code MARK} rules in our IPv4 + IPv6
      * OUTPUT mangle chains. Counters are the ones {@code XrayTproxyRouter.apply}
      * created with the chain — they reset to zero on every reapply.

@@ -320,8 +320,15 @@ public class ProxyTunnelService extends Service {
     // Android periodically wipes the tether masquerade/routing on its own (network
     // events), so even when our desired state is unchanged we must re-apply on a
     // cadence; otherwise the rules stay gone and sharing clients lose internet
-    // until a manual reapply. Force a full re-apply at least this often.
-    private static final long ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS = 20_000L;
+    // until a manual reapply. Force a full re-apply at least this often. This is the
+    // only self-heal for the vendored masquerade, which cannot be probed cheaply the
+    // way the iptables carve-outs can, so it is deliberately short.
+    private static final long ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS = 10_000L;
+    // Between forced reapplies, probe the forwarded REDIRECT carve-out this often and
+    // re-assert immediately if it drifted. The probe is one su round trip, so it runs on
+    // its own throttle rather than every 3s tether sync, which the skip-no-op exists to
+    // avoid.
+    private static final long ROOT_TETHER_DRIFT_CHECK_INTERVAL_MS = 5_000L;
     // Delay before the one-shot tether reconcile after start, so the VPN/relay and
     // the system tether interface have settled before we clear+reapply.
     private static final long TETHER_RECONCILE_ON_START_DELAY_MS = 4_000L;
@@ -602,6 +609,7 @@ public class ProxyTunnelService extends Service {
     private VpnHotspotSharingConfig lastTetherSyncConfig;
 
     private long lastTetherForceReapplyAtElapsedMs = -1L;
+    private long lastTetherDriftCheckAtElapsedMs = -1L;
 
     private volatile PublicIpFetcher.Request publicIpRequest;
     private volatile int publicIpRequestGeneration;
@@ -6974,13 +6982,23 @@ public class ProxyTunnelService extends Service {
         boolean forceReapply =
             lastTetherForceReapplyAtElapsedMs <= 0L ||
             now - lastTetherForceReapplyAtElapsedMs >= ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS;
-        if (
+        boolean stateUnchanged =
             !forceReapply &&
             configuredInterfaces.equals(lastTetherSyncInterfaces) &&
             Objects.equals(upstreamNameForLog, lastTetherSyncUpstream) &&
-            Objects.equals(sharingConfig, lastTetherSyncConfig)
-        ) {
-            return;
+            Objects.equals(sharingConfig, lastTetherSyncConfig);
+        if (stateUnchanged) {
+            // Nothing changed and the blind reapply is not yet due. Cheaply probe the
+            // forwarded REDIRECT carve-out on its own throttle; if the system flushed it
+            // out from under us, re-assert now instead of waiting out the force cadence.
+            if (now - lastTetherDriftCheckAtElapsedMs < ROOT_TETHER_DRIFT_CHECK_INTERVAL_MS) {
+                return;
+            }
+            lastTetherDriftCheckAtElapsedMs = now;
+            if (XrayTproxyRouter.isForwardedRedirectApplied(getApplicationContext())) {
+                return;
+            }
+            appendRuntimeLogLine("Shared-client redirect carve-out drifted, reasserting");
         }
         if (!SharingApiGuard.isSupported()) {
             appendRuntimeLogLine("Root tether routing skipped: requires Android 10 or newer");
@@ -6998,6 +7016,7 @@ public class ProxyTunnelService extends Service {
             lastTetherSyncUpstream = upstreamNameForLog;
             lastTetherSyncConfig = sharingConfig;
             lastTetherForceReapplyAtElapsedMs = now;
+            lastTetherDriftCheckAtElapsedMs = now;
             String syncMessage =
                 "Root tether routing synced: " + configuredInterfaces + " upstream=" + upstreamNameForLog;
             appendRuntimeLogLine(syncMessage);
