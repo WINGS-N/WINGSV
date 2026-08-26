@@ -64,10 +64,17 @@ message Guardian {
   string admin_username = 7;
   int64 admin_id = 8;
   int64 admin_avatar_version = 9;
-  // 10 was server_ca_pins: the panel filled it for self-signed deployments but no
-  // app build ever read it, so a self-signed panel could not serve devices either
-  // way. Kept reserved in case device-side pinning is actually implemented.
+  // 10 was server_ca_pins: an earlier SHA-256 pin the panel filled but no app
+  // build ever read. Field 11 replaces it rather than reusing the number, so an
+  // old link's SHA-256 bytes can never be mistaken for the new digest.
   reserved 10;
+  // SPKI pins the app must accept for the panel's control-plane TLS: raw 32-byte
+  // SHA-512/256 of the panel CA's SubjectPublicKeyInfo. Set when the panel has no
+  // publicly trusted certificate, which is the only way a domain-less deployment
+  // reachable by bare IP can be verified at all. Empty means verify against the
+  // system trust store. Multiple entries allow CA rotation with overlap. This
+  // never applies to the VK TURN DTLS relay.
+  repeated bytes server_ca_pins_sha512_256 = 11;
 }
 
 enum GuardianSyncMode {
