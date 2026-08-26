@@ -80,10 +80,17 @@ Prereqs:
 
 Commands:
 
-- Debug APK: `./gradlew :app:assembleDebug`. Release: `./gradlew :app:assembleRelease`.
-- Install to a device: `./gradlew :app:installDebug` ONLY. Never use `adb install` - the
-  Gradle install pins `--user 0`, which the root / sharing logic assumes.
-- Unit tests: `./gradlew :app:testDebugUnitTest` (JUnit4 + Robolectric + Mockito).
+- The app has two ABI product flavors, `arm64` and `arm32`, because MMKV 2.x dropped the
+  32-bit ABI: arm64 builds against MMKV 2.x, arm32 against the 1.3.x LTS. Every variant task
+  therefore carries the flavor name.
+- Debug APK: `./gradlew :app:assembleArm64Debug` (or `assembleDebug` for both flavors).
+  Release: `./gradlew :app:assembleRelease`.
+- Install to a device: `./gradlew :app:installArm64Debug` (or `installArm32Debug`) ONLY.
+  Never use `adb install` - the Gradle install pins `--user 0`, which the root / sharing
+  logic assumes.
+- Unit tests: `./gradlew :app:testArm64DebugUnitTest` (JUnit4 + Robolectric + Mockito).
+- A release publishes one APK per ABI (`app-arm64-release.apk`, `app-arm32-release.apk`);
+  the in-app updater picks by `Build.SUPPORTED_ABIS`.
 
 Robolectric gotcha: a Robolectric test must be annotated
 `@Config(sdk = 34, application = android.app.Application.class)` (see
