@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.preference.PreferenceDataStore;
 import com.tencent.mmkv.MMKV;
+import java.util.HashMap;
+import java.util.Map;
 
 // Process-safe key-value storage for state shared between the main UI process
 // and the :tunnel process. Plain SharedPreferences opened with the deprecated
@@ -20,7 +22,7 @@ public final class MmkvPrefs {
     private static final String MAIN_PREFS_ID = "wingsv_main_prefs";
 
     private static volatile boolean initialized;
-    private static volatile MmkvSharedPreferences mainPrefs;
+    private static volatile MmkvRoutedPreferences mainPrefs;
     private static volatile MmkvPreferenceDataStore mainDataStore;
 
     private MmkvPrefs() {}
@@ -52,28 +54,36 @@ public final class MmkvPrefs {
         return kv;
     }
 
-    // The main settings store: a listenable SharedPreferences over MMKV,
-    // replacing the default <pkg>_preferences XML file. A single instance per
-    // process keeps OnSharedPreferenceChangeListener registrations consistent.
+    // The main settings store: a listenable SharedPreferences spread over one MMKV
+    // file per subsystem, replacing the default <pkg>_preferences XML file and the
+    // single file that first replaced it. A single instance per process keeps
+    // OnSharedPreferenceChangeListener registrations consistent.
     public static SharedPreferences mainPrefs(Context context) {
-        MmkvSharedPreferences cached = mainPrefs;
+        MmkvRoutedPreferences cached = mainPrefs;
         if (cached != null) {
             return cached;
         }
         synchronized (MmkvPrefs.class) {
             if (mainPrefs == null) {
                 ensureInitialized(context);
-                MMKV kv = MMKV.mmkvWithID(MAIN_PREFS_ID, MMKV.MULTI_PROCESS_MODE);
-                if (!kv.getBoolean(MIGRATED_FLAG_KEY, false)) {
-                    SharedPreferences legacy = context
+                // The pre-split file is still opened: it holds every key written
+                // before the split and the routed store reads through to it until
+                // each key has been touched once. A fresh install finds it empty.
+                MMKV legacy = MMKV.mmkvWithID(MAIN_PREFS_ID, MMKV.MULTI_PROCESS_MODE);
+                if (!legacy.getBoolean(MIGRATED_FLAG_KEY, false)) {
+                    SharedPreferences xml = context
                         .getApplicationContext()
                         .getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE);
-                    if (!legacy.getAll().isEmpty()) {
-                        kv.importFromSharedPreferences(legacy);
+                    if (!xml.getAll().isEmpty()) {
+                        legacy.importFromSharedPreferences(xml);
                     }
-                    kv.putBoolean(MIGRATED_FLAG_KEY, true);
+                    legacy.putBoolean(MIGRATED_FLAG_KEY, true);
                 }
-                mainPrefs = new MmkvSharedPreferences(kv);
+                Map<String, MMKV> areas = new HashMap<>();
+                for (String area : MmkvPrefsAreas.allAreas()) {
+                    areas.put(area, MMKV.mmkvWithID(area, MMKV.MULTI_PROCESS_MODE));
+                }
+                mainPrefs = new MmkvRoutedPreferences(areas, legacy);
             }
             return mainPrefs;
         }
