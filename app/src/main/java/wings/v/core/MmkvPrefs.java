@@ -33,7 +33,7 @@ public final class MmkvPrefs {
         }
         synchronized (MmkvPrefs.class) {
             if (!initialized) {
-                MMKV.initialize(context.getApplicationContext());
+                MmkvCompat.initialize(context);
                 initialized = true;
             }
         }
@@ -41,7 +41,7 @@ public final class MmkvPrefs {
 
     public static SharedPreferences multiProcess(Context context, String id, String legacyXmlName) {
         ensureInitialized(context);
-        MMKV kv = MMKV.mmkvWithID(id, MMKV.MULTI_PROCESS_MODE);
+        MMKV kv = MmkvCompat.open(id);
         if (!kv.getBoolean(MIGRATED_FLAG_KEY, false)) {
             SharedPreferences legacy = context
                 .getApplicationContext()
@@ -69,7 +69,7 @@ public final class MmkvPrefs {
                 // The pre-split file is still opened: it holds every key written
                 // before the split and the routed store reads through to it until
                 // each key has been touched once. A fresh install finds it empty.
-                MMKV legacy = MMKV.mmkvWithID(MAIN_PREFS_ID, MMKV.MULTI_PROCESS_MODE);
+                MMKV legacy = MmkvCompat.open(MAIN_PREFS_ID);
                 if (!legacy.getBoolean(MIGRATED_FLAG_KEY, false)) {
                     SharedPreferences xml = context
                         .getApplicationContext()
@@ -81,7 +81,7 @@ public final class MmkvPrefs {
                 }
                 Map<String, MMKV> areas = new HashMap<>();
                 for (String area : MmkvPrefsAreas.allAreas()) {
-                    areas.put(area, MMKV.mmkvWithID(area, MMKV.MULTI_PROCESS_MODE));
+                    areas.put(area, MmkvCompat.open(area));
                 }
                 mainPrefs = new MmkvRoutedPreferences(areas, legacy);
             }
