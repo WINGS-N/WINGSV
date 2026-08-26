@@ -557,6 +557,7 @@ public final class AppUpdateManager {
         String patchSha256Url = "";
         String patchSha512Url = "";
         String expectedPatchName = buildPatchAssetName(versionName);
+        String legacyPatchName = buildLegacyPatchAssetName(versionName);
         if (assets != null) {
             for (int index = 0; index < assets.length(); index++) {
                 JSONObject asset = assets.optJSONObject(index);
@@ -581,7 +582,10 @@ public final class AppUpdateManager {
                     }
                     continue;
                 }
-                if (TextUtils.equals(assetName, expectedPatchName)) {
+                boolean exactPatch = TextUtils.equals(assetName, expectedPatchName);
+                if (
+                    exactPatch || (TextUtils.isEmpty(selectedPatchName) && TextUtils.equals(assetName, legacyPatchName))
+                ) {
                     selectedPatchName = assetName;
                     selectedPatchUrl = assetUrl;
                     selectedPatchSize = asset.optLong("size", 0L);
@@ -1140,7 +1144,16 @@ public final class AppUpdateManager {
     }
 
     @NonNull
+    /**
+     * Patch asset for this device. Releases carry one delta per ABI, so the name is
+     * suffixed with the ABI; the unsuffixed name is what single-APK releases used
+     * and stays as the fallback so an update from one of those still patches.
+     */
     private static String buildPatchAssetName(@NonNull String versionName) {
+        return PATCH_ASSET_PREFIX + versionName + "-" + (isArm64Device() ? "arm64" : "arm32") + PATCH_ASSET_SUFFIX;
+    }
+
+    private static String buildLegacyPatchAssetName(@NonNull String versionName) {
         return PATCH_ASSET_PREFIX + versionName + PATCH_ASSET_SUFFIX;
     }
 

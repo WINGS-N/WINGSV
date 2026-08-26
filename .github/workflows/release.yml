@@ -174,24 +174,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Only arm64 gets a delta patch: it is the overwhelming majority of
-          # devices, and a second patch would double the release time for the
-          # shrinking 32-bit tail, which can take the full APK.
-          previous_apk_url="$(python .github/scripts/find_previous_release_apk.py app-arm64-release.apk)"
-          if [[ -z "${previous_apk_url}" ]]; then
+          # Each ABI patches against its own predecessor; a delta between two
+          # different ABIs would be garbage. A missing predecessor for one ABI only
+          # skips that patch, the other still ships.
+          generated=""
+          for abi in arm64 arm32; do
+            apk="app/build/outputs/apk/${abi}/release/app-${abi}-release.apk"
+            previous_apk_url="$(python .github/scripts/find_previous_release_apk.py "app-${abi}-release.apk")"
+            if [[ -z "${previous_apk_url}" ]]; then
+              echo "no previous ${abi} apk, skipping its patch"
+              continue
+            fi
+            patch_file="app/build/outputs/apk/${abi}/release/wings-v_v${VERSION}-${abi}.patch"
+            curl --fail --location \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/octet-stream" \
+              "${previous_apk_url}" \
+              -o "previous-${abi}.apk"
+            zstd -q -19 --patch-from "previous-${abi}.apk" "${apk}" -o "${patch_file}"
+            echo "${abi}_patch_file=${patch_file}" >> "${GITHUB_OUTPUT}"
+            generated="${generated}${abi} "
+          done
+          if [[ -z "${generated}" ]]; then
             echo "patch_generated=false" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
-          patch_file="app/build/outputs/apk/arm64/release/wings-v_v${VERSION}.patch"
-          curl --fail --location \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/octet-stream" \
-            "${previous_apk_url}" \
-            -o previous-release.apk
-          zstd -q -19 --patch-from previous-release.apk \
-            app/build/outputs/apk/arm64/release/app-arm64-release.apk -o "${patch_file}"
           echo "patch_generated=true" >> "${GITHUB_OUTPUT}"
-          echo "patch_file=${patch_file}" >> "${GITHUB_OUTPUT}"
+          echo "patched_abis=${generated% }" >> "${GITHUB_OUTPUT}"
 
       - name: Build release checksums
         id: build-checksums
@@ -204,11 +213,13 @@ jobs:
             sha512sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha512"
             sha256sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha256"
           done
-          if [[ "${{ steps.build-patch.outputs.patch_generated }}" == "true" ]]; then
-            patch_file="${{ steps.build-patch.outputs.patch_file }}"
+          for patch_file in \
+            "${{ steps.build-patch.outputs.arm64_patch_file }}" \
+            "${{ steps.build-patch.outputs.arm32_patch_file }}"; do
+            [[ -n "${patch_file}" ]] || continue
             sha512sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha512"
             sha256sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha256"
-          fi
+          done
 
       - name: Compute commit log since previous tag
         id: commit-log
@@ -284,9 +295,12 @@ jobs:
         with:
           draft: true
           files: |
-            ${{ steps.build-patch.outputs.patch_file }}
-            ${{ steps.build-patch.outputs.patch_file }}.sha512
-            ${{ steps.build-patch.outputs.patch_file }}.sha256
+            ${{ steps.build-patch.outputs.arm64_patch_file }}
+            ${{ steps.build-patch.outputs.arm64_patch_file }}.sha512
+            ${{ steps.build-patch.outputs.arm64_patch_file }}.sha256
+            ${{ steps.build-patch.outputs.arm32_patch_file }}
+            ${{ steps.build-patch.outputs.arm32_patch_file }}.sha512
+            ${{ steps.build-patch.outputs.arm32_patch_file }}.sha256
 
       - name: Cleanup old patch assets
         env:
