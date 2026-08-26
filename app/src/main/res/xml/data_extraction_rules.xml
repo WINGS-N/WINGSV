@@ -1,19 +1,26 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   API 31+ backup. Cloud backup and device transfer carry the same set: settings
+   and VPN profiles are the point of having a backup at all. See backup_rules.xml
+   for why the Guardian credential is safe to carry.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="file" path="mmkv/" />
+        <include domain="file" path="byedpi_domain_lists.json" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="file" path="mmkv/wingsv_runtime_state" />
+        <exclude domain="file" path="mmkv/wingsv_xray_runtime" />
+        <exclude domain="database" path="." />
+        <exclude domain="external" path="." />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="file" path="mmkv/" />
+        <include domain="file" path="byedpi_domain_lists.json" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="file" path="mmkv/wingsv_runtime_state" />
+        <exclude domain="file" path="mmkv/wingsv_xray_runtime" />
+        <exclude domain="database" path="." />
+        <exclude domain="external" path="." />
     </device-transfer>
-    -->
 </data-extraction-rules>
