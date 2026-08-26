@@ -142,6 +142,7 @@ jobs:
       - name: Build root helper module
         run: |
           ./gradlew buildRootModule
+          sha512sum dist/wingsv-root-module.zip | cut -d' ' -f1 > dist/wingsv-root-module.zip.sha512
           sha256sum dist/wingsv-root-module.zip | cut -d' ' -f1 > dist/wingsv-root-module.zip.sha256
 
       - name: Save vk-turn-proxy Go build state
@@ -194,12 +195,12 @@ jobs:
         run: |
           set -euo pipefail
           apk_file="app/build/outputs/apk/release/app-release.apk"
-          sha256sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha256"
           sha512sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha512"
+          sha256sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha256"
           if [[ "${{ steps.build-patch.outputs.patch_generated }}" == "true" ]]; then
             patch_file="${{ steps.build-patch.outputs.patch_file }}"
-            sha256sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha256"
             sha512sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha512"
+            sha256sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha256"
           fi
 
       - name: Compute commit log since previous tag
@@ -261,9 +262,10 @@ jobs:
           body_path: release-notes.md
           files: |
             app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release.apk.sha256
             app/build/outputs/apk/release/app-release.apk.sha512
+            app/build/outputs/apk/release/app-release.apk.sha256
             dist/wingsv-root-module.zip
+            dist/wingsv-root-module.zip.sha512
             dist/wingsv-root-module.zip.sha256
 
       - name: Publish GitHub release patch
@@ -273,8 +275,8 @@ jobs:
           draft: true
           files: |
             ${{ steps.build-patch.outputs.patch_file }}
-            ${{ steps.build-patch.outputs.patch_file }}.sha256
             ${{ steps.build-patch.outputs.patch_file }}.sha512
+            ${{ steps.build-patch.outputs.patch_file }}.sha256
 
       - name: Cleanup old patch assets
         env:
