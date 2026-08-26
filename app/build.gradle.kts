@@ -482,6 +482,22 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
     }
 }
 
+// MMKV 2.x publishes a prefab module whose shared library is linked against a
+// static STL. AGP rejects such a module for any consumer that uses the STL at all,
+// and this project turns prefab on for xhook, so the mere presence of the module
+// fails the native configure step. MMKV is only ever used from Java here, so the
+// prefab directory is dropped from the artifact and the Java classes plus jniLibs
+// are consumed as-is.
+val mmkvArm64Aar: Configuration by configurations.creating
+
+val stripMmkvPrefab by tasks.registering(Zip::class) {
+    group = "build"
+    description = "Repackages the MMKV AAR without its prefab module."
+    from(mmkvArm64Aar.elements.map { files -> files.map { zipTree(it) } }) { exclude("prefab/**") }
+    archiveFileName.set("mmkv-noprefab.aar")
+    destinationDirectory.set(layout.buildDirectory.dir("repackagedAars"))
+}
+
 val grpcJavaPlugin: Configuration by configurations.creating
 
 val grpcOsClassifier: String = run {
@@ -499,6 +515,7 @@ val grpcOsClassifier: String = run {
 
 dependencies {
     grpcJavaPlugin("io.grpc:protoc-gen-grpc-java:${libs.versions.grpc.get()}:$grpcOsClassifier@exe")
+    mmkvArm64Aar("com.tencent:mmkv:2.4.2@aar")
 }
 
 val generateWingsProtoJava: TaskProvider<Exec> by tasks.registering(Exec::class) {
@@ -673,6 +690,25 @@ android {
         installOptions += listOf("--user", "0")
     }
 
+    // MMKV 2.x dropped the 32-bit ABI, and its native contract is tied to the Java
+    // classes of the same release, so a single artifact cannot serve both. Each ABI
+    // therefore builds against the newest MMKV that supports it: arm64 gets the
+    // current 2.x line, armeabi-v7a stays on the 1.3.x LTS that still ships a
+    // 32-bit libmmkv.so. Everything else about the two variants is identical.
+    flavorDimensions += "abi"
+    productFlavors {
+        create("arm64") {
+            dimension = "abi"
+            ndk.abiFilters.clear()
+            ndk.abiFilters += "arm64-v8a"
+        }
+        create("arm32") {
+            dimension = "abi"
+            ndk.abiFilters.clear()
+            ndk.abiFilters += "armeabi-v7a"
+        }
+    }
+
     defaultConfig {
         applicationId = "wings.v"
         minSdk = 26
@@ -683,7 +719,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk.abiFilters += listOf("arm64-v8a", "armeabi-v7a")
 
         val telegramUrl = (project.findProperty("wingsv.telegramUrl") as String?)?.trim().orEmpty()
         buildConfigField("String", "TELEGRAM_URL", "\"${telegramUrl}\"")
@@ -821,7 +856,8 @@ dependencies {
     implementation(libs.grpc.okhttp)
     compileOnly(libs.javax.annotation.api)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.tencent:mmkv:1.3.9")
+    "arm64Implementation"(files(stripMmkvPrefab))
+    "arm32Implementation"("com.tencent:mmkv:1.3.17")
     implementation(libs.wireguard.tunnel)
     implementation(libs.xhook)
     implementation(libs.mpandroidchart)
