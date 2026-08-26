@@ -64,6 +64,10 @@ message Guardian {
   string admin_username = 7;
   int64 admin_id = 8;
   int64 admin_avatar_version = 9;
+  // 10 was server_ca_pins: the panel filled it for self-signed deployments but no
+  // app build ever read it, so a self-signed panel could not serve devices either
+  // way. Kept reserved in case device-side pinning is actually implemented.
+  reserved 10;
 }
 
 enum GuardianSyncMode {

@@ -26,22 +26,45 @@ public final class GuardianEndpoint {
 
     public static final int PROTOCOL_VERSION = 1;
 
-    private static final int GRPC_PORT = 443;
+    private static final int DEFAULT_GRPC_PORT = 443;
 
     private GuardianEndpoint() {}
 
     /** Panel host taken from the configured Guardian URL, empty when unset. */
     @NonNull
     public static String host(@NonNull Context context) {
-        String url = AppPrefs.getGuardianWsUrl(context.getApplicationContext());
-        if (url.isEmpty()) {
+        URI url = panelUri(context);
+        if (url == null) {
             return "";
         }
+        String parsed = url.getHost();
+        return parsed == null ? "" : parsed;
+    }
+
+    /**
+     * Panel gRPC port. The panel serves the Guardian service on the same address
+     * as its web UI, so a deployment on a non-standard port (which the standalone
+     * installer offers) needs no separate setting - the enrollment URL already
+     * carries it.
+     */
+    public static int port(@NonNull Context context) {
+        URI url = panelUri(context);
+        if (url == null || url.getPort() <= 0) {
+            return DEFAULT_GRPC_PORT;
+        }
+        return url.getPort();
+    }
+
+    @Nullable
+    private static URI panelUri(@NonNull Context context) {
+        String url = AppPrefs.getGuardianWsUrl(context.getApplicationContext());
+        if (url.isEmpty()) {
+            return null;
+        }
         try {
-            String parsed = URI.create(url).getHost();
-            return parsed == null ? "" : parsed;
+            return URI.create(url);
         } catch (IllegalArgumentException ignored) {
-            return "";
+            return null;
         }
     }
 
@@ -55,7 +78,7 @@ public final class GuardianEndpoint {
     @NonNull
     public static ManagedChannel openChannel(@NonNull Context context, boolean preferPhysical) {
         Context app = context.getApplicationContext();
-        OkHttpChannelBuilder builder = OkHttpChannelBuilder.forAddress(host(app), GRPC_PORT)
+        OkHttpChannelBuilder builder = OkHttpChannelBuilder.forAddress(host(app), port(app))
             .useTransportSecurity()
             .keepAliveTime(60L, TimeUnit.SECONDS)
             .keepAliveTimeout(20L, TimeUnit.SECONDS);
