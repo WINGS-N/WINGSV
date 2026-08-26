@@ -63,7 +63,13 @@ public final class AppUpdateManager {
     private static final String RELEASES_URL = "https://api.github.com/repos/WINGS-N/WINGSV/releases?per_page=4";
     private static final String RELEASES_URL_OVERRIDE_PROP = "debug.wingsv.releases_url";
     private static final String APK_MIME_TYPE = "application/vnd.android.package-archive";
+    // Releases carry one APK per ABI because the two build against different MMKV
+    // majors. Picking the wrong one installs a package whose native libraries the
+    // device cannot load, so the asset is chosen by the device's own ABI and the
+    // legacy single-APK name stays as the fallback for older releases.
     private static final String PREFERRED_APK_ASSET_NAME = "app-release.apk";
+    private static final String APK_ASSET_NAME_ARM64 = "app-arm64-release.apk";
+    private static final String APK_ASSET_NAME_ARM32 = "app-arm32-release.apk";
     private static final String PATCH_ASSET_PREFIX = "wings-v_v";
     private static final String PATCH_ASSET_SUFFIX = ".patch";
     private static final String KEY_LAST_CHECK_AT = "last_check_at";
@@ -540,6 +546,7 @@ public final class AppUpdateManager {
         String versionName = ReleaseInfo.normalizeVersionName(tagName);
         JSONArray assets = root.optJSONArray("assets");
         String selectedAssetName = "";
+        int selectedAssetRank = Integer.MAX_VALUE;
         String selectedAssetUrl = "";
         long selectedAssetSize = 0L;
         String selectedPatchName = "";
@@ -562,14 +569,17 @@ public final class AppUpdateManager {
                     continue;
                 }
                 if (assetName.toLowerCase(Locale.US).endsWith(".apk")) {
-                    if (TextUtils.isEmpty(selectedAssetName) || PREFERRED_APK_ASSET_NAME.equals(assetName)) {
+                    int rank = apkAssetRank(assetName);
+                    if (rank < 0) {
+                        continue;
+                    }
+                    if (TextUtils.isEmpty(selectedAssetName) || rank < selectedAssetRank) {
                         selectedAssetName = assetName;
                         selectedAssetUrl = assetUrl;
                         selectedAssetSize = asset.optLong("size", 0L);
+                        selectedAssetRank = rank;
                     }
-                    if (PREFERRED_APK_ASSET_NAME.equals(assetName)) {
-                        continue;
-                    }
+                    continue;
                 }
                 if (TextUtils.equals(assetName, expectedPatchName)) {
                     selectedPatchName = assetName;
@@ -685,6 +695,40 @@ public final class AppUpdateManager {
         } catch (org.json.JSONException ignored) {
             return "";
         }
+    }
+
+    /** Release asset this device should install. */
+    private static String preferredApkAssetName() {
+        return isArm64Device() ? APK_ASSET_NAME_ARM64 : APK_ASSET_NAME_ARM32;
+    }
+
+    /**
+     * Orders APK assets by how well they fit this device: the ABI-specific build
+     * first, then the single-APK name older releases used, then anything else
+     * ending in .apk. A build for the other ABI scores -1 and is skipped outright,
+     * since its native libraries would not load here.
+     */
+    private static int apkAssetRank(String assetName) {
+        if (preferredApkAssetName().equals(assetName)) {
+            return 0;
+        }
+        if (APK_ASSET_NAME_ARM64.equals(assetName) || APK_ASSET_NAME_ARM32.equals(assetName)) {
+            return -1;
+        }
+        return PREFERRED_APK_ASSET_NAME.equals(assetName) ? 1 : 2;
+    }
+
+    private static boolean isArm64Device() {
+        String[] abis = android.os.Build.SUPPORTED_ABIS;
+        if (abis == null) {
+            return false;
+        }
+        for (String abi : abis) {
+            if ("arm64-v8a".equals(abi)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @NonNull
