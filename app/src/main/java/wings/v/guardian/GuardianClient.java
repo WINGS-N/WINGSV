@@ -3,84 +3,72 @@ package wings.v.guardian;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
-import android.os.Build;
+import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Base64;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import com.google.protobuf.InvalidProtocolBufferException;
-import java.net.URI;
-import java.security.SecureRandom;
+import io.grpc.ManagedChannel;
+import io.grpc.stub.StreamObserver;
 import java.util.concurrent.TimeUnit;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.WebSocket;
-import okhttp3.WebSocketListener;
-import okio.ByteString;
-import wings.v.BuildConfig;
 import wings.v.core.AppPrefs;
 import wings.v.core.DirectNetworkConnection;
-import wings.v.core.SubscriptionHwidStore;
+import wings.v.proto.GuardianGrpc;
 import wings.v.proto.GuardianProto;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Maintains a single WSS connection to the Guardian panel. Reconnects with
- * exponential backoff; prefers binding to the physical network so traffic
- * bypasses VPN whitelists, falling back to the default route when phy bind
- * fails (which lets the connection ride through the active tunnel).
+ * Live Guardian channel: a bidirectional gRPC stream to the panel carrying the
+ * same Frame envelope in both directions.
+ *
+ * <p>Reconnects with exponential backoff and prefers a socket bound to the
+ * physical network, so the channel that manages the tunnel does not depend on the
+ * tunnel being healthy; when phy bind keeps failing it falls back to the default
+ * route for a while, which lets the connection ride through the tunnel instead.
+ *
+ * <p>There is no application-level heartbeat or watchdog here. HTTP/2 keepalive
+ * proves the channel and a dead stream surfaces as onError, so the frame-silence
+ * timer the WebSocket transport needed is gone.
  */
 public final class GuardianClient {
 
     private static final String TAG = "GuardianClient";
-    private static final int PROTOCOL_VERSION = 1;
     private static final long INITIAL_BACKOFF_MS = 3_000L;
     private static final long MAX_BACKOFF_MS = 60_000L;
-    private static final long HEARTBEAT_INTERVAL_MS = 25_000L;
-    private static final long WATCHDOG_INTERVAL_MS = 5_000L;
-    private static final long WATCHDOG_SILENCE_LIMIT_MS = 75_000L;
-    // Backoff резетим только после того как WS прожил подольше, чем стартовый
-    // backoff. Иначе сценарий "успешный ServerHello -> мгновенный close" гасит
-    // backoff в 3с и крутит цикл reconnect каждые 3-3 секунды.
+    // Backoff only resets once a stream has lived longer than the starting
+    // backoff; otherwise a "ServerHello then immediate close" loop keeps
+    // collapsing the delay back to 3s and reconnects every few seconds.
     private static final long BACKOFF_RESET_STABLE_MS = 30_000L;
-    // Сколько подряд phy-привязанных попыток должны не достичь onOpen, прежде
-    // чем перейти на default (туннельный) клиент. С VK TURN + WireGuard phy
-    // bind иногда вешает соединение в кор-фильтр оператора, и единственная
-    // рабочая сеть остаётся через сам туннель. Перепробуем phy на следующем
-    // network-event либо после окончания tunnel-fallback TTL.
+    // How many consecutive phy-bound attempts must fail before we start going out
+    // over the default route. With VK TURN + WireGuard a phy-bound socket
+    // sometimes hangs in the operator's core filter and the only working path is
+    // the tunnel itself.
     private static final int PHY_FAILURES_BEFORE_TUNNEL_FALLBACK = 2;
-    // Как долго после "phy не работает" мы стартуем все будущие попытки сразу
-    // через туннель, не тратя бюджет на новые phy-таймауты. 6 часов покрывает
-    // обычный VK TURN сеанс и не залипает на сутки, если оператор уже
-    // отпустил блок. Пересматривается на каждом network-change и при первом
-    // же успешном sub-30-секундном WS на phy.
+    // How long after "phy does not work" every attempt starts on the default
+    // route without spending more time on phy timeouts. Re-evaluated on each
+    // network change and on the first stable stream.
     private static final long TUNNEL_FALLBACK_TTL_MS = 6L * 60L * 60L * 1000L;
+    private static final long SHUTDOWN_WAIT_SECONDS = 2L;
 
     private final Context appContext;
     private final Handler mainHandler;
-    private final OkHttpClient defaultClient;
-    private final SecureRandom random = new SecureRandom();
     private final Listener listener;
 
-    private WebSocket socket;
-    // The socket whose ClientHello has already been enqueued. sendFrame() only
-    // writes once socket == readySocket, so no frame can slip ahead of the
-    // hello while OkHttp is still buffering pre-handshake sends.
-    private volatile WebSocket readySocket;
+    private ManagedChannel channel;
+    private StreamObserver<GuardianProto.Frame> outbound;
+    // Frames are dropped until the panel has accepted the hello: the stream is
+    // ordered, so anything sent earlier would reach the server ahead of its
+    // ServerHello and be rejected as an unexpected frame.
+    private volatile boolean accepted;
     private boolean phyBindActive;
     private int phyFailureStreak;
     private boolean tunnelFallbackActive;
     private long backoffMs = INITIAL_BACKOFF_MS;
     private boolean stopped;
     private Runnable scheduledConnect;
-    private Runnable heartbeat;
-    private Runnable watchdog;
     private ConnectivityManager.NetworkCallback networkCallback;
     private long connectedAtMs;
-    private long lastFrameAtMs;
 
     public interface Listener {
         void onConnected(String host);
@@ -100,25 +88,15 @@ public final class GuardianClient {
         this.appContext = context.getApplicationContext();
         this.listener = listener;
         this.mainHandler = new Handler(Looper.getMainLooper());
-        this.defaultClient = new OkHttpClient.Builder()
-            // Disable OkHttp's ping/pong watchdog: WS control frames sometimes
-            // get mangled by HTTP/2 ingresses. We rely on the application-level
-            // Heartbeat that the server bounces back, watched by watchdog().
-            .pingInterval(0, TimeUnit.MILLISECONDS)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(0, TimeUnit.SECONDS)
-            .build();
     }
 
     public void start() {
         mainHandler.post(() -> {
             stopped = false;
-            // Persisted tunnel-fallback hint survives process death / WorkManager
-            // re-spawn so the periodic 30s sync does not burn its whole budget
-            // on phy timeouts when we already know phy bind is broken. The
-            // hint is only meaningful while a VPN is actually active: with no
-            // VPN the default route is phy itself, so explicit phy bind is
-            // fine to try and skipping it would be a pointless regression.
+            // The persisted hint survives process death so a freshly spawned
+            // client does not re-learn that phy bind is broken. It only means
+            // anything while a VPN is actually up: with no VPN the default route
+            // is phy itself, so trying phy bind costs nothing.
             long until = AppPrefs.getGuardianTunnelFallbackUntilMs(appContext);
             boolean hintFresh = until > 0L && System.currentTimeMillis() < until;
             if (hintFresh && isDefaultRouteVpn()) {
@@ -131,60 +109,146 @@ public final class GuardianClient {
         });
     }
 
-    private boolean isDefaultRouteVpn() {
-        ConnectivityManager cm = appContext.getSystemService(ConnectivityManager.class);
-        if (cm == null) {
-            return false;
-        }
-        try {
-            Network active = cm.getActiveNetwork();
-            if (active == null) {
-                return false;
-            }
-            android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(active);
-            return caps != null && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN);
-        } catch (RuntimeException ignored) {
-            return false;
-        }
-    }
-
     public void stop() {
         mainHandler.post(() -> {
             stopped = true;
             cancelScheduledConnect();
-            cancelHeartbeat();
-            cancelWatchdog();
-            if (socket != null) {
-                socket.cancel();
-                socket = null;
-            }
-            readySocket = null;
+            closeStream();
             unregisterNetworkCallback();
             listener.onDisconnected();
         });
     }
 
     public void sendFrame(@NonNull GuardianProto.Frame frame) {
-        WebSocket ws = socket;
-        // Drop the frame until this socket's ClientHello has gone out first.
-        // OkHttp buffers send() calls made before the WS handshake completes
-        // and flushes them in order, so a state report / log chunk enqueued in
-        // the gap between newWebSocket() and onOpen() would land ahead of the
-        // hello and the panel would reject the connection with expected_hello.
-        if (ws == null || ws != readySocket) {
+        StreamObserver<GuardianProto.Frame> stream = outbound;
+        if (stream == null || !accepted) {
             return;
         }
-        ws.send(ByteString.of(frame.toByteArray()));
+        try {
+            synchronized (this) {
+                stream.onNext(frame);
+            }
+        } catch (RuntimeException error) {
+            Log.w(TAG, "send failed: " + error.getMessage());
+        }
+    }
+
+    private void connectNow() {
+        String host = GuardianEndpoint.host(appContext);
+        if (host.isEmpty()) {
+            return;
+        }
+        closeStream();
+        connectedAtMs = 0L;
+        accepted = false;
+        phyBindActive = !tunnelFallbackActive && DirectNetworkConnection.findUsablePhysicalNetwork(appContext) != null;
+        Log.i(TAG, "connecting to " + host + " (phy=" + phyBindActive + ")");
+        ProxyTunnelService.writeRuntimeLogLine("[guardian] connecting to " + host + " (phy=" + phyBindActive + ")");
+
+        ManagedChannel open = GuardianEndpoint.openChannel(appContext, !tunnelFallbackActive);
+        channel = open;
+        StreamObserver<GuardianProto.Frame> stream = GuardianGrpc.newStub(open).session(new SessionObserver(host));
+        outbound = stream;
+        try {
+            synchronized (this) {
+                stream.onNext(
+                    GuardianProto.Frame.newBuilder().setClientHello(GuardianEndpoint.buildHello(appContext)).build()
+                );
+            }
+        } catch (RuntimeException error) {
+            Log.w(TAG, "hello failed: " + error.getMessage());
+            onStreamClosed("hello failed: " + error.getMessage());
+        }
+    }
+
+    private void closeStream() {
+        StreamObserver<GuardianProto.Frame> stream = outbound;
+        outbound = null;
+        accepted = false;
+        if (stream != null) {
+            try {
+                synchronized (this) {
+                    stream.onCompleted();
+                }
+            } catch (RuntimeException ignored) {
+                // Already torn down by the transport.
+            }
+        }
+        ManagedChannel open = channel;
+        channel = null;
+        if (open != null) {
+            open.shutdownNow();
+            try {
+                open.awaitTermination(SHUTDOWN_WAIT_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /** Called on any stream end; schedules the next attempt unless we are stopping. */
+    private void onStreamClosed(@Nullable String reason) {
+        mainHandler.post(() -> {
+            boolean wasAccepted = accepted;
+            closeStream();
+            if (stopped) {
+                return;
+            }
+            if (wasAccepted) {
+                listener.onDisconnected();
+            }
+            noteAttemptOutcome(wasAccepted);
+            maybeResetBackoffOnStable();
+            scheduleReconnect(reason);
+        });
+    }
+
+    /**
+     * A phy-bound attempt that never got accepted counts against phy. Enough of
+     * those in a row and the next attempts go out over the default route.
+     */
+    private void noteAttemptOutcome(boolean wasAccepted) {
+        if (wasAccepted || !phyBindActive) {
+            return;
+        }
+        phyFailureStreak++;
+        if (phyFailureStreak < PHY_FAILURES_BEFORE_TUNNEL_FALLBACK || tunnelFallbackActive) {
+            return;
+        }
+        tunnelFallbackActive = true;
+        AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, System.currentTimeMillis() + TUNNEL_FALLBACK_TTL_MS);
+        Log.i(TAG, "phy bind failed " + phyFailureStreak + " times, falling back to the default route");
+        ProxyTunnelService.writeRuntimeLogLine("[guardian] phy bind failing, falling back to the default route");
+    }
+
+    private void maybeResetBackoffOnStable() {
+        if (connectedAtMs <= 0L || System.currentTimeMillis() - connectedAtMs < BACKOFF_RESET_STABLE_MS) {
+            return;
+        }
+        backoffMs = INITIAL_BACKOFF_MS;
+        phyFailureStreak = 0;
+        // A stream that lasted on phy means phy bind works again, so clear the
+        // persisted hint too.
+        if (!tunnelFallbackActive && AppPrefs.getGuardianTunnelFallbackUntilMs(appContext) > 0L) {
+            AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
+        }
+    }
+
+    private void scheduleReconnect(@Nullable String reason) {
+        long jitter = (long) (Math.random() * 1_000L);
+        long delay = Math.max(1_000L, backoffMs + jitter);
+        Log.i(TAG, "reconnect in " + delay + "ms (" + reason + ")");
+        attemptConnect(delay);
+        backoffMs = Math.min(MAX_BACKOFF_MS, backoffMs * 2);
     }
 
     private void attemptConnect(long delayMs) {
         cancelScheduledConnect();
         scheduledConnect = () -> {
             scheduledConnect = null;
-            if (stopped) {
-                return;
+            if (!stopped) {
+                connectNow();
             }
-            connectNow();
         };
         if (delayMs <= 0L) {
             mainHandler.post(scheduledConnect);
@@ -200,94 +264,69 @@ public final class GuardianClient {
         }
     }
 
-    private void connectNow() {
-        String wsUrl = AppPrefs.getGuardianWsUrl(appContext);
-        if (wsUrl.isEmpty()) {
-            return;
+    private boolean isDefaultRouteVpn() {
+        ConnectivityManager manager = appContext.getSystemService(ConnectivityManager.class);
+        if (manager == null) {
+            return false;
         }
-        // Cancel any leftover heartbeat/watchdog from the prior socket
-        // synchronously, so they don't fire on the brand-new socket before
-        // its onOpen has had a chance to send ClientHello.
-        cancelHeartbeat();
-        cancelWatchdog();
-        if (socket != null) {
-            socket.cancel();
-            socket = null;
-        }
-        readySocket = null;
-        connectedAtMs = 0L;
-        lastFrameAtMs = 0L;
-        OkHttpClient client = buildClientForAttempt();
-        Request request = new Request.Builder().url(wsUrl).build();
-        Log.i(TAG, "connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
-        ProxyTunnelService.writeRuntimeLogLine("[guardian] connecting to " + wsUrl + " (phy=" + phyBindActive + ")");
-        socket = client.newWebSocket(request, new GuardianListener(wsUrl));
-    }
-
-    private OkHttpClient buildClientForAttempt() {
-        if (!tunnelFallbackActive) {
-            Network phy = DirectNetworkConnection.findUsablePhysicalNetwork(appContext);
-            if (phy != null) {
-                try {
-                    phyBindActive = true;
-                    return defaultClient.newBuilder().socketFactory(phy.getSocketFactory()).build();
-                } catch (Exception ignored) {
-                    phyBindActive = false;
-                }
+        try {
+            Network active = manager.getActiveNetwork();
+            if (active == null) {
+                return false;
             }
+            NetworkCapabilities caps = manager.getNetworkCapabilities(active);
+            return caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN);
+        } catch (RuntimeException ignored) {
+            return false;
         }
-        phyBindActive = false;
-        return defaultClient;
     }
 
     private void registerNetworkCallback() {
-        ConnectivityManager cm = appContext.getSystemService(ConnectivityManager.class);
-        if (cm == null || networkCallback != null) {
+        ConnectivityManager manager = appContext.getSystemService(ConnectivityManager.class);
+        if (manager == null || networkCallback != null) {
             return;
         }
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(@NonNull Network network) {
-                evaluateNetworkChange("default-available");
+                mainHandler.post(() -> evaluateNetworkChange("available"));
             }
 
             @Override
             public void onLost(@NonNull Network network) {
-                evaluateNetworkChange("default-lost");
-            }
-
-            @Override
-            public void onCapabilitiesChanged(@NonNull Network network, @NonNull android.net.NetworkCapabilities caps) {
-                evaluateNetworkChange("caps-changed");
+                mainHandler.post(() -> evaluateNetworkChange("lost"));
             }
         };
         try {
-            cm.registerDefaultNetworkCallback(networkCallback);
-        } catch (RuntimeException ignored) {}
+            manager.registerDefaultNetworkCallback(networkCallback);
+        } catch (RuntimeException ignored) {
+            networkCallback = null;
+        }
+    }
+
+    private void unregisterNetworkCallback() {
+        ConnectivityManager manager = appContext.getSystemService(ConnectivityManager.class);
+        if (manager == null || networkCallback == null) {
+            return;
+        }
+        try {
+            manager.unregisterNetworkCallback(networkCallback);
+        } catch (RuntimeException ignored) {
+            // Already gone.
+        }
+        networkCallback = null;
     }
 
     /**
-     * Re-evaluates whether to keep the current connection or fall back/up to a
-     * better one. Called from any default-network event:
-     * <ul>
-     *   <li>Tunnel coming up (default may flip to VPN) — if our current bind
-     *       was phy and phy is still reachable, keep going. If we were
-     *       routing through tunnel and now phy is back, reconnect via phy.</li>
-     *   <li>Tunnel going down — if we were routing through tunnel, the
-     *       socket's underlying route just disappeared; force reconnect
-     *       through phy.</li>
-     *   <li>Wi-Fi → mobile handover, etc.</li>
-     * </ul>
+     * A real network change is a fresh chance for phy, so the fallback memory is
+     * wiped and the stream is rebuilt whenever the route we are on no longer
+     * matches the route we would pick now.
      */
     private void evaluateNetworkChange(String reason) {
         if (stopped) {
             return;
         }
-        Network phy = DirectNetworkConnection.findUsablePhysicalNetwork(appContext);
-        boolean phyAvailable = phy != null;
-        // A real network change is a fresh chance for phy: reset the fallback
-        // memory so the next buildClientForAttempt() tries phy bind again.
-        // Persisted hint is also wiped so the next periodic worker tries phy.
+        boolean phyAvailable = DirectNetworkConnection.findUsablePhysicalNetwork(appContext) != null;
         if (tunnelFallbackActive || phyFailureStreak > 0) {
             tunnelFallbackActive = false;
             phyFailureStreak = 0;
@@ -295,341 +334,71 @@ public final class GuardianClient {
                 AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
             }
         }
-        boolean shouldReconnect = false;
-        if (socket == null) {
-            // Not connected; let the regular schedule run.
+        if (outbound == null || phyAvailable == phyBindActive) {
             return;
         }
-        if (phyAvailable && !phyBindActive) {
-            // We were riding through default (probably tunnel); switch to phy.
-            shouldReconnect = true;
-        } else if (!phyAvailable && phyBindActive) {
-            // We were on phy but phy lost. Fall back to default route (which
-            // may still work if tunnel is up).
-            shouldReconnect = true;
-        }
-        if (shouldReconnect) {
-            Log.i(TAG, "network change (" + reason + ") triggers reconnect (phy=" + phyAvailable + ")");
-            ProxyTunnelService.writeRuntimeLogLine(
-                "[guardian] network change (" + reason + "), reconnecting (phy=" + phyAvailable + ")"
-            );
-            forceReconnect();
-        }
-    }
-
-    private void unregisterNetworkCallback() {
-        ConnectivityManager cm = appContext.getSystemService(ConnectivityManager.class);
-        if (cm != null && networkCallback != null) {
-            try {
-                cm.unregisterNetworkCallback(networkCallback);
-            } catch (RuntimeException ignored) {}
-        }
-        networkCallback = null;
-    }
-
-    private void forceReconnect() {
-        if (socket != null) {
-            socket.cancel();
-            socket = null;
-        }
+        Log.i(TAG, "network change (" + reason + ") triggers reconnect (phy=" + phyAvailable + ")");
+        ProxyTunnelService.writeRuntimeLogLine(
+            "[guardian] network change (" + reason + "), reconnecting (phy=" + phyAvailable + ")"
+        );
+        backoffMs = INITIAL_BACKOFF_MS;
+        closeStream();
         attemptConnect(0L);
     }
 
-    private void scheduleReconnect() {
-        long jitter = (long) (backoffMs * 0.2 * (random.nextDouble() - 0.5));
-        long delay = Math.max(1_000L, backoffMs + jitter);
-        attemptConnect(delay);
-        backoffMs = Math.min(MAX_BACKOFF_MS, backoffMs * 2);
-    }
+    private final class SessionObserver implements StreamObserver<GuardianProto.Frame> {
 
-    /**
-     * Гасит backoff только если WS прожил подольше {@link #BACKOFF_RESET_STABLE_MS}.
-     * Так не схлопываемся обратно в 3с интервал при коннект-успех -> быстрый close
-     * -> reconnect-success -> close цикле (например, когда server-side close по
-     * ping-timeout, а после успешного hello клиент думает "всё ок, резет").
-     */
-    private void maybeResetBackoffOnStable() {
-        if (connectedAtMs > 0 && System.currentTimeMillis() - connectedAtMs >= BACKOFF_RESET_STABLE_MS) {
-            backoffMs = INITIAL_BACKOFF_MS;
-            // Connection survived long enough to count as healthy on whatever
-            // route it is using right now; clear the phy-fallback memory so
-            // the next disconnect starts fresh.
-            phyFailureStreak = 0;
-            // A stable connection on phy means phy bind is working again. Wipe
-            // the persisted tunnel-fallback hint so periodic worker spawns
-            // also try phy first.
-            if (!tunnelFallbackActive && AppPrefs.getGuardianTunnelFallbackUntilMs(appContext) > 0L) {
-                AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
-            }
-        }
-    }
+        private final String host;
 
-    private void scheduleHeartbeat() {
-        cancelHeartbeat();
-        heartbeat = new Runnable() {
-            @Override
-            public void run() {
-                heartbeat = null;
-                if (socket == null || stopped) {
-                    return;
-                }
-                sendFrame(
-                    GuardianProto.Frame.newBuilder()
-                        .setHeartbeat(GuardianProto.Heartbeat.newBuilder().setTsMs(System.currentTimeMillis()))
-                        .build()
-                );
-                scheduleHeartbeat();
-            }
-        };
-        mainHandler.postDelayed(heartbeat, HEARTBEAT_INTERVAL_MS);
-    }
-
-    private void cancelHeartbeat() {
-        if (heartbeat != null) {
-            mainHandler.removeCallbacks(heartbeat);
-            heartbeat = null;
-        }
-    }
-
-    private void scheduleWatchdog() {
-        cancelWatchdog();
-        watchdog = new Runnable() {
-            @Override
-            public void run() {
-                watchdog = null;
-                if (socket == null || stopped) {
-                    return;
-                }
-                long silenceMs = lastFrameAtMs > 0 ? System.currentTimeMillis() - lastFrameAtMs : 0L;
-                if (silenceMs > WATCHDOG_SILENCE_LIMIT_MS) {
-                    ProxyTunnelService.writeRuntimeLogLine(
-                        "[guardian] watchdog: " + (silenceMs / 1000L) + "s silence, forcing reconnect"
-                    );
-                    forceReconnect();
-                    return;
-                }
-                scheduleWatchdog();
-            }
-        };
-        mainHandler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
-    }
-
-    private void cancelWatchdog() {
-        if (watchdog != null) {
-            mainHandler.removeCallbacks(watchdog);
-            watchdog = null;
-        }
-    }
-
-    private GuardianProto.ClientHello buildHello() {
-        byte[] tokenBytes;
-        try {
-            tokenBytes = Base64.decode(
-                AppPrefs.getGuardianClientTokenB64(appContext),
-                Base64.NO_WRAP | Base64.URL_SAFE
-            );
-        } catch (IllegalArgumentException ignored) {
-            tokenBytes = new byte[0];
-        }
-        SubscriptionHwidStore.Payload hwidPayload = SubscriptionHwidStore.getAutomaticPayload(appContext);
-        return GuardianProto.ClientHello.newBuilder()
-            .setClientId(AppPrefs.getGuardianClientId(appContext))
-            .setClientToken(com.google.protobuf.ByteString.copyFrom(tokenBytes))
-            .setProtocolVersion(PROTOCOL_VERSION)
-            .setAppVersion(BuildConfig.VERSION_NAME)
-            .setDeviceName(safe(Build.MODEL))
-            .setDeviceModel(safe(hwidPayload != null ? hwidPayload.deviceModel : Build.MODEL))
-            .setOsVersion(safe(hwidPayload != null ? hwidPayload.verOs : Build.VERSION.RELEASE))
-            .setHwid(safe(hwidPayload != null ? hwidPayload.hwid : ""))
-            .setLastAppliedConfigVersion(AppPrefs.getGuardianLastAppliedConfigVersion(appContext))
-            .build();
-    }
-
-    private static String safe(@Nullable String value) {
-        return value == null ? "" : value;
-    }
-
-    private final class GuardianListener extends WebSocketListener {
-
-        private final String wsUrl;
-
-        GuardianListener(String wsUrl) {
-            this.wsUrl = wsUrl;
+        SessionObserver(String host) {
+            this.host = host;
         }
 
         @Override
-        public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
-            connectedAtMs = System.currentTimeMillis();
-            lastFrameAtMs = connectedAtMs;
-            Log.i(TAG, "ws open");
-            ProxyTunnelService.writeRuntimeLogLine("[guardian] ws open, sending hello (phy=" + phyBindActive + ")");
-            // Write the ClientHello straight onto this socket, then open the
-            // gate: only after the hello is enqueued may sendFrame() flush any
-            // other frame, guaranteeing the hello is always the first frame.
-            webSocket.send(
-                ByteString.of(GuardianProto.Frame.newBuilder().setClientHello(buildHello()).build().toByteArray())
-            );
-            readySocket = webSocket;
-            scheduleHeartbeat();
-            scheduleWatchdog();
-            String host = "";
-            try {
-                host = URI.create(wsUrl).getHost();
-            } catch (Exception ignored) {}
-            final String resolvedHost = host == null ? "" : host;
-            mainHandler.post(() -> listener.onConnected(resolvedHost));
+        public void onNext(GuardianProto.Frame frame) {
+            mainHandler.post(() -> dispatch(frame));
         }
 
         @Override
-        public void onMessage(@NonNull WebSocket webSocket, @NonNull ByteString bytes) {
-            lastFrameAtMs = System.currentTimeMillis();
-            maybeResetBackoffOnStable();
-            try {
-                GuardianProto.Frame frame = GuardianProto.Frame.parseFrom(bytes.toByteArray());
-                handleInbound(frame);
-            } catch (InvalidProtocolBufferException error) {
-                Log.w(TAG, "ws bad frame: " + error.getMessage());
-            }
+        public void onError(Throwable error) {
+            onStreamClosed(error.getMessage());
         }
 
         @Override
-        public void onClosed(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
-            if (isStaleSocket(webSocket)) {
-                Log.d(TAG, "ws closed on stale socket, ignoring");
-                return;
-            }
-            Log.i(TAG, "ws closed " + code + " " + reason);
-            ProxyTunnelService.writeRuntimeLogLine(
-                "[guardian] ws closed " + code + " " + reason + " " + lifetimeAndIdleSummary()
-            );
-            handleDisconnected();
+        public void onCompleted() {
+            onStreamClosed("server closed the stream");
         }
 
-        @Override
-        public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, @Nullable Response response) {
-            if (isStaleSocket(webSocket)) {
-                Log.d(TAG, "ws failure on stale socket, ignoring (" + t.getMessage() + ")");
-                return;
-            }
-            String msg = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
-            int code = response == null ? 0 : response.code();
-            Log.w(TAG, "ws failure: " + msg + " (http=" + code + ")");
-            ProxyTunnelService.writeRuntimeLogLine(
-                "[guardian] ws failure: " +
-                    classifyFailure(t) +
-                    " — " +
-                    msg +
-                    " (http=" +
-                    code +
-                    ") " +
-                    lifetimeAndIdleSummary()
-            );
-            handleDisconnected();
-        }
-    }
-
-    /**
-     * onFailure/onClosed может прийти от уже-замещённого WebSocket'а, если мы
-     * успели открыть новый раньше, чем OkHttp дослал callback старого.
-     * Без этой проверки handleDisconnected() стирает ссылку на свежий socket и
-     * порождает повторный reconnect-loop с дубль-сокетами и lifetime ~30-50s.
-     */
-    private boolean isStaleSocket(WebSocket webSocket) {
-        return socket != null && webSocket != socket;
-    }
-
-    private String lifetimeAndIdleSummary() {
-        long now = System.currentTimeMillis();
-        long lifetime = connectedAtMs > 0 ? (now - connectedAtMs) / 1000L : 0L;
-        long idle = lastFrameAtMs > 0 ? (now - lastFrameAtMs) / 1000L : 0L;
-        return "lifetime=" + lifetime + "s idle=" + idle + "s phy=" + phyBindActive;
-    }
-
-    private static String classifyFailure(Throwable t) {
-        if (t == null) return "unknown";
-        String name = t.getClass().getSimpleName();
-        String msg = t.getMessage() == null ? "" : t.getMessage().toLowerCase(java.util.Locale.ROOT);
-        if (t instanceof java.net.SocketTimeoutException || msg.contains("timed out") || msg.contains("timeout")) {
-            return "timeout";
-        }
-        if (msg.contains("ping")) return "ping";
-        if (msg.contains("network is unreachable") || msg.contains("ehostunreach")) return "unreachable";
-        if (msg.contains("software caused connection abort") || msg.contains("connection reset")) return "reset";
-        if (msg.contains("socket closed") || msg.contains("canceled") || msg.contains("cancelled")) return "cancelled";
-        return name;
-    }
-
-    private void handleInbound(GuardianProto.Frame frame) {
-        switch (frame.getPayloadCase()) {
-            case SERVER_HELLO:
-                if (frame.getServerHello().getAccepted()) {
-                    ProxyTunnelService.writeRuntimeLogLine("[guardian] server hello accepted");
-                } else {
-                    String reason = frame.getServerHello().getErrorMessage();
-                    Log.w(TAG, "server hello rejected: " + reason);
-                    ProxyTunnelService.writeRuntimeLogLine("[guardian] server hello rejected: " + reason);
-                    if (socket != null) {
-                        socket.cancel();
+        private void dispatch(GuardianProto.Frame frame) {
+            switch (frame.getPayloadCase()) {
+                case SERVER_HELLO:
+                    if (!frame.getServerHello().getAccepted()) {
+                        Log.w(TAG, "panel rejected hello: " + frame.getServerHello().getErrorMessage());
+                        ProxyTunnelService.writeRuntimeLogLine(
+                            "[guardian] panel rejected hello: " + frame.getServerHello().getErrorMessage()
+                        );
+                        onStreamClosed("rejected");
+                        return;
                     }
-                }
-                break;
-            case HEARTBEAT:
-                // pong handled by server's heartbeat reply; no-op locally.
-                break;
-            case CONFIG_PUSH:
-                mainHandler.post(() -> listener.onConfigPush(frame.getConfigPush()));
-                break;
-            case LOG_CONTROL:
-                mainHandler.post(() -> listener.onLogControl(frame.getLogControl()));
-                break;
-            case COMMAND:
-                mainHandler.post(() -> listener.onCommand(frame.getCommand()));
-                break;
-            case ERROR: {
-                String code = frame.getError().getCode();
-                Log.w(TAG, "server error: " + code + ": " + frame.getError().getMessage());
-                ProxyTunnelService.writeRuntimeLogLine(
-                    "[guardian] server error " + code + ": " + frame.getError().getMessage()
-                );
-                if ("revoked".equalsIgnoreCase(code) || "not_found".equalsIgnoreCase(code)) {
-                    mainHandler.post(() -> {
-                        wings.v.core.AppPrefs.clearGuardian(appContext);
-                        wings.v.guardian.GuardianRunner.stopAll(appContext);
-                    });
-                }
-                break;
+                    accepted = true;
+                    connectedAtMs = System.currentTimeMillis();
+                    phyFailureStreak = 0;
+                    listener.onConnected(host);
+                    listener.requestStateReport();
+                    break;
+                case COMMAND:
+                    listener.onCommand(frame.getCommand());
+                    break;
+                case CONFIG_PUSH:
+                    listener.onConfigPush(frame.getConfigPush());
+                    break;
+                case LOG_CONTROL:
+                    listener.onLogControl(frame.getLogControl());
+                    break;
+                default:
+                    // Heartbeat and anything we do not act on.
+                    break;
             }
-            default:
-                break;
-        }
-    }
-
-    private void handleDisconnected() {
-        cancelHeartbeat();
-        cancelWatchdog();
-        // Transport never reached onOpen, consider it a phy failure if we
-        // were riding through phy. After PHY_FAILURES_BEFORE_TUNNEL_FALLBACK
-        // back-to-back misses we drop the phy preference and try the default
-        // route (which carries us through the active tunnel). Reset on the
-        // next network-event so a recovered phy is tried again.
-        if (connectedAtMs == 0L && phyBindActive && !tunnelFallbackActive) {
-            phyFailureStreak++;
-            if (phyFailureStreak >= PHY_FAILURES_BEFORE_TUNNEL_FALLBACK) {
-                tunnelFallbackActive = true;
-                AppPrefs.setGuardianTunnelFallbackUntilMs(
-                    appContext,
-                    System.currentTimeMillis() + TUNNEL_FALLBACK_TTL_MS
-                );
-                ProxyTunnelService.writeRuntimeLogLine(
-                    "[guardian] phy bind failed " + phyFailureStreak + " times in a row, falling back to tunnel route"
-                );
-            }
-        }
-        socket = null;
-        readySocket = null;
-        mainHandler.post(listener::onDisconnected);
-        if (!stopped) {
-            scheduleReconnect();
         }
     }
 }
