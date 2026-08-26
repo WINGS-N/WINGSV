@@ -54,6 +54,11 @@ already IS the SESL one. Adding a stock dependency either breaks the build or si
 duplicates classes. New SESL artifacts go through `gradle/libs.versions.toml` (the `sesl-*`
 version keys; `oneui-design = io.github.tribalfs:oneui-design`).
 
+Bumping the SESL / oneui-design VERSIONS is ordinary maintenance, not something to avoid: the
+hard rule above is only about never pulling in a stock androidx / material artifact. The
+`sesl-*` versions live in the catalog and their registries are queryable with the same
+`seslUser` / `seslToken` credentials the build already needs.
+
 Build screens with oneui-design widgets, matching existing screens line-for-line. Canonical
 pieces used here:
 
