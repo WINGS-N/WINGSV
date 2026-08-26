@@ -264,6 +264,7 @@ public final class AppPrefs {
     public static final String KEY_GUARDIAN_WS_URL = "pref_guardian_ws_url";
     public static final String KEY_GUARDIAN_CLIENT_ID = "pref_guardian_client_id";
     public static final String KEY_GUARDIAN_CLIENT_TOKEN_B64 = "pref_guardian_client_token_b64";
+    public static final String KEY_GUARDIAN_CA_PINS = "pref_guardian_ca_pins";
     public static final String KEY_GUARDIAN_CLIENT_NAME = "pref_guardian_client_name";
     public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";
     public static final String KEY_GUARDIAN_LOG_PROXY_ALLOWED = "pref_guardian_log_proxy_allowed";
@@ -670,6 +671,46 @@ public final class AppPrefs {
             .apply();
     }
 
+    /**
+     * Stores the panel CA pins from an enrollment link as newline-separated base64.
+     * An empty list clears them, which puts the panel back on the system trust store.
+     */
+    public static void setGuardianCaPins(Context context, java.util.List<byte[]> pins) {
+        StringBuilder encoded = new StringBuilder();
+        if (pins != null) {
+            for (byte[] pin : pins) {
+                if (pin == null || pin.length == 0) {
+                    continue;
+                }
+                if (encoded.length() > 0) {
+                    encoded.append('\n');
+                }
+                encoded.append(android.util.Base64.encodeToString(pin, android.util.Base64.NO_WRAP));
+            }
+        }
+        prefs(context).edit().putString(KEY_GUARDIAN_CA_PINS, encoded.toString()).apply();
+    }
+
+    public static java.util.List<byte[]> getGuardianCaPins(Context context) {
+        java.util.List<byte[]> pins = new java.util.ArrayList<>();
+        String raw = prefs(context).getString(KEY_GUARDIAN_CA_PINS, "");
+        if (TextUtils.isEmpty(raw)) {
+            return pins;
+        }
+        for (String line : raw.split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                pins.add(android.util.Base64.decode(trimmed, android.util.Base64.NO_WRAP));
+            } catch (IllegalArgumentException ignored) {
+                // A corrupt entry must not silently widen trust; skip just this pin.
+            }
+        }
+        return pins;
+    }
+
     public static void clearGuardian(Context context) {
         prefs(context)
             .edit()
@@ -677,6 +718,7 @@ public final class AppPrefs {
             .remove(KEY_GUARDIAN_CLIENT_ID)
             .remove(KEY_GUARDIAN_CLIENT_TOKEN_B64)
             .remove(KEY_GUARDIAN_CLIENT_NAME)
+            .remove(KEY_GUARDIAN_CA_PINS)
             .putBoolean(KEY_GUARDIAN_ENABLED, false)
             .apply();
     }
@@ -1992,6 +2034,7 @@ public final class AppPrefs {
                 tokenB64,
                 importedConfig.guardianClientName == null ? "" : importedConfig.guardianClientName
             );
+            setGuardianCaPins(context, importedConfig.guardianCaPins);
             setGuardianEnabled(context, true);
         }
         if (!TextUtils.isEmpty(importedConfig.guardianSyncMode)) {

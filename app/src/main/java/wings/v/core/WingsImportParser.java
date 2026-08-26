@@ -1623,6 +1623,12 @@ public final class WingsImportParser {
         importedConfig.guardianAdminUsername = g.getAdminUsername() == null ? "" : g.getAdminUsername();
         importedConfig.guardianAdminId = g.getAdminId();
         importedConfig.guardianAdminAvatarVersion = g.getAdminAvatarVersion();
+        importedConfig.guardianCaPins = new ArrayList<>();
+        for (com.google.protobuf.ByteString pin : g.getServerCaPinsSha512256List()) {
+            if (pin != null && !pin.isEmpty()) {
+                importedConfig.guardianCaPins.add(pin.toByteArray());
+            }
+        }
     }
 
     private static String fromProtoSyncMode(WingsvProto.GuardianSyncMode mode) {
@@ -4023,6 +4029,9 @@ public final class WingsImportParser {
         public String guardianAdminUsername;
         public long guardianAdminId;
         public long guardianAdminAvatarVersion;
+        // SPKI pins (SHA-512/256) the panel's TLS chain must contain. Empty means
+        // the panel has a publicly trusted certificate and the system store decides.
+        public List<byte[]> guardianCaPins = new ArrayList<>();
         public boolean hasSubscriptionHwid;
         public Boolean subscriptionHwidEnabled;
         public Boolean subscriptionHwidManualEnabled;

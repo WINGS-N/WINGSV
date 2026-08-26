@@ -4,14 +4,17 @@ import android.content.Context;
 import android.net.Network;
 import android.os.Build;
 import android.util.Base64;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.okhttp.OkHttpChannelBuilder;
 import java.net.URI;
+import java.security.GeneralSecurityException;
 import java.util.concurrent.TimeUnit;
 import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
 import wings.v.BuildConfig;
 import wings.v.core.AppPrefs;
 import wings.v.core.DirectNetworkConnection;
@@ -25,6 +28,8 @@ import wings.v.proto.GuardianProto;
 public final class GuardianEndpoint {
 
     public static final int PROTOCOL_VERSION = 1;
+
+    private static final String TAG = "GuardianEndpoint";
 
     private static final int DEFAULT_GRPC_PORT = 443;
 
@@ -86,7 +91,31 @@ public final class GuardianEndpoint {
         if (factory != null) {
             builder.socketFactory(factory);
         }
+        applyPinnedTrust(app, builder);
         return builder.build();
+    }
+
+    /**
+     * Pins the panel CA when the enrollment link carried one. This is what makes a
+     * domain-less panel usable: no public CA will issue for a bare IP, so the
+     * system trust store can never verify it and the pin is the only anchor. With
+     * no pins stored the channel keeps the default system trust.
+     */
+    private static void applyPinnedTrust(@NonNull Context context, @NonNull OkHttpChannelBuilder builder) {
+        java.util.List<byte[]> pins = AppPrefs.getGuardianCaPins(context);
+        if (pins.isEmpty()) {
+            return;
+        }
+        try {
+            SSLSocketFactory pinned = GuardianPinnedTrust.socketFactory(pins);
+            if (pinned != null) {
+                builder.sslSocketFactory(pinned);
+            }
+        } catch (GeneralSecurityException error) {
+            // Leaving the default trust in place would silently drop the pin, so the
+            // channel is left to fail against the system store instead.
+            Log.w(TAG, "pinned trust unavailable: " + error.getMessage());
+        }
     }
 
     @Nullable
