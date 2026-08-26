@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Print the browser_download_url of app-release.apk from the most recent
-non-draft, non-prerelease GitHub release. Prints an empty line when no
-previous release APK is available.
+"""Print the browser_download_url of a release APK from the most recent
+non-draft, non-prerelease GitHub release. Prints an empty line when no previous
+release APK is available.
+
+The APK name is taken from argv[1] so each ABI variant patches against its own
+predecessor; a delta between two different ABIs would be useless.
 
 Environment:
-    GITHUB_TOKEN — GitHub REST API token with read access to releases.
-    API_URL — GitHub releases list endpoint (paginated).
+    GITHUB_TOKEN - GitHub REST API token with read access to releases.
+    API_URL - GitHub releases list endpoint (paginated).
 """
 
 import json
@@ -15,6 +18,7 @@ import urllib.request
 
 
 def main() -> int:
+    wanted = sys.argv[1] if len(sys.argv) > 1 else "app-release.apk"
     request = urllib.request.Request(
         os.environ["API_URL"],
         headers={
@@ -29,7 +33,7 @@ def main() -> int:
         if release.get("draft") or release.get("prerelease"):
             continue
         for asset in release.get("assets", []):
-            if asset.get("name") == "app-release.apk":
+            if asset.get("name") == wanted:
                 print(asset.get("browser_download_url", ""))
                 return 0
     print("")

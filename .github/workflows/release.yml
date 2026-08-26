@@ -174,18 +174,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          previous_apk_url="$(python .github/scripts/find_previous_release_apk.py)"
+          # Only arm64 gets a delta patch: it is the overwhelming majority of
+          # devices, and a second patch would double the release time for the
+          # shrinking 32-bit tail, which can take the full APK.
+          previous_apk_url="$(python .github/scripts/find_previous_release_apk.py app-arm64-release.apk)"
           if [[ -z "${previous_apk_url}" ]]; then
             echo "patch_generated=false" >> "${GITHUB_OUTPUT}"
             exit 0
           fi
-          patch_file="app/build/outputs/apk/release/wings-v_v${VERSION}.patch"
+          patch_file="app/build/outputs/apk/arm64/release/wings-v_v${VERSION}.patch"
           curl --fail --location \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/octet-stream" \
             "${previous_apk_url}" \
             -o previous-release.apk
-          zstd -q -19 --patch-from previous-release.apk app/build/outputs/apk/release/app-release.apk -o "${patch_file}"
+          zstd -q -19 --patch-from previous-release.apk \
+            app/build/outputs/apk/arm64/release/app-arm64-release.apk -o "${patch_file}"
           echo "patch_generated=true" >> "${GITHUB_OUTPUT}"
           echo "patch_file=${patch_file}" >> "${GITHUB_OUTPUT}"
 
@@ -194,9 +198,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk_file="app/build/outputs/apk/release/app-release.apk"
-          sha512sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha512"
-          sha256sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha256"
+          for apk_file in \
+            app/build/outputs/apk/arm64/release/app-arm64-release.apk \
+            app/build/outputs/apk/arm32/release/app-arm32-release.apk; do
+            sha512sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha512"
+            sha256sum "${apk_file}" | awk '{print $1}' > "${apk_file}.sha256"
+          done
           if [[ "${{ steps.build-patch.outputs.patch_generated }}" == "true" ]]; then
             patch_file="${{ steps.build-patch.outputs.patch_file }}"
             sha512sum "${patch_file}" | awk '{print $1}' > "${patch_file}.sha512"
@@ -261,9 +268,12 @@ jobs:
           draft: true
           body_path: release-notes.md
           files: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/app-release.apk.sha512
-            app/build/outputs/apk/release/app-release.apk.sha256
+            app/build/outputs/apk/arm64/release/app-arm64-release.apk
+            app/build/outputs/apk/arm64/release/app-arm64-release.apk.sha512
+            app/build/outputs/apk/arm64/release/app-arm64-release.apk.sha256
+            app/build/outputs/apk/arm32/release/app-arm32-release.apk
+            app/build/outputs/apk/arm32/release/app-arm32-release.apk.sha512
+            app/build/outputs/apk/arm32/release/app-arm32-release.apk.sha256
             dist/wingsv-root-module.zip
             dist/wingsv-root-module.zip.sha512
             dist/wingsv-root-module.zip.sha256
