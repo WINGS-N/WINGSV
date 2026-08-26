@@ -9,6 +9,36 @@ option java_outer_classname = "GuardianProto";
 option optimize_for = LITE_RUNTIME;
 option go_package = "v.wingsnet.org/internal/gen/guardianpb";
 
+// Guardian is the device-facing control channel. Both RPCs carry the same Frame
+// envelope the WebSocket transport used, so one message set and one server-side
+// session implementation serve every transport.
+service Guardian {
+  // Live channel for a device that is awake. The device sends ClientHello as the
+  // first frame, the panel answers ServerHello, and both directions then stream
+  // Frames until either side hangs up.
+  rpc Session(stream Frame) returns (stream Frame);
+
+  // Background sync in a single round trip. No socket survives doze for long, so
+  // the periodic worker ships what it has and takes back everything the panel had
+  // queued instead of holding a channel open and hoping frames arrive.
+  rpc Sync(SyncRequest) returns (SyncResponse);
+}
+
+message SyncRequest {
+  ClientHello hello = 1;
+  StateReport state = 2;
+  repeated CommandAck acks = 3;
+  InstalledApps installed_apps = 4;
+}
+
+message SyncResponse {
+  ServerHello hello = 1;
+  LogControl log_control = 2;
+  // Absent when the panel has nothing newer than the version the hello reported.
+  ConfigPush config_push = 3;
+  repeated Command commands = 4;
+}
+
 message Frame {
   oneof payload {
     ClientHello client_hello = 1;
