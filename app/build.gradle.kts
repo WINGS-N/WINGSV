@@ -855,7 +855,7 @@ dependencies {
     implementation(libs.grpc.protobuf.lite)
     implementation(libs.grpc.okhttp)
     compileOnly(libs.javax.annotation.api)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.0")
     "arm64Implementation"(files(stripMmkvPrefab))
     "arm32Implementation"("com.tencent:mmkv:1.3.17")
     implementation(libs.wireguard.tunnel)
