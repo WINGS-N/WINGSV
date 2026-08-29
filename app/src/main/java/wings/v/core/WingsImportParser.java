@@ -2413,7 +2413,10 @@ public final class WingsImportParser {
             builder.setManualCaptcha(settings.manualCaptcha);
         }
         String captchaSolver = value(settings.captchaAutoSolver);
-        if (!TextUtils.isEmpty(captchaSolver) && (includeDefaults || !"v2".equals(captchaSolver))) {
+        if (
+            !TextUtils.isEmpty(captchaSolver) &&
+            (includeDefaults || !AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT.equals(captchaSolver))
+        ) {
             builder.setCaptchaAutoSolver(captchaSolver);
         }
         if (includeDefaults || !settings.vkTurnRestartOnNetworkChange) {

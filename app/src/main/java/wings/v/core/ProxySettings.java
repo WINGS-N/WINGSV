@@ -38,7 +38,7 @@ public class ProxySettings {
     public boolean useUdp;
     public boolean noObfuscation;
     public boolean manualCaptcha;
-    public String captchaAutoSolver = "v2";
+    public String captchaAutoSolver = AppPrefs.CAPTCHA_AUTO_SOLVER_DEFAULT;
     /** VK account auth mode for vk-turn-proxy TURN creds.
      *  "account" = obtain TURN creds via a logged-in VK web session WebView;
      *  "anonymous" = default behaviour (relay uses its own anonymous flow). */
