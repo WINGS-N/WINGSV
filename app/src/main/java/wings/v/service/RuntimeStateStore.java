@@ -46,6 +46,7 @@ public final class RuntimeStateStore {
     private static final String KEY_PROXY_LOG_VERSION = "proxy_log_version";
     private static final String KEY_PROTECT_SOCKET_NAME = "protect_socket_name";
     private static final String KEY_CONNECTED_STREAMS = "connected_streams";
+    private static final String KEY_WORKER_STREAMS = "worker_streams";
     private static final String KEY_CONNECTING_STAGE = "connecting_stage";
 
     private static volatile Context appContext;
@@ -92,6 +93,7 @@ public final class RuntimeStateStore {
                 readLong(properties, KEY_PROXY_LOG_VERSION),
                 emptyToNull(properties.getProperty(KEY_PROTECT_SOCKET_NAME)),
                 (int) readLong(properties, KEY_CONNECTED_STREAMS),
+                (int) readLong(properties, KEY_WORKER_STREAMS),
                 emptyToNull(properties.getProperty(KEY_CONNECTING_STAGE))
             );
             cachedSnapshot = snapshot;
@@ -155,9 +157,10 @@ public final class RuntimeStateStore {
         updateProperties(properties -> setNullable(properties, KEY_PROTECT_SOCKET_NAME, socketName));
     }
 
-    static void writeStreamProgress(int connectedStreams, @Nullable String connectingStage) {
+    static void writeStreamProgress(int connectedStreams, int workerStreams, @Nullable String connectingStage) {
         updateProperties(properties -> {
             properties.setProperty(KEY_CONNECTED_STREAMS, String.valueOf(Math.max(0, connectedStreams)));
+            properties.setProperty(KEY_WORKER_STREAMS, String.valueOf(Math.max(0, workerStreams)));
             setNullable(properties, KEY_CONNECTING_STAGE, connectingStage);
         });
     }
@@ -186,6 +189,7 @@ public final class RuntimeStateStore {
             properties.setProperty(KEY_CAPTCHA_LOCKOUT_UNTIL, "0");
             properties.remove(KEY_PROTECT_SOCKET_NAME);
             properties.setProperty(KEY_CONNECTED_STREAMS, "0");
+            properties.setProperty(KEY_WORKER_STREAMS, "0");
             properties.remove(KEY_CONNECTING_STAGE);
         });
     }
@@ -410,6 +414,7 @@ public final class RuntimeStateStore {
         final long proxyLogVersion;
         final String protectSocketName;
         final int connectedStreams;
+        final int workerStreams;
         final String connectingStage;
 
         Snapshot(
@@ -432,6 +437,7 @@ public final class RuntimeStateStore {
             long proxyLogVersion,
             String protectSocketName,
             int connectedStreams,
+            int workerStreams,
             String connectingStage
         ) {
             this.state = state;
@@ -453,6 +459,7 @@ public final class RuntimeStateStore {
             this.proxyLogVersion = proxyLogVersion;
             this.protectSocketName = protectSocketName;
             this.connectedStreams = connectedStreams;
+            this.workerStreams = workerStreams;
             this.connectingStage = connectingStage;
         }
     }

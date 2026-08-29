@@ -665,6 +665,10 @@ public class ProxyTunnelService extends Service {
     // Number of VK TURN streams currently connected, reported by vktp telemetry.
     // Shown on the home screen during connecting (connected/total threads).
     private static volatile int sProxyConnectedStreams;
+    // Size of the relay's live worker fleet, reported by the same telemetry. This is
+    // the honest ceiling for the connected count: a threads live-patch or a drained
+    // worker moves it, so the configured thread count goes stale. 0 = not reported.
+    private static volatile int sProxyWorkerStreams;
     // Current connecting sub-stage shown next to the status (captcha / TURN auth /
     // TURN before streams start filling). Empty once streams are establishing.
     private static volatile String sConnectingStage = "";
@@ -1192,6 +1196,13 @@ public class ProxyTunnelService extends Service {
         return sProxyConnectedStreams;
     }
 
+    public static int getProxyWorkerStreams() {
+        if (!hasLocalService()) {
+            return RuntimeStateStore.readSnapshot().workerStreams;
+        }
+        return sProxyWorkerStreams;
+    }
+
     public static String getConnectingStage() {
         if (!hasLocalService()) {
             String stage = RuntimeStateStore.readSnapshot().connectingStage;
@@ -1221,7 +1232,7 @@ public class ProxyTunnelService extends Service {
     private void persistConnectProgress() {
         String stage = computeConnectingStage();
         sConnectingStage = stage;
-        RuntimeStateStore.writeStreamProgress(sProxyConnectedStreams, stage);
+        RuntimeStateStore.writeStreamProgress(sProxyConnectedStreams, sProxyWorkerStreams, stage);
     }
 
     public static String getPublicIp() {
@@ -4202,7 +4213,11 @@ public class ProxyTunnelService extends Service {
                 java.util.Iterator<wings.v.proto.appcontrol.AppControlProto.Telemetry> stream =
                     client.streamTelemetry();
                 while (stream.hasNext() && client == appControlClient && generation == runtimeGeneration.get()) {
-                    applyProxyStreamTelemetry((int) stream.next().getConnectedStreams());
+                    wings.v.proto.appcontrol.AppControlProto.Telemetry telemetry = stream.next();
+                    applyProxyStreamTelemetry(
+                        (int) telemetry.getConnectedStreams(),
+                        (int) telemetry.getWorkerStreams()
+                    );
                 }
             } catch (RuntimeException error) {
                 // Stream not up yet or dropped (relay warmup / restart); re-subscribe
@@ -4946,6 +4961,7 @@ public class ProxyTunnelService extends Service {
         proxyWarmupAuthReady = false;
         proxyCaptchaInProgress = false;
         sProxyConnectedStreams = 0;
+        sProxyWorkerStreams = 0;
         sConnectingStage = "";
     }
 
@@ -6180,9 +6196,12 @@ public class ProxyTunnelService extends Service {
     // Applies the relay's connected-stream count (pulled over AppControl): drives the
     // connect-progress counter, refreshes the notification while (dis)connecting, and
     // marks DTLS liveness. Runs on the telemetry poll thread.
-    private void applyProxyStreamTelemetry(int connectedStreams) {
+    private void applyProxyStreamTelemetry(int connectedStreams, int workerStreams) {
         int connected = Math.max(0, connectedStreams);
         sProxyConnectedStreams = connected;
+        if (workerStreams > 0) {
+            sProxyWorkerStreams = workerStreams;
+        }
         persistConnectProgress();
         if (sServiceState == ServiceState.CONNECTING || sServiceState == ServiceState.RUNNING) {
             // Refresh the notification so its stream counter (e.g. "2/12T") ticks
@@ -11175,6 +11194,11 @@ public class ProxyTunnelService extends Service {
                 return "";
             }
             int threads = AppPrefs.getSettings(getApplicationContext()).threads;
+            if (sProxyWorkerStreams > 0) {
+                // The relay's live fleet, not the configured target: a drained worker
+                // lowers the ceiling and "12T" would otherwise keep claiming twelve.
+                threads = sProxyWorkerStreams;
+            }
             if (threads <= 0) {
                 return "";
             }
