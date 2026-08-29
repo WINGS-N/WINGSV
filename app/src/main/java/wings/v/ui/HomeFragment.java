@@ -189,7 +189,11 @@ public class HomeFragment extends Fragment {
                 connectingText =
                     stageLabelRes != null
                         ? getString(R.string.service_connecting_stage, getString(stageLabelRes))
-                        : getString(R.string.service_connecting_streams, connectedStreams, settings.threads);
+                        : getString(
+                              R.string.service_connecting_streams,
+                              connectedStreams,
+                              vkTurnStreamCeiling(settings)
+                          );
             } else {
                 connectingText = getString(R.string.service_connecting);
             }
@@ -224,9 +228,11 @@ public class HomeFragment extends Fragment {
                 // counter while streams are still filling (or one drops), so the
                 // progress is visible instead of jumping straight to "connected".
                 int connectedStreams = vkTurnFillingStreams(settings, visibleBackendType);
+                // Always render the counter once a ceiling is known. Hiding it at
+                // connected == ceiling was what made a drained fleet invisible.
                 stateText =
-                    connectedStreams >= 0 && connectedStreams < settings.threads
-                        ? getString(R.string.service_on_streams, connectedStreams, settings.threads)
+                    connectedStreams >= 0
+                        ? getString(R.string.service_on_streams, connectedStreams, vkTurnStreamCeiling(settings))
                         : getString(R.string.service_on);
             } else {
                 stateText = getString(R.string.service_off);
@@ -404,7 +410,15 @@ public class HomeFragment extends Fragment {
         ) {
             return -1;
         }
-        return Math.min(ProxyTunnelService.getProxyConnectedStreams(), settings.threads);
+        return Math.min(ProxyTunnelService.getProxyConnectedStreams(), vkTurnStreamCeiling(settings));
+    }
+
+    // The ceiling the connected count is shown against: the relay's live worker fleet
+    // when it has reported one, else the configured thread count. The configured value
+    // goes stale the moment a threads live-patch or a drained worker resizes the fleet.
+    private int vkTurnStreamCeiling(ProxySettings settings) {
+        int fleet = ProxyTunnelService.getProxyWorkerStreams();
+        return fleet > 0 ? fleet : settings.threads;
     }
 
     private String resolveConnectionSummary(ProxySettings settings) {

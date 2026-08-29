@@ -206,16 +206,18 @@ public class ProxyLogsActivity extends AppCompatActivity {
         int backgroundRes;
         int textColor;
         if (running) {
+            // Always render the counter once a ceiling is known. Hiding it at
+            // streams == ceiling was what made a drained fleet invisible.
             text =
-                streams >= 0 && streams < settings.threads
-                    ? getString(R.string.service_on_streams, streams, settings.threads)
+                streams >= 0
+                    ? getString(R.string.service_on_streams, streams, vkTurnStreamCeiling(settings))
                     : getString(R.string.service_on);
             backgroundRes = R.drawable.bg_service_state_on;
             textColor = ContextCompat.getColor(this, android.R.color.white);
         } else if (connecting) {
             text =
                 streams >= 0
-                    ? getString(R.string.service_connecting_streams, streams, settings.threads)
+                    ? getString(R.string.service_connecting_streams, streams, vkTurnStreamCeiling(settings))
                     : getString(R.string.service_connecting);
             backgroundRes = R.drawable.bg_service_state_warning;
             textColor = ContextCompat.getColor(this, R.color.wingsv_text_primary);
@@ -239,7 +241,15 @@ public class ProxyLogsActivity extends AppCompatActivity {
         ) {
             return -1;
         }
-        return Math.min(ProxyTunnelService.getProxyConnectedStreams(), settings.threads);
+        return Math.min(ProxyTunnelService.getProxyConnectedStreams(), vkTurnStreamCeiling(settings));
+    }
+
+    // The ceiling the connected count is shown against: the relay's live worker fleet
+    // when it has reported one, else the configured thread count. The configured value
+    // goes stale the moment a threads live-patch or a drained worker resizes the fleet.
+    private int vkTurnStreamCeiling(ProxySettings settings) {
+        int fleet = ProxyTunnelService.getProxyWorkerStreams();
+        return fleet > 0 ? fleet : settings.threads;
     }
 
     private long resolveLogVersion() {
