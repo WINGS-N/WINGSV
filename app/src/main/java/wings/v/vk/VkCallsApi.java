@@ -21,7 +21,10 @@ import org.json.JSONObject;
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.LawOfDemeter" })
 public final class VkCallsApi {
 
-    private static final String API_URL = "https://api.vk.com/method/calls.start";
+    // api.vk.ru rather than api.vk.com: the .com host answers a token that did not
+    // come from an official client with an anti-scraping stub ("do not copy the
+    // site's content") instead of the method result.
+    private static final String API_URL = "https://api.vk.ru/method/calls.start";
     private static final String API_VERSION = "5.199";
 
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient.Builder()
@@ -36,8 +39,16 @@ public final class VkCallsApi {
     @NonNull
     public static String generateJoinLink(@NonNull Context context) throws IOException {
         String accessToken = VkOAuthAuth.accessTokenOrThrow(context);
-        FormBody body = new FormBody.Builder().add("access_token", accessToken).add("v", API_VERSION).build();
-        Request request = new Request.Builder().url(API_URL).post(body).build();
+        // The token rides in the Authorization header. Passing it as the legacy
+        // access_token form field is what VK answers with its anti-scraping stub
+        // rather than the call it was asked to start.
+        FormBody body = new FormBody.Builder().add("v", API_VERSION).build();
+        Request request = new Request.Builder()
+            .url(API_URL)
+            .header("Authorization", "Bearer " + accessToken)
+            .header("Accept", "application/json")
+            .post(body)
+            .build();
         try (Response response = HTTP_CLIENT.newCall(request).execute()) {
             String payload = response.body() == null ? "" : response.body().string();
             if (!response.isSuccessful()) {
