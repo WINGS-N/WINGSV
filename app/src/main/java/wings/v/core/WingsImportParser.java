@@ -9,6 +9,8 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -719,7 +721,9 @@ public final class WingsImportParser {
         return encodeConfig(config.build());
     }
 
-    private static String encodeConfig(WingsvProto.Config config) {
+    // Package-visible so a test can build the exact wire form a subscription
+    // carries, instead of asserting against a hand-rolled copy of it
+    static String encodeConfig(WingsvProto.Config config) {
         byte[] protobufPayload = config.toByteArray();
         byte[] compressedPayload = deflate(protobufPayload);
         byte[] framedPayload = new byte[compressedPayload.length + 1];
@@ -867,6 +871,15 @@ public final class WingsImportParser {
         for (String link : collectWingsvLinks(body)) {
             try {
                 ImportedConfig config = parseFromText(link);
+                // A link carrying profile lists is the managed shape: the panel and
+                // the federation head both issue one entry per profile with its
+                // transport alongside. toBackendProfile only understands the flat
+                // single-profile form and would drop the whole thing.
+                List<ImportedBackendProfile> expanded = expandProfileLists(config);
+                if (!expanded.isEmpty()) {
+                    result.addAll(expanded);
+                    continue;
+                }
                 ImportedBackendProfile entry = toBackendProfile(context, config);
                 if (entry != null) {
                     result.add(entry);
@@ -876,6 +889,73 @@ public final class WingsImportParser {
             }
         }
         return result;
+    }
+
+    // Turns the profile lists of one decoded config into subscription entries.
+    //
+    // A VK TURN profile references its transport by id rather than embedding it,
+    // so the referenced WireGuard / AmneziaWG profile is pulled from the same
+    // config and carried along. A transport nothing references is a profile in its
+    // own right and travels on its own.
+    private static List<ImportedBackendProfile> expandProfileLists(ImportedConfig config) {
+        ArrayList<ImportedBackendProfile> out = new ArrayList<>();
+        if (config == null || config.hasAllSettings) {
+            return out;
+        }
+        if (!config.hasTurnProfiles && !config.hasWgProfiles && !config.hasAwgProfiles) {
+            return out;
+        }
+
+        HashMap<String, WireGuardProfile> wgById = new HashMap<>();
+        for (WireGuardProfile profile : config.wgProfiles) {
+            if (profile != null && !TextUtils.isEmpty(value(profile.id))) {
+                wgById.put(value(profile.id), profile);
+            }
+        }
+        HashMap<String, AmneziaProfile> awgById = new HashMap<>();
+        for (AmneziaProfile profile : config.awgProfiles) {
+            if (profile != null && !TextUtils.isEmpty(value(profile.id))) {
+                awgById.put(value(profile.id), profile);
+            }
+        }
+
+        HashSet<String> usedTransports = new HashSet<>();
+        for (VkTurnProfile profile : config.turnProfiles) {
+            if (profile == null) {
+                continue;
+            }
+            String transportId = value(profile.transportProfileId);
+            if (profile.usesAmneziaTransport()) {
+                AmneziaProfile transport = awgById.get(transportId);
+                // A provisioned profile has no transport yet - it is handed one on
+                // connect - so a missing reference is expected there and only a
+                // problem for a profile that was supposed to bring its own.
+                if (transport == null && !profile.wgProvisioned) {
+                    continue;
+                }
+                usedTransports.add(transportId);
+                out.add(ImportedBackendProfile.vkTurn(profile, null, transport));
+                continue;
+            }
+            WireGuardProfile transport = wgById.get(transportId);
+            if (transport == null && !profile.wgProvisioned) {
+                continue;
+            }
+            usedTransports.add(transportId);
+            out.add(ImportedBackendProfile.vkTurn(profile, transport, null));
+        }
+
+        for (WireGuardProfile profile : config.wgProfiles) {
+            if (profile != null && !usedTransports.contains(value(profile.id))) {
+                out.add(ImportedBackendProfile.wireGuard(profile));
+            }
+        }
+        for (AmneziaProfile profile : config.awgProfiles) {
+            if (profile != null && !usedTransports.contains(value(profile.id))) {
+                out.add(ImportedBackendProfile.amnezia(profile));
+            }
+        }
+        return out;
     }
 
     private static List<String> collectWingsvLinks(String body) {
