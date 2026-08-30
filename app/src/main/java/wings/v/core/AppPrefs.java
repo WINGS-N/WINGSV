@@ -1738,14 +1738,30 @@ public final class AppPrefs {
     // Merge-only VK links import: append the imported links to the shared pool
     // (deduped, order preserved) and write nothing else. The primary link is seeded
     // from the pool only if it was empty. Every other VK TURN setting stays as-is.
+    /**
+     * Merges VK links the relay handed back on a DTLS provision into the shared pool.
+     *
+     * The enrollment QR carries one link so it stays scannable; the rest arrives
+     * here, on the same enrolment. Append-only, like every other path that touches
+     * this pool: a link the user added themselves is never dropped, and the one the
+     * QR already delivered is simply a duplicate that is skipped.
+     */
+    public static void mergeProvisionedVkLinks(Context context, List<String> links) {
+        mergeVkLinkPool(context, links);
+    }
+
     private static void mergeImportedVkLinks(Context context, WingsImportParser.ImportedConfig importedConfig) {
-        if (importedConfig.links == null || importedConfig.links.isEmpty()) {
+        mergeVkLinkPool(context, importedConfig.links);
+    }
+
+    private static void mergeVkLinkPool(Context context, List<String> incoming) {
+        if (incoming == null || incoming.isEmpty()) {
             return;
         }
         SharedPreferences prefs = prefs(context);
         List<String> pool = new ArrayList<>(readVkLinks(prefs, trim(prefs.getString(KEY_VK_LINK, ""))));
         boolean changed = false;
-        for (String entry : importedConfig.links) {
+        for (String entry : incoming) {
             String trimmed = trim(entry);
             if (!TextUtils.isEmpty(trimmed) && !pool.contains(trimmed)) {
                 pool.add(trimmed);

@@ -4531,7 +4531,20 @@ public class ProxyTunnelService extends Service {
         if (wg.getMtu() > 0) {
             settings.wgMtu = (int) wg.getMtu();
         }
-        appendRuntimeLogLine("applied provisioned WireGuard config (address " + wg.getAddress() + ")");
+        // The pool the QR could not carry. The relay already merged it into its own
+        // live link set before answering, so this is only about surviving a restart
+        List<String> provisionedLinks = response.getVkLinksList();
+        if (!provisionedLinks.isEmpty()) {
+            AppPrefs.mergeProvisionedVkLinks(this, provisionedLinks);
+            settings.vkLinks = AppPrefs.getSettings(this).vkLinks;
+        }
+        appendRuntimeLogLine(
+            "applied provisioned WireGuard config (address " +
+                wg.getAddress() +
+                ", " +
+                provisionedLinks.size() +
+                " vk links)"
+        );
     }
 
     private static int parseEndpointPort(String endpoint) {
