@@ -388,6 +388,9 @@ public final class XraySubscriptionUpdater {
         }
     }
 
+    /** Тип тела, которым федерация отдаёт подписку своим кадром */
+    private static final String WINGS_CONTENT_TYPE = "application/x-wingsv-config";
+
     private static FetchResult fetch(Context context, String urlString) throws Exception {
         // Refresh through the tunnel while the VPN is up, otherwise direct off the
         // physical network. If the tunnel is up but the fetch through it fails, fall
@@ -453,9 +456,32 @@ public final class XraySubscriptionUpdater {
             if (responseCode < 200 || responseCode >= 400) {
                 throw new IllegalStateException("Subscription HTTP " + responseCode);
             }
-            return new FetchResult(output.toString(StandardCharsets.UTF_8.name()), metadata);
+            byte[] raw = output.toByteArray();
+            // Федерация отдаёт подписку своим кадром сырыми байтами: base64
+            // добавил бы к ней треть длины на ровном месте
+            String body = decodeWingsBody(connection.getContentType(), raw);
+            if (body == null) {
+                body = new String(raw, StandardCharsets.UTF_8);
+            }
+            return new FetchResult(body, metadata);
         } finally {
             connection.disconnect();
+        }
+    }
+
+    /**
+     * Разбирает тело в нашем формате обратно в ссылку wingsv://, которую дальше
+     * читает обычный разбор. Возвращает null, когда перед нами обычная подписка.
+     */
+    private static String decodeWingsBody(String contentType, byte[] raw) {
+        boolean ours = contentType != null && contentType.startsWith(WINGS_CONTENT_TYPE);
+        if (!ours || raw == null || raw.length < 2) {
+            return null;
+        }
+        try {
+            return WingsImportParser.encodeFrame(raw);
+        } catch (Exception error) {
+            return null;
         }
     }
 

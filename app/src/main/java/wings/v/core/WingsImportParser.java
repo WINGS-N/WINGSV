@@ -44,6 +44,10 @@ public final class WingsImportParser {
     private static final int CURRENT_VERSION = 1;
     private static final byte FORMAT_PROTOBUF_DEFLATE = 0x12;
 
+    // Основной формат: brotli вместо deflate. Ссылка короче на четверть, у
+    // QR-кода это версия ниже и заметно крупнее модули
+    private static final byte FORMAT_PROTOBUF_BROTLI = 0x13;
+
     private static final int DEFAULT_THREADS = 8;
     private static final boolean DEFAULT_USE_UDP = true;
     private static final boolean DEFAULT_NO_OBFUSCATION = false;
@@ -725,9 +729,16 @@ public final class WingsImportParser {
     // carries, instead of asserting against a hand-rolled copy of it
     static String encodeConfig(WingsvProto.Config config) {
         byte[] protobufPayload = config.toByteArray();
-        byte[] compressedPayload = deflate(protobufPayload);
+        byte format = FORMAT_PROTOBUF_BROTLI;
+        byte[] compressedPayload = BrotliCodec.compress(protobufPayload);
+        if (compressedPayload == null) {
+            // Нативная библиотека не поднялась - ссылка всё равно должна
+            // получиться, пусть и длиннее
+            format = FORMAT_PROTOBUF_DEFLATE;
+            compressedPayload = deflate(protobufPayload);
+        }
         byte[] framedPayload = new byte[compressedPayload.length + 1];
-        framedPayload[0] = FORMAT_PROTOBUF_DEFLATE;
+        framedPayload[0] = format;
         System.arraycopy(compressedPayload, 0, framedPayload, 1, compressedPayload.length);
         return SCHEME_PREFIX + Base64.encodeToString(framedPayload, Base64.URL_SAFE | Base64.NO_WRAP);
     }
@@ -814,8 +825,8 @@ public final class WingsImportParser {
             );
         }
 
-        if (decodedPayload[0] == FORMAT_PROTOBUF_DEFLATE) {
-            byte[] protobufPayload = inflate(slice(decodedPayload, 1, decodedPayload.length));
+        byte[] protobufPayload = decompressFrame(decodedPayload);
+        if (protobufPayload != null) {
             return parseProtoConfig(WingsvProto.Config.parseFrom(protobufPayload));
         }
         throw new IllegalArgumentException(
@@ -3264,6 +3275,29 @@ public final class WingsImportParser {
         } catch (Exception ignored) {
             return Base64.decode(normalizePadding(payload), Base64.DEFAULT);
         }
+    }
+
+    /** Заворачивает готовый кадр в ссылку, не перепаковывая его */
+    static String encodeFrame(byte[] framed) {
+        return SCHEME_PREFIX + Base64.encodeToString(framed, Base64.URL_SAFE | Base64.NO_WRAP);
+    }
+
+    /**
+     * Распаковывает кадр: за байтом формата идёт сжатый protobuf. Оба формата
+     * читаются, потому что ссылки, выданные раньше, никуда не делись.
+     */
+    static byte[] decompressFrame(byte[] framed) throws Exception {
+        if (framed == null || framed.length < 2) {
+            return null;
+        }
+        byte[] payload = slice(framed, 1, framed.length);
+        if (framed[0] == FORMAT_PROTOBUF_BROTLI) {
+            return BrotliCodec.decompress(payload);
+        }
+        if (framed[0] == FORMAT_PROTOBUF_DEFLATE) {
+            return inflate(payload);
+        }
+        return null;
     }
 
     private static byte[] deflate(byte[] input) {

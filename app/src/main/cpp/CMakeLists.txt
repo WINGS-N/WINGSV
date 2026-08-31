@@ -76,3 +76,32 @@ target_link_options(zstd-jni-${ZSTDJNI_VERSION} PRIVATE
         "-Wl,-z,max-page-size=16384")
 
 target_link_libraries(zstd-jni-${ZSTDJNI_VERSION} log)
+
+# Brotli: им сжимаются ссылки и подписки. Собирается из исходников, потому что
+# готового энкодера для Android нет - в maven лежит только декодер
+set(BROTLI_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../external/brotli/c")
+
+file(GLOB BROTLI_SOURCES
+        "${BROTLI_ROOT}/common/*.c"
+        "${BROTLI_ROOT}/dec/*.c"
+        "${BROTLI_ROOT}/enc/*.c")
+
+add_library(wingsbrotli SHARED
+        ${BROTLI_SOURCES}
+        wings_brotli_jni.c)
+
+target_include_directories(wingsbrotli PRIVATE
+        "${BROTLI_ROOT}/include"
+        "${BROTLI_ROOT}")
+
+target_compile_options(wingsbrotli PRIVATE
+        -Oz
+        -Wno-unused
+        -Wno-unused-function
+        -Wno-unused-parameter
+        -Wno-unused-variable)
+
+target_link_options(wingsbrotli PRIVATE
+        "-Wl,-z,max-page-size=16384")
+
+target_link_libraries(wingsbrotli log)

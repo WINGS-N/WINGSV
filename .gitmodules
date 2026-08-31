@@ -26,3 +26,7 @@
 [submodule "external/WINGSV_Magisk"]
 	path = external/WINGSV_Magisk
 	url = https://github.com/WINGS-N/WINGSV_Magisk.git
+[submodule "external/brotli"]
+	path = external/brotli
+	url = https://github.com/google/brotli.git
+	branch = master
