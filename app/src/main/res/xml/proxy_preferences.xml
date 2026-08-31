@@ -37,6 +37,11 @@
         android:entryValues="@array/tunnel_mode_values" />
 
     <Preference
+        android:key="pref_open_federation_account"
+        android:title="@string/federation_account_title"
+        android:summary="@string/federation_account_summary" />
+
+    <Preference
         android:key="pref_open_subscriptions"
         android:title="@string/drawer_subscriptions_title"
         android:summary="@string/drawer_subscriptions_summary" />

@@ -1624,4 +1624,18 @@
     <string name="import_parser_unsupported_type">Поддерживается только type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing</string>
     <string name="import_parser_payload_unpack_failed">Не удалось распаковать payload</string>
     <string name="vk_turn_live_patch_failed">Ошибка при живом применении параметра - применится на следующем старте</string>
+    <string name="federation_account_title">Аккаунт WINGS V</string>
+    <string name="federation_account_summary">Вход в аккаунт, бесплатные серверы федерации</string>
+    <string name="federation_account_sign_in_hint">Войдите, чтобы получить бесплатные серверы федерации</string>
+    <string name="federation_account_login_hint">Логин</string>
+    <string name="federation_account_password_hint">Пароль</string>
+    <string name="federation_account_sign_in">Войти</string>
+    <string name="federation_account_sign_in_matrix">Войти через Matrix ID</string>
+    <string name="federation_account_sign_out">Выйти</string>
+    <string name="federation_account_apply_subscription">Добавить подписку федерации</string>
+    <string name="federation_account_nodes">Серверов выдано: %1$d</string>
+    <string name="federation_account_trust">Доверие %1$d, %2$s</string>
+    <string name="federation_account_no_access">Доступ выдаётся по приглашению</string>
+    <string name="federation_account_subscription_added">Подписка добавлена</string>
+    <string name="federation_account_network_error">Панель недоступна</string>
 </resources>

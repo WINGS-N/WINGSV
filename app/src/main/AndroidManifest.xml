@@ -164,6 +164,19 @@
             android:process=":tunnel"
             android:theme="@style/Theme.WINGSV" />
 
+        <!-- Возврат из браузера после входа через Matrix приносит одноразовый код -->
+        <activity
+            android:name=".FederationAccountActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="wingsv" android:host="account" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".SubscriptionsActivity"
             android:exported="false"

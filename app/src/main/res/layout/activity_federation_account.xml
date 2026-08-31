@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/federation_account_title">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:padding="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Вход. Логин с паролем прямо здесь, Matrix уводит в браузер -->
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:id="@+id/federation_sign_in_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?android:colorBackground"
+                android:orientation="vertical"
+                android:paddingStart="24dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="16dp"
+                app:roundedCorners="all">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/federation_account_sign_in_hint"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+
+                <androidx.appcompat.widget.AppCompatEditText
+                    android:id="@+id/federation_login"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:autofillHints="username"
+                    android:background="@drawable/bg_xray_routing_field"
+                    android:gravity="center_vertical"
+                    android:hint="@string/federation_account_login_hint"
+                    android:imeOptions="actionNext"
+                    android:inputType="text"
+                    android:maxLength="64"
+                    android:maxLines="1"
+                    android:minHeight="54dp"
+                    android:paddingStart="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="14dp" />
+
+                <androidx.appcompat.widget.AppCompatEditText
+                    android:id="@+id/federation_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:autofillHints="password"
+                    android:background="@drawable/bg_xray_routing_field"
+                    android:gravity="center_vertical"
+                    android:hint="@string/federation_account_password_hint"
+                    android:imeOptions="actionDone"
+                    android:inputType="textPassword"
+                    android:maxLength="512"
+                    android:maxLines="1"
+                    android:minHeight="54dp"
+                    android:paddingStart="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="14dp" />
+
+                <TextView
+                    android:id="@+id/federation_sign_in_error"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?attr/colorError"
+                    android:visibility="gone" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/federation_sign_in"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:text="@string/federation_account_sign_in" />
+
+                <TextView
+                    android:id="@+id/federation_sign_in_matrix"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:gravity="center"
+                    android:text="@string/federation_account_sign_in_matrix"
+                    android:textColor="?attr/colorPrimary"
+                    android:textSize="15sp" />
+            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+            <!-- Аккаунт -->
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:id="@+id/federation_account_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?android:colorBackground"
+                android:orientation="vertical"
+                android:padding="24dp"
+                android:visibility="gone"
+                app:roundedCorners="all">
+
+                <TextView
+                    android:id="@+id/federation_username"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textAppearance="?android:attr/textAppearanceLarge"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/federation_trust"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+
+                <TextView
+                    android:id="@+id/federation_nodes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:textAppearance="?android:attr/textAppearanceMedium" />
+
+                <TextView
+                    android:id="@+id/federation_subscription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/federation_apply_subscription"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:text="@string/federation_account_apply_subscription" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/federation_sign_out"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/federation_account_sign_out" />
+            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

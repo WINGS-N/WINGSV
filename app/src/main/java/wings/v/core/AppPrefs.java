@@ -264,6 +264,13 @@ public final class AppPrefs {
     public static final String KEY_GUARDIAN_WS_URL = "pref_guardian_ws_url";
     public static final String KEY_GUARDIAN_CLIENT_ID = "pref_guardian_client_id";
     public static final String KEY_GUARDIAN_CLIENT_TOKEN_B64 = "pref_guardian_client_token_b64";
+
+    /** Аккаунт федерации: адрес панели, токен устройства и имя вошедшего */
+    public static final String KEY_FEDERATION_PANEL_URL = "pref_federation_panel_url";
+
+    public static final String KEY_FEDERATION_TOKEN = "pref_federation_token";
+
+    public static final String KEY_FEDERATION_USERNAME = "pref_federation_username";
     public static final String KEY_GUARDIAN_CA_PINS = "pref_guardian_ca_pins";
     public static final String KEY_GUARDIAN_CLIENT_NAME = "pref_guardian_client_name";
     public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";
@@ -2469,7 +2476,7 @@ public final class AppPrefs {
         return resolvedProfiles;
     }
 
-    private static SharedPreferences prefs(Context context) {
+    static SharedPreferences prefs(Context context) {
         return defaultSharedPreferences(context);
     }
 

@@ -24,6 +24,7 @@ import wings.v.AutoSearchActivity;
 import wings.v.ByeDpiSettingsActivity;
 import wings.v.ExportSettingsActivity;
 import wings.v.ExternalActions;
+import wings.v.FederationAccountActivity;
 import wings.v.FirstLaunchActivity;
 import wings.v.ProxyLogsActivity;
 import wings.v.R;
@@ -318,6 +319,15 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             aboutPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());
                 startActivity(AboutAppActivity.createIntent(requireContext()));
+                return true;
+            });
+        }
+
+        Preference federationAccountPreference = findPreference("pref_open_federation_account");
+        if (federationAccountPreference != null) {
+            federationAccountPreference.setOnPreferenceClickListener(preference -> {
+                Haptics.softSelection(getListView() != null ? getListView() : requireView());
+                startActivity(FederationAccountActivity.createIntent(requireContext()));
                 return true;
             });
         }
