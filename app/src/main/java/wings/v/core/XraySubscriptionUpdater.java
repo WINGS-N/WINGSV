@@ -337,7 +337,11 @@ public final class XraySubscriptionUpdater {
                     awgFetched.add(entry.amneziaProfile.withSubscription(subId, subTitle));
                 } else if (entry.kind == WingsImportParser.ImportedBackendProfile.Kind.VK_TURN) {
                     VkTurnProfile vkTurn = entry.vkTurnProfile.withSubscription(subId, subTitle);
-                    if (entry.usesAmneziaTransport()) {
+                    // Профиль, который голова минтит на подключении: своего
+                    // транспорта у него нет, синхронизировать нечего
+                    if (entry.wireGuardProfile == null && entry.amneziaProfile == null) {
+                        vkPending.add(new VkTurnPending(vkTurn, false, ""));
+                    } else if (entry.usesAmneziaTransport()) {
                         AmneziaProfile transport = entry.amneziaProfile.withSubscription(subId, subTitle);
                         awgFetched.add(transport);
                         vkPending.add(new VkTurnPending(vkTurn, true, transport.stableDedupKey()));
@@ -353,6 +357,10 @@ public final class XraySubscriptionUpdater {
             AmneziaProfileStore.syncSubscriptionProfiles(context, subId, awgFetched);
             List<VkTurnProfile> vkFetched = new ArrayList<>();
             for (VkTurnPending pending : vkPending) {
+                if (TextUtils.isEmpty(pending.transportDedupKey)) {
+                    vkFetched.add(pending.profile);
+                    continue;
+                }
                 String transportId = pending.amneziaTransport
                     ? AmneziaProfileStore.idForDedupKey(context, pending.transportDedupKey)
                     : WireGuardProfileStore.idForDedupKey(context, pending.transportDedupKey);
