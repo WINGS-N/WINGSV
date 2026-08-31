@@ -75,6 +75,76 @@ public class SubscriptionProfileImportTest {
         assertEquals("dG9rZW4=", entry.vkTurnProfile.provisionToken);
     }
 
+    // Тело подписки федерации - наш кадр, а не список vless-ссылок. Обычный
+    // разбор в нём ничего не находит, и без своего пути список серверов пуст
+    @Test
+    public void xrayProfilesComeOutOfAWingsvSubscriptionBody() throws Exception {
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(1)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY)
+            .setXray(
+                WingsvProto.Xray.newBuilder()
+                    .addProfiles(
+                        WingsvProto.VlessProfile.newBuilder()
+                            .setId("fed-01")
+                            .setTitle("Germany #1 / TCP")
+                            .setRawLink("vless://uuid@1.2.3.4:443?type=tcp&security=reality#Germany")
+                    )
+                    .addProfiles(
+                        WingsvProto.VlessProfile.newBuilder()
+                            .setId("fed-02")
+                            .setTitle("Germany #1 / XHTTP")
+                            .setRawLink("vless://uuid@1.2.3.4:8444?type=xhttp&security=reality#Germany")
+                    )
+            )
+            .build();
+
+        List<XrayProfile> got = WingsImportParser.extractXrayProfilesFromSubscriptionBody(
+            subscriptionBody(config), "sub-1", "Federation"
+        );
+
+        assertEquals(2, got.size());
+        assertEquals("Germany #1 / TCP", got.get(0).title);
+        assertEquals("sub-1", got.get(0).subscriptionId);
+        assertEquals("Federation", got.get(0).subscriptionTitle);
+        assertTrue("ссылка потерялась", got.get(1).rawLink.contains("type=xhttp"));
+    }
+
+    // Подписка федерации несёт Xray и VK TURN одним телом, и приложение обязано
+    // разобрать оба списка
+    @Test
+    public void oneBodyCarriesBothProtocols() throws Exception {
+        WingsvProto.Config config = WingsvProto.Config.newBuilder()
+            .setVer(1)
+            .setBackend(WingsvProto.BackendType.BACKEND_TYPE_XRAY)
+            .setType(WingsvProto.ConfigType.CONFIG_TYPE_XRAY)
+            .setXray(
+                WingsvProto.Xray.newBuilder()
+                    .addProfiles(
+                        WingsvProto.VlessProfile.newBuilder()
+                            .setId("fed-01")
+                            .setTitle("Germany #1 / TCP")
+                            .setRawLink("vless://uuid@1.2.3.4:443?type=tcp#Germany")
+                    )
+            )
+            .setTurn(
+                WingsvProto.Turn.newBuilder()
+                    .addProfiles(WingsImportParser.toProtoTurnProfile(turnProfile("free-1", "", true)))
+            )
+            .build();
+        String body = subscriptionBody(config);
+
+        List<XrayProfile> xray = WingsImportParser.extractXrayProfilesFromSubscriptionBody(body, "sub-1", "Federation");
+        List<WingsImportParser.ImportedBackendProfile> backend =
+            WingsImportParser.extractBackendProfilesFromSubscriptionBody(RuntimeEnvironment.getApplication(), body);
+
+        assertEquals("vless из подписки потерялся", 1, xray.size());
+        assertEquals("VK TURN из той же подписки потерялся", 1, backend.size());
+        assertEquals(WingsImportParser.ImportedBackendProfile.Kind.VK_TURN, backend.get(0).kind);
+        assertTrue(backend.get(0).vkTurnProfile.wgProvisioned);
+    }
+
     // A VK TURN profile references its transport by id rather than embedding it,
     // so the referenced one has to travel with it
     @Test

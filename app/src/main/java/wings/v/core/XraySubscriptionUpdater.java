@@ -121,11 +121,15 @@ public final class XraySubscriptionUpdater {
             try {
                 FetchResult fetched = fetch(context, subscription.url);
                 Map<String, String> reuseIds = existingIdsBySubAndKey.get(subscription.id);
-                for (XrayProfile profile : XraySubscriptionParser.parseProfiles(
+                List<XrayProfile> parsed = WingsImportParser.extractXrayProfilesFromSubscriptionBody(
                     fetched.body,
                     subscription.id,
                     subscription.title
-                )) {
+                );
+                if (parsed.isEmpty()) {
+                    parsed = XraySubscriptionParser.parseProfiles(fetched.body, subscription.id, subscription.title);
+                }
+                for (XrayProfile profile : parsed) {
                     if (profile != null) {
                         if (reuseIds != null) {
                             String reusedId = reuseIds.get(profile.stableDedupKey());

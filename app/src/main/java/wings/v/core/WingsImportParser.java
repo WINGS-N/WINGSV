@@ -902,6 +902,49 @@ public final class WingsImportParser {
         return result;
     }
 
+    /**
+     * Достаёт Xray-профили из тела подписки, отданного нашим кадром. Обычный
+     * разбор ищет в теле vless-ссылки, а федерация присылает их внутри
+     * wingsv-конфига, где голова уже проставила имена.
+     */
+    public static List<XrayProfile> extractXrayProfilesFromSubscriptionBody(
+        String body,
+        String subscriptionId,
+        String subscriptionTitle
+    ) {
+        ArrayList<XrayProfile> result = new ArrayList<>();
+        if (TextUtils.isEmpty(body)) {
+            return result;
+        }
+        for (String link : collectWingsvLinks(body)) {
+            try {
+                ImportedConfig config = parseFromText(link);
+                if (config == null || config.hasAllSettings) {
+                    continue;
+                }
+                for (XrayProfile profile : config.xrayProfiles) {
+                    if (profile == null || TextUtils.isEmpty(profile.rawLink)) {
+                        continue;
+                    }
+                    result.add(
+                        new XrayProfile(
+                            profile.id,
+                            profile.title,
+                            profile.rawLink,
+                            subscriptionId,
+                            subscriptionTitle,
+                            profile.address,
+                            profile.port
+                        )
+                    );
+                }
+            } catch (Exception ignored) {
+                // Одна битая ссылка не должна ронять остальные
+            }
+        }
+        return result;
+    }
+
     // Turns the profile lists of one decoded config into subscription entries.
     //
     // A VK TURN profile references its transport by id rather than embedding it,
