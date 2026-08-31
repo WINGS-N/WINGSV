@@ -428,6 +428,9 @@ public final class XraySubscriptionUpdater {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setRequestProperty("User-Agent", resolveUserAgent(context));
+        // Свой Accept вместо того, что подставит HttpURLConnection: в его
+        // дефолте есть text/html, и федерация отдавала на него страницу
+        connection.setRequestProperty("Accept", WINGS_CONTENT_TYPE + ", text/plain, */*");
         SubscriptionHwidStore.Payload hwidPayload = SubscriptionHwidStore.getEffectivePayload(context);
         if (hwidPayload != null) {
             if (!TextUtils.isEmpty(hwidPayload.hwid)) {
