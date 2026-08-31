@@ -486,6 +486,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(@NonNull Menu menu) {
+        MenuItem accountItem = menu.findItem(R.id.menu_federation_account);
+        if (accountItem != null) {
+            accountItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
+        }
         MenuItem qrItem = menu.findItem(R.id.menu_qr_scan);
         if (qrItem != null) {
             // Сканер показываем только на «Главной» и «Профилях» — на вкладках
@@ -499,6 +503,10 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.menu_qr_scan) {
             launchQrScanner();
+            return true;
+        }
+        if (item.getItemId() == R.id.menu_federation_account) {
+            startActivity(FederationAccountActivity.createIntent(this));
             return true;
         }
         return super.onOptionsItemSelected(item);
