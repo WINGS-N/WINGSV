@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -17,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import wings.v.core.AvatarFetcher;
 import wings.v.core.FederationAccount;
 import wings.v.core.XrayStore;
 import wings.v.core.XraySubscription;
@@ -31,7 +33,9 @@ public class FederationAccountActivity extends AppCompatActivity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     private View signInCard;
-    private View accountCard;
+    private View profileCard;
+    private View accessCard;
+    private View signOutCard;
     private EditText login;
     private EditText password;
     private EditText code;
@@ -39,7 +43,9 @@ public class FederationAccountActivity extends AppCompatActivity {
     private TextView username;
     private TextView trust;
     private TextView nodes;
+    private TextView subscriptionState;
     private TextView subscription;
+    private ImageView avatar;
     private Button applySubscription;
 
     private String subscriptionUrl = "";
@@ -54,7 +60,9 @@ public class FederationAccountActivity extends AppCompatActivity {
         setContentView(R.layout.activity_federation_account);
 
         signInCard = findViewById(R.id.federation_sign_in_card);
-        accountCard = findViewById(R.id.federation_account_card);
+        profileCard = findViewById(R.id.federation_profile_card);
+        accessCard = findViewById(R.id.federation_access_card);
+        signOutCard = findViewById(R.id.federation_sign_out_card);
         login = findViewById(R.id.federation_login);
         password = findViewById(R.id.federation_password);
         code = findViewById(R.id.federation_code);
@@ -63,6 +71,8 @@ public class FederationAccountActivity extends AppCompatActivity {
         trust = findViewById(R.id.federation_trust);
         nodes = findViewById(R.id.federation_nodes);
         subscription = findViewById(R.id.federation_subscription);
+        subscriptionState = findViewById(R.id.federation_subscription_state);
+        avatar = findViewById(R.id.federation_avatar);
         applySubscription = findViewById(R.id.federation_apply_subscription);
 
         findViewById(R.id.federation_sign_in).setOnClickListener(v -> signIn());
@@ -169,6 +179,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         current.add(entry);
         XrayStore.setSubscriptions(this, current);
         Toast.makeText(this, R.string.federation_account_subscription_added, Toast.LENGTH_SHORT).show();
+        subscriptionState.setText(R.string.federation_account_subscription_added_state);
         io.execute(() -> {
             try {
                 XraySubscriptionUpdater.refreshAll(this);
@@ -181,12 +192,32 @@ public class FederationAccountActivity extends AppCompatActivity {
     private void render() {
         boolean signedIn = FederationAccount.isSignedIn(this);
         signInCard.setVisibility(signedIn ? View.GONE : View.VISIBLE);
-        accountCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+        profileCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+        accessCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+        signOutCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
         if (!signedIn) {
             return;
         }
         username.setText(FederationAccount.username(this));
+        trust.setText("");
+        nodes.setText("");
+        loadAvatar();
         loadAccess();
+    }
+
+    /** Аватар грузится отдельно: без него экран уже полный, с ним - живой */
+    private void loadAvatar() {
+        String url = FederationAccount.avatarUrl(this);
+        if (TextUtils.isEmpty(url)) {
+            return;
+        }
+        io.execute(() -> {
+            android.graphics.Bitmap bitmap = AvatarFetcher.fetch(this, url);
+            if (bitmap == null) {
+                return;
+            }
+            runOnUiThread(() -> avatar.setImageDrawable(AvatarFetcher.circular(getResources(), bitmap)));
+        });
     }
 
     private void loadAccess() {
@@ -203,19 +234,40 @@ public class FederationAccountActivity extends AppCompatActivity {
     private void applyAccess(@Nullable FederationAccount.Access access) {
         if (access == null || !access.enabled) {
             nodes.setText(R.string.federation_account_no_access);
-            subscription.setText("");
+            subscriptionState.setText("");
+            subscription.setVisibility(View.GONE);
             applySubscription.setVisibility(View.GONE);
             return;
         }
         subscriptionUrl = access.subscriptionUrl;
         nodes.setText(getString(R.string.federation_account_nodes, access.nodes));
-        subscription.setText(access.subscriptionUrl);
-        applySubscription.setVisibility(TextUtils.isEmpty(access.subscriptionUrl) ? View.GONE : View.VISIBLE);
-        if (TextUtils.isEmpty(access.trustBand)) {
-            trust.setText("");
+        if (!TextUtils.isEmpty(access.trustBand)) {
+            trust.setText(getString(R.string.federation_account_trust, access.trustConfidence, access.trustBand));
+        }
+        if (TextUtils.isEmpty(access.subscriptionUrl)) {
+            subscriptionState.setText(R.string.federation_account_no_subscription);
+            subscription.setVisibility(View.GONE);
+            applySubscription.setVisibility(View.GONE);
             return;
         }
-        trust.setText(getString(R.string.federation_account_trust, access.trustConfidence, access.trustBand));
+        subscription.setText(access.subscriptionUrl);
+        subscription.setVisibility(View.VISIBLE);
+        applySubscription.setVisibility(View.VISIBLE);
+        subscriptionState.setText(
+            hasFederationSubscription()
+                ? R.string.federation_account_subscription_added_state
+                : R.string.federation_account_subscription_missing
+        );
+    }
+
+    /** Подписка уже заведена в приложении или ещё нет */
+    private boolean hasFederationSubscription() {
+        for (XraySubscription existing : XrayStore.getSubscriptions(this)) {
+            if (existing != null && FEDERATION_SUBSCRIPTION_ID.equals(existing.id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void showError(@Nullable String message) {

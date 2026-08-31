@@ -1639,4 +1639,9 @@
     <string name="federation_account_subscription_added">Подписка добавлена</string>
     <string name="federation_account_network_error">Панель недоступна</string>
     <string name="federation_account_code_hint">Код из аутентификатора</string>
+    <string name="federation_account_sign_in_title">Вход в WINGS V</string>
+    <string name="federation_account_access_title">Мой доступ</string>
+    <string name="federation_account_subscription_added_state">Подписка добавлена в приложение</string>
+    <string name="federation_account_subscription_missing">Подписка ещё не добавлена</string>
+    <string name="federation_account_no_subscription">Серверы пока не выданы</string>
 </resources>
