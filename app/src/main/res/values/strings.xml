@@ -1639,4 +1639,5 @@
     <string name="federation_account_no_access">Access is given by invitation</string>
     <string name="federation_account_subscription_added">Subscription added</string>
     <string name="federation_account_network_error">The panel is unreachable</string>
+    <string name="federation_account_code_hint">Code from your authenticator</string>
 </resources>

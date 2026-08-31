@@ -79,6 +79,27 @@
                     android:paddingEnd="16dp"
                     android:paddingBottom="14dp" />
 
+                <!-- Поле кода появляется, только когда панель его спросила -->
+                <androidx.appcompat.widget.AppCompatEditText
+                    android:id="@+id/federation_code"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:autofillHints="smsOTPCode"
+                    android:background="@drawable/bg_xray_routing_field"
+                    android:gravity="center_vertical"
+                    android:hint="@string/federation_account_code_hint"
+                    android:imeOptions="actionDone"
+                    android:inputType="number"
+                    android:maxLength="16"
+                    android:maxLines="1"
+                    android:minHeight="54dp"
+                    android:paddingStart="16dp"
+                    android:paddingTop="14dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="14dp"
+                    android:visibility="gone" />
+
                 <TextView
                     android:id="@+id/federation_sign_in_error"
                     android:layout_width="match_parent"

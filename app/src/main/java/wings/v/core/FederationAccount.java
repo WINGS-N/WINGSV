@@ -43,10 +43,14 @@ public final class FederationAccount {
 
         public final String token;
         public final String username;
+        public final String accountId;
+        public final long avatarVersion;
 
-        Session(String token, String username) {
+        Session(String token, String username, String accountId, long avatarVersion) {
             this.token = token;
             this.username = username;
+            this.accountId = accountId;
+            this.avatarVersion = avatarVersion;
         }
     }
 
@@ -67,11 +71,23 @@ public final class FederationAccount {
         return !TextUtils.isEmpty(token(context));
     }
 
+    /** Адрес аватара вошедшего. Пусто, когда никто не вошёл */
+    public static String avatarUrl(@NonNull Context context) {
+        String id = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_ACCOUNT_ID, "");
+        if (TextUtils.isEmpty(id)) {
+            return "";
+        }
+        long version = AppPrefs.prefs(context).getLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, 0L);
+        return panelUrl(context) + "/api/admin/avatars/" + id + ".png?v=" + version;
+    }
+
     public static void store(@NonNull Context context, @NonNull Session session) {
         AppPrefs.prefs(context)
             .edit()
             .putString(AppPrefs.KEY_FEDERATION_TOKEN, session.token)
             .putString(AppPrefs.KEY_FEDERATION_USERNAME, session.username)
+            .putString(AppPrefs.KEY_FEDERATION_ACCOUNT_ID, session.accountId)
+            .putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, session.avatarVersion)
             .apply();
     }
 
@@ -80,23 +96,32 @@ public final class FederationAccount {
             .edit()
             .remove(AppPrefs.KEY_FEDERATION_TOKEN)
             .remove(AppPrefs.KEY_FEDERATION_USERNAME)
+            .remove(AppPrefs.KEY_FEDERATION_ACCOUNT_ID)
+            .remove(AppPrefs.KEY_FEDERATION_AVATAR_VERSION)
             .apply();
     }
 
+    /** Панель попросила код второго фактора */
+    public static final class SecondFactorRequired extends Exception {
+
+        public SecondFactorRequired(String message) {
+            super(message);
+        }
+    }
+
     /** Вход логином и паролём. Бросает с текстом от панели, когда она отказала */
-    public static Session signIn(@NonNull Context context, @NonNull String login, @NonNull String password)
-        throws Exception {
+    public static Session signIn(
+        @NonNull Context context,
+        @NonNull String login,
+        @NonNull String password,
+        @Nullable String code
+    ) throws Exception {
         JSONObject body = new JSONObject();
         body.put("username", login);
         body.put("password", password);
+        body.put("code", code == null ? "" : code);
         body.put("device_name", android.os.Build.MODEL);
-        JSONObject response = post(context, "/api/app/login", body.toString(), null);
-        return new Session(
-            response.optString("token"),
-            response.optJSONObject("account") == null
-                ? login
-                : response.optJSONObject("account").optString("username", login)
-        );
+        return sessionOf(post(context, "/api/app/login", body.toString(), null), login);
     }
 
     /** Обмен одноразового кода на токен. Так возвращается вход через Matrix */
@@ -104,12 +129,23 @@ public final class FederationAccount {
         JSONObject body = new JSONObject();
         body.put("code", code);
         body.put("device_name", android.os.Build.MODEL);
-        JSONObject response = post(context, "/api/app/session", body.toString(), null);
-        JSONObject account = response.optJSONObject("account");
-        return new Session(response.optString("token"), account == null ? "" : account.optString("username", ""));
+        return sessionOf(post(context, "/api/app/session", body.toString(), null), "");
     }
 
     /** Что выдано этому аккаунту */
+    private static Session sessionOf(JSONObject response, String fallbackName) {
+        JSONObject account = response.optJSONObject("account");
+        if (account == null) {
+            return new Session(response.optString("token"), fallbackName, "", 0L);
+        }
+        return new Session(
+            response.optString("token"),
+            account.optString("username", fallbackName),
+            String.valueOf(account.optLong("id")),
+            account.optLong("avatar_version")
+        );
+    }
+
     @Nullable
     public static Access access(@NonNull Context context) throws Exception {
         String token = token(context);
@@ -189,6 +225,9 @@ public final class FederationAccount {
             String raw = output.toString(StandardCharsets.UTF_8.name());
             JSONObject json = TextUtils.isEmpty(raw) ? new JSONObject() : new JSONObject(raw);
             if (code < 200 || code >= 300) {
+                if (json.optBoolean("totp_required")) {
+                    throw new SecondFactorRequired(json.optString("message", "нужен код"));
+                }
                 throw new IllegalStateException(json.optString("message", "HTTP " + code));
             }
             return json;

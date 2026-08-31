@@ -100,6 +100,12 @@ public class MainActivity extends AppCompatActivity {
     };
     private BottomTabLayout bottomTab;
     private MainPagerAdapter pagerAdapter;
+    /** Однопоточная загрузка аватара: картинка одна и меняется редко */
+    private final java.util.concurrent.ExecutorService avatarLoader =
+        java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    private String loadedAvatarUrl = "";
+
     private int currentTabId = R.id.menu_home;
     private boolean hasProfilesTab;
     private boolean hasSharingTab;
@@ -489,6 +495,7 @@ public class MainActivity extends AppCompatActivity {
         MenuItem accountItem = menu.findItem(R.id.menu_federation_account);
         if (accountItem != null) {
             accountItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
+            loadAccountAvatar(accountItem);
         }
         MenuItem qrItem = menu.findItem(R.id.menu_qr_scan);
         if (qrItem != null) {
@@ -497,6 +504,25 @@ public class MainActivity extends AppCompatActivity {
             qrItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
         }
         return super.onPrepareOptionsMenu(menu);
+    }
+
+    /**
+     * Подставляет в тулбар аватар вошедшего. Пока картинка едет, на месте
+     * остаётся силуэт, а не пустое место.
+     */
+    private void loadAccountAvatar(@NonNull MenuItem item) {
+        String url = wings.v.core.FederationAccount.avatarUrl(this);
+        if (android.text.TextUtils.isEmpty(url) || url.equals(loadedAvatarUrl)) {
+            return;
+        }
+        loadedAvatarUrl = url;
+        avatarLoader.execute(() -> {
+            android.graphics.Bitmap bitmap = wings.v.core.AvatarFetcher.fetch(this, url);
+            if (bitmap == null) {
+                return;
+            }
+            runOnUiThread(() -> item.setIcon(wings.v.core.AvatarFetcher.circular(getResources(), bitmap)));
+        });
     }
 
     @Override

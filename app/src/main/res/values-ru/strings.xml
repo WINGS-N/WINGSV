@@ -1638,4 +1638,5 @@
     <string name="federation_account_no_access">Доступ выдаётся по приглашению</string>
     <string name="federation_account_subscription_added">Подписка добавлена</string>
     <string name="federation_account_network_error">Панель недоступна</string>
+    <string name="federation_account_code_hint">Код из аутентификатора</string>
 </resources>

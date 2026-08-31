@@ -34,6 +34,7 @@ public class FederationAccountActivity extends AppCompatActivity {
     private View accountCard;
     private EditText login;
     private EditText password;
+    private EditText code;
     private TextView signInError;
     private TextView username;
     private TextView trust;
@@ -56,6 +57,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         accountCard = findViewById(R.id.federation_account_card);
         login = findViewById(R.id.federation_login);
         password = findViewById(R.id.federation_password);
+        code = findViewById(R.id.federation_code);
         signInError = findViewById(R.id.federation_sign_in_error);
         username = findViewById(R.id.federation_username);
         trust = findViewById(R.id.federation_trust);
@@ -103,14 +105,28 @@ public class FederationAccountActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(user) || TextUtils.isEmpty(pass)) {
             return;
         }
+        String secondFactor = code.getText() == null ? "" : code.getText().toString().trim();
         io.execute(() -> {
             try {
-                FederationAccount.Session session = FederationAccount.signIn(this, user, pass);
+                FederationAccount.Session session = FederationAccount.signIn(this, user, pass, secondFactor);
                 FederationAccount.store(this, session);
                 runOnUiThread(() -> {
                     password.setText("");
+                    code.setText("");
+                    code.setVisibility(View.GONE);
                     signInError.setVisibility(View.GONE);
                     render();
+                });
+            } catch (FederationAccount.SecondFactorRequired needsCode) {
+                runOnUiThread(() -> {
+                    code.setVisibility(View.VISIBLE);
+                    code.requestFocus();
+                    if (TextUtils.isEmpty(secondFactor)) {
+                        signInError.setVisibility(View.GONE);
+                        return;
+                    }
+                    signInError.setText(needsCode.getMessage());
+                    signInError.setVisibility(View.VISIBLE);
                 });
             } catch (Exception error) {
                 showError(error.getMessage());
