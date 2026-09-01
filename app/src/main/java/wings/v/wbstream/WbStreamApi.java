@@ -12,11 +12,11 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * Minimal HTTP client for stream.wb.ru — used to pre-create a LiveKit room and
+ * Minimal HTTP client for stream.wb.ru - used to pre-create a LiveKit room and
  * obtain a stable room_id before spawning the wb-stream proxy. The proxy
  * itself does the same calls in Go (wbstream.AcquireRoomToken), but if we let
  * it pick the room_id then there is nothing to send through the
- * CLIENT_HELLO_TYPE_ROOM_EXCHANGE handshake to the server — the room_id only
+ * CLIENT_HELLO_TYPE_ROOM_EXCHANGE handshake to the server - the room_id only
  * exists after the proxy has already connected.
  */
 @SuppressWarnings(

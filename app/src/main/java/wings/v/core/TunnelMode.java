@@ -10,7 +10,7 @@ import wings.v.proto.WingsvProto;
  *
  * <p>Хранится в SharedPreferences как строка ("wireguard" / "amneziawg") и в
  * proto как {@link WingsvProto.TunnelMode}. {@link #UNSPECIFIED} нигде в UI не
- * используется — это только защита от пустого input'а; на чтении трактуется
+ * используется - это только защита от пустого input'а; на чтении трактуется
  * как WIREGUARD (поведение до введения поля).
  */
 public enum TunnelMode {

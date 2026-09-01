@@ -29,7 +29,7 @@ public class ProxySettings {
 
     public String vkLinkSecondary = "";
     /** Многострочный список user-defined DNS-резолверов для vk-turn-proxy.
-     *  Каждая строка — entry в формате URL: https://host/dns-query (DoH),
+     *  Каждая строка - entry в формате URL: https://host/dns-query (DoH),
      *  udp://ip[:port] или просто ip[:port] (plain). Парсится самим прокси
      *  через флаг -user-dns; здесь храним сырой текст как ввёл админ/юзер. */
     public String vkTurnUserDns = "";

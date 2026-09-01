@@ -6,7 +6,7 @@
         android:key="pref_category_backend"
         android:title="@string/settings_backend_category" />
 
-    <!-- Top-level выбор backend'а. Persistent=false — реальное значение
+    <!-- Top-level выбор backend'а. Persistent=false - реальное значение
          pref_backend_type вычисляется в SettingsFragment из пары
          (top-level, pref_vk_turn_tunnel_mode / pref_wb_stream_tunnel_mode). -->
     <androidx.preference.DropDownPreference

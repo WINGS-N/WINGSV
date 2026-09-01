@@ -1925,7 +1925,7 @@ public class ProxyTunnelService extends Service {
                         streak +
                         "): " +
                         firstNonEmpty(error.getMessage(), error.getClass().getSimpleName()) +
-                        " — retrying in " +
+                        " - retrying in " +
                         (delayMs / 1000L) +
                         "s"
                 );
@@ -4847,7 +4847,7 @@ public class ProxyTunnelService extends Service {
         String e2eSecret
     ) throws Exception {
         if (TextUtils.isEmpty(settings.endpoint)) {
-            throw new IllegalStateException("VK TURN endpoint is empty — fill it in VK TURN settings");
+            throw new IllegalStateException("VK TURN endpoint is empty - fill it in VK TURN settings");
         }
         if (isLoopbackEndpoint(settings.endpoint)) {
             throw new IllegalStateException(getString(R.string.proxy_vk_turn_endpoint_loopback, settings.endpoint));
@@ -6541,7 +6541,7 @@ public class ProxyTunnelService extends Service {
         }
 
         // Ждём появления реальной физической сети без дедлайна. В местах с
-        // глушилками или метро это может занять минуты — раньше метод
+        // глушилками или метро это может занять минуты - раньше метод
         // возвращался по таймауту 8с, и proxy после этого падал на warmup,
         // обрушая сервис в STOPPED. Цикл прерывается только когда юзер
         // явно остановил тоннель (ensureRuntimeStillWanted кинет
@@ -8584,7 +8584,7 @@ public class ProxyTunnelService extends Service {
      * Returns true if the root-server / tether-routing scaffolding must be
      * initialised on this run. Kernel WireGuard always needs it for routing
      * RootShell traffic. Userspace backends with rootMode only need it when
-     * the user actually relies on hotspot/USB sharing — initialising the root
+     * the user actually relies on hotspot/USB sharing - initialising the root
      * server unconditionally has been observed to destabilise WB Stream
      * connections (the iptables/MASQUERADE rules pushed by syncSharing for an
      * empty tether set still touched routing tables and disrupted the
@@ -10106,7 +10106,7 @@ public class ProxyTunnelService extends Service {
      * root-launched subprocess, traffic flows app → mark → lo → Xray → wlan).
      *
      * TX (app → proxy) is read from the IPv4+IPv6 mangle MARK rule byte counters
-     * — these are the exact bytes that wings.v's iptables chain redirected into
+     * - these are the exact bytes that wings.v's iptables chain redirected into
      * Xray. Counters are root-only, polled at most once per second to keep
      * battery cost bounded against the 100ms-200ms sampling cadence.
      *
@@ -10536,7 +10536,7 @@ public class ProxyTunnelService extends Service {
                 // переcнял ребёнка под себя и Java потеряла видимость exit-status,
                 // хотя реальный xray работает и слушает TPROXY-порт. Прежде чем
                 // объявлять "Xray умер" и убивать его сами своим reconnect-ом,
-                // проверим что local listener живой — если порт принимает TCP,
+                // проверим что local listener живой - если порт принимает TCP,
                 // значит Xray на месте и трогать его не надо.
                 if (processDead && !isLocalTcpPortReady("127.0.0.1", xrayTproxyPort)) {
                     scheduleRuntimeReconnect("Xray TPROXY runtime exited unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
@@ -11271,7 +11271,7 @@ public class ProxyTunnelService extends Service {
         }
         if (state == ServiceState.RUNNING) {
             lastRunningStateAtElapsedMs = SystemClock.elapsedRealtime();
-            // Один успешный запуск сбрасывает backoff — следующий сбой
+            // Один успешный запуск сбрасывает backoff - следующий сбой
             // снова начинает с минимальной задержки.
             runtimeStartFailureStreak.set(0);
         } else {

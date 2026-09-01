@@ -186,7 +186,7 @@ public enum BackendType {
      * Top-level группировка для UI dropdown «Активный backend». Возвращает один из
      * 5 ярлыков: {@code vk_turn}, {@code wb_stream}, {@code wireguard},
      * {@code amneziawg}, {@code xray}. AMNEZIAWG (= AWG-over-VK-TURN) попадает в
-     * {@code vk_turn} (подтип отдельным prefом), WB_STREAM_AMNEZIAWG — в
+     * {@code vk_turn} (подтип отдельным prefом), WB_STREAM_AMNEZIAWG - в
      * {@code wb_stream}.
      */
     public String topLevelGroup() {

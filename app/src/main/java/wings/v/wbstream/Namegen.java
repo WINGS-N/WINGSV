@@ -7,7 +7,7 @@ import java.security.SecureRandom;
  * VK-style Russian display name (first name, optionally with a surname adjusted
  * for grammatical gender) so wb-stream peers don't reveal that the participant
  * is a {@code wings.v} client by their LiveKit display name. Server-side
- * vk-turn-proxy uses the same lists when its display name flag is empty —
+ * vk-turn-proxy uses the same lists when its display name flag is empty -
  * keeping client and server symmetric prevents WINGSV from sticking out as a
  * fixed-string outlier in a roomful of namegen'd participants.
  */

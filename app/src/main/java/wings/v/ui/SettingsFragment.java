@@ -487,7 +487,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        // DNS resolver setting moved into VK TURN / WB Stream settings — see
+        // DNS resolver setting moved into VK TURN / WB Stream settings - see
         // their respective fragments. Nothing to gate here anymore.
         PreferenceCategory rootCategory = findPreference("pref_category_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);

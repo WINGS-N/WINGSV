@@ -21,7 +21,7 @@ public final class VkOAuthAuth {
 
     public static final String OAUTH_REDIRECT_URI = "https://oauth.vk.com/blank.html";
     public static final String OAUTH_AUTHORIZE_URL = "https://oauth.vk.com/authorize";
-    // calls (1<<28) | offline (1<<16) — minimum required to call calls.start and
+    // calls (1<<28) | offline (1<<16) - minimum required to call calls.start and
     // keep the token valid past 24 hours. We do NOT request the legacy "all bits
     // set" mask the upstream PR used, that mask included messaging permissions
     // the autolink path does not need.

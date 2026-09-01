@@ -51,7 +51,7 @@ public final class XrayTproxyRouter {
     private static final String CHAIN_OUT6 = "WINGS_XRAY_TP_OUT6";
     private static final String CHAIN_REDIR = "WINGS_XRAY_REDIR";
     private static final String CHAIN_FWD = "WINGS_XRAY_TP_FWD";
-    // -w 5 — wait up to 5 seconds for the kernel xtables lock so that parallel
+    // -w 5 - wait up to 5 seconds for the kernel xtables lock so that parallel
     // iptables invocations from vpnhotspot / ConnectivityService / system tether
     // helpers don't collide with ours and trip "lock xtables already used by
     // another app". Without this the chain ends up half-built and Xray loses
@@ -474,7 +474,7 @@ public final class XrayTproxyRouter {
     /**
      * Reads cumulative bytes counted by the {@code MARK} rules in our IPv4 + IPv6
      * OUTPUT mangle chains. Counters are the ones {@code XrayTproxyRouter.apply}
-     * created with the chain — they reset to zero on every reapply.
+     * created with the chain - they reset to zero on every reapply.
      *
      * Returns 0 if the chains are not in place or if the root shell call fails.
      */

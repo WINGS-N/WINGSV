@@ -75,9 +75,9 @@ public class MainActivity extends AppCompatActivity {
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
     private static final long BACK_EXIT_WINDOW_MS = 2_000L;
     private static final long NAVIGATION_REFRESH_INTERVAL_MS = 500L;
-    // Re-probe актуального состояния su периодически — Magisk/Kitsune может
+    // Re-probe актуального состояния su периодически - Magisk/Kitsune может
     // отозвать grant между resume/pause, и UI должен это поймать. 30 секунд
-    // — компромисс между ленью пользователя и стоимостью ProcessBuilder("su").
+    // - компромисс между ленью пользователя и стоимостью ProcessBuilder("su").
     private static final long ROOT_STATE_REPROBE_INTERVAL_MS = 30_000L;
 
     private ActivityMainBinding binding;
@@ -484,7 +484,7 @@ public class MainActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(@NonNull Menu menu) {
         // ToolbarLayout calls setSupportActionBar() on its inner toolbar, so the
         // standard options-menu callback is the lifecycle-stable place to add the
-        // QR scan button — direct toolbar.inflateMenu() gets wiped on the first
+        // QR scan button - direct toolbar.inflateMenu() gets wiped on the first
         // invalidateOptionsMenu() that AppCompat issues during setup.
         getMenuInflater().inflate(R.menu.menu_main_toolbar, menu);
         return super.onCreateOptionsMenu(menu);
@@ -499,7 +499,7 @@ public class MainActivity extends AppCompatActivity {
         }
         MenuItem qrItem = menu.findItem(R.id.menu_qr_scan);
         if (qrItem != null) {
-            // Сканер показываем только на «Главной» и «Профилях» — на вкладках
+            // Сканер показываем только на «Главной» и «Профилях» - на вкладках
             // sharing/settings место в тулбаре отдаём под их собственные элементы.
             qrItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
         }
@@ -540,9 +540,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void launchQrScanner() {
         // QrScanActivity self-manages camera permission via its own launcher,
-        // so we never request CAMERA on app start — only after the user taps this.
+        // so we never request CAMERA on app start - only after the user taps this.
         // No regex/prefix filter: WingsImportParser.parseFromText accepts wingsv://,
-        // vless://, AmneziaWG quick-config text, and subscription URLs — let it judge.
+        // vless://, AmneziaWG quick-config text, and subscription URLs - let it judge.
         Intent intent = QrScanActivity.Companion.createIntent(this, getString(R.string.qr_scan_title));
         try {
             qrScanLauncher.launch(intent);
@@ -661,7 +661,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshRootStateAsync() {
         // Раньше тут был ранний выход когда cache=false: «нечего перепроверять,
-        // root и так нет». Это пропускало обратное направление — пользователь
+        // root и так нет». Это пропускало обратное направление - пользователь
         // включил Magisk grant в фоне, мы его не видели до следующего onResume.
         // Теперь probe идёт всегда; refreshRootAccessState внутри сама поймёт
         // и cache→true (user granted), и cache→false (revoke), и вызовет

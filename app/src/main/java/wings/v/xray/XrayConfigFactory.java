@@ -203,8 +203,24 @@ public final class XrayConfigFactory {
      * kind, so the only access control available is what the kernel enforces on the
      * socket, and abstract sockets carry no ownership or permissions.
      */
+    /** Суффикс lock-файла, который ядро держит рядом с unix-сокетом */
+    private static final String LOCK_SUFFIX = ".lock";
+
     public static File apiSocketFile(Context context) {
         return new File(context.getFilesDir(), "xray/api.sock");
+    }
+
+    /**
+     * Сносит сокет прошлого запуска вместе с его lock-файлом.
+     */
+    private static void deleteStaleApiSocket(File socket) {
+        if (socket.exists()) {
+            socket.delete();
+        }
+        File lock = new File(socket.getAbsolutePath() + LOCK_SUFFIX);
+        if (lock.exists()) {
+            lock.delete();
+        }
     }
 
     /**
@@ -222,10 +238,10 @@ public final class XrayConfigFactory {
             parent.mkdirs();
         }
         // A socket left behind by a previous run makes bind fail with EADDRINUSE.
-        // The lock file xray keeps beside it is recreated on demand.
-        if (socket.exists()) {
-            socket.delete();
-        }
+        // Рядом с сокетом ядро держит lock-файл, и после root-запуска оба остаются
+        // с uid 0: обычный старт открывает lock на запись и получает EACCES. Unlink
+        // при этом проходит - права проверяются на каталоге, а он наш
+        deleteStaleApiSocket(socket);
         root.put("stats", new JSONObject());
         root.put(
             "api",

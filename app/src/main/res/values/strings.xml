@@ -118,7 +118,7 @@
     <string name="clipboard_import_multi_summary">Imported %1$d, skipped %2$d</string>
     <string name="vk_turn_user_dns_title">Custom DNS resolvers</string>
     <string name="vk_turn_user_dns_summary">Add custom DNS in front of the built-in list (Yandex → Google → Cloudflare). One per line.</string>
-    <string name="vk_turn_user_dns_dialog_message">Formats:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — plain UDP\n• 77.88.8.8 — same, plain UDP/53\nEntries that don\'t respond on bootstrap are dropped; the built-in list remains as fallback.</string>
+    <string name="vk_turn_user_dns_dialog_message">Formats:\n• https://dns.example/dns-query - DoH\n• udp://77.88.8.8:53 - plain UDP\n• 77.88.8.8 - same, plain UDP/53\nEntries that don\'t respond on bootstrap are dropped; the built-in list remains as fallback.</string>
     <string name="vk_turn_wrap_category_title">Obfuscation / WRAP</string>
     <string name="vk_turn_wrap_mode_title">WRAP mode</string>
     <string name="vk_turn_wrap_mode_summary">SRTP-mimicry obfuscation of DTLS bytes inside TURN ChannelData (bypasses VK TURN content filter). Off = transparent, Preferred/Required wrap every datagram.</string>
@@ -136,7 +136,7 @@
     <string name="vk_turn_wrap_key_dialog_message">Paste a 64-character hex string (32 bytes). Use the button below to generate a fresh key.</string>
     <string name="vk_turn_wrap_generate_title">Generate new key</string>
     <string name="vk_turn_wrap_generate_summary">Replaces the current WRAP key with a fresh random 32-byte value.</string>
-    <string name="vk_turn_wrap_key_invalid">Invalid hex — expected 64 characters (32 bytes).</string>
+    <string name="vk_turn_wrap_key_invalid">Invalid hex - expected 64 characters (32 bytes).</string>
     <string name="vk_turn_wrap_key_generated">WRAP key regenerated</string>
     <string name="vk_turn_wrap_send_key_title">Send key in-band</string>
     <string name="vk_turn_wrap_send_key_summary">Send the WRAP key to the server inside the session handshake. Disable if the server already has a fixed key.</string>
@@ -536,7 +536,7 @@
     <string name="backend_wb_stream_title">WB Stream</string>
     <string name="backend_wb_stream_amneziawg_title">WB Stream + AmneziaWG</string>
     <string name="backend_wb_stream_with_room">WB Stream · %1$s</string>
-    <!-- Top-level labels (without sub-backend — it is rendered in a separate dropdown). -->
+    <!-- Top-level labels (without sub-backend - it is rendered in a separate dropdown). -->
     <string name="backend_top_vk_turn_title">VK TURN</string>
     <string name="backend_top_wb_stream_title">WB Stream (unavailable)</string>
     <string name="backend_top_wb_stream_unavailable_toast">WB Stream backend is temporarily unavailable</string>
@@ -609,12 +609,12 @@
     <string name="wb_stream_exchange_via_vk_turn_title">Exchange room data via VK TURN</string>
     <string name="wb_stream_exchange_via_vk_turn_summary">Send room ID to the server via a short VK TURN handshake instead of exchanging it manually</string>
     <string name="wb_stream_room_count_title">Parallel LiveKit rooms</string>
-    <string name="wb_stream_room_count_summary">How many LiveKit rooms to open in parallel (1–16). With &gt;1, traffic is distributed round-robin across rooms to bypass SFU per-room limits</string>
+    <string name="wb_stream_room_count_summary">How many LiveKit rooms to open in parallel (1-16). With &gt;1, traffic is distributed round-robin across rooms to bypass SFU per-room limits</string>
     <string name="wb_stream_e2e_enabled_title">E2E encryption</string>
     <string name="wb_stream_e2e_enabled_summary">Additionally encrypt packets with AES-256-GCM on top of the LiveKit DataChannel</string>
     <string name="wb_stream_e2e_secret_title">E2E secret</string>
     <string name="wb_stream_e2e_secret_summary">Pre-shared secret in Base64. Must match on client and server</string>
-    <string name="wb_stream_vk_turn_section">VK TURN — room ID exchange</string>
+    <string name="wb_stream_vk_turn_section">VK TURN - room ID exchange</string>
     <string name="vk_turn_settings_title">VK TURN settings</string>
     <string name="vk_turn_settings_summary">Proxy, transport and WireGuard/AmneziaWG parameters</string>
     <string name="vk_turn_xray_tcp_settings_summary">Endpoint, VK Link and parameters for Xray over VK TURN TCP</string>
@@ -1007,7 +1007,7 @@
     <string name="vk_links_add_hint">https://vk.com/call/join/...</string>
     <string name="vk_links_edit_dialog_title">Edit VK link</string>
     <string name="vk_links_secondary_title">Backup link</string>
-    <string name="vk_links_secondary_summary_empty">Not set — fallback is not used</string>
+    <string name="vk_links_secondary_summary_empty">Not set - fallback is not used</string>
     <string name="vk_links_secondary_summary_set">Used when all primary links fail</string>
     <string name="vk_links_secondary_dialog_title">Backup VK link</string>
     <string name="vk_links_empty">No links. Add at least one to start the tunnel.</string>
@@ -1025,7 +1025,7 @@
     <string name="vk_links_summary_count_few">%d links</string>
     <string name="vk_links_summary_count_many">%d links</string>
     <string name="creds_group_size_title">Workers per TURN credential</string>
-    <string name="creds_group_size_summary">How many workers share one VK credential. Fewer — more credentials (higher rate-limit ceiling, but more captcha requests). Default is 12.</string>
+    <string name="creds_group_size_summary">How many workers share one VK credential. Fewer - more credentials (higher rate-limit ceiling, but more captcha requests). Default is 12.</string>
     <string name="vk_account_auth_title">Use VK ID</string>
     <string name="vk_account_auth_summary">TURN credentials via VK ID sign-in instead of anonymous mode</string>
     <string name="vk_clear_cookies_title">Delete VK cookies</string>
@@ -1147,7 +1147,7 @@
     <string name="guardian_pref_log_readonly_summary">Managed by the guardian</string>
     <string name="guardian_pref_revoke_summary">Removes the token from this device</string>
     <string name="guardian_notification_channel">Guardian</string>
-    <string name="guardian_notification_title">WINGS V — guardian</string>
+    <string name="guardian_notification_title">WINGS V - guardian</string>
     <string name="guardian_notification_connecting">Connecting to panel…</string>
     <string name="guardian_notification_connected">Connected to %1$s</string>
     <string name="guardian_notification_disconnected">No connection to the panel</string>
@@ -1386,7 +1386,7 @@
     <string name="settings_export_amnezia_title">Export AmneziaWG settings</string>
     <string name="settings_export_amnezia_summary">Raw AmneziaWG configuration and the selected AmneziaWG backend</string>
     <string name="settings_export_wb_stream_title">Export WB Stream settings</string>
-    <string name="settings_export_wb_stream_summary">Room ID, display name, E2E key; when exchange via VK TURN is enabled — also VK TURN parameters</string>
+    <string name="settings_export_wb_stream_summary">Room ID, display name, E2E key; when exchange via VK TURN is enabled - also VK TURN parameters</string>
     <string name="settings_export_xposed_title">Export Xposed settings</string>
     <string name="settings_export_xposed_summary">Module toggles, hook modes, lists of target and hidden VPN apps</string>
     <string name="settings_export_app_routing_bypass_title">Export bypass apps</string>

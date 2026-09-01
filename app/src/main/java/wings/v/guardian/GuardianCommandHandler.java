@@ -148,7 +148,7 @@ public final class GuardianCommandHandler {
         GuardianProto.StateReport.Builder report = GuardianProto.StateReport.newBuilder().setRuntime(runtime);
         try {
             wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildGuardianSnapshotProto(ctx);
-            // Strip Guardian credentials from the snapshot we send back —
+            // Strip Guardian credentials from the snapshot we send back -
             // they're already known to the panel and including them would only
             // leak the token through StateReport echoes.
             wings.v.proto.WingsvProto.Config sanitised = snapshot.toBuilder().clearGuardian().build();
@@ -166,7 +166,7 @@ public final class GuardianCommandHandler {
             wings.v.core.WingsImportParser.ImportedConfig imported = wings.v.core.WingsImportParser.parseProtoConfig(
                 push.getConfig()
             );
-            // Strip Guardian credentials but keep sync_mode/interval — those
+            // Strip Guardian credentials but keep sync_mode/interval - those
             // are panel-driven behavioural knobs and must propagate live.
             imported.guardianWsUrl = null;
             imported.guardianClientId = null;

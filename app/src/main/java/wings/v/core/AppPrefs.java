@@ -2520,7 +2520,7 @@ public final class AppPrefs {
 
     /**
      * Запускается из {@link wings.v.WingsApplication#onCreate()} один раз при старте.
-     * Идемпотентна — версия хранится в {@link #KEY_PREFS_SCHEMA_VERSION}, повторные
+     * Идемпотентна - версия хранится в {@link #KEY_PREFS_SCHEMA_VERSION}, повторные
      * вызовы no-op. Текущие миграции:
      * <ul>
      *   <li>v1: вывести {@link #KEY_VK_TURN_TUNNEL_MODE} и {@link #KEY_WB_STREAM_TUNNEL_MODE}
@@ -2548,7 +2548,7 @@ public final class AppPrefs {
             editor.putString(KEY_VK_TURN_TUNNEL_MODE, vkTurnMode.prefValue);
         }
         if (!sharedPreferences.contains(KEY_WB_STREAM_TUNNEL_MODE)) {
-            // До v1 у WB Stream был только WireGuard-туннель — сохраняем поведение.
+            // До v1 у WB Stream был только WireGuard-туннель - сохраняем поведение.
             editor.putString(KEY_WB_STREAM_TUNNEL_MODE, TunnelMode.WIREGUARD.prefValue);
         }
     }

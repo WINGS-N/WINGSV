@@ -117,15 +117,15 @@
     <string name="clipboard_import_invalid">Не удалось разобрать wingsv://, vless:// или URL подписки</string>
     <string name="vk_turn_user_dns_title">Свои DNS-резолверы</string>
     <string name="vk_turn_user_dns_summary">Добавить пользовательские DNS перед встроенным списком (Yandex → Google → Cloudflare). По одному на строку.</string>
-    <string name="vk_turn_user_dns_dialog_message">Форматы:\n• https://dns.example/dns-query — DoH\n• udp://77.88.8.8:53 — обычный UDP\n• 77.88.8.8 — то же, plain UDP/53\nЗаписи без отклика на bootstrap отбрасываются; встроенный список остаётся как fallback.</string>
+    <string name="vk_turn_user_dns_dialog_message">Форматы:\n• https://dns.example/dns-query - DoH\n• udp://77.88.8.8:53 - обычный UDP\n• 77.88.8.8 - то же, plain UDP/53\nЗаписи без отклика на bootstrap отбрасываются; встроенный список остаётся как fallback.</string>
     <string name="vk_turn_wrap_category_title">Обфускация / WRAP</string>
     <string name="vk_turn_wrap_mode_title">Режим WRAP</string>
-    <string name="vk_turn_wrap_mode_summary">SRTP-мимикрия DTLS внутри TURN ChannelData (обход контент-фильтра VK TURN). Off — прозрачно, Preferred/Required — каждая датаграмма оборачивается.</string>
+    <string name="vk_turn_wrap_mode_summary">SRTP-мимикрия DTLS внутри TURN ChannelData (обход контент-фильтра VK TURN). Off - прозрачно, Preferred/Required - каждая датаграмма оборачивается.</string>
     <string name="vk_turn_wrap_mode_off">Выключено</string>
     <string name="vk_turn_wrap_mode_preferred">Предпочтительно</string>
     <string name="vk_turn_wrap_mode_required">Обязательно</string>
     <string name="vk_turn_wrap_cipher_title">Шифр WRAP</string>
-    <string name="vk_turn_wrap_cipher_summary">SRTP-мимикрия AEAD. AES-256-GCM использует аппаратное AES-NI на ARM; ChaCha20-Poly1305 — программная альтернатива.</string>
+    <string name="vk_turn_wrap_cipher_summary">SRTP-мимикрия AEAD. AES-256-GCM использует аппаратное AES-NI на ARM; ChaCha20-Poly1305 - программная альтернатива.</string>
     <string name="vk_turn_wrap_cipher_aes_ctr">SRTP / AES-256-GCM (ARM AES-NI)</string>
     <string name="vk_turn_wrap_cipher_chacha20_xor">SRTP / ChaCha20-Poly1305 (программный)</string>
     <string name="vk_turn_wrap_key_summary_empty">Не задан</string>
@@ -135,7 +135,7 @@
     <string name="vk_turn_wrap_key_dialog_message">Вставьте 64-символьную hex-строку (32 байта). Кнопка ниже сгенерирует новый ключ.</string>
     <string name="vk_turn_wrap_generate_title">Сгенерировать новый ключ</string>
     <string name="vk_turn_wrap_generate_summary">Заменяет текущий WRAP-ключ свежим случайным значением (32 байта).</string>
-    <string name="vk_turn_wrap_key_invalid">Невалидный hex — ожидается 64 символа (32 байта).</string>
+    <string name="vk_turn_wrap_key_invalid">Невалидный hex - ожидается 64 символа (32 байта).</string>
     <string name="vk_turn_wrap_key_generated">WRAP-ключ перегенерирован</string>
     <string name="vk_turn_wrap_send_key_title">Передавать ключ in-band</string>
     <string name="vk_turn_wrap_send_key_summary">Передавать WRAP-ключ серверу внутри handshake сессии. Отключите, если на сервере задан фиксированный ключ.</string>
@@ -189,7 +189,7 @@
     <string name="apps_mode_off_summary">Все приложения идут через VPN</string>
     <string name="apps_mode_bypass_summary">Выбранные приложения исключаются из VPN на уровне Android и идут в сеть напрямую. Просто, но приложение теоретически может обойти туннель, привязавшись прямо к интерфейсу.</string>
     <string name="apps_mode_xbypass_summary">Bypass, но через Xray (gVisor): весь трафик заходит в туннель, а выбранные приложения Xray уводит напрямую. Закрывает утечки и случай неопознанного UID. Только на Xray и VK TURN + Xray-WG.</string>
-    <string name="apps_mode_whitelist_summary">Через VPN идут только выбранные приложения, остальные — напрямую</string>
+    <string name="apps_mode_whitelist_summary">Через VPN идут только выбранные приложения, остальные - напрямую</string>
     <string name="apps_mode_xwhitelist_summary">Whitelist, но через Xray (gVisor): весь трафик заходит в туннель, а Xray туннелирует только выбранные приложения, остальные уводит напрямую. Закрывает утечки для нетуннелируемых приложений. Только на Xray и VK TURN + Xray-WG.</string>
     <string name="apps_reconnect_hint">Изменения применяются после переподключения</string>
     <string name="apps_count">Выбрано приложений: %1$d</string>
@@ -535,7 +535,7 @@
     <string name="backend_wb_stream_title">WB Stream</string>
     <string name="backend_wb_stream_amneziawg_title">WB Stream + AmneziaWG</string>
     <string name="backend_wb_stream_with_room">WB Stream · %1$s</string>
-    <!-- Топ-левел ярлыки (без указания под-backend'а — он рендерится отдельным дропдауном). -->
+    <!-- Топ-левел ярлыки (без указания под-backend'а - он рендерится отдельным дропдауном). -->
     <string name="backend_top_vk_turn_title">VK TURN</string>
     <string name="backend_top_wb_stream_title">WB Stream (недоступно)</string>
     <string name="backend_top_wb_stream_unavailable_toast">WB Stream backend временно недоступен</string>
@@ -603,17 +603,17 @@
     <string name="wb_stream_settings_summary">LiveKit-комната, обмен через VK TURN, WireGuard/AmneziaWG параметры</string>
     <string name="wb_stream_section">WB Stream</string>
     <string name="wb_stream_room_id_title">ID комнаты</string>
-    <string name="wb_stream_room_id_summary">Если пусто — клиент создаст новую и покажет ID</string>
+    <string name="wb_stream_room_id_summary">Если пусто - клиент создаст новую и покажет ID</string>
     <string name="wb_stream_display_name_title">Имя участника</string>
     <string name="wb_stream_exchange_via_vk_turn_title">Обмен room data через VK TURN</string>
     <string name="wb_stream_exchange_via_vk_turn_summary">Передавать ID комнаты серверу через короткий VK TURN handshake вместо ручного обмена</string>
     <string name="wb_stream_room_count_title">Параллельных LiveKit-комнат</string>
-    <string name="wb_stream_room_count_summary">Сколько LiveKit-комнат открывать параллельно (1–16). При &gt;1 трафик распределяется round-robin между комнатами для обхода SFU per-room лимитов</string>
+    <string name="wb_stream_room_count_summary">Сколько LiveKit-комнат открывать параллельно (1-16). При &gt;1 трафик распределяется round-robin между комнатами для обхода SFU per-room лимитов</string>
     <string name="wb_stream_e2e_enabled_title">E2E-шифрование</string>
     <string name="wb_stream_e2e_enabled_summary">Дополнительно шифровать пакеты AES-256-GCM поверх LiveKit DataChannel</string>
     <string name="wb_stream_e2e_secret_title">E2E-секрет</string>
     <string name="wb_stream_e2e_secret_summary">Предобщий секрет в Base64. Должен совпадать на клиенте и сервере</string>
-    <string name="wb_stream_vk_turn_section">VK TURN — обмен ID комнаты</string>
+    <string name="wb_stream_vk_turn_section">VK TURN - обмен ID комнаты</string>
     <string name="vk_turn_settings_title">Настройки VK TURN</string>
     <string name="vk_turn_settings_summary">Proxy, transport и WireGuard/AmneziaWG параметры</string>
     <string name="vk_turn_xray_tcp_settings_summary">Endpoint, VK Link и параметры для Xray поверх VK TURN TCP</string>
@@ -867,7 +867,7 @@
     <string name="xray_settings_sniffing_title">Sniffing</string>
     <string name="xray_settings_sniffing_summary">Определение destination по traffic sniffing для прозрачного режима</string>
     <string name="xray_settings_tun_uid_lookup_timeout_title">Таймаут UID lookup (мс)</string>
-    <string name="xray_settings_tun_uid_lookup_timeout_summary">Время ожидания публикации UID нового TCP/UDP соединения в /proc/net, прежде чем фильтр по приложениям его дропнет. Помогает Tor/SSH, открывающим много сокетов за секунду — даёт ядру время их зарегистрировать. 0 отключает retry. Рекомендуется: 150</string>
+    <string name="xray_settings_tun_uid_lookup_timeout_summary">Время ожидания публикации UID нового TCP/UDP соединения в /proc/net, прежде чем фильтр по приложениям его дропнет. Помогает Tor/SSH, открывающим много сокетов за секунду - даёт ядру время их зарегистрировать. 0 отключает retry. Рекомендуется: 150</string>
     <string name="xray_settings_tun_unknown_uid_bypass_title">Пропускать пакеты с неизвестным UID напрямую</string>
     <string name="xray_settings_tun_unknown_uid_bypass_summary">Закрывает утечки от приложений, которые биндятся к tun0 напрямую.</string>
     <string name="xray_settings_tun_unknown_uid_router_title">Маршрутизатор Unknown UID</string>
@@ -977,7 +977,7 @@
     <string name="xray_routing_downloading">Скачивание…</string>
     <string name="vk_links_title">VK-ссылки</string>
     <string name="vk_links_header_title">Несколько звонков</string>
-    <string name="vk_links_header_summary">Чем больше ссылок — тем стабильнее соединение и меньше каптчи. Порядок задаёт приоритет: верхние пробуются первыми, при отказе клиент переключается на следующую.</string>
+    <string name="vk_links_header_summary">Чем больше ссылок - тем стабильнее соединение и меньше каптчи. Порядок задаёт приоритет: верхние пробуются первыми, при отказе клиент переключается на следующую.</string>
     <string name="vk_links_actions_section">Действия</string>
     <string name="vk_links_list_section">Список ссылок</string>
     <string name="vk_links_add_title">Добавить ссылку</string>
@@ -1006,7 +1006,7 @@
     <string name="vk_links_add_hint">https://vk.com/call/join/...</string>
     <string name="vk_links_edit_dialog_title">Изменить VK-ссылку</string>
     <string name="vk_links_secondary_title">Запасная ссылка</string>
-    <string name="vk_links_secondary_summary_empty">Не задано — fallback не используется</string>
+    <string name="vk_links_secondary_summary_empty">Не задано - fallback не используется</string>
     <string name="vk_links_secondary_summary_set">Используется при отказе всех основных ссылок</string>
     <string name="vk_links_secondary_dialog_title">Запасная VK-ссылка</string>
     <string name="vk_links_empty">Нет ссылок. Добавьте хотя бы одну, чтобы запустить туннель.</string>
@@ -1024,7 +1024,7 @@
     <string name="vk_links_summary_count_few">%d ссылки</string>
     <string name="vk_links_summary_count_many">%d ссылок</string>
     <string name="creds_group_size_title">Воркеров на TURN-учётку</string>
-    <string name="creds_group_size_summary">Сколько воркеров делят одну VK-учётку. Меньше — больше учёток (выше потолок до rate-limit, но больше captcha-запросов). По умолчанию 12.</string>
+    <string name="creds_group_size_summary">Сколько воркеров делят одну VK-учётку. Меньше - больше учёток (выше потолок до rate-limit, но больше captcha-запросов). По умолчанию 12.</string>
     <string name="vk_account_auth_title">Использовать VK ID</string>
     <string name="vk_account_auth_summary">TURN-креды через вход по VK ID вместо анонимного режима</string>
     <string name="vk_clear_cookies_title">Удалить cookies VK</string>
@@ -1146,7 +1146,7 @@
     <string name="guardian_pref_log_readonly_summary">Управляется попечителем</string>
     <string name="guardian_pref_revoke_summary">Удаляет токен с этого устройства</string>
     <string name="guardian_notification_channel">Попечительство</string>
-    <string name="guardian_notification_title">WINGS V — попечительство</string>
+    <string name="guardian_notification_title">WINGS V - попечительство</string>
     <string name="guardian_notification_connecting">Подключение к панели…</string>
     <string name="guardian_notification_connected">Подключено к %1$s</string>
     <string name="guardian_notification_disconnected">Нет соединения с панелью</string>
@@ -1234,7 +1234,7 @@
     <string name="sharing_auto_start_title">Автозапуск раздачи при старте устройства</string>
     <string name="sharing_auto_start_summary">После загрузки системы автоматически восстанавливает последние активные точки раздачи на выбранном backend</string>
     <string name="sharing_hide_from_operator_title">Скрывать раздачу от оператора</string>
-    <string name="sharing_hide_from_operator_summary">Повышает TTL/HL пакетов раздачи на +1 через iptables — оператор видит пакеты как прямые мобильные, а не переадресованные. Нужен root и модуль ядра xt_HL.</string>
+    <string name="sharing_hide_from_operator_summary">Повышает TTL/HL пакетов раздачи на +1 через iptables - оператор видит пакеты как прямые мобильные, а не переадресованные. Нужен root и модуль ядра xt_HL.</string>
     <string name="sharing_offload_title">Аппаратное ускорение раздачи</string>
     <string name="sharing_offload_summary">Отключайте, если системная раздача не проводит трафик через VPN</string>
     <string name="sharing_dhcp_title">DHCP workaround</string>
@@ -1385,7 +1385,7 @@
     <string name="settings_export_amnezia_title">Экспортировать AmneziaWG настройки</string>
     <string name="settings_export_amnezia_summary">Raw AmneziaWG конфигурация и выбранный AmneziaWG backend</string>
     <string name="settings_export_wb_stream_title">Экспортировать WB Stream настройки</string>
-    <string name="settings_export_wb_stream_summary">Room ID, display name, E2E ключ; при включённом обмене через VK TURN — также VK TURN параметры</string>
+    <string name="settings_export_wb_stream_summary">Room ID, display name, E2E ключ; при включённом обмене через VK TURN - также VK TURN параметры</string>
     <string name="settings_export_xposed_title">Экспортировать Xposed настройки</string>
     <string name="settings_export_xposed_summary">Тумблеры модуля, hook-режимы, списки целевых и скрываемых VPN-приложений</string>
     <string name="settings_export_app_routing_bypass_title">Экспортировать bypass приложения</string>

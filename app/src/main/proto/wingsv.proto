@@ -26,7 +26,7 @@ message Config {
   Guardian guardian = 16;
   // Монотонно растущая ревизия конфига, выставляется панелью при
   // UpsertClientConfig. Клиент сохраняет её при успешном apply и шлёт
-  // обратно в ClientHello.last_applied_config_version — сервер на welcome
+  // обратно в ClientHello.last_applied_config_version - сервер на welcome
   // решает, нужен ли вообще ConfigPush, и тем самым не «перезатирает»
   // только что отредактированные админом поля на reconnect-гонке.
   uint64 config_version = 17;
@@ -84,7 +84,7 @@ enum GuardianSyncMode {
   GUARDIAN_SYNC_MODE_FOREGROUND_ONLY = 3;
 }
 
-// BackendType — top-level выбор пользователя. Legacy-значения
+// BackendType - top-level выбор пользователя. Legacy-значения
 // BACKEND_TYPE_VK_TURN_WIREGUARD / BACKEND_TYPE_AMNEZIAWG /
 // BACKEND_TYPE_AMNEZIAWG_PLAIN остаются для совместимости со старыми
 // конфигами и читателями; новые конфиги используют BACKEND_TYPE_VK_TURN
@@ -98,14 +98,14 @@ enum BackendType {
   BACKEND_TYPE_WIREGUARD = 4;
   BACKEND_TYPE_AMNEZIAWG_PLAIN = 5 [deprecated = true];    // legacy alias for top-level AmneziaWG
   BACKEND_TYPE_WB_STREAM = 6;
-  BACKEND_TYPE_VK_TURN = 7;       // top-level "VK TURN"; реальный туннель — по Turn.tunnel_mode
+  BACKEND_TYPE_VK_TURN = 7;       // top-level "VK TURN"; реальный туннель - по Turn.tunnel_mode
   BACKEND_TYPE_AMNEZIAWG_TL = 8;  // top-level "AmneziaWG" (заменяет AMNEZIAWG_PLAIN)
 }
 
-// TunnelMode — какой тип туннеля поднимать внутри backend-обёртки.
+// TunnelMode - какой тип туннеля поднимать внутри backend-обёртки.
 // Применимо к BACKEND_TYPE_VK_TURN (Turn.tunnel_mode) и BACKEND_TYPE_WB_STREAM
 // (WbStream.tunnel_mode). Для top-level WIREGUARD / AMNEZIAWG_TL / XRAY значение
-// игнорируется — тип туннеля жёстко задан backend'ом.
+// игнорируется - тип туннеля жёстко задан backend'ом.
 enum TunnelMode {
   TUNNEL_MODE_UNSPECIFIED = 0;
   TUNNEL_MODE_WIREGUARD = 1;
@@ -173,7 +173,7 @@ message Turn {
   optional bool restart_on_network_change = 15;
   ProxyRuntimeMode runtime_mode = 16;
   // Пользовательские DNS-резолверы, ставятся ПЕРЕД встроенным (yandex →
-  // google → cloudflare). Каждая запись — одна строка в формате URL:
+  // google → cloudflare). Каждая запись - одна строка в формате URL:
   //   https://dns.example/dns-query  (DoH)
   //   udp://77.88.8.8:53             (plain UDP/53; порт необязателен)
   //   77.88.8.8                      (то же самое, plain UDP/53)
@@ -188,11 +188,11 @@ message Turn {
   // Pre-shared ключ для WRAP (32 байта для AES-256-CTR/ChaCha20-XOR).
   // Пустое поле = клиент сгенерирует случайный ключ при первом запуске.
   bytes wrap_key = 20;
-  // Список разрешённых шифров в порядке предпочтения (первый — наиболее
+  // Список разрешённых шифров в порядке предпочтения (первый - наиболее
   // желательный). Пустой ≡ [AES_256_CTR].
   repeated WrapCipher wrap_ciphers = 21;
   // Передавать wrap_key in-band через mu/v1 SessionHello.
-  // По умолчанию (UNSPECIFIED) — true. ON_FALSE отключает передачу
+  // По умолчанию (UNSPECIFIED) - true. ON_FALSE отключает передачу
   // (сервер обязан иметь preset).
   WrapKeyDelivery wrap_key_delivery = 22;
   // Optional profile title carried by single-profile share links (built from a
@@ -206,7 +206,7 @@ message Turn {
   repeated TurnProfile profiles = 25;
   optional bool merge_only = 26;
   // Семейство браузерного отпечатка для HTTP+TLS-имитации relay'ем:
-  // "auto" | "chrome" | "edge" | "safari" | "firefox". Пусто / "auto" — relay
+  // "auto" | "chrome" | "edge" | "safari" | "firefox". Пусто / "auto" - relay
   // выбирает случайный профиль на сессию; остальные фиксируют одно семейство.
   string browser_fingerprint = 27;
 }

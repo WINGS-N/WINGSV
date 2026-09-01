@@ -25,7 +25,7 @@ import org.json.JSONObject;
  *  2. We inject the app's nativeLibraryDir into the system PathClassLoader's
  *     nativeLibraryDirectories so {@code System.loadLibrary("gojni")} (called
  *     from {@code go.Seq}'s static init the first time {@code LibXray} is
- *     touched) can resolve the lib — app_process started with a bare
+ *     touched) can resolve the lib - app_process started with a bare
  *     {@code CLASSPATH=base.apk} doesn't propagate the app's lib search path.
  *  3. {@code LibXray.runXrayFromJSON} kicks the runtime into goroutines and
  *     returns immediately. We park on a monitor until shutdown.

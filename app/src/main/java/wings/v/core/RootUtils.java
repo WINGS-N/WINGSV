@@ -40,9 +40,9 @@ public final class RootUtils {
     private static final int MAX_DIRECT_SU_LOG_CHARS = 240;
     private static final int ROOT_PROBE_ATTEMPTS = 6;
     // Kitsune/KernelSU/Apatch often показывают grant-диалог пользователю на
-    // первом probe — 450 мс не хватало докрутить «Allow». Делаем первое
+    // первом probe - 450 мс не хватало докрутить «Allow». Делаем первое
     // ожидание длинным (≈12с до полной серии retry), последующие быстрые
-    // — если уже разрешили, мгновенно поймаем uid=0 на следующей итерации.
+    // - если уже разрешили, мгновенно поймаем uid=0 на следующей итерации.
     private static final long[] ROOT_PROBE_RETRY_DELAYS_MS = { 500L, 1_500L, 2_500L, 3_500L, 4_000L };
 
     private RootUtils() {}
@@ -56,11 +56,11 @@ public final class RootUtils {
                 sleepBeforeRootRetry(attempt);
             }
         }
-        // Все probe'ы провалились — стерем кэш пути su, чтобы при следующей
+        // Все probe'ы провалились - стерем кэш пути su, чтобы при следующей
         // успешной проверке он переопределился актуальным значением, а не
         // указывал на binary, который OS отозвал.
         AppPrefs.setRootSuPath(context, "");
-        // Все стратегии провалились — собираем диагностический отпечаток в
+        // Все стратегии провалились - собираем диагностический отпечаток в
         // runtime-лог, чтобы юзер мог скинуть и понять почему `su` exec не
         // работает (binary не найден, exec denied SELinux'ом, magisk daemon
         // не отвечает и т.п.). Без этого приходится гадать на Kitsune/KernelSU.
@@ -126,7 +126,7 @@ public final class RootUtils {
     }
 
     private static boolean verifyRootAccessOnce(Context context, int attempt) {
-        // Лёгкие direct probe'ы идут первыми — они не запускают magisk-sqlite
+        // Лёгкие direct probe'ы идут первыми - они не запускают magisk-sqlite
         // policy update в preamble (как делает RootShell), который ломается
         // на Kitsune Magisk и других не-Topjohnwu форках.
         if (verifyRootAccessDirect()) {
@@ -142,16 +142,16 @@ public final class RootUtils {
         }
         if (verifyRootAccessViaHelper(context)) {
             Log.i(TAG, "Root access confirmed via helper probe on attempt " + attempt);
-            // helper использует "su" из PATH — кэшируем дефолт.
+            // helper использует "su" из PATH - кэшируем дефолт.
             if (TextUtils.isEmpty(AppPrefs.getRootSuPath(context))) {
                 AppPrefs.setRootSuPath(context, "su");
             }
             return true;
         }
-        // Interactive RootShell оставляем последним — он содержит preamble с
+        // Interactive RootShell оставляем последним - он содержит preamble с
         // `magisk --sqlite "UPDATE policies ..."`, который не работает на
         // Kitsune/KernelSU/Apatch. Если предыдущие probe'ы уже подтвердили
-        // root, до сюда не дойдём — а если форк не Magisk-совместимый,
+        // root, до сюда не дойдём - а если форк не Magisk-совместимый,
         // эта попытка просто провалится тихо.
         if (verifyRootAccessInteractive(context)) {
             Log.i(TAG, "Root access confirmed via interactive probe on attempt " + attempt);
@@ -203,7 +203,7 @@ public final class RootUtils {
 
     /**
      * Лёгкий single-attempt re-probe для периодического опроса. Без длинных
-     * retry-задержек — полная серия из {@link #verifyRootAccess(Context)}
+     * retry-задержек - полная серия из {@link #verifyRootAccess(Context)}
      * сжигала бы по 12с каждые 30с в фоне. Применяется в MainActivity для
      * детекта revoke, пока пользователь сидит в приложении.
      */
@@ -212,7 +212,7 @@ public final class RootUtils {
         boolean granted = verifyRootAccessOnce(context, 1);
         AppPrefs.setRootAccessGranted(context, granted);
         if (wasGranted && !granted) {
-            // Перед тем как объявить revoke — даём ОС ещё одну попытку
+            // Перед тем как объявить revoke - даём ОС ещё одну попытку
             // (Magisk daemon мог временно зависнуть). Если повторная проба
             // тоже false, считаем что грант реально отозван.
             try {
@@ -235,10 +235,10 @@ public final class RootUtils {
      * выключаем, runtime root-state стираем, активному сервису просим
      * переподключиться без root-функционала. Settings/MainActivity подхватят
      * KEY_ROOT_MODE через свой OnSharedPreferenceChangeListener / периодический
-     * syncNavigationState — отдельно дёргать их не нужно.
+     * syncNavigationState - отдельно дёргать их не нужно.
      */
     private static void handleRootRevoked(Context context) {
-        Log.w(TAG, "Root access was revoked — disabling root-mode toggle and clearing runtime state");
+        Log.w(TAG, "Root access was revoked - disabling root-mode toggle and clearing runtime state");
         AppPrefs.setRootModeEnabled(context, false);
         AppPrefs.setRootSuPath(context, "");
         AppPrefs.clearRootRuntimeState(context);
@@ -285,7 +285,7 @@ public final class RootUtils {
         // (WG RootShell preamble, direct su exec from background thread) often
         // can't see root even when it's actually granted. Last-chance live
         // check: invoke the root helper as we'd do for real operations. If it
-        // returns uid=0, root is functional — update the cache and continue.
+        // returns uid=0, root is functional - update the cache and continue.
         // We only run this when caller asked for cached lookup; if refreshAccess
         // was true, verifyRootAccess already tried the helper-probe path.
         if (!refreshAccess && verifyRootAccessViaHelper(context)) {
@@ -383,7 +383,7 @@ public final class RootUtils {
 
     /**
      * Возвращает путь к работающему su из кэша probe'ов. Дефолт {@code "su"}
-     * (PATH lookup) — на Topjohnwu Magisk достаточно. На Kitsune Magisk probe
+     * (PATH lookup) - на Topjohnwu Magisk достаточно. На Kitsune Magisk probe
      * запоминает {@code /debug_ramdisk/su} или другой реальный путь.
      */
     private static String resolveSuBinary(Context context) {
@@ -479,13 +479,13 @@ public final class RootUtils {
     /**
      * Возвращает путь к работающему su-binary (или {@code "su"} если уже на PATH),
      * либо {@code null} если ни один пробный вызов не дал uid=0. Этот же путь потом
-     * используется в {@link #runRootHelper(Context, String...)} —
+     * используется в {@link #runRootHelper(Context, String...)} -
      * без него Kitsune Magisk: probe находит su в /debug_ramdisk, но реальный
      * exec через PATH "su" падает с ENOENT.
      */
     private static String verifyRootAccessFallbackMatrix() {
         List<FallbackProbe> commandMatrix = new ArrayList<>();
-        // Shell-mediated PATH lookup — ловит варианты, когда наш ProcessBuilder
+        // Shell-mediated PATH lookup - ловит варианты, когда наш ProcessBuilder
         // не находит su через свой PATH, но shell его видит (Kitsune Magisk и
         // некоторые KernelSU-установки кладут su в нестандартное место).
         commandMatrix.add(
@@ -533,7 +533,7 @@ public final class RootUtils {
         "/system/bin/su",
         "/sbin/su",
         "/sbin/.magisk/busybox/su",
-        // /debug_ramdisk/su — Kitsune Magisk на некоторых прошивках кладёт su
+        // /debug_ramdisk/su - Kitsune Magisk на некоторых прошивках кладёт su
         // именно сюда (debug_ramdisk монтируется ранним init'ом).
         "/debug_ramdisk/su",
         "/data/adb/magisk/su",

@@ -387,7 +387,7 @@ public class ProxyLogsActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.proxy_logs_clear_failed, Toast.LENGTH_SHORT).show();
             return;
         }
-        // Сброс адаптера и счётчика версии — иначе следующий refresh решит, что
+        // Сброс адаптера и счётчика версии - иначе следующий refresh решит, что
         // изменений не было (lastRenderedLogVersion остаётся прежним) и не
         // перерисует пустой стейт.
         displayedLines.clear();

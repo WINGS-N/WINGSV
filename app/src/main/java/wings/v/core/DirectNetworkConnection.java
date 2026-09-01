@@ -72,7 +72,7 @@ public final class DirectNetworkConnection {
             //     to specific networks for non-foreground UIDs;
             //   - Android 12+ refuses binds to networks the app didn't request via
             //     NetworkRequest.
-            // The default route is fine in all of these cases — the VPN provider's
+            // The default route is fine in all of these cases - the VPN provider's
             // own UID auto-bypasses its own tunnel at the kernel level, and external
             // VPNs without lockdown also let WINGSV's own UID through.
             Log.w(

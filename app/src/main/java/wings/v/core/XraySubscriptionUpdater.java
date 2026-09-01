@@ -268,7 +268,7 @@ public final class XraySubscriptionUpdater {
         String activeProfileId = activeProfile != null ? activeProfile.id : "";
         String activeFingerprint = profileConnectionFingerprint(activeProfile);
         // Don't trigger reconnect just because the raw URL string differs
-        // between refreshes — many subscription servers re-shuffle query params
+        // between refreshes - many subscription servers re-shuffle query params
         // or stamp session tokens, which cascades into a new id (id is derived
         // from rawLink-based dedup key). The runtime only needs to restart if
         // the actual connection target (host:port) changed.
@@ -283,7 +283,7 @@ public final class XraySubscriptionUpdater {
         );
     }
 
-    /** Functional connection target — host and port the runtime will actually
+    /** Functional connection target - host and port the runtime will actually
      *  connect to. We can't rely on id or rawLink because subscription
      *  servers often re-stamp session tokens / reorder query params, which
      *  cascades into a new id (id derives from rawLink-based dedup key). If

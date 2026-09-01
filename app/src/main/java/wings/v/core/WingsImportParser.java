@@ -146,7 +146,7 @@ public final class WingsImportParser {
             context,
             scopedSettings(context, ExportScope.XRAY),
             true /* includeProfiles */,
-            true /* includeSubscriptionProfiles — panel needs to see ALL of them */,
+            true /* includeSubscriptionProfiles - panel needs to see ALL of them */,
             true /* includeRouting */,
             true /* includeDefaults */
         );
@@ -2593,7 +2593,7 @@ public final class WingsImportParser {
         return builder.build();
     }
 
-    /** Раскладывает многострочный/CSV ввод user-dns на отдельные записи —
+    /** Раскладывает многострочный/CSV ввод user-dns на отдельные записи -
      *  тот же формат, что принимает vk-turn-proxy через -user-dns. */
     private static java.util.List<String> splitUserDnsEntries(String raw) {
         java.util.List<String> out = new java.util.ArrayList<>();

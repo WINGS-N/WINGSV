@@ -147,7 +147,7 @@ public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private String orDash(String value) {
-        return TextUtils.isEmpty(value) ? "—" : value;
+        return TextUtils.isEmpty(value) ? "-" : value;
     }
 
     private String syncModeText(Context ctx) {

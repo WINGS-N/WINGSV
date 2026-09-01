@@ -22,7 +22,7 @@ import wings.v.service.ProxyTunnelService;
 /**
  * Foreground service that owns the long-lived Guardian (panel) connection.
  *
- * Runs independently of ProxyTunnelService — the panel can start/stop the
+ * Runs independently of ProxyTunnelService - the panel can start/stop the
  * tunnel via Guardian commands. Restarted from boot when the user's preference
  * is on.
  */
@@ -536,7 +536,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildGuardianSnapshotProto(
                 getApplicationContext()
             );
-            // Strip Guardian credentials from the snapshot we send back —
+            // Strip Guardian credentials from the snapshot we send back -
             // they're already known to the panel and including them would only
             // leak the token through StateReport echoes.
             wings.v.proto.WingsvProto.Config sanitised = snapshot.toBuilder().clearGuardian().build();
