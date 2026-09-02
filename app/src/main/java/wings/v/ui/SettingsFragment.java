@@ -127,7 +127,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         startRuntimeBackendRefresh();
         refreshAboutPreferenceBadge(appUpdateManager.getState());
         // Возврат с экрана аккаунта: имя и аватар в карточке могли смениться
-        AccountCardPreference accountCard = findPreference("pref_open_federation_account");
+        AccountCardPreference accountCard = findPreference("pref_open_wings_account");
         if (accountCard != null) {
             accountCard.refresh();
         }
@@ -328,7 +328,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
-        Preference federationAccountPreference = findPreference("pref_open_federation_account");
+        Preference federationAccountPreference = findPreference("pref_open_wings_account");
         if (federationAccountPreference != null) {
             federationAccountPreference.setOnPreferenceClickListener(preference -> {
                 Haptics.softSelection(getListView() != null ? getListView() : requireView());

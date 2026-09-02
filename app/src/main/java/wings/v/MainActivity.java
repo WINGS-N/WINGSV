@@ -490,7 +490,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(@NonNull Menu menu) {
-        MenuItem accountItem = menu.findItem(R.id.menu_federation_account);
+        MenuItem accountItem = menu.findItem(R.id.menu_wings_account);
         if (accountItem != null) {
             accountItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
             loadAccountAvatar(accountItem);
@@ -535,7 +535,7 @@ public class MainActivity extends AppCompatActivity {
             launchQrScanner();
             return true;
         }
-        if (item.getItemId() == R.id.menu_federation_account) {
+        if (item.getItemId() == R.id.menu_wings_account) {
             startActivity(FederationAccountActivity.createIntent(this));
             return true;
         }

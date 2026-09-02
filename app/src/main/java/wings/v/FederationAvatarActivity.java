@@ -193,7 +193,7 @@ public final class FederationAvatarActivity extends AppCompatActivity {
             try {
                 byte[] data = readAll(uri);
                 if (data.length > MAX_AVATAR_BYTES) {
-                    throw new IllegalStateException(getString(R.string.federation_account_avatar_too_big));
+                    throw new IllegalStateException(getString(R.string.wings_account_avatar_too_big));
                 }
                 String mime = getContentResolver().getType(uri);
                 Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);

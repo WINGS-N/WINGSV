@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <wings.v.ui.AccountCardPreference
-        android:key="pref_open_federation_account"
+        android:key="pref_open_wings_account"
         android:order="-100" />
 
     <PreferenceCategory

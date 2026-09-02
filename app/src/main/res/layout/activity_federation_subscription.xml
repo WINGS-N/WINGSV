@@ -58,7 +58,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:layout_marginTop="20dp"
-                    android:text="@string/federation_account_subscription_copy" />
+                    android:text="@string/wings_account_subscription_copy" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
         </LinearLayout>
     </ScrollView>

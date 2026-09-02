@@ -272,7 +272,7 @@ public final class AppPrefs {
 
     public static final String KEY_FEDERATION_USERNAME = "pref_federation_username";
 
-    public static final String KEY_FEDERATION_ACCOUNT_ID = "pref_federation_account_id";
+    public static final String KEY_FEDERATION_ACCOUNT_ID = "pref_wings_account_id";
 
     public static final String KEY_FEDERATION_AVATAR_VERSION = "pref_federation_avatar_version";
 

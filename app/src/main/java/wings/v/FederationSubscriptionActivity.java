@@ -45,7 +45,7 @@ public final class FederationSubscriptionActivity extends AppCompatActivity {
         address.setVisibility(present ? View.VISIBLE : View.GONE);
         findViewById(R.id.federation_subscription_copy).setVisibility(present ? View.VISIBLE : View.GONE);
         state.setText(
-            present ? R.string.federation_account_subscription_added_state : R.string.federation_account_no_subscription
+            present ? R.string.wings_account_subscription_added_state : R.string.wings_account_no_subscription
         );
     }
 
@@ -57,7 +57,7 @@ public final class FederationSubscriptionActivity extends AppCompatActivity {
         android.content.ClipboardManager clipboard = getSystemService(android.content.ClipboardManager.class);
         if (clipboard != null) {
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("subscription", url));
-            Toast.makeText(this, R.string.federation_account_subscription_copied, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.wings_account_subscription_copied, Toast.LENGTH_SHORT).show();
         }
     }
 }

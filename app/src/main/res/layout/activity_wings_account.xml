@@ -7,7 +7,7 @@
     android:background="?roundedCornerColor"
     app:expanded="false"
     app:expandable="false"
-    app:title="@string/federation_account_title">
+    app:title="@string/wings_account_title">
 
     <ScrollView
         android:layout_width="match_parent"
@@ -38,7 +38,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:fontFamily="@font/samsungsharpsans"
-                    android:text="@string/federation_account_title"
+                    android:text="@string/wings_account_title"
                     android:textAppearance="?android:attr/textAppearanceLarge"
                     android:textStyle="bold" />
 
@@ -46,7 +46,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="@string/federation_account_sign_in_hint"
+                    android:text="@string/wings_account_sign_in_hint"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="?android:textColorSecondary" />
 
@@ -58,7 +58,7 @@
                     android:autofillHints="username"
                     android:background="@drawable/bg_xray_routing_field"
                     android:gravity="center_vertical"
-                    android:hint="@string/federation_account_login_hint"
+                    android:hint="@string/wings_account_login_hint"
                     android:imeOptions="actionNext"
                     android:inputType="textNoSuggestions"
                     android:paddingStart="16dp"
@@ -74,7 +74,7 @@
                     android:autofillHints="password"
                     android:background="@drawable/bg_xray_routing_field"
                     android:gravity="center_vertical"
-                    android:hint="@string/federation_account_password_hint"
+                    android:hint="@string/wings_account_password_hint"
                     android:imeOptions="actionDone"
                     android:inputType="textPassword"
                     android:paddingStart="16dp"
@@ -90,7 +90,7 @@
                     android:autofillHints="smsOTPCode"
                     android:background="@drawable/bg_xray_routing_field"
                     android:gravity="center_vertical"
-                    android:hint="@string/federation_account_code_hint"
+                    android:hint="@string/wings_account_code_hint"
                     android:imeOptions="actionDone"
                     android:inputType="number"
                     android:paddingStart="16dp"
@@ -119,7 +119,7 @@
                         android:id="@+id/federation_sign_in"
                         android:layout_width="match_parent"
                         android:layout_height="52dp"
-                        android:text="@string/federation_account_sign_in" />
+                        android:text="@string/wings_account_sign_in" />
 
                     <ProgressBar
                         android:id="@+id/federation_sign_in_progress"
@@ -140,7 +140,7 @@
                     android:drawableStart="@drawable/ic_matrix"
                     android:drawablePadding="10dp"
                     android:gravity="center"
-                    android:text="@string/federation_account_sign_in_matrix" />
+                    android:text="@string/wings_account_sign_in_matrix" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
             <!-- Шапка профиля: имя слева, аватар справа -->
@@ -178,7 +178,7 @@
                         android:layout_width="72dp"
                         android:layout_height="72dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="@string/federation_account_change_avatar"
+                        android:contentDescription="@string/wings_account_change_avatar"
                         android:src="@drawable/ic_account_avatar" />
 
                 </FrameLayout>
@@ -221,7 +221,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/federation_account_nodes_caption"
+                            android:text="@string/wings_account_nodes_caption"
                             android:textAppearance="?android:attr/textAppearanceSmall"
                             android:textColor="?android:textColorSecondary" />
 
@@ -255,7 +255,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/federation_account_traffic_caption"
+                            android:text="@string/wings_account_traffic_caption"
                             android:textAppearance="?android:attr/textAppearanceSmall"
                             android:textColor="?android:textColorSecondary" />
 
@@ -272,7 +272,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="@string/federation_account_period_caption"
+                            android:text="@string/wings_account_period_caption"
                             android:textAppearance="?android:attr/textAppearanceSmall"
                             android:textColor="?android:textColorSecondary" />
                     </LinearLayout>
@@ -475,7 +475,7 @@
                 android:paddingEnd="40dp"
                 android:drawableStart="@drawable/ic_account_sign_out"
                 android:drawablePadding="10dp"
-                android:text="@string/federation_account_sign_out"
+                android:text="@string/wings_account_sign_out"
                 android:visibility="gone" />
 
                 <ProgressBar

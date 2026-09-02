@@ -3,9 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/menu_federation_account"
+        android:id="@+id/menu_wings_account"
         android:icon="@drawable/ic_account_avatar"
-        android:title="@string/federation_account_title"
+        android:title="@string/wings_account_title"
         app:showAsAction="always" />
 
     <item

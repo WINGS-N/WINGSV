@@ -34,7 +34,7 @@ public final class FederationSubscription {
         current.add(
             new XraySubscription(
                 ID,
-                context.getString(wings.v.R.string.federation_account_title),
+                context.getString(wings.v.R.string.wings_account_title),
                 url,
                 "auto",
                 0,

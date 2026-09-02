@@ -121,7 +121,7 @@ public final class FederationProfileActivity extends AppCompatActivity {
             return;
         }
         runOnUiThread(() -> {
-            error.setText(TextUtils.isEmpty(message) ? getString(R.string.federation_account_error) : message);
+            error.setText(TextUtils.isEmpty(message) ? getString(R.string.wings_account_error) : message);
             error.setVisibility(View.VISIBLE);
         });
     }

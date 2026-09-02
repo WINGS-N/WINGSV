@@ -47,12 +47,12 @@ public final class AccountCardPreference extends Preference {
         boolean signedIn = FederationAccount.isSignedIn(context);
         String username = FederationAccount.username(context);
         name.setText(
-            signedIn && !TextUtils.isEmpty(username) ? username : context.getString(R.string.federation_account_title)
+            signedIn && !TextUtils.isEmpty(username) ? username : context.getString(R.string.wings_account_title)
         );
         summary.setText(
             signedIn
-                ? context.getString(R.string.federation_account_title)
-                : context.getString(R.string.federation_account_summary)
+                ? context.getString(R.string.wings_account_title)
+                : context.getString(R.string.wings_account_summary)
         );
 
         String url = FederationAccount.avatarUrl(context);

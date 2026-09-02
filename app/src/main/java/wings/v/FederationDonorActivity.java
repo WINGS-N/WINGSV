@@ -131,7 +131,7 @@ public final class FederationDonorActivity extends AppCompatActivity {
         given.setText(UiFormatter.formatBytes(this, donor.usedBytes));
         givenMeta.setText(
             donor.probeBytes > 0
-                ? getString(R.string.federation_account_probe_meta, UiFormatter.formatBytes(this, donor.probeBytes))
+                ? getString(R.string.wings_account_probe_meta, UiFormatter.formatBytes(this, donor.probeBytes))
                 : ""
         );
         applyBudget(budgetBar, budgetText, donor.usedBytes, donor.declaredBudgetBytes);
@@ -268,11 +268,11 @@ public final class FederationDonorActivity extends AppCompatActivity {
             .setTitle(R.string.federation_donor_command_title)
             .setView(view)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.federation_account_subscription_copy, (dialog, which) -> {
+            .setPositiveButton(R.string.wings_account_subscription_copy, (dialog, which) -> {
                 android.content.ClipboardManager clipboard = getSystemService(android.content.ClipboardManager.class);
                 if (clipboard != null) {
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("enroll", command));
-                    Toast.makeText(this, R.string.federation_account_subscription_copied, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.wings_account_subscription_copied, Toast.LENGTH_SHORT).show();
                 }
             })
             .show();
@@ -283,7 +283,7 @@ public final class FederationDonorActivity extends AppCompatActivity {
             return;
         }
         runOnUiThread(() -> {
-            error.setText(TextUtils.isEmpty(message) ? getString(R.string.federation_account_error) : message);
+            error.setText(TextUtils.isEmpty(message) ? getString(R.string.wings_account_error) : message);
             error.setVisibility(View.VISIBLE);
         });
     }

@@ -61,7 +61,7 @@ public class FederationAccountActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_federation_account);
+        setContentView(R.layout.activity_wings_account);
 
         ToolbarLayout toolbar = findViewById(R.id.toolbar_layout);
         toolbar.setShowNavigationButtonAsBack(true);
@@ -193,7 +193,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         signInProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         findViewById(R.id.federation_sign_in).setEnabled(!busy);
         ((Button) findViewById(R.id.federation_sign_in)).setText(
-            busy ? R.string.federation_account_signing_in : R.string.federation_account_sign_in
+            busy ? R.string.wings_account_signing_in : R.string.wings_account_sign_in
         );
     }
 
@@ -308,13 +308,13 @@ public class FederationAccountActivity extends AppCompatActivity {
     private void applyAccess(@Nullable FederationAccount.Access access) {
         if (access == null || !access.enabled) {
             nodes.setText("-");
-            nodesMeta.setText(R.string.federation_account_no_access);
+            nodesMeta.setText(R.string.wings_account_no_access);
             return;
         }
-        nodes.setText(getString(R.string.federation_account_nodes, access.nodes));
+        nodes.setText(getString(R.string.wings_account_nodes, access.nodes));
         nodesMeta.setText(
             access.nodesEntitled > access.nodes
-                ? getString(R.string.federation_account_nodes_short, access.nodesEntitled)
+                ? getString(R.string.wings_account_nodes_short, access.nodesEntitled)
                 : ""
         );
         traffic.setText(UiFormatter.formatBytes(this, access.usedBytes));
@@ -337,13 +337,13 @@ public class FederationAccountActivity extends AppCompatActivity {
         }
         trustBar.setVisibility(View.VISIBLE);
         trustProgress.setProgress(Math.max(0, Math.min(100, access.trustConfidence)));
-        trust.setText(getString(R.string.federation_account_trust, access.trustConfidence));
+        trust.setText(getString(R.string.wings_account_trust, access.trustConfidence));
     }
 
     /** Потолок вниз и вверх, как его выдал оракул. Цвета те же, что у трафика */
     private void applySpeed(@NonNull FederationAccount.Access access) {
         if (access.downlinkBps == 0 && access.uplinkBps == 0) {
-            speedDown.setText(R.string.federation_account_speed_unlimited);
+            speedDown.setText(R.string.wings_account_speed_unlimited);
             speedUp.setText("");
             return;
         }
@@ -357,9 +357,7 @@ public class FederationAccountActivity extends AppCompatActivity {
             return;
         }
         runOnUiThread(() -> {
-            signInError.setText(
-                TextUtils.isEmpty(message) ? getString(R.string.federation_account_network_error) : message
-            );
+            signInError.setText(TextUtils.isEmpty(message) ? getString(R.string.wings_account_network_error) : message);
             signInError.setVisibility(View.VISIBLE);
         });
     }
