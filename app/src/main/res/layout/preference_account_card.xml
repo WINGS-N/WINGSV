@@ -11,6 +11,14 @@
     android:paddingEnd="24dp"
     android:paddingBottom="20dp">
 
+    <ImageView
+        android:id="@+id/account_card_avatar"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_marginEnd="18dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_account_avatar" />
+
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -37,12 +45,4 @@
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="?android:textColorSecondary" />
     </LinearLayout>
-
-    <ImageView
-        android:id="@+id/account_card_avatar"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_marginStart="16dp"
-        android:contentDescription="@null"
-        android:src="@drawable/ic_account_avatar" />
 </LinearLayout>

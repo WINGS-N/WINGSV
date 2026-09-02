@@ -2,9 +2,8 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <Preference
+    <wings.v.ui.AccountCardPreference
         android:key="pref_open_federation_account"
-        android:layout="@layout/preference_account_card"
         android:order="-100" />
 
     <PreferenceCategory

@@ -1660,7 +1660,7 @@
     <string name="federation_account_subscription_copy">Copy the link</string>
     <string name="federation_account_subscription_copied">Link copied</string>
     <string name="federation_row_profile_title">Profile information</string>
-    <string name="federation_row_profile_summary">Login, password, avatar</string>
+    <string name="federation_row_profile_summary">Login and password</string>
     <string name="federation_profile_login_caption">Login</string>
     <string name="federation_profile_password_section">Password</string>
     <string name="federation_profile_password_current">Current password</string>

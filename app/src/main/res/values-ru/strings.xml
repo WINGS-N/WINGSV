@@ -1659,7 +1659,7 @@
     <string name="federation_account_subscription_copy">Скопировать ссылку</string>
     <string name="federation_account_subscription_copied">Ссылка скопирована</string>
     <string name="federation_row_profile_title">Информация профиля</string>
-    <string name="federation_row_profile_summary">Логин, пароль, аватар</string>
+    <string name="federation_row_profile_summary">Логин и пароль</string>
     <string name="federation_profile_login_caption">Логин</string>
     <string name="federation_profile_password_section">Пароль</string>
     <string name="federation_profile_password_current">Текущий пароль</string>

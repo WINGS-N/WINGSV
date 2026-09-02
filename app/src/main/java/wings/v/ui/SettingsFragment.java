@@ -126,6 +126,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         refreshRuntimeBackedPreferences(true);
         startRuntimeBackendRefresh();
         refreshAboutPreferenceBadge(appUpdateManager.getState());
+        // Возврат с экрана аккаунта: имя и аватар в карточке могли смениться
+        AccountCardPreference accountCard = findPreference("pref_open_federation_account");
+        if (accountCard != null) {
+            accountCard.refresh();
+        }
     }
 
     @Override

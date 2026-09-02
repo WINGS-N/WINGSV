@@ -507,12 +507,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Подставляет в тулбар аватар вошедшего. Пока картинка едет, на месте
-     * остаётся силуэт, а не пустое место.
+     * Подставляет в тулбар аватар вошедшего.
+     *
+     * <p>Меню пересоздаётся при каждой смене раздела, и пункт приходит новый:
+     * уже загруженная картинка ставится сразу, иначе на её месте моргает силуэт.
      */
     private void loadAccountAvatar(@NonNull MenuItem item) {
         String url = wings.v.core.FederationAccount.avatarUrl(this);
-        if (android.text.TextUtils.isEmpty(url) || url.equals(loadedAvatarUrl)) {
+        if (android.text.TextUtils.isEmpty(url)) {
+            return;
+        }
+        android.graphics.Bitmap ready = wings.v.core.AvatarFetcher.fromMemory(url);
+        if (ready != null) {
+            item.setIcon(wings.v.core.AvatarFetcher.circular(getResources(), ready));
             return;
         }
         loadedAvatarUrl = url;

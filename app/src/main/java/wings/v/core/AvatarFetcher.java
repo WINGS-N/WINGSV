@@ -24,10 +24,25 @@ public final class AvatarFetcher {
 
     private static final int TIMEOUT_MS = 8_000;
 
-    /** Больше этого аватар в тулбаре всё равно не показать */
-    private static final int MAX_SIZE_PX = 96;
+    /** Кружок в профиле крупный, и 96 px на нём заметно мылит */
+    private static final int MAX_SIZE_PX = 512;
+
+    /**
+     * Последняя картинка держится в памяти: иначе каждый экран открывается с
+     * человечком и подменяет его через сеть или диск.
+     */
+    private static volatile String memoryKey = "";
+
+    @Nullable
+    private static volatile Bitmap memoryBitmap;
 
     private AvatarFetcher() {}
+
+    /** Готовая картинка для этого адреса, если она уже загружена */
+    @Nullable
+    public static Bitmap fromMemory(@NonNull String url) {
+        return url.equals(memoryKey) ? memoryBitmap : null;
+    }
 
     /**
      * Отдаёт аватар из кэша, а когда его там нет - забирает у панели и кладёт.
@@ -38,10 +53,15 @@ public final class AvatarFetcher {
      */
     @Nullable
     public static Bitmap cached(@NonNull Context context, @NonNull String url) {
+        Bitmap inMemory = fromMemory(url);
+        if (inMemory != null) {
+            return inMemory;
+        }
         File file = cacheFile(context, url);
         if (file.exists()) {
             Bitmap stored = BitmapFactory.decodeFile(file.getAbsolutePath());
             if (stored != null) {
+                remember(url, stored);
                 return stored;
             }
             file.delete();
@@ -51,6 +71,7 @@ public final class AvatarFetcher {
             return null;
         }
         store(file, fetched);
+        remember(url, fetched);
         return fetched;
     }
 
@@ -78,8 +99,15 @@ public final class AvatarFetcher {
         }
     }
 
+    private static void remember(String url, Bitmap bitmap) {
+        memoryKey = url;
+        memoryBitmap = bitmap;
+    }
+
     /** Сбрасывает кэш целиком: например, когда из аккаунта вышли */
     public static void clearCache(@NonNull Context context) {
+        memoryKey = "";
+        memoryBitmap = null;
         File[] files = new File(context.getCacheDir(), "avatars").listFiles();
         if (files == null) {
             return;
