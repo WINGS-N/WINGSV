@@ -1681,11 +1681,11 @@
     <string name="federation_avatar_saved">Profile picture updated</string>
     <string name="federation_avatar_galaxy">Galaxy Avatar</string>
     <string name="federation_avatar_galaxy_empty">Galaxy Avatar returned no picture</string>
-    <string name="invite_scan_done">You are in the invite tree now</string>
+    <string name="invite_scan_done">Invitation accepted</string>
     <string name="invite_scan_failed">Could not apply the code</string>
     <string name="invite_scan_sign_in_first">Sign in to the WINGS V Account first</string>
     <string name="federation_row_invites_title">Invitations</string>
-    <string name="federation_row_invites_summary">Your code and the tree</string>
+    <string name="federation_row_invites_summary">Your code for inviting others</string>
     <string name="federation_invites_hint">Whoever scans this code joins the federation under you.</string>
     <string name="federation_invites_create">Create a code</string>
     <string name="federation_invites_share">Share the link</string>
@@ -1694,7 +1694,7 @@
     <string name="federation_invites_redeem">Apply the code</string>
     <string name="federation_invites_scan">Scan a QR code</string>
     <string name="federation_invites_uses">used %1$d of %2$d</string>
-    <string name="federation_invites_already">You are already in the tree</string>
+    <string name="federation_invites_already">You have already accepted an invitation</string>
     <string name="federation_invites_copied">Link copied</string>
     <string name="federation_account_access_title">My access</string>
     <string name="federation_account_subscription_added_state">Subscription added to the app</string>

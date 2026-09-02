@@ -33,6 +33,7 @@ public final class FederationInvitesActivity extends AppCompatActivity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     private View qrFrame;
+    private View qrSkeleton;
     private QRImageView qr;
     private TextView code;
     private TextView uses;
@@ -75,7 +76,14 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         toolbar.setShowNavigationButtonAsBack(true);
 
         qrFrame = findViewById(R.id.invite_qr_frame);
+        qrSkeleton = findViewById(R.id.invite_qr_skeleton);
         qr = findViewById(R.id.invite_qr);
+        // Иконка приложения в середине кода: так видно, чей это QR
+        try {
+            qr.setIcon(getPackageManager().getApplicationIcon(getApplicationInfo()));
+        } catch (Exception missing) {
+            // Без иконки код всё равно читается
+        }
         code = findViewById(R.id.invite_code);
         uses = findViewById(R.id.invite_uses);
         hint = findViewById(R.id.invite_hint);
@@ -93,6 +101,24 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         load();
     }
 
+    /**
+     * Кидает работу в фон, пока экран жив.
+     *
+     * <p>Ответ из сети приходит и после закрытия экрана, а пул к тому моменту уже
+     * прибит: голый execute на нём кидает RejectedExecutionException и роняет
+     * приложение нахуй
+     */
+    private void submit(@NonNull Runnable work) {
+        if (io.isShutdown() || isFinishing() || isDestroyed()) {
+            return;
+        }
+        try {
+            io.execute(work);
+        } catch (java.util.concurrent.RejectedExecutionException dying) {
+            // Экран закрыли ровно в этот момент - работать уже не для кого
+        }
+    }
+
     @Override
     protected void onDestroy() {
         io.shutdownNow();
@@ -101,7 +127,7 @@ public final class FederationInvitesActivity extends AppCompatActivity {
 
     private void load() {
         setBusy(true);
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.Invites loaded = FederationAccount.invites(this);
                 runOnUiThread(() -> {
@@ -136,7 +162,10 @@ public final class FederationInvitesActivity extends AppCompatActivity {
     /** Показывает код, который сейчас можно кому-то отдать */
     private void showInvite(@Nullable FederationAccount.Invite invite) {
         boolean present = invite != null && !TextUtils.isEmpty(invite.token);
+        // Ответ пришёл: либо показываем код, либо убираем и скелетон - висеть ему
+        // тут нечего, кода просто нет
         qrFrame.setVisibility(present ? View.VISIBLE : View.GONE);
+        qrSkeleton.setVisibility(View.GONE);
         code.setVisibility(present ? View.VISIBLE : View.GONE);
         uses.setVisibility(present ? View.VISIBLE : View.GONE);
         share.setVisibility(present ? View.VISIBLE : View.GONE);
@@ -156,7 +185,7 @@ public final class FederationInvitesActivity extends AppCompatActivity {
 
     private void createInvite() {
         setBusy(true);
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.Invite created = FederationAccount.createInvite(this);
                 runOnUiThread(() -> {
@@ -176,13 +205,14 @@ public final class FederationInvitesActivity extends AppCompatActivity {
             return;
         }
         setBusy(true);
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.redeemInvite(this, token);
                 runOnUiThread(() -> {
                     setBusy(false);
                     redeemInput.setText("");
                     redeemState.setText(R.string.federation_invites_already);
+                    redeemState.setVisibility(View.VISIBLE);
                     Toast.makeText(this, R.string.invite_scan_done, Toast.LENGTH_LONG).show();
                     load();
                 });
@@ -209,6 +239,11 @@ public final class FederationInvitesActivity extends AppCompatActivity {
 
     private void setBusy(boolean busy) {
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
+        if (busy) {
+            // Пока ответ едет, на месте кода стоит скелетон с крутилкой
+            qrFrame.setVisibility(View.GONE);
+            qrSkeleton.setVisibility(View.VISIBLE);
+        }
         findViewById(R.id.invite_create).setEnabled(!busy);
         findViewById(R.id.invite_redeem).setEnabled(!busy);
     }

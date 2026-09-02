@@ -130,7 +130,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(code)) {
             return;
         }
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.Session session = FederationAccount.exchangeCode(this, code);
                 FederationAccount.store(this, session);
@@ -149,7 +149,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         }
         String secondFactor = code.getText() == null ? "" : code.getText().toString().trim();
         setSigningIn(true);
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.Session session = FederationAccount.signIn(this, user, pass, secondFactor);
                 FederationAccount.store(this, session);
@@ -213,7 +213,7 @@ public class FederationAccountActivity extends AppCompatActivity {
             login.requestFocus();
             return;
         }
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.redeemInvite(this, code);
                 runOnUiThread(() -> Toast.makeText(this, R.string.invite_scan_done, Toast.LENGTH_LONG).show());
@@ -230,7 +230,7 @@ public class FederationAccountActivity extends AppCompatActivity {
 
     private void signOut() {
         setSigningOut(true);
-        io.execute(() -> {
+        submit(() -> {
             FederationAccount.signOut(this);
             // Подписка выдана этому аккаунту: без него она мертва
             FederationSubscription.remove(this);
@@ -273,7 +273,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(url)) {
             return;
         }
-        io.execute(() -> {
+        submit(() -> {
             android.graphics.Bitmap bitmap = AvatarFetcher.cached(this, url);
             if (bitmap == null) {
                 return;
@@ -287,7 +287,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         boolean blank = FederationAccount.cachedAccess(this) == null;
         accessProgress.setVisibility(blank ? View.VISIBLE : View.GONE);
         counters.setVisibility(blank ? View.GONE : View.VISIBLE);
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.Access loaded = FederationAccount.access(this);
                 runOnUiThread(() -> {
@@ -322,7 +322,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         loadAvatar();
         // Подписка заводится сама: вход в аккаунт - и есть согласие её получить
         if (!TextUtils.isEmpty(access.subscriptionUrl)) {
-            io.execute(() -> FederationSubscription.ensure(this, access.subscriptionUrl));
+            submit(() -> FederationSubscription.ensure(this, access.subscriptionUrl));
         }
     }
 
@@ -359,6 +359,24 @@ public class FederationAccountActivity extends AppCompatActivity {
             );
             signInError.setVisibility(View.VISIBLE);
         });
+    }
+
+    /**
+     * Кидает работу в фон, пока экран жив.
+     *
+     * <p>Ответ из сети приходит и после закрытия экрана, а пул к тому моменту уже
+     * прибит: голый execute на нём кидает RejectedExecutionException и роняет
+     * приложение нахуй
+     */
+    private void submit(@NonNull Runnable work) {
+        if (io.isShutdown() || isFinishing() || isDestroyed()) {
+            return;
+        }
+        try {
+            io.execute(work);
+        } catch (java.util.concurrent.RejectedExecutionException dying) {
+            // Экран закрыли ровно в этот момент - работать уже не для кого
+        }
     }
 
     @Override

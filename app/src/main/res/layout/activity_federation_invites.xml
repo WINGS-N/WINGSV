@@ -41,19 +41,40 @@
                     android:textColor="?android:textColorSecondary" />
 
                 <FrameLayout
-                    android:id="@+id/invite_qr_frame"
                     android:layout_width="210dp"
                     android:layout_height="210dp"
                     android:layout_gravity="center"
                     android:layout_marginTop="20dp"
-                    android:layout_marginBottom="10dp"
-                    android:visibility="gone">
+                    android:layout_marginBottom="10dp">
 
-                    <dev.oneuiproject.oneui.widget.QRImageView
-                        android:id="@+id/invite_qr"
-                        android:layout_width="210dp"
-                        android:layout_height="210dp"
-                        android:padding="6dp" />
+                    <!-- Скелетон под QR: пока код едет, на его месте стоит блок,
+                         а не пустота, и экран не прыгает когда код приезжает -->
+                    <FrameLayout
+                        android:id="@+id/invite_qr_skeleton"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_skeleton_block">
+
+                        <ProgressBar
+                            android:id="@+id/invite_qr_loader"
+                            style="?android:attr/progressBarStyleLarge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center" />
+                    </FrameLayout>
+
+                    <FrameLayout
+                        android:id="@+id/invite_qr_frame"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:visibility="gone">
+
+                        <dev.oneuiproject.oneui.widget.QRImageView
+                            android:id="@+id/invite_qr"
+                            android:layout_width="210dp"
+                            android:layout_height="210dp"
+                            android:padding="6dp" />
+                    </FrameLayout>
                 </FrameLayout>
 
                 <TextView
@@ -131,18 +152,21 @@
                 android:padding="24dp"
                 app:roundedCorners="all">
 
+                <!-- Строка состояния появляется только когда есть что сказать:
+                     пустой TextView оставлял дыру над полем -->
                 <TextView
                     android:id="@+id/invite_redeem_state"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginBottom="14dp"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
+                    android:textColor="?android:textColorSecondary"
+                    android:visibility="gone" />
 
                 <androidx.appcompat.widget.AppCompatEditText
                     android:id="@+id/invite_redeem_input"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
                     android:background="@drawable/bg_xray_routing_field"
                     android:digits="0123456789ABCDEFabcdef"
                     android:gravity="center_vertical"
@@ -167,6 +191,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:layout_marginTop="4dp"
+                    android:drawableStart="@drawable/ic_qr_scanner"
+                    android:drawablePadding="10dp"
+                    android:gravity="center"
                     android:text="@string/federation_invites_scan" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
         </LinearLayout>

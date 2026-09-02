@@ -52,6 +52,24 @@ public final class FederationProfileActivity extends AppCompatActivity {
         findViewById(R.id.federation_profile_save_password).setOnClickListener(v -> changePassword());
     }
 
+    /**
+     * Кидает работу в фон, пока экран жив.
+     *
+     * <p>Ответ из сети приходит и после закрытия экрана, а пул к тому моменту уже
+     * прибит: голый execute на нём кидает RejectedExecutionException и роняет
+     * приложение нахуй
+     */
+    private void submit(@NonNull Runnable work) {
+        if (io.isShutdown() || isFinishing() || isDestroyed()) {
+            return;
+        }
+        try {
+            io.execute(work);
+        } catch (java.util.concurrent.RejectedExecutionException dying) {
+            // Экран закрыли ровно в этот момент - работать уже не для кого
+        }
+    }
+
     @Override
     protected void onDestroy() {
         io.shutdownNow();
@@ -70,7 +88,7 @@ public final class FederationProfileActivity extends AppCompatActivity {
             return;
         }
         setBusy(true);
-        io.execute(() -> {
+        submit(() -> {
             try {
                 FederationAccount.changePassword(this, current, next);
                 runOnUiThread(() -> {

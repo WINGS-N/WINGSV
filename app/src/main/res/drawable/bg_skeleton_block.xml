@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Заглушка на месте контента, который ещё едет: пустое место читается как
+     поломка, а серый блок - как загрузка -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="?attr/colorControlHighlight" />
+    <corners android:radius="18dp" />
+</shape>
