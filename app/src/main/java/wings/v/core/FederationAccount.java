@@ -510,6 +510,13 @@ public final class FederationAccount {
         ensureReceiptKey(context);
         JSONObject body = new JSONObject();
         body.put("receipts", receipts);
+        // Свой адрес, замеренный мимо туннеля. Сервер сверит его с тем, что
+        // видит нода: расходятся - значит поверх нашего туннеля крутится ещё
+        // один или профилем пользуется не хозяин
+        String selfAddress = SelfAddress.resolve(context);
+        if (!TextUtils.isEmpty(selfAddress)) {
+            body.put("client_ip", selfAddress);
+        }
         JSONObject response = post(context, "/api/app/federation/receipts", body.toString(), token(context));
         return response.optInt("accepted", 0);
     }

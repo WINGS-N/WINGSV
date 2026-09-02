@@ -114,6 +114,8 @@ import wings.v.core.RootUtils;
 import wings.v.core.SharingTtlHider;
 import wings.v.core.TetherType;
 import wings.v.core.UiFormatter;
+import wings.v.core.VkTurnProfile;
+import wings.v.core.VkTurnProfileStore;
 import wings.v.core.WireGuardConfigFactory;
 import wings.v.core.XrayProfile;
 import wings.v.core.XraySettings;
@@ -9880,6 +9882,7 @@ public class ProxyTunnelService extends Service {
                         rxDelta,
                         txDelta
                     );
+                    collectVkTurnReceipt(trafficContext, activeProfileId);
                 }
             } else if (activeBackendType == BackendType.AMNEZIAWG_PLAIN) {
                 String activeProfileId = wings.v.core.AmneziaProfileStore.getActiveProfileId(trafficContext);
@@ -10297,6 +10300,53 @@ public class ProxyTunnelService extends Service {
                 }
             },
             "fed-receipt"
+        )
+            .start();
+    }
+
+    /**
+     * Расписка по трафику VK TURN.
+     *
+     * <p>Цифры берутся у релея, а не с интерфейса: тот тащит локальный DNS,
+     * keepalive и оверхед туннеля, и стороны потом считают разное. Касается
+     * только профилей, выданных по подписке федерации.
+     */
+    private void collectVkTurnReceipt(Context context, String activeProfileId) {
+        VkTurnProfile profile = VkTurnProfileStore.getActiveProfile(context);
+        if (profile == null || !activeProfileId.equals(profile.id) || !profile.isSettingsManaged()) {
+            return;
+        }
+        wings.v.ipc.AppControlClient control = appControlClient;
+        if (control == null) {
+            return;
+        }
+        long up;
+        long down;
+        try {
+            wings.v.proto.appcontrol.AppControlProto.Telemetry telemetry = control.getTelemetry();
+            up = telemetry.getPayloadUpBytes();
+            down = telemetry.getPayloadDownBytes();
+        } catch (Exception error) {
+            return;
+        }
+        if (up == 0L && down == 0L) {
+            return;
+        }
+        JSONObject receipt = FederationReceipts.collect(context, up, down, profile.vkTurnEndpoint, "vktp");
+        if (receipt == null) {
+            return;
+        }
+        new Thread(
+            () -> {
+                try {
+                    JSONArray batch = new JSONArray();
+                    batch.put(receipt);
+                    FederationAccount.sendReceipts(context, batch);
+                } catch (Exception error) {
+                    appendRuntimeLogLine("Federation receipt not delivered: " + error.getMessage());
+                }
+            },
+            "fed-receipt-vktp"
         )
             .start();
     }

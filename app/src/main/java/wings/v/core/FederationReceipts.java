@@ -48,6 +48,23 @@ public final class FederationReceipts {
         @NonNull String nodeId,
         @NonNull String transport
     ) {
+        return collect(context, stats.readUplinkBytes(), stats.readDownlinkBytes(), nodeId, transport);
+    }
+
+    /**
+     * Тот же сбор, но с уже снятыми счётчиками.
+     *
+     * <p>У VK TURN своего Xray нет, и полезную нагрузку считает сам релей. Брать
+     * её с интерфейса нельзя: туда попадает локальный DNS, keepalive и оверхед
+     * туннеля, и стороны потом не сойдутся никогда.
+     */
+    public static JSONObject collect(
+        @NonNull Context context,
+        long uplinkTotal,
+        long downlinkTotal,
+        @NonNull String nodeId,
+        @NonNull String transport
+    ) {
         String clientId = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_SUBJECT_ID, "");
         if (TextUtils.isEmpty(clientId) || TextUtils.isEmpty(nodeId)) {
             return null;
@@ -59,8 +76,8 @@ public final class FederationReceipts {
         if (mark.atMs > 0 && since < WINDOW_MS) {
             return null;
         }
-        long uplink = stats.readUplinkBytes();
-        long downlink = stats.readDownlinkBytes();
+        long uplink = uplinkTotal;
+        long downlink = downlinkTotal;
         // Счётчика, которого ещё нет, ядро отдаёт ошибкой, а не нулём. Принять
         // это за обнуление - значит выписать расписку на весь трафик заново
         if (uplink < 0 || downlink < 0) {
