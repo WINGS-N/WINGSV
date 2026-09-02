@@ -284,6 +284,10 @@ public class FederationAccountActivity extends AppCompatActivity {
     }
 
     private void showError(@Nullable String message) {
+        if (isFinishing() || isDestroyed() || Thread.currentThread().isInterrupted()) {
+            // Экран закрыли, и запрос оборвали мы сами: жаловаться не на что
+            return;
+        }
         runOnUiThread(() -> {
             signInError.setText(
                 TextUtils.isEmpty(message) ? getString(R.string.federation_account_network_error) : message

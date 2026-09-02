@@ -72,7 +72,7 @@ public final class FederationAvatarActivity extends AppCompatActivity {
 
     private final ActivityResultLauncher<Intent> galaxyAvatar = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
-        result -> loadCurrent()
+        result -> takeGalaxyAvatar(result.getData())
     );
 
     private final ActivityResultLauncher<Void> takePhoto = registerForActivityResult(
@@ -103,7 +103,10 @@ public final class FederationAvatarActivity extends AppCompatActivity {
         findViewById(R.id.federation_avatar_gallery).setOnClickListener(v -> openGallery());
         findViewById(R.id.federation_avatar_camera).setOnClickListener(v -> takePhoto.launch(null));
         findViewById(R.id.federation_avatar_cancel).setOnClickListener(v -> finish());
-        findViewById(R.id.federation_avatar_reset).setOnClickListener(v -> removeAvatar());
+        View reset = findViewById(R.id.federation_avatar_reset);
+        reset.setOnClickListener(v -> removeAvatar());
+        // Убирать нечего, когда своей картинки и так нет
+        reset.setVisibility(FederationAccount.hasOwnAvatar(this) ? View.VISIBLE : View.GONE);
         View galaxy = findViewById(R.id.federation_avatar_galaxy);
         galaxy.setVisibility(installed(AREMOJI_PACKAGE) ? View.VISIBLE : View.GONE);
         galaxy.setOnClickListener(v -> openGalaxyAvatar());
@@ -190,6 +193,45 @@ public final class FederationAvatarActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Забирает картинку, нарисованную в AR Emoji.
+     *
+     * <p>Он отдаёт её то адресом, то самой картинкой в довесках, поэтому
+     * проверяются оба варианта, а молчаливый возврат ни с чем - это отказ, и о
+     * нём надо сказать.
+     */
+    private void takeGalaxyAvatar(@Nullable Intent data) {
+        if (data == null) {
+            return;
+        }
+        Uri uri = data.getData();
+        if (uri != null) {
+            showPicked(uri);
+            return;
+        }
+        Bundle extras = data.getExtras();
+        if (extras == null) {
+            complain(getString(R.string.federation_avatar_galaxy_empty));
+            return;
+        }
+        for (String key : extras.keySet()) {
+            Object value = extras.get(key);
+            if (value instanceof Uri) {
+                showPicked((Uri) value);
+                return;
+            }
+            if (value instanceof Bitmap) {
+                showTaken((Bitmap) value);
+                return;
+            }
+            if (value instanceof String && ((String) value).startsWith("content://")) {
+                showPicked(Uri.parse((String) value));
+                return;
+            }
+        }
+        complain(getString(R.string.federation_avatar_galaxy_empty));
+    }
+
     private void showTaken(@NonNull Bitmap bitmap) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
@@ -230,7 +272,12 @@ public final class FederationAvatarActivity extends AppCompatActivity {
                 AvatarFetcher.clearCache(this);
                 runOnUiThread(() -> {
                     setBusy(false);
-                    finish();
+                    picked = null;
+                    save.setEnabled(false);
+                    findViewById(R.id.federation_avatar_reset).setVisibility(View.GONE);
+                    preview.setImageResource(R.drawable.ic_account_avatar);
+                    // На месте убранной сразу встаёт заглушка панели, а не пустота
+                    loadCurrent();
                 });
             } catch (Exception error) {
                 runOnUiThread(() -> setBusy(false));
@@ -263,6 +310,10 @@ public final class FederationAvatarActivity extends AppCompatActivity {
     }
 
     private void complain(@Nullable String message) {
+        if (isFinishing() || isDestroyed() || Thread.currentThread().isInterrupted()) {
+            // Экран закрыли, и запрос оборвали мы сами: жаловаться не на что
+            return;
+        }
         runOnUiThread(() -> Toast.makeText(this, message == null ? "" : message, Toast.LENGTH_LONG).show());
     }
 }

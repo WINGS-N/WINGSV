@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
@@ -26,6 +27,12 @@ public final class AvatarFetcher {
 
     /** Кружок в профиле крупный, и 96 px на нём заметно мылит */
     private static final int MAX_SIZE_PX = 512;
+
+    /**
+     * Ревизия кэша: она в имени файла, поэтому картинки, ужатые прошлой версией
+     * под меньший размер, не подсовываются вместо свежих
+     */
+    private static final int CACHE_REVISION = 2;
 
     /**
      * Последняя картинка держится в памяти: иначе каждый экран открывается с
@@ -79,7 +86,7 @@ public final class AvatarFetcher {
     private static File cacheFile(Context context, String url) {
         File dir = new File(context.getCacheDir(), "avatars");
         dir.mkdirs();
-        String name = Integer.toHexString(url.hashCode()) + ".png";
+        String name = Integer.toHexString(url.hashCode()) + "-" + CACHE_REVISION + ".png";
         File[] existing = dir.listFiles();
         if (existing != null) {
             for (File other : existing) {
@@ -133,7 +140,16 @@ public final class AvatarFetcher {
                 if (decoded == null) {
                     return null;
                 }
-                return Bitmap.createScaledBitmap(decoded, MAX_SIZE_PX, MAX_SIZE_PX, true);
+                // Растягивать мелкий исходник незачем: апскейл только мылит.
+                // Уменьшается лишь то, что крупнее нужного
+                int side = Math.max(decoded.getWidth(), decoded.getHeight());
+                if (side <= MAX_SIZE_PX) {
+                    return decoded;
+                }
+                float scale = (float) MAX_SIZE_PX / side;
+                int width = Math.max(1, Math.round(decoded.getWidth() * scale));
+                int height = Math.max(1, Math.round(decoded.getHeight() * scale));
+                return Bitmap.createScaledBitmap(decoded, width, height, true);
             }
         } catch (Exception error) {
             return null;
@@ -150,8 +166,19 @@ public final class AvatarFetcher {
         int size = Math.min(source.getWidth(), source.getHeight());
         Bitmap output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setShader(new BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+        paint.setFilterBitmap(true);
+        paint.setDither(true);
+        BitmapShader shader = new BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        // Кадр берётся из середины: иначе неквадратная картинка режется по
+        // левому верхнему углу и лицо уезжает за край круга
+        Matrix crop = new Matrix();
+        crop.setTranslate(-(source.getWidth() - size) / 2f, -(source.getHeight() - size) / 2f);
+        shader.setLocalMatrix(crop);
+        paint.setShader(shader);
         new Canvas(output).drawCircle(size / 2f, size / 2f, size / 2f, paint);
-        return new BitmapDrawable(resources, output);
+        BitmapDrawable drawable = new BitmapDrawable(resources, output);
+        // Картинка обычно крупнее вида, и без фильтра уменьшение выглядит рвано
+        drawable.setFilterBitmap(true);
+        return drawable;
     }
 }

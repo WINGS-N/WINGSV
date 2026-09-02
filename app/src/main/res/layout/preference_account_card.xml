@@ -1,23 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Карточка аккаунта: та же форма, что первой строкой в настройках One UI -->
+<!-- Карточка аккаунта первой строкой в настройках. Размеры взяты из вёрстки
+     системных настроек: иконка 77dp, заголовок 19sp с весом 600, отступы 19dp -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/selectableItemBackground"
     android:gravity="center_vertical"
+    android:minHeight="?android:attr/listPreferredItemHeightSmall"
     android:orientation="horizontal"
-    android:paddingStart="24dp"
-    android:paddingTop="20dp"
-    android:paddingEnd="24dp"
-    android:paddingBottom="20dp">
-
-    <ImageView
-        android:id="@+id/account_card_avatar"
-        android:layout_width="52dp"
-        android:layout_height="52dp"
-        android:layout_marginEnd="18dp"
-        android:contentDescription="@null"
-        android:src="@drawable/ic_account_avatar" />
+    android:paddingStart="?android:attr/listPreferredItemPaddingStart"
+    android:paddingTop="19dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="19dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -27,22 +21,31 @@
 
         <TextView
             android:id="@+id/account_card_name"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?android:textColorPrimary"
-            android:textSize="21sp"
-            android:textStyle="bold" />
+            android:maxLines="2"
+            android:paddingBottom="3dp"
+            android:textAppearance="?attr/textAppearanceListItem"
+            android:textFontWeight="600"
+            android:textSize="19sp" />
 
         <TextView
             android:id="@+id/account_card_summary"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
             android:ellipsize="end"
-            android:maxLines="1"
+            android:maxLines="2"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="?android:textColorSecondary" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/account_card_avatar"
+        android:layout_width="77dp"
+        android:layout_height="77dp"
+        android:layout_marginStart="10dp"
+        android:contentDescription="@null"
+        android:scaleType="fitXY"
+        android:src="@drawable/ic_account_avatar" />
 </LinearLayout>

@@ -1679,6 +1679,7 @@
     <string name="federation_avatar_reset">Убрать картинку</string>
     <string name="federation_avatar_saved">Аватар обновлён</string>
     <string name="federation_avatar_galaxy">Аватар Galaxy</string>
+    <string name="federation_avatar_galaxy_empty">Аватар Galaxy не вернул картинку</string>
     <string name="federation_account_access_title">Мой доступ</string>
     <string name="federation_account_subscription_added_state">Подписка добавлена в приложение</string>
     <string name="federation_account_subscription_missing">Подписка ещё не добавлена</string>

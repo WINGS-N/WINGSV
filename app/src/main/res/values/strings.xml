@@ -1680,6 +1680,7 @@
     <string name="federation_avatar_reset">Remove the picture</string>
     <string name="federation_avatar_saved">Profile picture updated</string>
     <string name="federation_avatar_galaxy">Galaxy Avatar</string>
+    <string name="federation_avatar_galaxy_empty">Galaxy Avatar returned no picture</string>
     <string name="federation_account_access_title">My access</string>
     <string name="federation_account_subscription_added_state">Subscription added to the app</string>
     <string name="federation_account_subscription_missing">Subscription is not added yet</string>

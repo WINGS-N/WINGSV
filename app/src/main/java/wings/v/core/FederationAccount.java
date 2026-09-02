@@ -78,6 +78,11 @@ public final class FederationAccount {
         return !TextUtils.isEmpty(token(context));
     }
 
+    /** Стоит ли у аккаунта своя картинка, а не общая заглушка */
+    public static boolean hasOwnAvatar(@NonNull Context context) {
+        return AppPrefs.prefs(context).getLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, 0L) > 0L;
+    }
+
     /** Адрес аватара вошедшего. Пусто, когда никто не вошёл */
     public static String avatarUrl(@NonNull Context context) {
         String id = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_ACCOUNT_ID, "");
@@ -211,12 +216,15 @@ public final class FederationAccount {
         return access;
     }
 
-    /** Панель поменяла аватар: версия выросла, и кэш прошлой картинки не нужен */
+    /**
+     * Запоминает версию аватара, какой её назвала панель.
+     *
+     * <p>Ноль - это тоже ответ: аватар убрали, возможно с другого устройства, и
+     * локальная версия обязана обнулиться, иначе приложение продолжит просить
+     * картинку, которой больше нет.
+     */
     public static void rememberAvatarVersion(@NonNull Context context, long version) {
-        if (version <= 0) {
-            return;
-        }
-        AppPrefs.prefs(context).edit().putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, version).apply();
+        AppPrefs.prefs(context).edit().putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, Math.max(0L, version)).apply();
     }
 
     /** Меняет аватар аккаунта. Панель сама поднимает его версию */
@@ -267,7 +275,6 @@ public final class FederationAccount {
         connection.setRequestMethod("DELETE");
         readResponse(connection);
         rememberAvatarVersion(context, 0L);
-        AppPrefs.prefs(context).edit().putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, 0L).apply();
     }
 
     /** Смена пароля своего аккаунта */
