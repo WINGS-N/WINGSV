@@ -544,7 +544,7 @@ public final class FederationAccount {
                 if (code >= 200 && code < 300) {
                     throw notJson;
                 }
-                throw new IllegalStateException("HTTP " + code + ": " + raw.trim());
+                throw new IllegalStateException("HTTP " + code + ": " + raw.trim(), notJson);
             }
             if (code < 200 || code >= 300) {
                 if (json.optBoolean("totp_required")) {

@@ -119,7 +119,11 @@ public final class XraySubscriptionUpdater {
                 listener.onSubscriptionStarted(subscription);
             }
             try {
-                FetchResult fetched = fetch(context, subscription.url);
+                FetchResult fetched = fetch(
+                    context,
+                    subscription.url,
+                    FederationSubscription.ID.equals(subscription.id)
+                );
                 Map<String, String> reuseIds = existingIdsBySubAndKey.get(subscription.id);
                 List<XrayProfile> parsed = WingsImportParser.extractXrayProfilesFromSubscriptionBody(
                     fetched.body,
@@ -403,20 +407,20 @@ public final class XraySubscriptionUpdater {
     /** Тип тела, которым федерация отдаёт подписку своим кадром */
     private static final String WINGS_CONTENT_TYPE = "application/x-wingsv-config";
 
-    private static FetchResult fetch(Context context, String urlString) throws Exception {
+    private static FetchResult fetch(Context context, String urlString, boolean forceHwid) throws Exception {
         // Refresh through the tunnel while the VPN is up, otherwise direct off the
         // physical network. If the tunnel is up but the fetch through it fails, fall
         // back to a direct fetch so a dead tunnel does not block subscription updates.
         URL url = new URL(urlString);
         boolean tunnelActive = ProxyTunnelService.isActive();
         try {
-            return fetchVia(context, url, tunnelActive);
+            return fetchVia(context, url, tunnelActive, forceHwid);
         } catch (Exception tunnelError) {
             if (!tunnelActive) {
                 throw tunnelError;
             }
             try {
-                return fetchVia(context, url, false);
+                return fetchVia(context, url, false, forceHwid);
             } catch (Exception directError) {
                 // Report the original tunnel failure, but keep the direct attempt's
                 // trace attached so neither is lost.
@@ -426,7 +430,8 @@ public final class XraySubscriptionUpdater {
         }
     }
 
-    private static FetchResult fetchVia(Context context, URL url, boolean useTunnel) throws Exception {
+    private static FetchResult fetchVia(Context context, URL url, boolean useTunnel, boolean forceHwid)
+        throws Exception {
         HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, url, useTunnel);
         connection.setInstanceFollowRedirects(true);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
@@ -435,7 +440,13 @@ public final class XraySubscriptionUpdater {
         // Свой Accept вместо того, что подставит HttpURLConnection: в его
         // дефолте есть text/html, и федерация отдавала на него страницу
         connection.setRequestProperty("Accept", WINGS_CONTENT_TYPE + ", text/plain, */*");
-        SubscriptionHwidStore.Payload hwidPayload = SubscriptionHwidStore.getEffectivePayload(context);
+        // Федерация закрепляет доступ за устройствами аккаунта, поэтому там
+        // отпечаток обязателен и берётся настоящий: выключенная отправка или
+        // вписанные руками значения означали бы, что ссылку можно раздать кому
+        // угодно, а слоты считались бы по выдуманным устройствам
+        SubscriptionHwidStore.Payload hwidPayload = forceHwid
+            ? SubscriptionHwidStore.getAutomaticPayload(context)
+            : SubscriptionHwidStore.getEffectivePayload(context);
         if (hwidPayload != null) {
             if (!TextUtils.isEmpty(hwidPayload.hwid)) {
                 connection.setRequestProperty("x-hwid", hwidPayload.hwid);
