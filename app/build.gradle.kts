@@ -40,6 +40,9 @@ val generatedVkTurnBinaryArm32: Provider<File> = generatedVkTurnJniLibsDir.map {
 val libXrayRepoDir: File = rootProject.file("external/libXray")
 val xrayCoreRepoDir: File = rootProject.file("external/Xray-core")
 val libXrayGoModCacheDir: File = rootProject.file(".gradle/libxray/go-mod-cache")
+// Geo-базы живут вне рабочего каталога: он пересоздаётся каждой сборкой, а
+// download_geo молча качает их заново - без таймаута и в три захода retry
+val libXrayGeoCacheDir: File = rootProject.file(".gradle/libxray/dat")
 val libXrayGoCacheDir: File = rootProject.file(".gradle/libxray/go-cache")
 val libXrayGoPathDir: File = rootProject.file(".gradle/libxray/go-path")
 val libXrayGoBinDir: File = rootProject.file(".gradle/libxray/go-bin")
@@ -409,6 +412,7 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         }
         val outputDir: File = generatedLibXrayDir.get().asFile
         val workDir: File = generatedLibXrayWorkDir.get()
+        libXrayGeoCacheDir.mkdirs()
         libXrayGoModCacheDir.mkdirs()
         libXrayGoCacheDir.mkdirs()
         libXrayGoPathDir.mkdirs()
@@ -421,6 +425,12 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
             exclude(".git/**")
             exclude("**/*.aar")
             exclude("**/*-sources.jar")
+        }
+        // Скачанные раньше geo-базы возвращаются на место: download_geo берёт
+        // готовый файл и в сеть не идёт
+        copy {
+            from(libXrayGeoCacheDir)
+            into(File(workDir, "dat"))
         }
         // libXray's `build/main.py android local` runs `go mod edit
         // -replace=github.com/xtls/xray-core=../Xray-core`, so we mirror the
@@ -436,9 +446,11 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         environment(
             mapOf(
                 "GOTOOLCHAIN" to "go1.26.3",
-                // Пробрасывается наружу, чтобы GOPROXY=off ./gradlew ... собирал
-                // из кэша модулей, когда сети нет
-                "GOPROXY" to (System.getenv("GOPROXY") ?: ""),
+                // Скачанные модули лежат рядом и годятся как прокси: go резолвит
+                // из них даже @latest и без сети, а в сеть идёт только за тем,
+                // чего в кэше нет. Свой GOPROXY, если задан, важнее
+                "GOPROXY" to (System.getenv("GOPROXY")
+                    ?: "file://${File(libXrayGoModCacheDir, "cache/download").absolutePath},https://proxy.golang.org,direct"),
                 "ANDROID_SDK_ROOT" to resolveAndroidSdkDir().absolutePath,
                 "ANDROID_HOME" to resolveAndroidSdkDir().absolutePath,
                 "GOMODCACHE" to libXrayGoModCacheDir.absolutePath,
@@ -475,13 +487,13 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
                 sleep 2
               done
             }
-            # Свой GOPROXY уважается: на дохлой сети GOPROXY=off собирает из
-            # кэша модулей мгновенно, а не висит на таймаутах по три захода
-            export GOPROXY="${shellDollar}{GOPROXY:-https://proxy.golang.org,direct}"
+            # GOPROXY уже выставлен на кэш модулей плюс сеть
             # Каталог сборки пересоздаётся в doFirst и копируется без *.aar,
             # поэтому найденный здесь артефакт заведомо от этого прогона
             retry python3 build/main.py android local
             test -f libXray.aar
+            # Скачанное складывается в кэш, чтобы следующая сборка не ходила в сеть
+            cp -f dat/*.dat "${libXrayGeoCacheDir.absolutePath}/" 2>/dev/null || true
             cp libXray.aar "${generatedLibXrayAar.get().absolutePath}"
             """.trimIndent()
         )
