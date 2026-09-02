@@ -100,6 +100,9 @@ public class FederationAccountActivity extends AppCompatActivity {
             startActivity(FederationProfileActivity.createIntent(this))
         );
         findViewById(R.id.federation_row_clients).setOnClickListener(v -> openPanelSection("/admin/clients"));
+        findViewById(R.id.federation_row_invites).setOnClickListener(v ->
+            startActivity(FederationInvitesActivity.createIntent(this))
+        );
         avatar.setOnClickListener(v -> startActivity(FederationAvatarActivity.createIntent(this)));
 
         handleCode(getIntent());

@@ -406,10 +406,20 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         app:icon="@drawable/ic_account_subscription_round"
-                        app:showBottomDivider="false"
+                        app:showBottomDivider="true"
                         app:showTopDivider="false"
                         app:summary="@string/federation_row_subscription_summary"
                         app:title="@string/federation_row_subscription_title" />
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/federation_row_invites"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:icon="@drawable/ic_account_invites_round"
+                        app:showBottomDivider="false"
+                        app:showTopDivider="false"
+                        app:summary="@string/federation_row_invites_summary"
+                        app:title="@string/federation_row_invites_title" />
                 </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
                 <!-- Разделы панели: видны тем, кому она открыта -->

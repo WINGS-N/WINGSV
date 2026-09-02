@@ -10,6 +10,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -272,6 +275,66 @@ public final class FederationAccount {
         connection.setRequestMethod("DELETE");
         readResponse(connection);
         rememberAvatarVersion(context, 0L);
+    }
+
+    /** Одно приглашение так, как его отдаёт панель */
+    public static final class Invite {
+
+        public String token = "";
+        public String link = "";
+        public int useCount;
+        public int maxUses;
+        public boolean spent;
+    }
+
+    /** Свои коды и право их выписывать */
+    public static final class Invites {
+
+        public final List<Invite> list = new ArrayList<>();
+        public boolean mayInvite;
+        public String reason = "";
+    }
+
+    /** Забирает свои приглашения */
+    public static Invites invites(@NonNull Context context) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject response = get(context, "/api/app/invites", token);
+        Invites out = new Invites();
+        out.mayInvite = response.optBoolean("may_invite");
+        out.reason = response.optString("reason", "");
+        JSONArray items = response.optJSONArray("invites");
+        for (int i = 0; items != null && i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            Invite invite = new Invite();
+            invite.token = item.optString("token", "");
+            invite.link = item.optString("link", "");
+            invite.useCount = item.optInt("use_count");
+            invite.maxUses = item.optInt("max_uses");
+            invite.spent = item.optBoolean("spent");
+            out.list.add(invite);
+        }
+        return out;
+    }
+
+    /** Выписывает новый код: в приложении он всегда бессрочный и без потолка */
+    public static Invite createInvite(@NonNull Context context) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject response = post(context, "/api/app/invites", "{}", token);
+        Invite invite = new Invite();
+        invite.token = response.optString("token", "");
+        invite.link = response.optString("link", "");
+        invite.useCount = response.optInt("use_count");
+        invite.maxUses = response.optInt("max_uses");
+        return invite;
     }
 
     /** Встаёт в дерево по коду приглашения */

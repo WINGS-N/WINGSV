@@ -1,0 +1,14 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="34dp"
+        android:height="34dp">
+        <shape android:shape="oval">
+            <solid android:color="@color/traffic_rx" />
+        </shape>
+    </item>
+    <item
+        android:width="20dp"
+        android:height="20dp"
+        android:drawable="@drawable/ic_account_invites_glyph"
+        android:gravity="center" />
+</layer-list>
