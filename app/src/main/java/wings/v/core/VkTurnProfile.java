@@ -371,6 +371,19 @@ public final class VkTurnProfile {
         return !TextUtils.isEmpty(subscriptionId);
     }
 
+    /**
+     * Настройками распоряжается сервер, а не человек.
+     *
+     * <p>Выданный по подписке профиль это доступ, а не личный конфиг. Тумблер,
+     * задетый пальцем, ломает связь, и человек идёт не в настройки разбираться,
+     * а писать, что у нас не работает. Плюс когда в инфраструктуре звонков
+     * что-то меняется, чинится это сменой значения на сервере, а не выкаткой
+     * версии и ожиданием, пока все обновятся.
+     */
+    public boolean isSettingsManaged() {
+        return wgProvisioned && isFromSubscription();
+    }
+
     public static String normalizeTransportKind(String value) {
         String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         return TRANSPORT_KIND_AWG.equals(normalized) ? TRANSPORT_KIND_AWG : TRANSPORT_KIND_WG;

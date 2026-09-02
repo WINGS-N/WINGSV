@@ -16,6 +16,8 @@ import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceGroup;
+import androidx.preference.PreferenceScreen;
 import androidx.preference.SwitchPreferenceCompat;
 import java.io.File;
 import java.util.LinkedHashSet;
@@ -335,6 +337,40 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
         syncFromStore();
         refreshBackendSections();
+        lockManagedProfileSettings();
+    }
+
+    /**
+     * Запирает настройки, когда активен профиль, выданный по подписке.
+     *
+     * <p>Такой профиль это доступ, а не личный конфиг: тумблер, задетый пальцем,
+     * ломает связь, и человек идёт не сюда разбираться, а писать, что у нас не
+     * работает. Значения приезжают с сервера и меняются там же, поэтому когда в
+     * инфраструктуре звонков что-то ломается, чинится это одной правкой, а не
+     * выкаткой версии и ожиданием, пока все обновятся.
+     */
+    private void lockManagedProfileSettings() {
+        VkTurnProfile active = VkTurnProfileStore.getActiveProfile(requireContext());
+        if (active == null || !active.isSettingsManaged()) {
+            return;
+        }
+        PreferenceScreen screen = getPreferenceScreen();
+        if (screen == null) {
+            return;
+        }
+        lockGroup(screen);
+    }
+
+    /** Обходит дерево настроек целиком: группы внутри групп тут обычное дело */
+    private void lockGroup(PreferenceGroup group) {
+        for (int i = 0; i < group.getPreferenceCount(); i++) {
+            Preference preference = group.getPreference(i);
+            if (preference instanceof PreferenceGroup) {
+                lockGroup((PreferenceGroup) preference);
+                continue;
+            }
+            preference.setEnabled(false);
+        }
     }
 
     @Override
