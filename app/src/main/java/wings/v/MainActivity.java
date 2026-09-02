@@ -104,8 +104,6 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.ExecutorService avatarLoader =
         java.util.concurrent.Executors.newSingleThreadExecutor();
 
-    private String loadedAvatarUrl = "";
-
     private int currentTabId = R.id.menu_home;
     private boolean hasProfilesTab;
     private boolean hasSharingTab;
@@ -522,7 +520,6 @@ public class MainActivity extends AppCompatActivity {
             item.setIcon(wings.v.core.AvatarFetcher.circular(getResources(), ready));
             return;
         }
-        loadedAvatarUrl = url;
         avatarLoader.execute(() -> {
             android.graphics.Bitmap bitmap = wings.v.core.AvatarFetcher.cached(this, url);
             if (bitmap == null) {
