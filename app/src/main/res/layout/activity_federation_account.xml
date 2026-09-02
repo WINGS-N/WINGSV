@@ -268,7 +268,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:drawableStart="@drawable/ic_server"
+                            android:drawableStart="@drawable/ic_sharing_ethernet"
                             android:drawablePadding="6dp"
                             android:drawableTint="@color/traffic_rx"
                             android:text="@string/federation_account_nodes_caption"
