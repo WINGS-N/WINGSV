@@ -370,8 +370,11 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:textColor="?android:textColorPrimary"
-                        android:textSize="13sp" />
+                        android:shadowColor="#B3000000"
+                        android:shadowRadius="4"
+                        android:textColor="#FFFFFF"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
                 </FrameLayout>
             </LinearLayout>
 
@@ -432,6 +435,16 @@
                     android:orientation="vertical"
                     android:visibility="gone"
                     app:roundedCorners="all">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/federation_row_donor"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:icon="@drawable/ic_account_donor_round"
+                        app:showBottomDivider="true"
+                        app:showTopDivider="false"
+                        app:summary="@string/federation_row_donor_summary"
+                        app:title="@string/federation_row_donor_title" />
 
                     <dev.oneuiproject.oneui.widget.CardItemView
                         android:id="@+id/federation_row_clients"

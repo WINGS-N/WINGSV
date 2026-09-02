@@ -180,7 +180,12 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         qr.setContent(link);
         qr.invalidate();
         code.setText(invite.token);
-        uses.setText(getString(R.string.federation_invites_uses, invite.useCount, invite.maxUses));
+        // Ноль в потолке - это код без предела, и писать "из 0" тут нечего
+        uses.setText(
+            invite.maxUses > 0
+                ? getString(R.string.federation_invites_uses, invite.useCount, invite.maxUses)
+                : getString(R.string.federation_invites_uses_unlimited, invite.useCount)
+        );
     }
 
     private void createInvite() {

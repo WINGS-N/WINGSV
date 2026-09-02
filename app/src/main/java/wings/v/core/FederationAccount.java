@@ -277,6 +277,111 @@ public final class FederationAccount {
         rememberAvatarVersion(context, 0L);
     }
 
+    /** Свой сервер, отданный в федерацию */
+    public static final class DonorNode {
+
+        public String nodeId = "";
+        public String hostname = "";
+        public String state = "";
+        public boolean online;
+        public String xrayVersion = "";
+        public String vktpVersion = "";
+        public long declaredBudgetBytes;
+        public long usedBytes;
+        public long probeBytes;
+        public int sessions;
+        public double upRateBps;
+        public double downRateBps;
+    }
+
+    /** Донорская сводка: что отдано в федерацию и сколько с этого прошло */
+    public static final class Donor {
+
+        public boolean enabled;
+        public int nodes;
+        public int nodesOnline;
+        public int sessions;
+        public long declaredBudgetBytes;
+        public long usedBytes;
+        public long probeBytes;
+        public double upRateBps;
+        public double downRateBps;
+        public String error = "";
+        public final List<DonorNode> list = new ArrayList<>();
+    }
+
+    /** Донорская сводка со своими серверами */
+    public static Donor donor(@NonNull Context context) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject response = get(context, "/api/app/federation/summary", token);
+        Donor out = new Donor();
+        out.enabled = response.optBoolean("enabled");
+        out.nodes = response.optInt("nodes");
+        out.nodesOnline = response.optInt("nodes_online");
+        out.sessions = response.optInt("sessions");
+        out.declaredBudgetBytes = response.optLong("declared_budget_bytes");
+        out.usedBytes = response.optLong("used_bytes");
+        out.probeBytes = response.optLong("probe_bytes");
+        out.upRateBps = response.optDouble("up_rate_bps", 0);
+        out.downRateBps = response.optDouble("down_rate_bps", 0);
+        out.error = response.optString("error", "");
+        JSONArray items = response.optJSONArray("node_list");
+        for (int i = 0; items != null && i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            DonorNode node = new DonorNode();
+            node.nodeId = item.optString("node_id", "");
+            node.hostname = item.optString("hostname", "");
+            node.state = item.optString("state", "");
+            node.online = item.optBoolean("online");
+            node.xrayVersion = item.optString("xray_version", "");
+            node.vktpVersion = item.optString("vktp_version", "");
+            node.declaredBudgetBytes = item.optLong("declared_budget_bytes");
+            node.usedBytes = item.optLong("used_bytes");
+            node.probeBytes = item.optLong("probe_bytes");
+            node.sessions = item.optInt("sessions");
+            node.upRateBps = item.optDouble("up_rate_bps", 0);
+            node.downRateBps = item.optDouble("down_rate_bps", 0);
+            out.list.add(node);
+        }
+        return out;
+    }
+
+    /** Меняет месячный потолок отданного сервера */
+    public static long setNodeBudget(@NonNull Context context, @NonNull String nodeId, long bytes) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject body = new JSONObject();
+        body.put("declared_budget_bytes", bytes);
+        JSONObject response = put(context, "/api/app/federation/nodes/" + nodeId + "/budget", body.toString(), token);
+        return response.optLong("declared_budget_bytes", bytes);
+    }
+
+    /**
+     * Команда подключения нового сервера: её выполняют на самой машине.
+     *
+     * <p>Потолок называется здесь же: править его после того, как сервер уже
+     * зашёл, значит сперва отдать больше, чем собирался
+     */
+    public static String enrollCommand(@NonNull Context context, long budgetGb) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject body = new JSONObject();
+        body.put("uses", 1);
+        body.put("budget_gb", Math.max(0L, budgetGb));
+        JSONObject response = post(context, "/api/app/federation/enroll", body.toString(), token);
+        return response.optString("command", "");
+    }
+
     /** Одно приглашение так, как его отдаёт панель */
     public static final class Invite {
 
@@ -386,6 +491,17 @@ public final class FederationAccount {
         return readResponse(connection);
     }
 
+    private static JSONObject put(Context context, String path, String body, @Nullable String token) throws Exception {
+        HttpURLConnection connection = open(context, path, token);
+        connection.setRequestMethod("PUT");
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Content-Type", "application/json");
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(body.getBytes(StandardCharsets.UTF_8));
+        }
+        return readResponse(connection);
+    }
+
     private static JSONObject get(Context context, String path, @Nullable String token) throws Exception {
         HttpURLConnection connection = open(context, path, token);
         connection.setRequestMethod("GET");
@@ -419,7 +535,17 @@ public final class FederationAccount {
                 }
             }
             String raw = output.toString(StandardCharsets.UTF_8.name());
-            JSONObject json = TextUtils.isEmpty(raw) ? new JSONObject() : new JSONObject(raw);
+            // Не всякий ответ - JSON: на неизвестный адрес прилетает голый текст
+            // вроде "404 page not found", и разбор его роняет невнятной ошибкой
+            JSONObject json;
+            try {
+                json = TextUtils.isEmpty(raw) ? new JSONObject() : new JSONObject(raw);
+            } catch (Exception notJson) {
+                if (code >= 200 && code < 300) {
+                    throw notJson;
+                }
+                throw new IllegalStateException("HTTP " + code + ": " + raw.trim());
+            }
             if (code < 200 || code >= 300) {
                 if (json.optBoolean("totp_required")) {
                     throw new SecondFactorRequired(json.optString("message", "нужен код"));

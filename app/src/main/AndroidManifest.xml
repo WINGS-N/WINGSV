@@ -191,6 +191,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".FederationDonorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".FederationInvitesActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
