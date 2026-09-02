@@ -222,6 +222,9 @@ public class FederationAccountActivity extends AppCompatActivity {
         }
         username.setText(FederationAccount.username(this));
         panelSections.setVisibility(FederationAccount.hasPanel(this) ? View.VISIBLE : View.GONE);
+        // Сначала прошлые цифры, потом свежие: пустые карточки на секунду выглядят
+        // так, будто доступа нет
+        applyAccess(FederationAccount.cachedAccess(this));
         loadAvatar();
         loadAccess();
     }

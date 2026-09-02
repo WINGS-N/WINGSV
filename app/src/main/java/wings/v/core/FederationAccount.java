@@ -105,6 +105,8 @@ public final class FederationAccount {
             .remove(AppPrefs.KEY_FEDERATION_USERNAME)
             .remove(AppPrefs.KEY_FEDERATION_ACCOUNT_ID)
             .remove(AppPrefs.KEY_FEDERATION_AVATAR_VERSION)
+            .remove(AppPrefs.KEY_FEDERATION_PANEL_ACCESS)
+            .remove(AppPrefs.KEY_FEDERATION_ACCESS_CACHE)
             .apply();
     }
 
@@ -153,13 +155,25 @@ public final class FederationAccount {
         );
     }
 
+    /** Что показывали в прошлый раз: экран не должен открываться пустым */
     @Nullable
-    public static Access access(@NonNull Context context) throws Exception {
-        String token = token(context);
-        if (TextUtils.isEmpty(token)) {
+    public static Access cachedAccess(@NonNull Context context) {
+        String raw = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_ACCESS_CACHE, "");
+        if (TextUtils.isEmpty(raw)) {
             return null;
         }
-        JSONObject response = get(context, "/api/app/access", token);
+        try {
+            return accessOf(new JSONObject(raw));
+        } catch (Exception error) {
+            return null;
+        }
+    }
+
+    private static void cacheAccess(@NonNull Context context, @NonNull JSONObject response) {
+        AppPrefs.prefs(context).edit().putString(AppPrefs.KEY_FEDERATION_ACCESS_CACHE, response.toString()).apply();
+    }
+
+    private static Access accessOf(@NonNull JSONObject response) {
         Access access = new Access();
         access.enabled = response.optBoolean("enabled");
         access.nodes = response.optInt("nodes");
@@ -167,7 +181,6 @@ public final class FederationAccount {
         access.avatarVersion = response.optLong("avatar_version", 0L);
         access.panelAccess = response.optBoolean("panel_access");
         access.role = response.optString("role", "");
-        rememberPanel(context, access.panelAccess);
         access.usedBytes = response.optLong("used_bytes", 0L);
         access.uplinkBps = response.optLong("uplink_bps", 0L);
         access.downlinkBps = response.optLong("downlink_bps", 0L);
@@ -177,6 +190,19 @@ public final class FederationAccount {
             access.trustConfidence = trust.optInt("confidence");
             access.trustBand = trust.optString("band", "");
         }
+        return access;
+    }
+
+    @Nullable
+    public static Access access(@NonNull Context context) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            return null;
+        }
+        JSONObject response = get(context, "/api/app/access", token);
+        cacheAccess(context, response);
+        Access access = accessOf(response);
+        rememberPanel(context, access.panelAccess);
         return access;
     }
 

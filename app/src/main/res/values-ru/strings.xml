@@ -1641,7 +1641,7 @@
     <string name="federation_account_code_hint">Код из аутентификатора</string>
     <string name="federation_account_sign_in_title">Вход в WINGS V</string>
     <string name="federation_account_nodes_caption">серверов выдано</string>
-    <string name="federation_account_traffic_caption">передано за месяц</string>
+    <string name="federation_account_traffic_caption">передано</string>
     <string name="federation_account_subscription_title">Подписка</string>
     <string name="federation_account_trust_full">полный доступ</string>
     <string name="federation_account_trust_reduced">урезанный доступ</string>

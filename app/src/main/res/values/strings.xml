@@ -1642,7 +1642,7 @@
     <string name="federation_account_code_hint">Code from your authenticator</string>
     <string name="federation_account_sign_in_title">Sign in to WINGS V</string>
     <string name="federation_account_nodes_caption">servers assigned</string>
-    <string name="federation_account_traffic_caption">carried this month</string>
+    <string name="federation_account_traffic_caption">carried</string>
     <string name="federation_account_subscription_title">Subscription</string>
     <string name="federation_account_trust_full">full access</string>
     <string name="federation_account_trust_reduced">reduced access</string>

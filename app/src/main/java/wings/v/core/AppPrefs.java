@@ -278,6 +278,12 @@ public final class AppPrefs {
 
     /** Открыта ли аккаунту админ-панель: от этого зависят разделы в приложении */
     public static final String KEY_FEDERATION_PANEL_ACCESS = "pref_federation_panel_access";
+
+    /**
+     * Последний ответ панели о доступе. Экран открывается с ним сразу, а не
+     * пустыми карточками, пока идёт запрос по сети.
+     */
+    public static final String KEY_FEDERATION_ACCESS_CACHE = "pref_federation_access_cache";
     public static final String KEY_GUARDIAN_CA_PINS = "pref_guardian_ca_pins";
     public static final String KEY_GUARDIAN_CLIENT_NAME = "pref_guardian_client_name";
     public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";
