@@ -36,6 +36,11 @@ public final class FederationAccount {
         public String subscriptionUrl = "";
         public int trustConfidence;
         public String trustBand = "";
+        public long avatarVersion;
+        public long usedBytes;
+        public long uplinkBps;
+        public long downlinkBps;
+        public int nodesEntitled;
     }
 
     /** Ответ входа */
@@ -157,12 +162,54 @@ public final class FederationAccount {
         access.enabled = response.optBoolean("enabled");
         access.nodes = response.optInt("nodes");
         access.subscriptionUrl = response.optString("subscription_url", "");
+        access.avatarVersion = response.optLong("avatar_version", 0L);
+        access.usedBytes = response.optLong("used_bytes", 0L);
+        access.uplinkBps = response.optLong("uplink_bps", 0L);
+        access.downlinkBps = response.optLong("downlink_bps", 0L);
+        access.nodesEntitled = response.optInt("nodes_entitled");
         JSONObject trust = response.optJSONObject("trust");
         if (trust != null) {
             access.trustConfidence = trust.optInt("confidence");
             access.trustBand = trust.optString("band", "");
         }
         return access;
+    }
+
+    /** Панель поменяла аватар: версия выросла, и кэш прошлой картинки не нужен */
+    public static void rememberAvatarVersion(@NonNull Context context, long version) {
+        if (version <= 0) {
+            return;
+        }
+        AppPrefs.prefs(context).edit().putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, version).apply();
+    }
+
+    /** Меняет аватар аккаунта. Панель сама поднимает его версию */
+    public static void uploadAvatar(@NonNull Context context, @NonNull byte[] png, @NonNull String mime)
+        throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        String boundary = "wings" + System.nanoTime();
+        HttpURLConnection connection = open(context, "/api/admin/me/avatar", token);
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+        String head =
+            "--" +
+            boundary +
+            "\r\n" +
+            "Content-Disposition: form-data; name=\"avatar\"; filename=\"avatar.png\"\r\n" +
+            "Content-Type: " +
+            mime +
+            "\r\n\r\n";
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(head.getBytes(StandardCharsets.UTF_8));
+            output.write(png);
+            output.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        }
+        JSONObject response = readResponse(connection);
+        rememberAvatarVersion(context, response.optLong("avatar_version", 0L));
     }
 
     /** Выход отзывает сессию именно этого устройства */

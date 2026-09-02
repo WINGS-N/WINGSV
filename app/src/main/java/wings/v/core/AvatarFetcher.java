@@ -12,7 +12,10 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -25,6 +28,66 @@ public final class AvatarFetcher {
     private static final int MAX_SIZE_PX = 96;
 
     private AvatarFetcher() {}
+
+    /**
+     * Отдаёт аватар из кэша, а когда его там нет - забирает у панели и кладёт.
+     *
+     * <p>Ключ кэша - сам адрес: версия картинки уже стоит в нём параметром, и
+     * обновление аватара в панели меняет адрес. Прошлые версии удаляются, чтобы
+     * кэш не рос с каждой сменой.
+     */
+    @Nullable
+    public static Bitmap cached(@NonNull Context context, @NonNull String url) {
+        File file = cacheFile(context, url);
+        if (file.exists()) {
+            Bitmap stored = BitmapFactory.decodeFile(file.getAbsolutePath());
+            if (stored != null) {
+                return stored;
+            }
+            file.delete();
+        }
+        Bitmap fetched = fetch(context, url);
+        if (fetched == null) {
+            return null;
+        }
+        store(file, fetched);
+        return fetched;
+    }
+
+    /** Файл под эту версию аватара, соседние версии при этом сносятся */
+    private static File cacheFile(Context context, String url) {
+        File dir = new File(context.getCacheDir(), "avatars");
+        dir.mkdirs();
+        String name = Integer.toHexString(url.hashCode()) + ".png";
+        File[] existing = dir.listFiles();
+        if (existing != null) {
+            for (File other : existing) {
+                if (!other.getName().equals(name)) {
+                    other.delete();
+                }
+            }
+        }
+        return new File(dir, name);
+    }
+
+    private static void store(File file, Bitmap bitmap) {
+        try (OutputStream out = new FileOutputStream(file)) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } catch (Exception ignored) {
+            // Кэш - удобство, а не обязанность: не записалось, значит скачаем снова
+        }
+    }
+
+    /** Сбрасывает кэш целиком: например, когда из аккаунта вышли */
+    public static void clearCache(@NonNull Context context) {
+        File[] files = new File(context.getCacheDir(), "avatars").listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            file.delete();
+        }
+    }
 
     /** Возвращает картинку или null, когда панель недоступна */
     @Nullable

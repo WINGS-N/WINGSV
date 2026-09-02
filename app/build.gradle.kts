@@ -436,6 +436,9 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         environment(
             mapOf(
                 "GOTOOLCHAIN" to "go1.26.3",
+                // Пробрасывается наружу, чтобы GOPROXY=off ./gradlew ... собирал
+                // из кэша модулей, когда сети нет
+                "GOPROXY" to (System.getenv("GOPROXY") ?: ""),
                 "ANDROID_SDK_ROOT" to resolveAndroidSdkDir().absolutePath,
                 "ANDROID_HOME" to resolveAndroidSdkDir().absolutePath,
                 "GOMODCACHE" to libXrayGoModCacheDir.absolutePath,
@@ -472,8 +475,11 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
                 sleep 2
               done
             }
-            export GOPROXY=https://proxy.golang.org,direct
-            rm -f libXray.aar libXray-sources.jar
+            # Свой GOPROXY уважается: на дохлой сети GOPROXY=off собирает из
+            # кэша модулей мгновенно, а не висит на таймаутах по три захода
+            export GOPROXY="${shellDollar}{GOPROXY:-https://proxy.golang.org,direct}"
+            # Каталог сборки пересоздаётся в doFirst и копируется без *.aar,
+            # поэтому найденный здесь артефакт заведомо от этого прогона
             retry python3 build/main.py android local
             test -f libXray.aar
             cp libXray.aar "${generatedLibXrayAar.get().absolutePath}"

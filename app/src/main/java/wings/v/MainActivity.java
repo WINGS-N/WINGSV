@@ -517,7 +517,7 @@ public class MainActivity extends AppCompatActivity {
         }
         loadedAvatarUrl = url;
         avatarLoader.execute(() -> {
-            android.graphics.Bitmap bitmap = wings.v.core.AvatarFetcher.fetch(this, url);
+            android.graphics.Bitmap bitmap = wings.v.core.AvatarFetcher.cached(this, url);
             if (bitmap == null) {
                 return;
             }
