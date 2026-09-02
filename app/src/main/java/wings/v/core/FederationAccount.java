@@ -90,11 +90,8 @@ public final class FederationAccount {
             return "";
         }
         long version = AppPrefs.prefs(context).getLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, 0L);
-        // Нулевая версия означает, что своей картинки нет: показывается та же
-        // заглушка, что и в панели, а не отдельная иконка приложения
-        if (version <= 0) {
-            return panelUrl(context) + "/img/avatar-default.png";
-        }
+        // Нулевая версия - это аккаунт без своей картинки: панель отдаст по тому
+        // же адресу заглушку с буквой имени, одинаковую во всех клиентах
         return panelUrl(context) + "/api/admin/avatars/" + id + ".png?v=" + version;
     }
 
@@ -275,6 +272,17 @@ public final class FederationAccount {
         connection.setRequestMethod("DELETE");
         readResponse(connection);
         rememberAvatarVersion(context, 0L);
+    }
+
+    /** Встаёт в дерево по коду приглашения */
+    public static void redeemInvite(@NonNull Context context, @NonNull String code) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject body = new JSONObject();
+        body.put("token", code);
+        post(context, "/api/app/invites/redeem", body.toString(), token);
     }
 
     /** Смена пароля своего аккаунта */

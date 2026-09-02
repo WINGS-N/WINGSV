@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Без adaptive-icon система пихает в маску растр из mipmap и центрует его как
+     ей вздумается. Слои уже лежат в проекте: padded-логотип и фон вордмарка.
+     monochrome обязателен - в themed-лаунчерах без него иконка тупо пустая -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

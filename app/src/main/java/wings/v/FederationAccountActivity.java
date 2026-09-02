@@ -11,6 +11,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -32,8 +33,12 @@ public class FederationAccountActivity extends AppCompatActivity {
     private View counters;
     private View sections;
     private View panelSections;
+    /** Код из панели, который ждёт входа в аккаунт */
+    private String pendingInvite = "";
     private View signOutButton;
     private ProgressBar signInProgress;
+    private ProgressBar signOutProgress;
+    private ProgressBar accessProgress;
     private EditText login;
     private EditText password;
     private EditText code;
@@ -68,6 +73,8 @@ public class FederationAccountActivity extends AppCompatActivity {
         panelSections = findViewById(R.id.federation_panel_sections);
         signOutButton = findViewById(R.id.federation_sign_out);
         signInProgress = findViewById(R.id.federation_sign_in_progress);
+        signOutProgress = findViewById(R.id.federation_sign_out_progress);
+        accessProgress = findViewById(R.id.federation_access_progress);
         login = findViewById(R.id.federation_login);
         password = findViewById(R.id.federation_password);
         code = findViewById(R.id.federation_code);
@@ -109,6 +116,13 @@ public class FederationAccountActivity extends AppCompatActivity {
     /** Возврат из браузера после входа через Matrix приносит одноразовый код */
     private void handleCode(@Nullable Intent intent) {
         Uri data = intent == null ? null : intent.getData();
+        if (data != null) {
+            String invite = wings.v.core.InviteCode.parse(data.toString());
+            if (invite != null) {
+                applyInvite(invite);
+                return;
+            }
+        }
         String code = data == null ? null : data.getQueryParameter("code");
         if (TextUtils.isEmpty(code)) {
             return;
@@ -143,6 +157,11 @@ public class FederationAccountActivity extends AppCompatActivity {
                     code.setVisibility(View.GONE);
                     signInError.setVisibility(View.GONE);
                     render();
+                    if (!TextUtils.isEmpty(pendingInvite)) {
+                        String waiting = pendingInvite;
+                        pendingInvite = "";
+                        applyInvite(waiting);
+                    }
                 });
             } catch (FederationAccount.SecondFactorRequired needsCode) {
                 runOnUiThread(() -> {
@@ -177,19 +196,53 @@ public class FederationAccountActivity extends AppCompatActivity {
         startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(FederationAccount.panelUrl(this) + path)));
     }
 
+    /**
+     * Применяет код приглашения, приехавший ссылкой из панели.
+     *
+     * <p>Без аккаунта применять его некуда, поэтому код запоминается и уходит в
+     * дело сразу после входа - переспрашивать его у человека второй раз незачем
+     */
+    private void applyInvite(@NonNull String code) {
+        if (!FederationAccount.isSignedIn(this)) {
+            pendingInvite = code;
+            signInError.setText(R.string.invite_scan_sign_in_first);
+            signInError.setVisibility(View.VISIBLE);
+            login.requestFocus();
+            return;
+        }
+        io.execute(() -> {
+            try {
+                FederationAccount.redeemInvite(this, code);
+                runOnUiThread(() -> Toast.makeText(this, R.string.invite_scan_done, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                showError(error.getMessage());
+            }
+        });
+    }
+
     private void openBrowserLogin() {
         Uri target = Uri.parse(FederationAccount.panelUrl(this) + "/app/link");
         startActivity(new Intent(Intent.ACTION_VIEW, target));
     }
 
     private void signOut() {
+        setSigningOut(true);
         io.execute(() -> {
             FederationAccount.signOut(this);
             // Подписка выдана этому аккаунту: без него она мертва
             FederationSubscription.remove(this);
             AvatarFetcher.clearCache(this);
-            runOnUiThread(this::render);
+            runOnUiThread(() -> {
+                setSigningOut(false);
+                render();
+            });
         });
+    }
+
+    /** Выход идёт по сети: сессию отзывает панель, и это не мгновенно */
+    private void setSigningOut(boolean busy) {
+        signOutProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
+        signOutButton.setEnabled(!busy);
     }
 
     private void render() {
@@ -227,11 +280,20 @@ public class FederationAccountActivity extends AppCompatActivity {
     }
 
     private void loadAccess() {
+        // Кэш уже показан, поэтому индикатор нужен только при первом заходе
+        boolean blank = FederationAccount.cachedAccess(this) == null;
+        accessProgress.setVisibility(blank ? View.VISIBLE : View.GONE);
+        counters.setVisibility(blank ? View.GONE : View.VISIBLE);
         io.execute(() -> {
             try {
                 FederationAccount.Access loaded = FederationAccount.access(this);
-                runOnUiThread(() -> applyAccess(loaded));
+                runOnUiThread(() -> {
+                    accessProgress.setVisibility(View.GONE);
+                    counters.setVisibility(View.VISIBLE);
+                    applyAccess(loaded);
+                });
             } catch (Exception error) {
+                runOnUiThread(() -> accessProgress.setVisibility(View.GONE));
                 showError(error.getMessage());
             }
         });

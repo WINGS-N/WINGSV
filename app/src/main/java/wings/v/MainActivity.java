@@ -565,6 +565,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         String trimmed = scanned.trim();
+        String invite = wings.v.core.InviteCode.parse(trimmed);
+        if (invite != null) {
+            redeemScannedInvite(invite);
+            return;
+        }
         WingsImportParser.ImportedConfig parsed;
         try {
             parsed = WingsImportParser.parseFromText(trimmed);
@@ -573,6 +578,34 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         promptToImport(trimmed, parsed);
+    }
+
+    /**
+     * Применяет отсканированное приглашение.
+     *
+     * <p>В дерево встают один раз: у кого уже есть пригласивший, тому этот код
+     * ничего не даст, и вместо запроса на сервер он получит внятный ответ.
+     */
+    private void redeemScannedInvite(@NonNull String code) {
+        if (!wings.v.core.FederationAccount.isSignedIn(this)) {
+            Toast.makeText(this, R.string.invite_scan_sign_in_first, Toast.LENGTH_LONG).show();
+            return;
+        }
+        avatarLoader.execute(() -> {
+            try {
+                wings.v.core.FederationAccount.redeemInvite(this, code);
+                runOnUiThread(() -> Toast.makeText(this, R.string.invite_scan_done, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                String message = error.getMessage();
+                runOnUiThread(() ->
+                    Toast.makeText(
+                        this,
+                        TextUtils.isEmpty(message) ? getString(R.string.invite_scan_failed) : message,
+                        Toast.LENGTH_LONG
+                    ).show()
+                );
+            }
+        });
     }
 
     private void configureBackHandling() {

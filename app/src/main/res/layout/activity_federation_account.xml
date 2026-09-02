@@ -184,6 +184,16 @@
                 </FrameLayout>
             </LinearLayout>
 
+            <ProgressBar
+                android:id="@+id/federation_access_progress"
+                style="?android:attr/progressBarStyleLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone" />
+
             <!-- Счётчики: по карточке на величину, одинаковой высоты -->
             <LinearLayout
                 android:id="@+id/federation_counters"
@@ -425,6 +435,11 @@
                 </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
             </LinearLayout>
 
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal">
+
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/federation_sign_out"
                 android:layout_width="wrap_content"
@@ -439,6 +454,16 @@
                 android:drawablePadding="10dp"
                 android:text="@string/federation_account_sign_out"
                 android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/federation_sign_out_progress"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center_vertical|end"
+                    android:layout_marginEnd="18dp"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
     </ScrollView>
 </dev.oneuiproject.oneui.layout.ToolbarLayout>
