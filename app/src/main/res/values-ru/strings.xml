@@ -1671,6 +1671,14 @@
     <string name="federation_account_error">Что-то пошло не так</string>
     <string name="federation_row_clients_title">Управление клиентами</string>
     <string name="federation_row_clients_summary">Свои клиенты и их устройства</string>
+    <string name="federation_avatar_title">Аватар</string>
+    <string name="federation_avatar_camera">Камера</string>
+    <string name="federation_avatar_gallery">Галерея</string>
+    <string name="federation_avatar_cancel">Отмена</string>
+    <string name="federation_avatar_save">Сохранить</string>
+    <string name="federation_avatar_reset">Убрать картинку</string>
+    <string name="federation_avatar_saved">Аватар обновлён</string>
+    <string name="federation_avatar_galaxy">Аватар Galaxy</string>
     <string name="federation_account_access_title">Мой доступ</string>
     <string name="federation_account_subscription_added_state">Подписка добавлена в приложение</string>
     <string name="federation_account_subscription_missing">Подписка ещё не добавлена</string>

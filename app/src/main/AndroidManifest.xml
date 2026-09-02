@@ -35,6 +35,12 @@
 
     <uses-sdk tools:overrideLibrary="dev.oneuiproject.oneui" />
 
+    <!-- Аватар: редактор Galaxy и галерея Samsung, если они есть на устройстве -->
+    <queries>
+        <package android:name="com.samsung.android.aremoji" />
+        <package android:name="com.sec.android.gallery3d" />
+    </queries>
+
     <application
         android:name=".WingsApplication"
         android:allowBackup="true"
@@ -179,6 +185,11 @@
 
         <activity
             android:name=".FederationSubscriptionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".FederationAvatarActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />
 

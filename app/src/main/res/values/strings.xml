@@ -1672,6 +1672,14 @@
     <string name="federation_account_error">Something went wrong</string>
     <string name="federation_row_clients_title">Client management</string>
     <string name="federation_row_clients_summary">Your own clients and their devices</string>
+    <string name="federation_avatar_title">Profile picture</string>
+    <string name="federation_avatar_camera">Camera</string>
+    <string name="federation_avatar_gallery">Gallery</string>
+    <string name="federation_avatar_cancel">Cancel</string>
+    <string name="federation_avatar_save">Save</string>
+    <string name="federation_avatar_reset">Remove the picture</string>
+    <string name="federation_avatar_saved">Profile picture updated</string>
+    <string name="federation_avatar_galaxy">Galaxy Avatar</string>
     <string name="federation_account_access_title">My access</string>
     <string name="federation_account_subscription_added_state">Subscription added to the app</string>
     <string name="federation_account_subscription_missing">Subscription is not added yet</string>

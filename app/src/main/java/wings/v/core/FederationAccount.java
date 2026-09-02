@@ -85,6 +85,11 @@ public final class FederationAccount {
             return "";
         }
         long version = AppPrefs.prefs(context).getLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, 0L);
+        // Нулевая версия означает, что своей картинки нет: показывается та же
+        // заглушка, что и в панели, а не отдельная иконка приложения
+        if (version <= 0) {
+            return panelUrl(context) + "/img/avatar-default.png";
+        }
         return panelUrl(context) + "/api/admin/avatars/" + id + ".png?v=" + version;
     }
 
@@ -250,6 +255,19 @@ public final class FederationAccount {
 
     static void rememberPanel(@NonNull Context context, boolean allowed) {
         AppPrefs.prefs(context).edit().putBoolean(AppPrefs.KEY_FEDERATION_PANEL_ACCESS, allowed).apply();
+    }
+
+    /** Убирает аватар: аккаунт возвращается к панельной заглушке */
+    public static void removeAvatar(@NonNull Context context) throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        HttpURLConnection connection = open(context, "/api/app/avatar", token);
+        connection.setRequestMethod("DELETE");
+        readResponse(connection);
+        rememberAvatarVersion(context, 0L);
+        AppPrefs.prefs(context).edit().putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, 0L).apply();
     }
 
     /** Смена пароля своего аккаунта */

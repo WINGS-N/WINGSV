@@ -181,13 +181,6 @@
                         android:contentDescription="@string/federation_account_change_avatar"
                         android:src="@drawable/ic_account_avatar" />
 
-                    <ProgressBar
-                        android:id="@+id/federation_avatar_progress"
-                        style="?android:attr/progressBarStyleSmall"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="center"
-                        android:visibility="gone" />
                 </FrameLayout>
             </LinearLayout>
 
@@ -203,11 +196,12 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:baselineAligned="false"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:measureWithLargestChild="true">
 
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:layout_marginEnd="5dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_surface_card"
@@ -241,7 +235,7 @@
 
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:layout_marginStart="5dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_surface_card"
@@ -280,11 +274,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:baselineAligned="false"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:measureWithLargestChild="true">
 
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:layout_marginEnd="5dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_surface_card"
@@ -313,7 +308,7 @@
 
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:layout_marginStart="5dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_surface_card"
@@ -432,8 +427,10 @@
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/federation_sign_out"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="52dp"
+                android:layout_gravity="center_horizontal"
+                android:minWidth="220dp"
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="10dp"
                 android:paddingStart="40dp"

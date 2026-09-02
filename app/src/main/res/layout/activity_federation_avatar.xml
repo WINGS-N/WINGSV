@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/federation_avatar_title">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp">
+
+            <ImageView
+                android:id="@+id/federation_avatar_preview"
+                android:layout_width="150dp"
+                android:layout_height="150dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_account_avatar" />
+
+            <ProgressBar
+                android:id="@+id/federation_avatar_progress"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- Источники в ряд пилюлями, как в аккаунте телефона -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/federation_avatar_camera"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                android:text="@string/federation_avatar_camera" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/federation_avatar_gallery"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                android:text="@string/federation_avatar_gallery" />
+        </LinearLayout>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/federation_avatar_galaxy"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:text="@string/federation_avatar_galaxy"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/federation_avatar_reset"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:text="@string/federation_avatar_reset" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Отмена и Сохранить внизу, как на экране аватара в аккаунте -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/federation_avatar_cancel"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="52dp"
+                android:minWidth="120dp"
+                android:text="@string/federation_avatar_cancel" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center_vertical"
+                android:background="?android:attr/listDivider" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/federation_avatar_save"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="52dp"
+                android:enabled="false"
+                android:minWidth="120dp"
+                android:text="@string/federation_avatar_save" />
+        </LinearLayout>
+    </LinearLayout>
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

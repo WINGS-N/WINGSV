@@ -11,14 +11,10 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import dev.oneuiproject.oneui.layout.ToolbarLayout;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.AvatarFetcher;
@@ -51,20 +47,7 @@ public class FederationAccountActivity extends AppCompatActivity {
     private TextView traffic;
     private TextView speedDown;
     private TextView speedUp;
-    private ProgressBar avatarProgress;
     private ImageView avatar;
-
-    /** Максимум, который принимает панель */
-    private static final int MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-
-    private final ActivityResultLauncher<String> pickAvatar = registerForActivityResult(
-        new ActivityResultContracts.GetContent(),
-        uri -> {
-            if (uri != null) {
-                uploadAvatar(uri);
-            }
-        }
-    );
 
     public static Intent createIntent(@NonNull Context context) {
         return new Intent(context, FederationAccountActivity.class);
@@ -98,7 +81,6 @@ public class FederationAccountActivity extends AppCompatActivity {
         traffic = findViewById(R.id.federation_traffic);
         speedDown = findViewById(R.id.federation_speed_down);
         speedUp = findViewById(R.id.federation_speed_up);
-        avatarProgress = findViewById(R.id.federation_avatar_progress);
         avatar = findViewById(R.id.federation_avatar);
 
         findViewById(R.id.federation_sign_in).setOnClickListener(v -> signIn());
@@ -111,7 +93,7 @@ public class FederationAccountActivity extends AppCompatActivity {
             startActivity(FederationProfileActivity.createIntent(this))
         );
         findViewById(R.id.federation_row_clients).setOnClickListener(v -> openPanelSection("/admin/clients"));
-        avatar.setOnClickListener(v -> pickAvatar.launch("image/*"));
+        avatar.setOnClickListener(v -> startActivity(FederationAvatarActivity.createIntent(this)));
 
         handleCode(getIntent());
         render();
@@ -244,47 +226,6 @@ public class FederationAccountActivity extends AppCompatActivity {
         });
     }
 
-    /** Меняет аватар: файл уходит в панель, а кэш картинки сбрасывается */
-    private void uploadAvatar(@NonNull Uri uri) {
-        avatarProgress.setVisibility(View.VISIBLE);
-        io.execute(() -> {
-            try {
-                byte[] data = readAll(uri);
-                if (data.length > MAX_AVATAR_BYTES) {
-                    throw new IllegalStateException(getString(R.string.federation_account_avatar_too_big));
-                }
-                String mime = getContentResolver().getType(uri);
-                FederationAccount.uploadAvatar(this, data, TextUtils.isEmpty(mime) ? "image/png" : mime);
-                AvatarFetcher.clearCache(this);
-                runOnUiThread(() -> {
-                    avatarProgress.setVisibility(View.GONE);
-                    loadAvatar();
-                });
-            } catch (Exception error) {
-                runOnUiThread(() -> avatarProgress.setVisibility(View.GONE));
-                showError(error.getMessage());
-            }
-        });
-    }
-
-    private byte[] readAll(@NonNull Uri uri) throws Exception {
-        try (
-            InputStream stream = getContentResolver().openInputStream(uri);
-            ByteArrayOutputStream out = new ByteArrayOutputStream()
-        ) {
-            if (stream == null) {
-                throw new IllegalStateException("не удалось открыть файл");
-            }
-            byte[] buffer = new byte[8192];
-            int read = stream.read(buffer);
-            while (read != -1) {
-                out.write(buffer, 0, read);
-                read = stream.read(buffer);
-            }
-            return out.toByteArray();
-        }
-    }
-
     private void loadAccess() {
         io.execute(() -> {
             try {
@@ -328,22 +269,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         }
         trustBar.setVisibility(View.VISIBLE);
         trustProgress.setProgress(Math.max(0, Math.min(100, access.trustConfidence)));
-        trust.setText(
-            getString(R.string.federation_account_trust, access.trustConfidence) + " - " + bandLabel(access.trustBand)
-        );
-    }
-
-    private String bandLabel(@NonNull String band) {
-        if ("full".equals(band)) {
-            return getString(R.string.federation_account_trust_full);
-        }
-        if ("reduced".equals(band)) {
-            return getString(R.string.federation_account_trust_reduced);
-        }
-        if ("quarantine".equals(band)) {
-            return getString(R.string.federation_account_trust_quarantine);
-        }
-        return band;
+        trust.setText(getString(R.string.federation_account_trust, access.trustConfidence));
     }
 
     /** Потолок вниз и вверх, как его выдал оракул. Цвета те же, что у трафика */
