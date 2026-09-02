@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<dev.oneuiproject.oneui.layout.ToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/toolbar_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?roundedCornerColor"
+    app:expanded="false"
+    app:expandable="false"
+    app:title="@string/federation_row_subscription_title">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:padding="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?android:colorBackground"
+                android:orientation="vertical"
+                android:padding="24dp"
+                app:roundedCorners="all">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/federation_row_subscription_summary"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary" />
+
+                <TextView
+                    android:id="@+id/federation_subscription_state"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/federation_subscription_address"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?android:textColorSecondary"
+                    android:textIsSelectable="true" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/federation_subscription_copy"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="20dp"
+                    android:text="@string/federation_account_subscription_copy" />
+            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</dev.oneuiproject.oneui.layout.ToolbarLayout>

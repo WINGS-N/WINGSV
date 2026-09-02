@@ -1625,7 +1625,7 @@
     <string name="import_parser_unsupported_type">Only type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing is supported</string>
     <string name="import_parser_payload_unpack_failed">Failed to unpack payload</string>
     <string name="vk_turn_live_patch_failed">Live-apply failed - it will take effect on the next start</string>
-    <string name="federation_account_title">WINGS V account</string>
+    <string name="federation_account_title">WINGS V Account</string>
     <string name="federation_account_summary">Sign in and get the federation servers</string>
     <string name="federation_account_sign_in_hint">Sign in to get the free federation servers</string>
     <string name="federation_account_login_hint">Login</string>
@@ -1635,7 +1635,7 @@
     <string name="federation_account_sign_out">Sign out</string>
     <string name="federation_account_apply_subscription">Add the federation subscription</string>
     <string name="federation_account_nodes">%1$d</string>
-    <string name="federation_account_trust">Trust %1$d of 100 - %2$s</string>
+    <string name="federation_account_trust">Trust %1$d / 100</string>
     <string name="federation_account_no_access">Access is given by invitation</string>
     <string name="federation_account_subscription_added">Subscription added</string>
     <string name="federation_account_network_error">The panel is unreachable</string>
@@ -1651,6 +1651,27 @@
     <string name="federation_account_speed_unlimited">no cap</string>
     <string name="federation_account_change_avatar">Change avatar</string>
     <string name="federation_account_avatar_too_big">The picture is over 2 MB</string>
+    <string name="federation_row_access_title">My access</string>
+    <string name="federation_row_access_summary">Servers, traffic and speed</string>
+    <string name="federation_row_subscription_title">Subscription</string>
+    <string name="federation_row_subscription_summary">The link the app updates itself from</string>
+    <string name="federation_account_signing_in">Signing in...</string>
+    <string name="federation_account_period_caption">this month</string>
+    <string name="federation_account_subscription_copy">Copy the link</string>
+    <string name="federation_account_subscription_copied">Link copied</string>
+    <string name="federation_row_profile_title">Profile information</string>
+    <string name="federation_row_profile_summary">Login, password, avatar</string>
+    <string name="federation_profile_login_caption">Login</string>
+    <string name="federation_profile_password_section">Password</string>
+    <string name="federation_profile_password_current">Current password</string>
+    <string name="federation_profile_password_new">New password</string>
+    <string name="federation_profile_password_repeat">Repeat the new one</string>
+    <string name="federation_profile_password_save">Change the password</string>
+    <string name="federation_profile_password_mismatch">The new password and the repeat do not match</string>
+    <string name="federation_profile_password_changed">Password changed</string>
+    <string name="federation_account_error">Something went wrong</string>
+    <string name="federation_row_clients_title">Client management</string>
+    <string name="federation_row_clients_summary">Your own clients and their devices</string>
     <string name="federation_account_access_title">My access</string>
     <string name="federation_account_subscription_added_state">Subscription added to the app</string>
     <string name="federation_account_subscription_missing">Subscription is not added yet</string>

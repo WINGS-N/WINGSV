@@ -37,6 +37,8 @@ public final class FederationAccount {
         public int trustConfidence;
         public String trustBand = "";
         public long avatarVersion;
+        public boolean panelAccess;
+        public String role = "";
         public long usedBytes;
         public long uplinkBps;
         public long downlinkBps;
@@ -163,6 +165,9 @@ public final class FederationAccount {
         access.nodes = response.optInt("nodes");
         access.subscriptionUrl = response.optString("subscription_url", "");
         access.avatarVersion = response.optLong("avatar_version", 0L);
+        access.panelAccess = response.optBoolean("panel_access");
+        access.role = response.optString("role", "");
+        rememberPanel(context, access.panelAccess);
         access.usedBytes = response.optLong("used_bytes", 0L);
         access.uplinkBps = response.optLong("uplink_bps", 0L);
         access.downlinkBps = response.optLong("downlink_bps", 0L);
@@ -191,7 +196,7 @@ public final class FederationAccount {
             throw new IllegalStateException("нет сессии");
         }
         String boundary = "wings" + System.nanoTime();
-        HttpURLConnection connection = open(context, "/api/admin/me/avatar", token);
+        HttpURLConnection connection = open(context, "/api/app/avatar", token);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
@@ -210,6 +215,28 @@ public final class FederationAccount {
         }
         JSONObject response = readResponse(connection);
         rememberAvatarVersion(context, response.optLong("avatar_version", 0L));
+    }
+
+    /** Открыта ли этому аккаунту админ-панель */
+    public static boolean hasPanel(@NonNull Context context) {
+        return AppPrefs.prefs(context).getBoolean(AppPrefs.KEY_FEDERATION_PANEL_ACCESS, false);
+    }
+
+    static void rememberPanel(@NonNull Context context, boolean allowed) {
+        AppPrefs.prefs(context).edit().putBoolean(AppPrefs.KEY_FEDERATION_PANEL_ACCESS, allowed).apply();
+    }
+
+    /** Смена пароля своего аккаунта */
+    public static void changePassword(@NonNull Context context, @NonNull String current, @NonNull String next)
+        throws Exception {
+        String token = token(context);
+        if (TextUtils.isEmpty(token)) {
+            throw new IllegalStateException("нет сессии");
+        }
+        JSONObject body = new JSONObject();
+        body.put("old_password", current);
+        body.put("new_password", next);
+        post(context, "/api/app/password", body.toString(), token);
     }
 
     /** Выход отзывает сессию именно этого устройства */

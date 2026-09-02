@@ -275,6 +275,9 @@ public final class AppPrefs {
     public static final String KEY_FEDERATION_ACCOUNT_ID = "pref_federation_account_id";
 
     public static final String KEY_FEDERATION_AVATAR_VERSION = "pref_federation_avatar_version";
+
+    /** Открыта ли аккаунту админ-панель: от этого зависят разделы в приложении */
+    public static final String KEY_FEDERATION_PANEL_ACCESS = "pref_federation_panel_access";
     public static final String KEY_GUARDIAN_CA_PINS = "pref_guardian_ca_pins";
     public static final String KEY_GUARDIAN_CLIENT_NAME = "pref_guardian_client_name";
     public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";

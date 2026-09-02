@@ -1624,7 +1624,7 @@
     <string name="import_parser_unsupported_type">Поддерживается только type=vk/xray/amneziawg/wb_stream/all/app_routing/xray_routing</string>
     <string name="import_parser_payload_unpack_failed">Не удалось распаковать payload</string>
     <string name="vk_turn_live_patch_failed">Ошибка при живом применении параметра - применится на следующем старте</string>
-    <string name="federation_account_title">Аккаунт WINGS V</string>
+    <string name="federation_account_title">WINGS V Account</string>
     <string name="federation_account_summary">Вход в аккаунт, бесплатные серверы федерации</string>
     <string name="federation_account_sign_in_hint">Войдите, чтобы получить бесплатные серверы федерации</string>
     <string name="federation_account_login_hint">Логин</string>
@@ -1634,7 +1634,7 @@
     <string name="federation_account_sign_out">Выйти</string>
     <string name="federation_account_apply_subscription">Добавить подписку федерации</string>
     <string name="federation_account_nodes">%1$d</string>
-    <string name="federation_account_trust">Доверие %1$d из 100 - %2$s</string>
+    <string name="federation_account_trust">Доверие %1$d / 100</string>
     <string name="federation_account_no_access">Доступ выдаётся по приглашению</string>
     <string name="federation_account_subscription_added">Подписка добавлена</string>
     <string name="federation_account_network_error">Панель недоступна</string>
@@ -1650,6 +1650,27 @@
     <string name="federation_account_speed_unlimited">без лимита</string>
     <string name="federation_account_change_avatar">Сменить аватар</string>
     <string name="federation_account_avatar_too_big">Картинка больше 2 MB</string>
+    <string name="federation_row_access_title">Мой доступ</string>
+    <string name="federation_row_access_summary">Серверы, трафик и скорость</string>
+    <string name="federation_row_subscription_title">Подписка</string>
+    <string name="federation_row_subscription_summary">Ссылка, по которой приложение обновляется само</string>
+    <string name="federation_account_signing_in">Входим...</string>
+    <string name="federation_account_period_caption">за месяц</string>
+    <string name="federation_account_subscription_copy">Скопировать ссылку</string>
+    <string name="federation_account_subscription_copied">Ссылка скопирована</string>
+    <string name="federation_row_profile_title">Информация профиля</string>
+    <string name="federation_row_profile_summary">Логин, пароль, аватар</string>
+    <string name="federation_profile_login_caption">Логин</string>
+    <string name="federation_profile_password_section">Пароль</string>
+    <string name="federation_profile_password_current">Текущий пароль</string>
+    <string name="federation_profile_password_new">Новый пароль</string>
+    <string name="federation_profile_password_repeat">Повторите новый</string>
+    <string name="federation_profile_password_save">Сменить пароль</string>
+    <string name="federation_profile_password_mismatch">Новый пароль и повтор не совпадают</string>
+    <string name="federation_profile_password_changed">Пароль сменён</string>
+    <string name="federation_account_error">Что-то пошло не так</string>
+    <string name="federation_row_clients_title">Управление клиентами</string>
+    <string name="federation_row_clients_summary">Свои клиенты и их устройства</string>
     <string name="federation_account_access_title">Мой доступ</string>
     <string name="federation_account_subscription_added_state">Подписка добавлена в приложение</string>
     <string name="federation_account_subscription_missing">Подписка ещё не добавлена</string>

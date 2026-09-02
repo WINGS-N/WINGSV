@@ -11,44 +11,39 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import wings.v.core.AvatarFetcher;
 import wings.v.core.FederationAccount;
+import wings.v.core.FederationSubscription;
 import wings.v.core.UiFormatter;
-import wings.v.core.XrayStore;
-import wings.v.core.XraySubscription;
-import wings.v.core.XraySubscriptionUpdater;
 
 /** Экран аккаунта федерации: вход, выданный доступ и подписка */
 public class FederationAccountActivity extends AppCompatActivity {
-
-    /** Идентификатор подписки федерации: он же не даёт завести её дважды */
-    private static final String FEDERATION_SUBSCRIPTION_ID = "wings-federation";
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
 
     private View signInCard;
     private View profileCard;
-    private View accessCard;
-    private View signOutCard;
+    private View counters;
+    private View sections;
+    private View panelSections;
+    private View signOutButton;
+    private ProgressBar signInProgress;
     private EditText login;
     private EditText password;
     private EditText code;
     private TextView signInError;
     private TextView username;
     private TextView trust;
-    private TextView trustBand;
     private View trustBar;
     private ProgressBar trustProgress;
     private TextView nodes;
@@ -57,12 +52,7 @@ public class FederationAccountActivity extends AppCompatActivity {
     private TextView speedDown;
     private TextView speedUp;
     private ProgressBar avatarProgress;
-    private TextView subscriptionState;
-    private TextView subscription;
     private ImageView avatar;
-    private Button applySubscription;
-
-    private String subscriptionUrl = "";
 
     /** Максимум, который принимает панель */
     private static final int MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -85,17 +75,22 @@ public class FederationAccountActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_federation_account);
 
+        ToolbarLayout toolbar = findViewById(R.id.toolbar_layout);
+        toolbar.setShowNavigationButtonAsBack(true);
+
         signInCard = findViewById(R.id.federation_sign_in_card);
         profileCard = findViewById(R.id.federation_profile_card);
-        accessCard = findViewById(R.id.federation_access_card);
-        signOutCard = findViewById(R.id.federation_sign_out_card);
+        counters = findViewById(R.id.federation_counters);
+        sections = findViewById(R.id.federation_sections);
+        panelSections = findViewById(R.id.federation_panel_sections);
+        signOutButton = findViewById(R.id.federation_sign_out);
+        signInProgress = findViewById(R.id.federation_sign_in_progress);
         login = findViewById(R.id.federation_login);
         password = findViewById(R.id.federation_password);
         code = findViewById(R.id.federation_code);
         signInError = findViewById(R.id.federation_sign_in_error);
         username = findViewById(R.id.federation_username);
         trust = findViewById(R.id.federation_trust);
-        trustBand = findViewById(R.id.federation_trust_band);
         trustBar = findViewById(R.id.federation_trust_bar);
         trustProgress = findViewById(R.id.federation_trust_progress);
         nodes = findViewById(R.id.federation_nodes);
@@ -104,15 +99,18 @@ public class FederationAccountActivity extends AppCompatActivity {
         speedDown = findViewById(R.id.federation_speed_down);
         speedUp = findViewById(R.id.federation_speed_up);
         avatarProgress = findViewById(R.id.federation_avatar_progress);
-        subscription = findViewById(R.id.federation_subscription);
-        subscriptionState = findViewById(R.id.federation_subscription_state);
         avatar = findViewById(R.id.federation_avatar);
-        applySubscription = findViewById(R.id.federation_apply_subscription);
 
         findViewById(R.id.federation_sign_in).setOnClickListener(v -> signIn());
         findViewById(R.id.federation_sign_in_matrix).setOnClickListener(v -> openBrowserLogin());
         findViewById(R.id.federation_sign_out).setOnClickListener(v -> signOut());
-        applySubscription.setOnClickListener(v -> addSubscription());
+        findViewById(R.id.federation_row_subscription).setOnClickListener(v ->
+            startActivity(FederationSubscriptionActivity.createIntent(this))
+        );
+        findViewById(R.id.federation_row_profile).setOnClickListener(v ->
+            startActivity(FederationProfileActivity.createIntent(this))
+        );
+        findViewById(R.id.federation_row_clients).setOnClickListener(v -> openPanelSection("/admin/clients"));
         avatar.setOnClickListener(v -> pickAvatar.launch("image/*"));
 
         handleCode(getIntent());
@@ -151,11 +149,13 @@ public class FederationAccountActivity extends AppCompatActivity {
             return;
         }
         String secondFactor = code.getText() == null ? "" : code.getText().toString().trim();
+        setSigningIn(true);
         io.execute(() -> {
             try {
                 FederationAccount.Session session = FederationAccount.signIn(this, user, pass, secondFactor);
                 FederationAccount.store(this, session);
                 runOnUiThread(() -> {
+                    setSigningIn(false);
                     password.setText("");
                     code.setText("");
                     code.setVisibility(View.GONE);
@@ -164,6 +164,7 @@ public class FederationAccountActivity extends AppCompatActivity {
                 });
             } catch (FederationAccount.SecondFactorRequired needsCode) {
                 runOnUiThread(() -> {
+                    setSigningIn(false);
                     code.setVisibility(View.VISIBLE);
                     code.requestFocus();
                     if (TextUtils.isEmpty(secondFactor)) {
@@ -174,9 +175,24 @@ public class FederationAccountActivity extends AppCompatActivity {
                     signInError.setVisibility(View.VISIBLE);
                 });
             } catch (Exception error) {
+                runOnUiThread(() -> setSigningIn(false));
                 showError(error.getMessage());
             }
         });
+    }
+
+    /** Вход идёт по сети: без индикатора нажатие выглядит потерянным */
+    private void setSigningIn(boolean busy) {
+        signInProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
+        findViewById(R.id.federation_sign_in).setEnabled(!busy);
+        ((Button) findViewById(R.id.federation_sign_in)).setText(
+            busy ? R.string.federation_account_signing_in : R.string.federation_account_sign_in
+        );
+    }
+
+    /** Раздел, который в приложении ещё не собран, открывается в панели */
+    private void openPanelSection(@NonNull String path) {
+        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(FederationAccount.panelUrl(this) + path)));
     }
 
     private void openBrowserLogin() {
@@ -187,40 +203,10 @@ public class FederationAccountActivity extends AppCompatActivity {
     private void signOut() {
         io.execute(() -> {
             FederationAccount.signOut(this);
+            // Подписка выдана этому аккаунту: без него она мертва
+            FederationSubscription.remove(this);
+            AvatarFetcher.clearCache(this);
             runOnUiThread(this::render);
-        });
-    }
-
-    private void addSubscription() {
-        if (TextUtils.isEmpty(subscriptionUrl)) {
-            return;
-        }
-        XraySubscription entry = new XraySubscription(
-            FEDERATION_SUBSCRIPTION_ID,
-            getString(R.string.federation_account_title),
-            subscriptionUrl,
-            "auto",
-            0,
-            true,
-            0L,
-            0L,
-            0L,
-            0L,
-            0L
-        );
-        List<XraySubscription> current = new ArrayList<>(XrayStore.getSubscriptions(this));
-        // Подписка одна: повторное нажатие обновляет адрес, а не плодит копии
-        current.removeIf(existing -> existing != null && FEDERATION_SUBSCRIPTION_ID.equals(existing.id));
-        current.add(entry);
-        XrayStore.setSubscriptions(this, current);
-        Toast.makeText(this, R.string.federation_account_subscription_added, Toast.LENGTH_SHORT).show();
-        subscriptionState.setText(R.string.federation_account_subscription_added_state);
-        io.execute(() -> {
-            try {
-                XraySubscriptionUpdater.refreshAll(this);
-            } catch (Exception error) {
-                showError(error.getMessage());
-            }
         });
     }
 
@@ -228,14 +214,14 @@ public class FederationAccountActivity extends AppCompatActivity {
         boolean signedIn = FederationAccount.isSignedIn(this);
         signInCard.setVisibility(signedIn ? View.GONE : View.VISIBLE);
         profileCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
-        accessCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
-        signOutCard.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+        counters.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+        sections.setVisibility(signedIn ? View.VISIBLE : View.GONE);
+        signOutButton.setVisibility(signedIn ? View.VISIBLE : View.GONE);
         if (!signedIn) {
             return;
         }
         username.setText(FederationAccount.username(this));
-        trust.setText("");
-        nodes.setText("");
+        panelSections.setVisibility(FederationAccount.hasPanel(this) ? View.VISIBLE : View.GONE);
         loadAvatar();
         loadAccess();
     }
@@ -311,12 +297,8 @@ public class FederationAccountActivity extends AppCompatActivity {
         if (access == null || !access.enabled) {
             nodes.setText("-");
             nodesMeta.setText(R.string.federation_account_no_access);
-            subscriptionState.setText("");
-            subscription.setVisibility(View.GONE);
-            applySubscription.setVisibility(View.GONE);
             return;
         }
-        subscriptionUrl = access.subscriptionUrl;
         nodes.setText(getString(R.string.federation_account_nodes, access.nodes));
         nodesMeta.setText(
             access.nodesEntitled > access.nodes
@@ -329,34 +311,23 @@ public class FederationAccountActivity extends AppCompatActivity {
         // Аватар мог смениться в панели, и тогда версия в адресе уже другая
         FederationAccount.rememberAvatarVersion(this, access.avatarVersion);
         loadAvatar();
-        if (TextUtils.isEmpty(access.subscriptionUrl)) {
-            subscriptionState.setText(R.string.federation_account_no_subscription);
-            subscription.setVisibility(View.GONE);
-            applySubscription.setVisibility(View.GONE);
-            return;
+        // Подписка заводится сама: вход в аккаунт - и есть согласие её получить
+        if (!TextUtils.isEmpty(access.subscriptionUrl)) {
+            io.execute(() -> FederationSubscription.ensure(this, access.subscriptionUrl));
         }
-        subscription.setText(access.subscriptionUrl);
-        subscription.setVisibility(View.VISIBLE);
-        applySubscription.setVisibility(View.VISIBLE);
-        subscriptionState.setText(
-            hasFederationSubscription()
-                ? R.string.federation_account_subscription_added_state
-                : R.string.federation_account_subscription_missing
-        );
     }
 
     /** Полоса доверия читается так же, как полоса трафика у подписки */
     private void applyTrust(@NonNull FederationAccount.Access access) {
         if (TextUtils.isEmpty(access.trustBand)) {
             trustBar.setVisibility(View.GONE);
-            trustBand.setText("");
             return;
         }
         trustBar.setVisibility(View.VISIBLE);
         trustProgress.setProgress(Math.max(0, Math.min(100, access.trustConfidence)));
-        String band = bandLabel(access.trustBand);
-        trust.setText(getString(R.string.federation_account_trust, access.trustConfidence, band));
-        trustBand.setText(band);
+        trust.setText(
+            getString(R.string.federation_account_trust, access.trustConfidence) + " - " + bandLabel(access.trustBand)
+        );
     }
 
     private String bandLabel(@NonNull String band) {
@@ -381,16 +352,6 @@ public class FederationAccountActivity extends AppCompatActivity {
         }
         speedDown.setText(UiFormatter.formatBytesPerSecond(this, access.downlinkBps));
         speedUp.setText(UiFormatter.formatBytesPerSecond(this, access.uplinkBps));
-    }
-
-    /** Подписка уже заведена в приложении или ещё нет */
-    private boolean hasFederationSubscription() {
-        for (XraySubscription existing : XrayStore.getSubscriptions(this)) {
-            if (existing != null && FEDERATION_SUBSCRIPTION_ID.equals(existing.id)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void showError(@Nullable String message) {

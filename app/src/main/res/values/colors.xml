@@ -22,4 +22,8 @@
     <color name="wingsv_chart_sent_end">#0A84FF</color>
     <color name="wingsv_chart_recv_start">#A8E063</color>
     <color name="wingsv_chart_recv_end">#34C759</color>
+    <!-- Кружки под иконками разделов аккаунта: цвет отделяет раздел от раздела -->
+    <color name="account_icon_blue">#2C7DF0</color>
+    <color name="account_icon_indigo">#5A63E8</color>
+    <color name="account_icon_violet">#8A63E8</color>
 </resources>

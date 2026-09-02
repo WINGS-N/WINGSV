@@ -178,6 +178,16 @@
         </activity>
 
         <activity
+            android:name=".FederationSubscriptionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
+            android:name=".FederationProfileActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name=".SubscriptionsActivity"
             android:exported="false"
             android:theme="@style/Theme.WINGSV" />

@@ -21,7 +21,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Вход: поля, кнопка, Matrix ссылкой под ней -->
+            <!-- Вход -->
             <dev.oneuiproject.oneui.widget.RoundedLinearLayout
                 android:id="@+id/federation_sign_in_card"
                 android:layout_width="match_parent"
@@ -37,7 +37,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/federation_account_sign_in_title"
+                    android:fontFamily="@font/samsungsharpsans"
+                    android:text="@string/federation_account_title"
                     android:textAppearance="?android:attr/textAppearanceLarge"
                     android:textStyle="bold" />
 
@@ -59,10 +60,7 @@
                     android:gravity="center_vertical"
                     android:hint="@string/federation_account_login_hint"
                     android:imeOptions="actionNext"
-                    android:inputType="text"
-                    android:maxLength="64"
-                    android:maxLines="1"
-                    android:minHeight="56dp"
+                    android:inputType="textNoSuggestions"
                     android:paddingStart="16dp"
                     android:paddingTop="14dp"
                     android:paddingEnd="16dp"
@@ -79,15 +77,11 @@
                     android:hint="@string/federation_account_password_hint"
                     android:imeOptions="actionDone"
                     android:inputType="textPassword"
-                    android:maxLength="512"
-                    android:maxLines="1"
-                    android:minHeight="56dp"
                     android:paddingStart="16dp"
                     android:paddingTop="14dp"
                     android:paddingEnd="16dp"
                     android:paddingBottom="14dp" />
 
-                <!-- Поле кода появляется, только когда панель его спросила -->
                 <androidx.appcompat.widget.AppCompatEditText
                     android:id="@+id/federation_code"
                     android:layout_width="match_parent"
@@ -99,9 +93,6 @@
                     android:hint="@string/federation_account_code_hint"
                     android:imeOptions="actionDone"
                     android:inputType="number"
-                    android:maxLength="16"
-                    android:maxLines="1"
-                    android:minHeight="56dp"
                     android:paddingStart="16dp"
                     android:paddingTop="14dp"
                     android:paddingEnd="16dp"
@@ -117,149 +108,107 @@
                     android:textColor="?attr/colorError"
                     android:visibility="gone" />
 
-                <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/federation_sign_in"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="24dp"
-                    android:text="@string/federation_account_sign_in" />
-
-                <TextView
-                    android:id="@+id/federation_sign_in_matrix"
+                <!-- Кнопка со своим индикатором: вход идёт по сети, и молчащая
+                     кнопка выглядит как будто нажатие потерялось -->
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:background="?attr/selectableItemBackground"
+                    android:layout_marginTop="24dp">
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/federation_sign_in"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="@string/federation_account_sign_in" />
+
+                    <ProgressBar
+                        android:id="@+id/federation_sign_in_progress"
+                        style="?android:attr/progressBarStyleSmall"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:layout_marginEnd="20dp"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/federation_sign_in_matrix"
+                    style="?android:attr/borderlessButtonStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="8dp"
+                    android:drawableStart="@drawable/ic_matrix"
+                    android:drawablePadding="10dp"
                     android:gravity="center"
-                    android:paddingVertical="8dp"
-                    android:text="@string/federation_account_sign_in_matrix"
-                    android:textColor="?attr/colorPrimary"
-                    android:textSize="15sp" />
+                    android:text="@string/federation_account_sign_in_matrix" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
-            <!-- Профиль: аватар и имя, под ними полоса доверия -->
-            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+            <!-- Шапка профиля: имя слева, аватар справа -->
+            <LinearLayout
                 android:id="@+id/federation_profile_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?android:colorBackground"
-                android:orientation="vertical"
-                android:padding="24dp"
-                android:visibility="gone"
-                app:roundedCorners="all">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <FrameLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content">
-
-                        <ImageView
-                            android:id="@+id/federation_avatar"
-                            android:layout_width="64dp"
-                            android:layout_height="64dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:contentDescription="@string/federation_account_change_avatar"
-                            android:src="@drawable/ic_account_avatar" />
-
-                        <ProgressBar
-                            android:id="@+id/federation_avatar_progress"
-                            style="?android:attr/progressBarStyleSmall"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:layout_gravity="center"
-                            android:visibility="gone" />
-                    </FrameLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="18dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/federation_username"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:ellipsize="end"
-                            android:maxLines="1"
-                            android:textAppearance="?android:attr/textAppearanceLarge"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/federation_trust_band"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:textAppearance="?android:attr/textAppearanceSmall"
-                            android:textColor="?android:textColorSecondary" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Полоса доверия читается так же, как полоса трафика -->
-                <FrameLayout
-                    android:id="@+id/federation_trust_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="30dp"
-                    android:layout_marginTop="18dp"
-                    android:visibility="gone">
-
-                    <ProgressBar
-                        android:id="@+id/federation_trust_progress"
-                        style="?android:attr/progressBarStyleHorizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:indeterminate="false"
-                        android:max="100"
-                        android:minHeight="30dp"
-                        android:progress="0"
-                        android:progressDrawable="@drawable/progress_profile_quota" />
-
-                    <TextView
-                        android:id="@+id/federation_trust"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:textColor="?android:textColorPrimary"
-                        android:textSize="12sp" />
-                </FrameLayout>
-            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
-
-            <!-- Доступ и подписка -->
-            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
-                android:id="@+id/federation_access_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:background="?android:colorBackground"
-                android:orientation="vertical"
-                android:padding="24dp"
-                android:visibility="gone"
-                app:roundedCorners="all">
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="14dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="22dp"
+                android:visibility="gone">
 
                 <TextView
-                    android:layout_width="match_parent"
+                    android:id="@+id/federation_username"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="@string/federation_account_access_title"
-                    android:textAppearance="?android:attr/textAppearanceMedium"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:fontFamily="@font/samsungsharpsans"
+                    android:maxLines="1"
+                    android:textColor="?android:textColorPrimary"
+                    android:textSize="30sp"
                     android:textStyle="bold" />
 
-                <!-- Те же карточки, что считают трафик на главной -->
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp">
+
+                    <ImageView
+                        android:id="@+id/federation_avatar"
+                        android:layout_width="58dp"
+                        android:layout_height="58dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/federation_account_change_avatar"
+                        android:src="@drawable/ic_account_avatar" />
+
+                    <ProgressBar
+                        android:id="@+id/federation_avatar_progress"
+                        style="?android:attr/progressBarStyleSmall"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:visibility="gone" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <!-- Счётчики: по карточке на величину, одинаковой высоты -->
+            <LinearLayout
+                android:id="@+id/federation_counters"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:baselineAligned="false"
                     android:orientation="horizontal">
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginEnd="6dp"
+                        android:layout_marginEnd="5dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_surface_card"
                         android:orientation="vertical"
@@ -268,12 +217,9 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:drawableStart="@drawable/ic_sharing_ethernet"
-                            android:drawablePadding="6dp"
-                            android:drawableTint="@color/traffic_rx"
                             android:text="@string/federation_account_nodes_caption"
                             android:textAppearance="?android:attr/textAppearanceSmall"
-                            android:textColor="@color/traffic_rx" />
+                            android:textColor="?android:textColorSecondary" />
 
                         <TextView
                             android:id="@+id/federation_nodes"
@@ -296,7 +242,7 @@
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
+                        android:layout_marginStart="5dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_surface_card"
                         android:orientation="vertical"
@@ -305,12 +251,9 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:drawableStart="@drawable/ic_arrow_down"
-                            android:drawablePadding="6dp"
-                            android:drawableTint="@color/traffic_tx"
                             android:text="@string/federation_account_traffic_caption"
                             android:textAppearance="?android:attr/textAppearanceSmall"
-                            android:textColor="@color/traffic_tx" />
+                            android:textColor="?android:textColorSecondary" />
 
                         <TextView
                             android:id="@+id/federation_traffic"
@@ -321,96 +264,182 @@
                             android:textColor="?android:textColorPrimary"
                             android:textStyle="bold" />
 
-                        <LinearLayout
+                        <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:orientation="horizontal">
-
-                            <TextView
-                                android:id="@+id/federation_speed_down"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:drawableStart="@drawable/ic_arrow_down"
-                                android:drawablePadding="3dp"
-                                android:drawableTint="@color/traffic_rx"
-                                android:textAppearance="?android:attr/textAppearanceSmall"
-                                android:textColor="?android:textColorSecondary" />
-
-                            <TextView
-                                android:id="@+id/federation_speed_up"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="10dp"
-                                android:drawableStart="@drawable/ic_arrow_up"
-                                android:drawablePadding="3dp"
-                                android:drawableTint="@color/traffic_tx"
-                                android:textAppearance="?android:attr/textAppearanceSmall"
-                                android:textColor="?android:textColorSecondary" />
-                        </LinearLayout>
+                            android:text="@string/federation_account_period_caption"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="?android:textColorSecondary" />
                     </LinearLayout>
                 </LinearLayout>
 
-                <dev.oneuiproject.oneui.widget.Separator
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:text="@string/federation_account_subscription_title" />
-
-                <TextView
-                    android:id="@+id/federation_subscription_state"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:textColorSecondary" />
-
-                <TextView
-                    android:id="@+id/federation_subscription"
+                <!-- Приём и отдача по своей карточке: одной цифрой канал не описать -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_xray_routing_field"
-                    android:fontFamily="monospace"
-                    android:paddingStart="14dp"
-                    android:paddingTop="12dp"
-                    android:paddingEnd="14dp"
-                    android:paddingBottom="12dp"
-                    android:textIsSelectable="true"
-                    android:textSize="12sp"
-                    android:visibility="gone" />
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
 
-                <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/federation_apply_subscription"
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_surface_card"
+                        android:orientation="vertical"
+                        android:padding="18dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:drawableStart="@drawable/ic_arrow_down"
+                            android:drawablePadding="6dp"
+                            android:drawableTint="@color/traffic_rx"
+                            android:text="@string/traffic_downlink"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="@color/traffic_rx" />
+
+                        <TextView
+                            android:id="@+id/federation_speed_down"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textAppearance="?android:attr/textAppearanceLarge"
+                            android:textColor="?android:textColorPrimary"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="5dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_surface_card"
+                        android:orientation="vertical"
+                        android:padding="18dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:drawableStart="@drawable/ic_arrow_up"
+                            android:drawablePadding="6dp"
+                            android:drawableTint="@color/traffic_tx"
+                            android:text="@string/traffic_uplink"
+                            android:textAppearance="?android:attr/textAppearanceSmall"
+                            android:textColor="@color/traffic_tx" />
+
+                        <TextView
+                            android:id="@+id/federation_speed_up"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textAppearance="?android:attr/textAppearanceLarge"
+                            android:textColor="?android:textColorPrimary"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Доверие: полоса читается так же, как полоса трафика -->
+                <FrameLayout
+                    android:id="@+id/federation_trust_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="20dp"
-                    android:text="@string/federation_account_apply_subscription" />
-            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+                    android:layout_height="34dp"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone">
 
-            <dev.oneuiproject.oneui.widget.RoundedLinearLayout
-                android:id="@+id/federation_sign_out_card"
+                    <ProgressBar
+                        android:id="@+id/federation_trust_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:indeterminate="false"
+                        android:max="100"
+                        android:minHeight="34dp"
+                        android:progress="0"
+                        android:progressDrawable="@drawable/progress_profile_quota" />
+
+                    <TextView
+                        android:id="@+id/federation_trust"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:textColor="?android:textColorPrimary"
+                        android:textSize="13sp" />
+                </FrameLayout>
+            </LinearLayout>
+
+            <!-- Разделы: у каждого своя активити -->
+            <LinearLayout
+                android:id="@+id/federation_sections"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:background="?android:colorBackground"
                 android:orientation="vertical"
-                android:paddingStart="24dp"
-                android:paddingTop="16dp"
-                android:paddingEnd="24dp"
-                android:paddingBottom="16dp"
-                android:visibility="gone"
-                app:roundedCorners="all">
+                android:visibility="gone">
 
-                <TextView
-                    android:id="@+id/federation_sign_out"
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:paddingVertical="10dp"
-                    android:text="@string/federation_account_sign_out"
-                    android:textColor="?attr/colorError"
-                    android:textSize="16sp" />
-            </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+                    android:layout_marginTop="16dp"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    app:roundedCorners="all">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/federation_row_profile"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:icon="@drawable/ic_account_avatar"
+                        app:showBottomDivider="true"
+                        app:showTopDivider="false"
+                        app:summary="@string/federation_row_profile_summary"
+                        app:title="@string/federation_row_profile_title" />
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/federation_row_subscription"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:icon="@drawable/ic_sharing_nav"
+                        app:showBottomDivider="false"
+                        app:showTopDivider="false"
+                        app:summary="@string/federation_row_subscription_summary"
+                        app:title="@string/federation_row_subscription_title" />
+                </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+
+                <!-- Разделы панели: видны тем, кому она открыта -->
+                <dev.oneuiproject.oneui.widget.RoundedLinearLayout
+                    android:id="@+id/federation_panel_sections"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="?android:colorBackground"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    app:roundedCorners="all">
+
+                    <dev.oneuiproject.oneui.widget.CardItemView
+                        android:id="@+id/federation_row_clients"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:icon="@drawable/ic_apps"
+                        app:showBottomDivider="false"
+                        app:showTopDivider="false"
+                        app:summary="@string/federation_row_clients_summary"
+                        app:title="@string/federation_row_clients_title" />
+                </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/federation_sign_out"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="10dp"
+                android:paddingStart="40dp"
+                android:paddingEnd="40dp"
+                android:text="@string/federation_account_sign_out"
+                android:visibility="gone" />
         </LinearLayout>
     </ScrollView>
 </dev.oneuiproject.oneui.layout.ToolbarLayout>
