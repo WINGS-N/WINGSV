@@ -55,12 +55,15 @@ public final class FederationAccount {
         public final String username;
         public final String accountId;
         public final long avatarVersion;
+        /** Как участника зовут в федерации, этим именем он подписывает расписки */
+        public final String subjectId;
 
-        Session(String token, String username, String accountId, long avatarVersion) {
+        Session(String token, String username, String accountId, long avatarVersion, String subjectId) {
             this.token = token;
             this.username = username;
             this.accountId = accountId;
             this.avatarVersion = avatarVersion;
+            this.subjectId = subjectId;
         }
     }
 
@@ -104,6 +107,7 @@ public final class FederationAccount {
             .putString(AppPrefs.KEY_FEDERATION_TOKEN, session.token)
             .putString(AppPrefs.KEY_FEDERATION_USERNAME, session.username)
             .putString(AppPrefs.KEY_FEDERATION_ACCOUNT_ID, session.accountId)
+            .putString(AppPrefs.KEY_FEDERATION_SUBJECT_ID, session.subjectId)
             .putLong(AppPrefs.KEY_FEDERATION_AVATAR_VERSION, session.avatarVersion)
             .apply();
     }
@@ -114,6 +118,8 @@ public final class FederationAccount {
             .remove(AppPrefs.KEY_FEDERATION_TOKEN)
             .remove(AppPrefs.KEY_FEDERATION_USERNAME)
             .remove(AppPrefs.KEY_FEDERATION_ACCOUNT_ID)
+            .remove(AppPrefs.KEY_FEDERATION_SUBJECT_ID)
+            .remove(AppPrefs.KEY_FEDERATION_KEY_SENT)
             .remove(AppPrefs.KEY_FEDERATION_AVATAR_VERSION)
             .remove(AppPrefs.KEY_FEDERATION_PANEL_ACCESS)
             .remove(AppPrefs.KEY_FEDERATION_ACCESS_CACHE)
@@ -155,13 +161,14 @@ public final class FederationAccount {
     private static Session sessionOf(JSONObject response, String fallbackName) {
         JSONObject account = response.optJSONObject("account");
         if (account == null) {
-            return new Session(response.optString("token"), fallbackName, "", 0L);
+            return new Session(response.optString("token"), fallbackName, "", 0L, "");
         }
         return new Session(
             response.optString("token"),
             account.optString("username", fallbackName),
             String.valueOf(account.optLong("id")),
-            account.optLong("avatar_version")
+            account.optLong("avatar_version"),
+            account.optString("federation_id", "")
         );
     }
 
@@ -478,6 +485,33 @@ public final class FederationAccount {
         } catch (Exception ignored) {
             // Панель недоступна - локально мы уже вышли, сессия истечёт сама
         }
+    }
+
+    /**
+     * Отдаёт голове публичную половину ключа. Раз в жизнь устройства, пока не
+     * сменится: без неё расписки проверить нечем и они все идут нахуй как
+     * неподписанные
+     */
+    public static void ensureReceiptKey(@NonNull Context context) throws Exception {
+        if (AppPrefs.prefs(context).getBoolean(AppPrefs.KEY_FEDERATION_KEY_SENT, false)) {
+            return;
+        }
+        JSONObject body = new JSONObject();
+        body.put("public_key", FederationKey.publicKey(context));
+        post(context, "/api/app/federation/key", body.toString(), token(context));
+        AppPrefs.prefs(context).edit().putBoolean(AppPrefs.KEY_FEDERATION_KEY_SENT, true).apply();
+    }
+
+    /** Несёт подписанные расписки. Возвращает, сколько голова приняла */
+    public static int sendReceipts(@NonNull Context context, @NonNull JSONArray receipts) throws Exception {
+        if (receipts.length() == 0) {
+            return 0;
+        }
+        ensureReceiptKey(context);
+        JSONObject body = new JSONObject();
+        body.put("receipts", receipts);
+        JSONObject response = post(context, "/api/app/federation/receipts", body.toString(), token(context));
+        return response.optInt("accepted", 0);
     }
 
     private static JSONObject post(Context context, String path, String body, @Nullable String token) throws Exception {

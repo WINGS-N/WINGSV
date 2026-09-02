@@ -865,6 +865,7 @@ tasks.named("check") {
 }
 
 dependencies {
+    implementation(libs.bouncycastle.prov)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.oneui.design)
     implementation(libs.sesl.pickerBasic)

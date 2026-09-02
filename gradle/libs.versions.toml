@@ -1,5 +1,6 @@
 [versions]
 agp = "9.2.1"
+bouncycastle = "1.83"
 jdkCoroutines = "1.11.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -42,6 +43,7 @@ dexkit = "2.2.0"
 livekit = "2.26.0"
 
 [libraries]
+bouncycastle-prov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }

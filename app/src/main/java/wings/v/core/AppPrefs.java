@@ -284,6 +284,25 @@ public final class AppPrefs {
      * пустыми карточками, пока идёт запрос по сети.
      */
     public static final String KEY_FEDERATION_ACCESS_CACHE = "pref_federation_access_cache";
+
+    /**
+     * Ключ, которым устройство подписывает расписки о трафике. Приватная
+     * половина не уезжает никуда и никогда: уедет - и расписку сможет высрать
+     * кто угодно, а вся затея с ними в том, что нода этого не может
+     */
+    public static final String KEY_FEDERATION_SIGNING_KEY = "pref_federation_signing_key";
+
+    /** Счётчики Xray на конец прошлого окна, чтобы считать дельту, а не сумму */
+    public static final String KEY_FEDERATION_RECEIPT_MARK = "pref_federation_receipt_mark";
+
+    /**
+     * Как участника зовут в федерации. Приходит от панели: схема имён её, и
+     * выдумывать её тут значит однажды подписать расписки не тем именем
+     */
+    public static final String KEY_FEDERATION_SUBJECT_ID = "pref_federation_subject_id";
+
+    /** Отдан ли голове публичный ключ. Без него расписки проверить нечем */
+    public static final String KEY_FEDERATION_KEY_SENT = "pref_federation_key_sent";
     public static final String KEY_GUARDIAN_CA_PINS = "pref_guardian_ca_pins";
     public static final String KEY_GUARDIAN_CLIENT_NAME = "pref_guardian_client_name";
     public static final String KEY_GUARDIAN_LOG_RUNTIME_ALLOWED = "pref_guardian_log_runtime_allowed";

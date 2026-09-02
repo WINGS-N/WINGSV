@@ -104,6 +104,9 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.CaptchaPromptSource;
+import wings.v.core.FederationAccount;
+import wings.v.core.FederationReceipts;
+import wings.v.core.FederationSubscription;
 import wings.v.core.ProxySettings;
 import wings.v.core.PublicIpFetcher;
 import wings.v.core.RootMultiUserRouter;
@@ -112,6 +115,7 @@ import wings.v.core.SharingTtlHider;
 import wings.v.core.TetherType;
 import wings.v.core.UiFormatter;
 import wings.v.core.WireGuardConfigFactory;
+import wings.v.core.XrayProfile;
 import wings.v.core.XraySettings;
 import wings.v.core.XrayStore;
 import wings.v.core.XrayTproxyRouter;
@@ -9865,6 +9869,7 @@ public class ProxyTunnelService extends Service {
                 String activeProfileId = XrayStore.getActiveProfileId(trafficContext);
                 if (!TextUtils.isEmpty(activeProfileId)) {
                     XrayStore.addProfileTrafficDelta(trafficContext, activeProfileId, rxDelta, txDelta);
+                    collectFederationReceipt(trafficContext, activeProfileId);
                 }
             } else if ("vk_turn".equals(activeBackendType.topLevelGroup())) {
                 String activeProfileId = wings.v.core.VkTurnProfileStore.getActiveProfileId(trafficContext);
@@ -10251,6 +10256,49 @@ public class ProxyTunnelService extends Service {
         }
         xrayStatsUnavailableReason = text;
         appendRuntimeLogLine("Xray stats api unavailable, falling back to reconstructed traffic: " + text);
+    }
+
+    /**
+     * Снимает окно и уносит подписанную расписку голове.
+     *
+     * <p>Цифры берутся у самого Xray, а не с интерфейса: интерфейсный счётчик
+     * тащит локальный DNS, keepalive и оверхед туннеля, и стороны потом считают
+     * разное и не сходятся нихуя.
+     *
+     * <p>Касается только профилей федерации: за чужие подписки никто расписок не
+     * ждёт, и слать их туда незачем.
+     */
+    private void collectFederationReceipt(Context context, String activeProfileId) {
+        XrayStatsClient stats = xrayStatsClient;
+        if (stats == null) {
+            return;
+        }
+        XrayProfile profile = XrayStore.getActiveProfile(context);
+        if (profile == null || !activeProfileId.equals(profile.id)) {
+            return;
+        }
+        if (!FederationSubscription.ID.equals(profile.subscriptionId)) {
+            return;
+        }
+        JSONObject receipt = FederationReceipts.collect(context, stats, profile.address, "xray");
+        if (receipt == null) {
+            return;
+        }
+        // Сеть в отдельном потоке: сэмплер бежит по несколько раз в секунду, и
+        // вешать на него http значит подвесить весь учёт трафика
+        new Thread(
+            () -> {
+                try {
+                    JSONArray batch = new JSONArray();
+                    batch.put(receipt);
+                    FederationAccount.sendReceipts(context, batch);
+                } catch (Exception error) {
+                    appendRuntimeLogLine("Federation receipt not delivered: " + error.getMessage());
+                }
+            },
+            "fed-receipt"
+        )
+            .start();
     }
 
     private void closeXrayStatsClient() {
