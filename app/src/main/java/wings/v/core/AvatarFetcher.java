@@ -11,6 +11,7 @@ import android.graphics.Paint;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.io.File;
@@ -22,6 +23,8 @@ import java.net.URL;
 
 /** Загрузка аватара и обрезка его в круг под тулбар */
 public final class AvatarFetcher {
+
+    private static final String TAG = "AvatarFetcher";
 
     private static final int TIMEOUT_MS = 8_000;
 
@@ -112,6 +115,20 @@ public final class AvatarFetcher {
         memoryBitmap = bitmap;
     }
 
+    /**
+     * Греет кэш заранее, в фоне.
+     *
+     * <p>Без прогрева первый показ после запуска всегда лезет в сеть, и человек
+     * успевает увидеть пустой кружок на каждом экране, где аватар есть.
+     */
+    public static void warmUp(@NonNull Context context, @NonNull String url) {
+        if (url.isEmpty() || fromMemory(url) != null) {
+            return;
+        }
+        Context app = context.getApplicationContext();
+        new Thread(() -> cached(app, url), "avatar-warmup").start();
+    }
+
     /** Сбрасывает кэш целиком: например, когда из аккаунта вышли */
     public static void clearCache(@NonNull Context context) {
         memoryKey = "";
@@ -125,7 +142,12 @@ public final class AvatarFetcher {
         }
     }
 
-    /** Возвращает картинку или null, когда панель недоступна */
+    /**
+     * Возвращает картинку или null, когда панель недоступна.
+     *
+     * <p>Причина неудачи пишется в лог: молчаливый null неотличим от "аватара
+     * нет", и разбираться, почему у человека пустой кружок, потом не по чему.
+     */
     @Nullable
     public static Bitmap fetch(@NonNull Context context, @NonNull String url) {
         HttpURLConnection connection = null;
@@ -133,12 +155,15 @@ public final class AvatarFetcher {
             connection = DirectNetworkConnection.openHttpConnection(context, new URL(url));
             connection.setConnectTimeout(TIMEOUT_MS);
             connection.setReadTimeout(TIMEOUT_MS);
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            int code = connection.getResponseCode();
+            if (code != HttpURLConnection.HTTP_OK) {
+                Log.w(TAG, "avatar fetch failed: HTTP " + code + " for " + url);
                 return null;
             }
             try (InputStream stream = connection.getInputStream()) {
                 Bitmap decoded = BitmapFactory.decodeStream(stream);
                 if (decoded == null) {
+                    Log.w(TAG, "avatar fetch failed: body is not an image, " + url);
                     return null;
                 }
                 // Растягивать мелкий исходник незачем: апскейл только мылит.
@@ -153,6 +178,7 @@ public final class AvatarFetcher {
                 return Bitmap.createScaledBitmap(decoded, width, height, true);
             }
         } catch (Exception error) {
+            Log.w(TAG, "avatar fetch failed: " + error.getClass().getSimpleName() + ": " + error.getMessage());
             return null;
         } finally {
             if (connection != null) {

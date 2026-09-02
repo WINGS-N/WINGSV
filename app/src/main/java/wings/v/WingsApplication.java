@@ -55,6 +55,9 @@ public class WingsApplication extends Application {
         // background teardown did not finish, so apps are not stuck routing into a
         // dead tunnel table after the VPN was turned off.
         wings.v.service.ProxyTunnelService.cleanStaleRootRoutingOnLaunch(this);
+        // Аватар греем сразу: без этого первый показ на каждом экране лезет в
+        // сеть, и человек успевает увидеть пустой кружок вместо своего лица
+        wings.v.core.AvatarFetcher.warmUp(this, wings.v.core.FederationAccount.avatarUrl(this));
         registerActivityLifecycleCallbacks(
             new ActivityLifecycleCallbacks() {
                 @Override
