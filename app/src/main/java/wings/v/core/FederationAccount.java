@@ -46,6 +46,8 @@ public final class FederationAccount {
         public long uplinkBps;
         public long downlinkBps;
         public int nodesEntitled;
+        /** Кто мы для федерации. Им подписываются расписки */
+        public String subjectId = "";
     }
 
     /** Ответ входа */
@@ -192,6 +194,7 @@ public final class FederationAccount {
 
     private static Access accessOf(@NonNull JSONObject response) {
         Access access = new Access();
+        access.subjectId = response.optString("federation_id", "");
         access.enabled = response.optBoolean("enabled");
         access.nodes = response.optInt("nodes");
         access.subscriptionUrl = response.optString("subscription_url", "");
@@ -220,7 +223,26 @@ public final class FederationAccount {
         cacheAccess(context, response);
         Access access = accessOf(response);
         rememberPanel(context, access.panelAccess);
+        rememberSubject(context, access.subjectId);
         return access;
+    }
+
+    /**
+     * Запоминает наш идентификатор в федерации.
+     *
+     * <p>Пишется на каждом заходе, а не только при входе: без него расписки не
+     * собираются вообще, а вошедший до появления поля иначе сидел бы пустым до
+     * перелогина и молча копил обвинения за неподписанный трафик.
+     */
+    private static void rememberSubject(@NonNull Context context, @Nullable String subjectId) {
+        if (TextUtils.isEmpty(subjectId)) {
+            return;
+        }
+        android.content.SharedPreferences prefs = AppPrefs.prefs(context);
+        if (subjectId.equals(prefs.getString(AppPrefs.KEY_FEDERATION_SUBJECT_ID, ""))) {
+            return;
+        }
+        prefs.edit().putString(AppPrefs.KEY_FEDERATION_SUBJECT_ID, subjectId).apply();
     }
 
     /**
