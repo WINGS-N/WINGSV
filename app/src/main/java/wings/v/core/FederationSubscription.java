@@ -15,7 +15,7 @@ import java.util.List;
 public final class FederationSubscription {
 
     /** Идентификатор один на всё приложение: подписка федерации ровно одна */
-    public static final String ID = "wings-federation";
+    public static final String ID = "wingsvpn-federation";
 
     private FederationSubscription() {}
 
