@@ -37,8 +37,12 @@ import wings.v.xray.XrayBridge;
 )
 public final class XraySubscriptionParser {
 
+    // Имя сервера едет после решётки и почти у всех продавцов идёт с пробелами:
+    // "USA 66 [Белые списки]". Резать по любому пробелу нельзя нахуй - от ссылки
+    // остаётся огрызок. До решётки пробелов не бывает, после - что угодно до
+    // конца строки
     private static final Pattern SHARE_LINK_PATTERN = Pattern.compile(
-        "(?:vless|vmess|socks|ss|trojan|hysteria2|hy2)://[^\\s\"']+",
+        "(?:vless|vmess|socks|ss|trojan|hysteria2|hy2)://[^\\s\"'#]+(?:#[^\\r\\n\"']*)?",
         Pattern.CASE_INSENSITIVE
     );
     private static final String PRIMARY_PROXY_TAG = "proxy";
