@@ -600,6 +600,14 @@ public class ProxyTunnelService extends Service {
     private long tproxyMarkLastReadElapsedMs;
     private boolean activeVkTurnProxyOnly;
     private BackendType activeBackendType = BackendType.VK_TURN_WIREGUARD;
+
+    // Профиль, через который реально поднято соединение. Выбор в списке меняется
+    // без переподключения, и байты уже идущего туннеля кредитовались бы новому
+    // профилю: у только что добавленного сервера сразу горели бы счётчики,
+    // хотя через него не прошло нихуя
+    @Nullable
+    private volatile String trafficProfileId;
+
     private String byeDpiDialHost = "127.0.0.1";
     private int byeDpiDialPort = 1080;
     private String activeTunnelName = ROOT_TUNNEL_NAME;
@@ -1748,6 +1756,30 @@ public class ProxyTunnelService extends Service {
         startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
         startWork(false);
         return START_STICKY;
+    }
+
+    // Какой профиль сейчас держит соединение. Считается один раз на запуск,
+    // потому что дальше человек волен тыкать в списке что угодно
+    @Nullable
+    private String currentBackendProfileId() {
+        Context context = getApplicationContext();
+        if (activeBackendType == null) {
+            return null;
+        }
+        if (usesXrayBackend(activeBackendType)) {
+            return XrayStore.getActiveProfileId(context);
+        }
+        String group = activeBackendType.topLevelGroup();
+        if ("vk_turn".equals(group)) {
+            return wings.v.core.VkTurnProfileStore.getActiveProfileId(context);
+        }
+        if ("amnezia".equals(group)) {
+            return wings.v.core.AmneziaProfileStore.getActiveProfileId(context);
+        }
+        if ("wireguard".equals(group)) {
+            return wings.v.core.WireGuardProfileStore.getActiveProfileId(context);
+        }
+        return null;
     }
 
     private BackendType getConfiguredBackendType() {
@@ -9868,13 +9900,19 @@ public class ProxyTunnelService extends Service {
         if ((rxDelta > 0L || txDelta > 0L) && activeBackendType != null) {
             Context trafficContext = getApplicationContext();
             if (usesXrayBackend(activeBackendType)) {
-                String activeProfileId = XrayStore.getActiveProfileId(trafficContext);
+                String activeProfileId = trafficProfileId;
+                if (TextUtils.isEmpty(activeProfileId)) {
+                    activeProfileId = XrayStore.getActiveProfileId(trafficContext);
+                }
                 if (!TextUtils.isEmpty(activeProfileId)) {
                     XrayStore.addProfileTrafficDelta(trafficContext, activeProfileId, rxDelta, txDelta);
                     collectFederationReceipt(trafficContext, activeProfileId);
                 }
             } else if ("vk_turn".equals(activeBackendType.topLevelGroup())) {
-                String activeProfileId = wings.v.core.VkTurnProfileStore.getActiveProfileId(trafficContext);
+                String activeProfileId = trafficProfileId;
+                if (TextUtils.isEmpty(activeProfileId)) {
+                    activeProfileId = wings.v.core.VkTurnProfileStore.getActiveProfileId(trafficContext);
+                }
                 if (!TextUtils.isEmpty(activeProfileId)) {
                     wings.v.core.VkTurnProfileStore.addProfileTrafficDelta(
                         trafficContext,
@@ -9885,7 +9923,10 @@ public class ProxyTunnelService extends Service {
                     collectVkTurnReceipt(trafficContext, activeProfileId);
                 }
             } else if (activeBackendType == BackendType.AMNEZIAWG_PLAIN) {
-                String activeProfileId = wings.v.core.AmneziaProfileStore.getActiveProfileId(trafficContext);
+                String activeProfileId = trafficProfileId;
+                if (TextUtils.isEmpty(activeProfileId)) {
+                    activeProfileId = wings.v.core.AmneziaProfileStore.getActiveProfileId(trafficContext);
+                }
                 if (!TextUtils.isEmpty(activeProfileId)) {
                     wings.v.core.AmneziaProfileStore.addProfileTrafficDelta(
                         trafficContext,
@@ -9895,7 +9936,10 @@ public class ProxyTunnelService extends Service {
                     );
                 }
             } else if (activeBackendType == BackendType.WIREGUARD) {
-                String activeProfileId = wings.v.core.WireGuardProfileStore.getActiveProfileId(trafficContext);
+                String activeProfileId = trafficProfileId;
+                if (TextUtils.isEmpty(activeProfileId)) {
+                    activeProfileId = wings.v.core.WireGuardProfileStore.getActiveProfileId(trafficContext);
+                }
                 if (!TextUtils.isEmpty(activeProfileId)) {
                     wings.v.core.WireGuardProfileStore.addProfileTrafficDelta(
                         trafficContext,
@@ -11372,8 +11416,10 @@ public class ProxyTunnelService extends Service {
             // Один успешный запуск сбрасывает backoff - следующий сбой
             // снова начинает с минимальной задержки.
             runtimeStartFailureStreak.set(0);
+            trafficProfileId = currentBackendProfileId();
         } else {
             lastRunningStateAtElapsedMs = 0L;
+            trafficProfileId = null;
         }
         if (state != ServiceState.RUNNING) {
             sRunning = false;
