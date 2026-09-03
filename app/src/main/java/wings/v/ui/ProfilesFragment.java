@@ -115,7 +115,12 @@ public class ProfilesFragment extends Fragment {
     private final ExecutorService renderExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService connectionTestExecutor = Executors.newFixedThreadPool(CONNECTION_TEST_PARALLELISM);
     private final LinkedHashMap<String, FilterSpec> filterSpecs = new LinkedHashMap<>();
-    private final LinkedHashMap<String, ProfileRowViews> rowViews = new LinkedHashMap<>();
+    // Строки держим списком, а НЕ картой по id: два профиля с одним id вполне
+    // могут доехать из подписки, и в карте вторая строка вышибала бы первую.
+    // Вышибленная остаётся на экране и живёт своей жизнью - без галочки, зато со
+    // стрелками трафика, потому что прячет их ровно тот код, который до неё уже
+    // не доходит
+    private final List<ProfileRowViews> rowViews = new ArrayList<>();
     private final LinkedHashMap<String, PingState> pingStates = new LinkedHashMap<>();
     private final LinkedHashMap<String, XrayStore.ProfileTrafficStats> profileTrafficStats = new LinkedHashMap<>();
     private final LinkedHashSet<String> selectedProfileIds = new LinkedHashSet<>();
@@ -452,7 +457,7 @@ public class ProfilesFragment extends Fragment {
             rowBinding.buttonProfileFavorite.setOnClickListener(v -> onFavoriteClicked(profile, rowBinding, v));
 
             ProfileRowViews views = new ProfileRowViews(profile, rowBinding, pingStateKey(profile));
-            rowViews.put(profile.id, views);
+            rowViews.add(views);
             currentAppendGroupContainer.addView(rowBinding.getRoot());
             appendedProfiles++;
             if (appendedProfiles >= PAGE_SIZE) {
@@ -867,8 +872,22 @@ public class ProfilesFragment extends Fragment {
         ((MainActivity) getActivity()).setBottomNavigationSuppressed(suppressed);
     }
 
+    // Строк с одним id может оказаться несколько, и обновлять надо все
+    private List<ProfileRowViews> rowsOf(@Nullable String profileId) {
+        final List<ProfileRowViews> found = new ArrayList<>();
+        if (TextUtils.isEmpty(profileId)) {
+            return found;
+        }
+        for (ProfileRowViews row : rowViews) {
+            if (TextUtils.equals(row.profile.id, profileId)) {
+                found.add(row);
+            }
+        }
+        return found;
+    }
+
     private void updateAllRowStates(@Nullable String activeProfileId) {
-        for (ProfileRowViews views : rowViews.values()) {
+        for (ProfileRowViews views : rowViews) {
             applyRowState(views, TextUtils.equals(activeProfileId, views.profile.id));
         }
     }
@@ -1142,8 +1161,7 @@ public class ProfilesFragment extends Fragment {
         }
         pingStates.put(pingKey, result);
         XrayStore.putProfilePingResult(appContext, pingKey, result.state == PingDisplayState.SUCCESS, result.latencyMs);
-        ProfileRowViews row = rowViews.get(profileId);
-        if (row != null) {
+        for (ProfileRowViews row : rowsOf(profileId)) {
             applyRowState(row, TextUtils.equals(currentActiveProfileId, profileId));
         }
     }
@@ -1850,15 +1868,14 @@ public class ProfilesFragment extends Fragment {
             }
             XrayStore.ProfileTrafficStats stats = XrayStore.getProfileTrafficStats(context, currentActiveProfileId);
             profileTrafficStats.put(currentActiveProfileId, stats);
-            ProfileRowViews row = rowViews.get(currentActiveProfileId);
-            if (row != null) {
+            for (ProfileRowViews row : rowsOf(currentActiveProfileId)) {
                 applyTrafficState(row, stats);
             }
             return;
         }
         profileTrafficStats.clear();
         profileTrafficStats.putAll(XrayStore.getProfileTrafficStatsMap(context));
-        for (ProfileRowViews row : rowViews.values()) {
+        for (ProfileRowViews row : rowViews) {
             applyTrafficState(row, profileTrafficStats.get(row.profile.id));
         }
     }
