@@ -739,6 +739,7 @@
     <string name="xray_profiles_reset_stats_done">Stats reset for profiles: %1$d</string>
     <string name="xray_profiles_delete_summary">Delete the selected profiles from the list</string>
     <string name="xray_profiles_delete_done">Profiles deleted: %1$d</string>
+    <string name="xray_profiles_delete_kept_managed">Account servers stay: %1$d</string>
     <string name="xray_profiles_ping_error_badge">ERR</string>
     <!-- Backend-aware profiles screen (WireGuard / AmneziaWG / VK TURN) -->
     <string name="backend_profiles_selector_section">Backend</string>
@@ -843,6 +844,7 @@
     <string name="xray_subscriptions_share_chooser">Share subscriptions</string>
     <string name="xray_subscriptions_share_failed">Failed to build a link for the selected subscriptions</string>
     <string name="xray_subscriptions_delete_done">Subscriptions deleted: %1$d</string>
+    <string name="xray_subscriptions_delete_kept_account">The account subscription stays until you sign out</string>
     <string name="subscription_hwid_title">Send HWID</string>
     <string name="subscription_hwid_category">Send HWID</string>
     <string name="subscription_hwid_enabled_title">Send HWID data</string>

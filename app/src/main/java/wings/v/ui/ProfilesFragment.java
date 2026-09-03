@@ -51,6 +51,7 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ByeDpiStore;
+import wings.v.core.FederationSubscription;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
 import wings.v.core.VkTurnProfile;
@@ -598,6 +599,9 @@ public class ProfilesFragment extends Fragment {
                 new FilterSpec(FILTER_FAVORITES, context.getString(R.string.xray_profiles_filter_favorites))
             );
         }
+        // Аккаунтная подписка стоит сразу за избранным: серверы из неё человек
+        // трогает чаще всего, а искать её в хвосте среди чужих подписок - хуйня
+        final String federationFilterId = "sub:" + FederationSubscription.ID;
         LinkedHashMap<String, FilterSpec> subscriptionFilters = new LinkedHashMap<>();
         if (subscriptions != null) {
             for (XraySubscription subscription : subscriptions) {
@@ -627,6 +631,10 @@ public class ProfilesFragment extends Fragment {
                     : profile.subscriptionTitle;
                 subscriptionFilters.put(filterId, new FilterSpec(filterId, title));
             }
+        }
+        FilterSpec federation = subscriptionFilters.remove(federationFilterId);
+        if (federation != null) {
+            result.put(federationFilterId, federation);
         }
         result.putAll(subscriptionFilters);
         if (hasManualProfiles) {
@@ -1389,13 +1397,22 @@ public class ProfilesFragment extends Fragment {
         Context context = requireContext();
         List<XrayProfile> profiles = new ArrayList<>(currentProfiles);
         int removed = 0;
+        int kept = 0;
         for (int index = profiles.size() - 1; index >= 0; index--) {
             XrayProfile profile = profiles.get(index);
-            if (profile != null && selectedProfileIds.contains(profile.id)) {
-                pingStates.remove(pingStateKey(profile));
-                profiles.remove(index);
-                removed++;
+            if (profile == null || !selectedProfileIds.contains(profile.id)) {
+                continue;
             }
+            // Серверы аккаунта удалять нечем: они приезжают с подпиской и
+            // вернутся на следующем обновлении. Человек снёс бы их, увидел
+            // снова и решил, что приложение поломалось нахуй
+            if (FederationSubscription.ID.equals(profile.subscriptionId)) {
+                kept++;
+                continue;
+            }
+            pingStates.remove(pingStateKey(profile));
+            profiles.remove(index);
+            removed++;
         }
         XrayStore.setProfiles(context, profiles);
         XrayStore.removeProfilePingResults(context, collectSelectedProfilePingKeys());
@@ -1405,7 +1422,11 @@ public class ProfilesFragment extends Fragment {
         }
         clearSelectionMode();
         refreshUi();
-        Toast.makeText(context, getString(R.string.xray_profiles_delete_done, removed), Toast.LENGTH_SHORT).show();
+        String message = getString(R.string.xray_profiles_delete_done, removed);
+        if (kept > 0) {
+            message = message + ". " + getString(R.string.xray_profiles_delete_kept_managed, kept);
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
     }
 
     private void pruneSelection(List<XrayProfile> profiles) {

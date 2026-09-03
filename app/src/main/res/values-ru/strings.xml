@@ -738,6 +738,7 @@
     <string name="xray_profiles_reset_stats_done">Статистика сброшена для профилей: %1$d</string>
     <string name="xray_profiles_delete_summary">Удалить выбранные профили из списка</string>
     <string name="xray_profiles_delete_done">Удалено профилей: %1$d</string>
+    <string name="xray_profiles_delete_kept_managed">Серверы аккаунта остаются: %1$d</string>
     <string name="xray_profiles_ping_error_badge">ERR</string>
     <!-- Экран профилей для всех бэкендов (WireGuard / AmneziaWG / VK TURN) -->
     <string name="backend_profiles_selector_section">Бэкенд</string>
@@ -842,6 +843,7 @@
     <string name="xray_subscriptions_share_chooser">Поделиться подписками</string>
     <string name="xray_subscriptions_share_failed">Не удалось сформировать ссылку для выбранных подписок</string>
     <string name="xray_subscriptions_delete_done">Удалено подписок: %1$d</string>
+    <string name="xray_subscriptions_delete_kept_account">Подписка аккаунта останется, пока вы не выйдете</string>
     <string name="subscription_hwid_title">Передача HWID</string>
     <string name="subscription_hwid_category">Передача HWID</string>
     <string name="subscription_hwid_enabled_title">Передавать данные HWID</string>

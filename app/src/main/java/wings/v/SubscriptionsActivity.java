@@ -368,7 +368,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
                 refreshUi();
             });
 
-        if (existing != null) {
+        // Аккаунтную подписку кнопкой сноса не убрать: она вернётся с ближайшим
+        // обновлением, и человек будет тыкать в неё до посинения
+        if (existing != null && !wings.v.core.FederationSubscription.ID.equals(existing.id)) {
             builder.setNeutralButton(R.string.xray_subscriptions_delete_title, (dialog, which) -> {
                 List<XraySubscription> subscriptions = new ArrayList<>(XrayStore.getSubscriptions(this));
                 subscriptions.removeIf(item -> TextUtils.equals(item.id, existing.id));
@@ -713,11 +715,20 @@ public class SubscriptionsActivity extends AppCompatActivity {
         }
         List<XraySubscription> subscriptions = new ArrayList<>(XrayStore.getSubscriptions(this));
         int removed = 0;
+        int kept = 0;
         for (int index = subscriptions.size() - 1; index >= 0; index--) {
-            if (selectedSubscriptionIds.contains(subscriptions.get(index).id)) {
-                subscriptions.remove(index);
-                removed++;
+            String id = subscriptions.get(index).id;
+            if (!selectedSubscriptionIds.contains(id)) {
+                continue;
             }
+            // Подписка аккаунта живёт вместе со входом: снести её можно только
+            // выйдя из аккаунта, иначе она вернётся сама и человек охуеет
+            if (wings.v.core.FederationSubscription.ID.equals(id)) {
+                kept++;
+                continue;
+            }
+            subscriptions.remove(index);
+            removed++;
         }
         XrayStore.setSubscriptions(this, subscriptions);
         // Backend profiles (WG / AWG / VK TURN) imported from a deleted subscription
@@ -726,7 +737,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
         // next full refresh rebuild, but the per-subscription backend stores need an
         // explicit empty sync to release the deleted subscription's slice.
         for (String deletedId : selectedSubscriptionIds) {
-            if (android.text.TextUtils.isEmpty(deletedId)) {
+            if (android.text.TextUtils.isEmpty(deletedId) || wings.v.core.FederationSubscription.ID.equals(deletedId)) {
                 continue;
             }
             wings.v.core.WireGuardProfileStore.syncSubscriptionProfiles(
@@ -747,7 +758,11 @@ public class SubscriptionsActivity extends AppCompatActivity {
         }
         clearSelectionMode();
         refreshUi();
-        Toast.makeText(this, getString(R.string.xray_subscriptions_delete_done, removed), Toast.LENGTH_SHORT).show();
+        String message = getString(R.string.xray_subscriptions_delete_done, removed);
+        if (kept > 0) {
+            message = message + ". " + getString(R.string.xray_subscriptions_delete_kept_account);
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     private static final class SubscriptionRowViews {
