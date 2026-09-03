@@ -1117,26 +1117,45 @@ public final class AutoSearchManager {
         return filtered;
     }
 
+    // Порядок перебора: сперва отмеченное человеком, потом серверы аккаунта, за
+    // ними общедоступная подписка, и только после - всё остальное. Серверы
+    // аккаунта наши, их состояние башка видит целиком, поэтому проверять их
+    // раньше чужих просто выгоднее
     @NonNull
     private static List<XrayProfile> sortFavoritesFirst(@NonNull Context context, @NonNull List<XrayProfile> profiles) {
-        java.util.Set<String> favoriteIds = XrayStore.getFavoriteProfileIds(context);
-        if (favoriteIds.isEmpty() || profiles.size() < 2) {
+        if (profiles.size() < 2) {
             return profiles;
         }
+        java.util.Set<String> favoriteIds = XrayStore.getFavoriteProfileIds(context);
+        String publicSubscriptionId = XrayStore.getDefaultSubscriptionId(context);
         List<XrayProfile> favorites = new ArrayList<>();
+        List<XrayProfile> account = new ArrayList<>();
+        List<XrayProfile> publicPool = new ArrayList<>();
         List<XrayProfile> rest = new ArrayList<>();
         for (XrayProfile profile : profiles) {
-            if (profile != null && favoriteIds.contains(profile.id)) {
+            if (profile == null) {
+                continue;
+            }
+            if (favoriteIds.contains(profile.id)) {
                 favorites.add(profile);
+            } else if (FederationSubscription.ID.equals(profile.subscriptionId)) {
+                account.add(profile);
+            } else if (
+                !TextUtils.isEmpty(publicSubscriptionId) &&
+                TextUtils.equals(publicSubscriptionId, profile.subscriptionId)
+            ) {
+                publicPool.add(profile);
             } else {
                 rest.add(profile);
             }
         }
-        if (favorites.isEmpty()) {
+        if (favorites.isEmpty() && account.isEmpty() && publicPool.isEmpty()) {
             return profiles;
         }
         List<XrayProfile> ordered = new ArrayList<>(profiles.size());
         ordered.addAll(favorites);
+        ordered.addAll(account);
+        ordered.addAll(publicPool);
         ordered.addAll(rest);
         return ordered;
     }

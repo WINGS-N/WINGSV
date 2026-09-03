@@ -743,6 +743,20 @@ public final class XrayStore {
         return value;
     }
 
+    /** Идентификатор общедоступной подписки, если она заведена */
+    public static String getDefaultSubscriptionId(Context context) {
+        String expectedKey = DEFAULT_SUBSCRIPTION_URL.trim().toLowerCase(Locale.ROOT);
+        for (XraySubscription subscription : getSubscriptions(context)) {
+            if (subscription == null || TextUtils.isEmpty(subscription.url)) {
+                continue;
+            }
+            if (TextUtils.equals(subscription.stableDedupKey(), expectedKey)) {
+                return subscription.id == null ? "" : subscription.id;
+            }
+        }
+        return "";
+    }
+
     private static boolean hasSubscriptionWithUrl(List<XraySubscription> subscriptions, String url) {
         String expectedKey = TextUtils.isEmpty(url) ? "" : url.trim().toLowerCase(Locale.ROOT);
         if (subscriptions != null) {
