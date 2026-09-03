@@ -135,8 +135,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:indeterminate="false"
-                        android:max="100"
-                        android:minHeight="30dp"
+                        android:max="1000"
+                        android:minHeight="24dp"
                         android:progress="0"
                         android:progressDrawable="@drawable/progress_profile_quota" />
 
@@ -145,10 +145,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:shadowColor="#B3000000"
-                        android:shadowRadius="4"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                        android:textColor="?android:textColorPrimary"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
                         android:textStyle="bold" />
                 </FrameLayout>
             </LinearLayout>

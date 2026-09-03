@@ -361,8 +361,29 @@ public class FederationAccountActivity extends AppCompatActivity {
             return;
         }
         trustBar.setVisibility(View.VISIBLE);
-        trustProgress.setProgress(Math.max(0, Math.min(100, access.trustConfidence)));
+        int confidence = Math.max(0, Math.min(100, access.trustConfidence));
+        // Полоса читается ровно как полоса трафика у подписок: она про ОСТАТОК,
+        // и цвет её же. Зелёная всегда - это враньё: по ней не видно, что до
+        // карантина полшага
+        trustProgress.setProgress(confidence * 10);
+        trustProgress.setProgressTintList(
+            android.content.res.ColorStateList.valueOf(getColor(quotaColor(confidence / 100d)))
+        );
         trust.setText(getString(R.string.wings_account_trust, access.trustConfidence));
+    }
+
+    /**
+     * Цвет полосы по остатку. Та же шкала, что у полосы трафика в подписках:
+     * ниже десятой части красный, ниже двух пятых жёлтый, дальше зелёный
+     */
+    static int quotaColor(double remainingRatio) {
+        if (remainingRatio <= 0.1d) {
+            return R.color.wingsv_error;
+        }
+        if (remainingRatio <= 0.4d) {
+            return R.color.wingsv_warning;
+        }
+        return R.color.wingsv_success;
     }
 
     /** Потолок вниз и вверх, как его выдал оракул. Цвета те же, что у трафика */

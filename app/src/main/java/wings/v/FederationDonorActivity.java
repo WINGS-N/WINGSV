@@ -172,10 +172,19 @@ public final class FederationDonorActivity extends AppCompatActivity {
         return card;
     }
 
-    /** Полоса лимита: сколько месячного потолка уже сожрано */
+    /**
+     * Полоса лимита. Показывает ОСТАТОК, а не сожранное: полная полоса значит,
+     * что лимит цел, и тает по мере того, как его съедают. Ровно как полоса
+     * трафика у подписок, чтобы человеку не приходилось читать две разные
+     */
     private void applyBudget(ProgressBar bar, TextView label, long used, long declared) {
-        int percent = declared > 0 ? (int) Math.min(100, (used * 100) / declared) : 0;
-        bar.setProgress(percent);
+        double remainingRatio = declared > 0 ? Math.max(0d, (double) (declared - used) / (double) declared) : 1d;
+        bar.setProgress((int) Math.round(remainingRatio * 1000));
+        bar.setProgressTintList(
+            android.content.res.ColorStateList.valueOf(
+                getColor(FederationAccountActivity.quotaColor(declared > 0 ? remainingRatio : 1d))
+            )
+        );
         label.setText(
             getString(
                 R.string.federation_donor_budget_used,
