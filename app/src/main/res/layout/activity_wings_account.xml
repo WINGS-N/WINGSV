@@ -253,6 +253,7 @@
                         android:padding="18dp">
 
                         <TextView
+                            android:id="@+id/federation_traffic_caption"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/wings_account_traffic_caption"

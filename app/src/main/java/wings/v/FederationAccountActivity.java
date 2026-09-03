@@ -22,6 +22,8 @@ import wings.v.core.AvatarFetcher;
 import wings.v.core.FederationAccount;
 import wings.v.core.FederationSubscription;
 import wings.v.core.UiFormatter;
+import wings.v.core.XrayStore;
+import wings.v.core.XraySubscription;
 
 /** Экран аккаунта федерации: вход, выданный доступ и подписка */
 public class FederationAccountActivity extends AppCompatActivity {
@@ -50,6 +52,7 @@ public class FederationAccountActivity extends AppCompatActivity {
     private TextView nodes;
     private TextView nodesMeta;
     private TextView traffic;
+    private TextView trafficMeta;
     private TextView speedDown;
     private TextView speedUp;
     private ImageView avatar;
@@ -86,6 +89,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         nodes = findViewById(R.id.federation_nodes);
         nodesMeta = findViewById(R.id.federation_nodes_meta);
         traffic = findViewById(R.id.federation_traffic);
+        trafficMeta = findViewById(R.id.federation_traffic_caption);
         speedDown = findViewById(R.id.federation_speed_down);
         speedUp = findViewById(R.id.federation_speed_up);
         avatar = findViewById(R.id.federation_avatar);
@@ -317,7 +321,7 @@ public class FederationAccountActivity extends AppCompatActivity {
                 ? getString(R.string.wings_account_nodes_short, access.nodesEntitled)
                 : ""
         );
-        traffic.setText(UiFormatter.formatBytes(this, access.usedBytes));
+        applyTraffic(access);
         applySpeed(access);
         applyTrust(access);
         // Аватар мог смениться в панели, и тогда версия в адресе уже другая
@@ -327,6 +331,27 @@ public class FederationAccountActivity extends AppCompatActivity {
         if (!TextUtils.isEmpty(access.subscriptionUrl)) {
             submit(() -> FederationSubscription.ensure(this, access.subscriptionUrl));
         }
+    }
+
+    // Потолок приезжает в заголовке подписки, как у любого нормального сервиса.
+    // Пока человек чист, потолка нет вовсе - он появляется только как наказание,
+    // и тогда цифру надо видеть заранее, а не упираться в неё на полном ходу
+    private void applyTraffic(@NonNull FederationAccount.Access access) {
+        String used = UiFormatter.formatBytes(this, access.usedBytes);
+        long cap = 0L;
+        for (XraySubscription subscription : XrayStore.getSubscriptions(this)) {
+            if (subscription != null && FederationSubscription.ID.equals(subscription.id)) {
+                cap = subscription.advertisedTotalBytes;
+                break;
+            }
+        }
+        if (cap > 0L) {
+            traffic.setText(getString(R.string.wings_account_traffic_of, used, UiFormatter.formatBytes(this, cap)));
+            trafficMeta.setText(R.string.wings_account_traffic_caption);
+            return;
+        }
+        traffic.setText(used);
+        trafficMeta.setText(R.string.wings_account_traffic_unlimited);
     }
 
     /** Полоса доверия читается так же, как полоса трафика у подписки */

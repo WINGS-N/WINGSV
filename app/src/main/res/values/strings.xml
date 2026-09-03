@@ -1645,6 +1645,8 @@
     <string name="wings_account_sign_in_title">Sign in to WINGS V</string>
     <string name="wings_account_nodes_caption">servers assigned</string>
     <string name="wings_account_traffic_caption">carried</string>
+    <string name="wings_account_traffic_of">%1$s / %2$s</string>
+    <string name="wings_account_traffic_unlimited">no cap</string>
     <string name="wings_account_subscription_title">Subscription</string>
     <string name="wings_account_trust_full">full access</string>
     <string name="wings_account_trust_reduced">reduced access</string>

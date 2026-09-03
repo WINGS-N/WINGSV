@@ -1644,6 +1644,8 @@
     <string name="wings_account_sign_in_title">Вход в WINGS V</string>
     <string name="wings_account_nodes_caption">серверов выдано</string>
     <string name="wings_account_traffic_caption">передано</string>
+    <string name="wings_account_traffic_of">%1$s / %2$s</string>
+    <string name="wings_account_traffic_unlimited">без лимита</string>
     <string name="wings_account_subscription_title">Подписка</string>
     <string name="wings_account_trust_full">полный доступ</string>
     <string name="wings_account_trust_reduced">урезанный доступ</string>
