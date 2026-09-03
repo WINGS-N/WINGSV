@@ -50,4 +50,20 @@ public class XrayProfileDedupTest {
             XrayProfile.normalizeLinkForDedup("vless://u@host:443#tag")
         );
     }
+
+    // Восстановление активного профиля по сохранённой ссылке идёт через тот же
+    // ключ, что и дедуп. Сырая ссылка с ключом не сходится, и человек, ткнув в
+    // сервер, получает обратно первый профиль списка
+    @Test
+    public void savedRawLinkMatchesTheProfileKey() {
+        String raw =
+            "vless://8ac136d8-1837-559a-8763-baf06d0e7d9b@cdn.example.xyz:443"
+            + "?type=ws&security=tls&sni=cdn.example.xyz&sid=ab12&spx=%2F"
+            + "#Durev USA 66 [Белые списки]";
+        assertNotEquals(raw.toLowerCase(java.util.Locale.ROOT), XrayProfile.normalizeLinkForDedup(raw));
+        assertEquals(
+            XrayProfile.normalizeLinkForDedup(raw),
+            XrayProfile.normalizeLinkForDedup(raw.replace("sid=ab12", "sid=cd34"))
+        );
+    }
 }

@@ -557,7 +557,10 @@ public final class XrayStore {
         // only if that fails fall back to the first profile.
         String activeRawLink = trim(prefs(context).getString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_RAW_LINK, ""));
         if (!TextUtils.isEmpty(activeRawLink)) {
-            String activeStableKey = activeRawLink.toLowerCase(Locale.ROOT);
+            // Ключ считается той же нормализацией, что и у профиля: сырая ссылка
+            // с ним не сходится никогда, и выбор человека молча уезжает нахуй на
+            // первый профиль списка
+            String activeStableKey = XrayProfile.normalizeLinkForDedup(activeRawLink);
             for (XrayProfile profile : profiles) {
                 if (TextUtils.equals(profile.stableDedupKey(), activeStableKey)) {
                     setActiveProfileId(context, profile.id);
