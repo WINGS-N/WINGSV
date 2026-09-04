@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="?android:textColorSecondary"
-        android:pathData="M15.5,14h-0.79l-0.28,-0.27A6.47,6.47 0,0 0,16 9.5A6.5,6.5 0,1 0,9.5 16a6.47,6.47 0,0 0,4.23 -1.57l0.27,0.28v0.79L20,21.5L21.5,20zM9.5,14A4.5,4.5 0,1 1,14 9.5A4.5,4.5 0,0 1,9.5 14z" />
+<!-- One UI: sesl_ic_search_api.xml из системной прошивки. Своя рисовалась на глаз -->
+<vector android:tint="?android:attr/textColorSecondary"
+    android:height="24dp" android:width="24dp" android:autoMirrored="true" android:viewportWidth="72.0" android:viewportHeight="72.0"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <path android:fillColor="#ffffff" android:pathData="M14.3629,31.2345C14.3629,21.9285 21.9319,14.3625 31.2379,14.3625C40.5439,14.3625 48.1129,21.9285 48.1129,31.2345C48.1129,40.5405 40.5439,48.1125 31.2379,48.1125C21.9319,48.1125 14.3629,40.5405 14.3629,31.2345M61.4779,58.2975L47.8519,44.6685C50.8249,40.9935 52.6129,36.3195 52.6129,31.2345C52.6129,19.4475 43.0249,9.8625 31.2379,9.8625C19.4509,9.8625 9.8629,19.4475 9.8629,31.2345C9.8629,43.0215 19.4509,52.6125 31.2379,52.6125C36.3199,52.6125 40.9969,50.8215 44.6689,47.8485L58.2979,61.4775C58.7359,61.9185 59.3119,62.1375 59.8879,62.1375C60.4639,62.1375 61.0399,61.9185 61.4779,61.4775C62.3569,60.5985 62.3569,59.1735 61.4779,58.2975" android:strokeWidth="1.0" />
 </vector>

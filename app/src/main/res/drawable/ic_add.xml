@@ -1,9 +1,7 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="?android:textColorPrimary"
-        android:pathData="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One UI: sesl_ic_ab_add_mtrl.xml из системной прошивки. Своя рисовалась на глаз -->
+<vector android:tint="?android:attr/textColorSecondary"
+    android:height="24dp" android:width="24dp" android:viewportWidth="72.0" android:viewportHeight="72.0"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <path android:fillColor="#ffffff" android:pathData="M61.125,33.75H38.25V10.875c0,-1.242 -1.008,-2.25 -2.25,-2.25s-2.25,1.008 -2.25,2.25V33.75H10.875c-1.242,0 -2.25,1.008 -2.25,2.25s1.008,2.25 2.25,2.25H33.75v22.875c0,1.242 1.008,2.25 2.25,2.25s2.25,-1.008 2.25,-2.25V38.25h22.875c1.242,0 2.25,-1.008 2.25,-2.25S62.367,33.75 61.125,33.75" />
 </vector>
