@@ -351,7 +351,7 @@
                 <FrameLayout
                     android:id="@+id/federation_trust_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="24dp"
+                    android:layout_height="30dp"
                     android:layout_marginTop="10dp"
                     android:visibility="gone">
 
@@ -362,7 +362,7 @@
                         android:layout_height="match_parent"
                         android:indeterminate="false"
                         android:max="1000"
-                        android:minHeight="24dp"
+                        android:minHeight="30dp"
                         android:progress="0"
                         android:progressDrawable="@drawable/progress_profile_quota" />
 
@@ -371,6 +371,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:singleLine="true"
                         android:textAppearance="?android:attr/textAppearanceSmall"
                         android:textColor="?android:textColorPrimary"
                         android:textStyle="bold" />
@@ -381,7 +384,7 @@
                 <FrameLayout
                     android:id="@+id/federation_quota_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="24dp"
+                    android:layout_height="30dp"
                     android:layout_marginTop="10dp"
                     android:visibility="gone">
 
@@ -392,7 +395,7 @@
                         android:layout_height="match_parent"
                         android:indeterminate="false"
                         android:max="1000"
-                        android:minHeight="24dp"
+                        android:minHeight="30dp"
                         android:progress="0"
                         android:progressDrawable="@drawable/progress_profile_quota" />
 
@@ -401,6 +404,9 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:singleLine="true"
                         android:textAppearance="?android:attr/textAppearanceSmall"
                         android:textColor="?android:textColorPrimary"
                         android:textStyle="bold" />
