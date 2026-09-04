@@ -300,6 +300,10 @@ public final class AppPrefs {
      * выдумывать её тут значит однажды подписать расписки не тем именем
      */
     public static final String KEY_FEDERATION_SUBJECT_ID = "pref_federation_subject_id";
+    // Последние удачные ответы разделов аккаунта: экран открывается с ними, а не
+    // пустым, пока едет свежий
+    public static final String KEY_FEDERATION_DONOR_CACHE = "pref_federation_donor_cache";
+    public static final String KEY_FEDERATION_INVITES_CACHE = "pref_federation_invites_cache";
 
     /** Отдан ли голове публичный ключ. Без него расписки проверить нечем */
     public static final String KEY_FEDERATION_KEY_SENT = "pref_federation_key_sent";

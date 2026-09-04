@@ -68,11 +68,26 @@
             android:textStyle="bold" />
     </FrameLayout>
 
-    <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/donor_node_budget"
-        style="?android:attr/borderlessButtonStyle"
+    <!-- Лоадер там, где работа: по общему наверху хуй поймёшь, чью ноду пишут -->
+    <FrameLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="@string/federation_donor_change_budget" />
+        android:layout_marginTop="6dp">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/donor_node_budget"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/federation_donor_change_budget" />
+
+        <ProgressBar
+            android:id="@+id/donor_node_budget_progress"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="12dp"
+            android:visibility="gone" />
+    </FrameLayout>
 </dev.oneuiproject.oneui.widget.RoundedLinearLayout>

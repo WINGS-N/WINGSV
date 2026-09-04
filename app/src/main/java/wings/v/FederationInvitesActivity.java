@@ -126,7 +126,13 @@ public final class FederationInvitesActivity extends AppCompatActivity {
     }
 
     private void load() {
-        setBusy(true);
+        // Открываемся прошлым ответом: пустой список на секунду читается как
+        // "приглашений нет"
+        FederationAccount.Invites cached = FederationAccount.cachedInvites(this);
+        if (cached != null) {
+            apply(cached);
+        }
+        setBusy(cached == null);
         submit(() -> {
             try {
                 FederationAccount.Invites loaded = FederationAccount.invites(this);

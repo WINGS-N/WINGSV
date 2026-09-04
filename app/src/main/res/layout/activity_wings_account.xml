@@ -348,33 +348,33 @@
                 </LinearLayout>
 
                 <!-- Доверие: полоса читается так же, как полоса трафика -->
-                <FrameLayout
+                <LinearLayout
                     android:id="@+id/federation_trust_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="34dp"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:orientation="vertical"
                     android:visibility="gone">
 
                     <ProgressBar
                         android:id="@+id/federation_trust_progress"
                         style="?android:attr/progressBarStyleHorizontal"
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent"
+                        android:layout_height="10dp"
                         android:indeterminate="false"
                         android:max="1000"
-                        android:minHeight="24dp"
+                        android:minHeight="10dp"
                         android:progress="0"
                         android:progressDrawable="@drawable/progress_profile_quota" />
 
                     <TextView
                         android:id="@+id/federation_trust"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:textColor="?android:textColorPrimary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
                         android:textAppearance="?android:attr/textAppearanceSmall"
-                        android:textStyle="bold" />
-                </FrameLayout>
+                        android:textColor="?android:textColorSecondary" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- Разделы: у каждого своя активити -->

@@ -1708,6 +1708,7 @@
     <string name="federation_donor_connect">Подключить сервер</string>
     <string name="federation_donor_change_budget">Изменить месячный лимит</string>
     <string name="federation_donor_budget_title">Месячный лимит, GB</string>
+    <string name="federation_donor_budget_zero">Нулевой лимит не бывает: с ним ноду нельзя выдать никому</string>
     <string name="federation_donor_budget_used">%1$s из %2$s</string>
     <string name="federation_donor_online">онлайн</string>
     <string name="federation_donor_offline">оффлайн</string>

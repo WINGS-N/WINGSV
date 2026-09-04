@@ -125,6 +125,8 @@ public final class FederationAccount {
             .remove(AppPrefs.KEY_FEDERATION_AVATAR_VERSION)
             .remove(AppPrefs.KEY_FEDERATION_PANEL_ACCESS)
             .remove(AppPrefs.KEY_FEDERATION_ACCESS_CACHE)
+            .remove(AppPrefs.KEY_FEDERATION_DONOR_CACHE)
+            .remove(AppPrefs.KEY_FEDERATION_INVITES_CACHE)
             .apply();
     }
 
@@ -189,7 +191,39 @@ public final class FederationAccount {
     }
 
     private static void cacheAccess(@NonNull Context context, @NonNull JSONObject response) {
-        AppPrefs.prefs(context).edit().putString(AppPrefs.KEY_FEDERATION_ACCESS_CACHE, response.toString()).apply();
+        cacheSection(context, AppPrefs.KEY_FEDERATION_ACCESS_CACHE, response);
+    }
+
+    /** Последний удачный ответ секции: экран не должен открываться пустым */
+    private static void cacheSection(@NonNull Context context, @NonNull String key, @NonNull JSONObject response) {
+        AppPrefs.prefs(context).edit().putString(key, response.toString()).apply();
+    }
+
+    @Nullable
+    private static JSONObject cachedSection(@NonNull Context context, @NonNull String key) {
+        String raw = AppPrefs.prefs(context).getString(key, "");
+        if (TextUtils.isEmpty(raw)) {
+            return null;
+        }
+        try {
+            return new JSONObject(raw);
+        } catch (Exception broken) {
+            return null;
+        }
+    }
+
+    /** Что показывали в прошлый раз в разделе серверов */
+    @Nullable
+    public static Donor cachedDonor(@NonNull Context context) {
+        JSONObject raw = cachedSection(context, AppPrefs.KEY_FEDERATION_DONOR_CACHE);
+        return raw == null ? null : donorOf(raw);
+    }
+
+    /** Что показывали в прошлый раз в приглашениях */
+    @Nullable
+    public static Invites cachedInvites(@NonNull Context context) {
+        JSONObject raw = cachedSection(context, AppPrefs.KEY_FEDERATION_INVITES_CACHE);
+        return raw == null ? null : invitesOf(raw);
     }
 
     private static Access accessOf(@NonNull JSONObject response) {
@@ -346,6 +380,11 @@ public final class FederationAccount {
             throw new IllegalStateException("нет сессии");
         }
         JSONObject response = get(context, "/api/app/federation/summary", token);
+        cacheSection(context, AppPrefs.KEY_FEDERATION_DONOR_CACHE, response);
+        return donorOf(response);
+    }
+
+    private static Donor donorOf(@NonNull JSONObject response) {
         Donor out = new Donor();
         out.enabled = response.optBoolean("enabled");
         out.nodes = response.optInt("nodes");
@@ -436,6 +475,11 @@ public final class FederationAccount {
             throw new IllegalStateException("нет сессии");
         }
         JSONObject response = get(context, "/api/app/invites", token);
+        cacheSection(context, AppPrefs.KEY_FEDERATION_INVITES_CACHE, response);
+        return invitesOf(response);
+    }
+
+    private static Invites invitesOf(@NonNull JSONObject response) {
         Invites out = new Invites();
         out.mayInvite = response.optBoolean("may_invite");
         out.reason = response.optString("reason", "");

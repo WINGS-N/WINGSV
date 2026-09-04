@@ -103,7 +103,13 @@ public final class FederationDonorActivity extends AppCompatActivity {
     }
 
     private void load() {
-        progress.setVisibility(View.VISIBLE);
+        // Открываемся тем, что показывали в прошлый раз: пустой экран на секунду
+        // выглядит так, будто серверов нет вовсе
+        FederationAccount.Donor cached = FederationAccount.cachedDonor(this);
+        if (cached != null) {
+            apply(cached);
+        }
+        progress.setVisibility(cached == null ? View.VISIBLE : View.GONE);
         submit(() -> {
             try {
                 FederationAccount.Donor donor = FederationAccount.donor(this);
@@ -168,7 +174,9 @@ public final class FederationDonorActivity extends AppCompatActivity {
             node.usedBytes,
             node.declaredBudgetBytes
         );
-        card.findViewById(R.id.donor_node_budget).setOnClickListener(v -> askBudget(node));
+        View budgetButton = card.findViewById(R.id.donor_node_budget);
+        View budgetSpinner = card.findViewById(R.id.donor_node_budget_progress);
+        budgetButton.setOnClickListener(v -> askBudget(node, budgetButton, budgetSpinner));
         return card;
     }
 
@@ -194,7 +202,7 @@ public final class FederationDonorActivity extends AppCompatActivity {
         );
     }
 
-    private void askBudget(@NonNull FederationAccount.DonorNode node) {
+    private void askBudget(@NonNull FederationAccount.DonorNode node, View button, View spinner) {
         EditText field = new EditText(this);
         field.setInputType(InputType.TYPE_CLASS_NUMBER);
         field.setHint(R.string.federation_donor_budget_title);
@@ -210,19 +218,40 @@ public final class FederationDonorActivity extends AppCompatActivity {
                 if (TextUtils.isEmpty(value)) {
                     return;
                 }
-                saveBudget(node.nodeId, Long.parseLong(value) * GB);
+                saveBudget(node.nodeId, parseGb(value), button, spinner);
             })
             .show();
     }
 
-    private void saveBudget(@NonNull String nodeId, long bytes) {
-        progress.setVisibility(View.VISIBLE);
+    /** Мусор в поле не должен ронять приложение через NumberFormatException */
+    private long parseGb(@NonNull String value) {
+        try {
+            return Math.max(0L, Long.parseLong(value.trim())) * GB;
+        } catch (NumberFormatException notANumber) {
+            return 0L;
+        }
+    }
+
+    private void saveBudget(@NonNull String nodeId, long bytes, View button, View spinner) {
+        if (bytes <= 0L) {
+            complain(getString(R.string.federation_donor_budget_zero));
+            return;
+        }
+        button.setEnabled(false);
+        spinner.setVisibility(View.VISIBLE);
         submit(() -> {
             try {
                 FederationAccount.setNodeBudget(this, nodeId, bytes);
-                runOnUiThread(this::load);
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    spinner.setVisibility(View.GONE);
+                    load();
+                });
             } catch (Exception failure) {
-                runOnUiThread(() -> progress.setVisibility(View.GONE));
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    spinner.setVisibility(View.GONE);
+                });
                 complain(failure.getMessage());
             }
         });

@@ -1709,6 +1709,7 @@
     <string name="federation_donor_connect">Connect a server</string>
     <string name="federation_donor_change_budget">Change the monthly cap</string>
     <string name="federation_donor_budget_title">Monthly cap, GB</string>
+    <string name="federation_donor_budget_zero">A zero limit makes the node unusable</string>
     <string name="federation_donor_budget_used">%1$s of %2$s</string>
     <string name="federation_donor_online">online</string>
     <string name="federation_donor_offline">offline</string>

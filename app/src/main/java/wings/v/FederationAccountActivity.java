@@ -360,14 +360,26 @@ public class FederationAccountActivity extends AppCompatActivity {
         }
         trustBar.setVisibility(View.VISIBLE);
         int confidence = Math.max(0, Math.min(100, access.trustConfidence));
-        // Полоса читается ровно как полоса трафика у подписок: она про ОСТАТОК,
-        // и цвет её же. Зелёная всегда - это враньё: по ней не видно, что до
-        // карантина полшага
+        // Цвет по ПОЛОСАМ доверия, а не по доле: 50 из 100 это ни хуя не "больше
+        // половины, значит зелёный", а урезанный доступ, и человек обязан видеть
+        // это без пояснений
         trustProgress.setProgress(confidence * 10);
-        trustProgress.setProgressTintList(
-            android.content.res.ColorStateList.valueOf(getColor(quotaColor(confidence / 100d)))
-        );
+        trustProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(getColor(trustColor(confidence))));
         trust.setText(getString(R.string.wings_account_trust, access.trustConfidence));
+    }
+
+    /**
+     * Цвет полосы доверия по полосам, которыми судит Oracle: от 60 полный
+     * доступ, от 30 урезанный, ниже карантин
+     */
+    private static int trustColor(int confidence) {
+        if (confidence < 30) {
+            return R.color.wingsv_error;
+        }
+        if (confidence < 60) {
+            return R.color.wingsv_warning;
+        }
+        return R.color.wingsv_success;
     }
 
     /**

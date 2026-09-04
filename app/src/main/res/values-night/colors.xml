@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Подложка полос: светлая на тёмном фоне светит как ебаный фонарь -->
+    <color name="wingsv_surface_alt">#2A2A2E</color>
+</resources>
