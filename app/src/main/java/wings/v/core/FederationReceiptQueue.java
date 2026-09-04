@@ -55,7 +55,17 @@ public final class FederationReceiptQueue {
                 write(context, queue);
                 return 0;
             }
-            int accepted = FederationAccount.sendReceipts(context, queue);
+            int accepted;
+            try {
+                accepted = FederationAccount.sendReceipts(context, queue);
+            } catch (Exception panelUnreachable) {
+                // До панели не дотянулись ни одним из путей. Остаётся сама нода:
+                // она тут курьер, подпись наша, и подделать расписку она не может
+                accepted = FederationNodeDoor.deliver(context, queue);
+                if (accepted == 0) {
+                    throw panelUnreachable;
+                }
+            }
             // Отвеченное принимаем целиком: дубли башка отбивает сама, и
             // держать их до второго пришествия смысла нет
             forget(context, queue);
