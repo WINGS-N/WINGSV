@@ -1,12 +1,8 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#FFD13A4B"
-        android:pathData="M12,2A10,10 0,1 0,22 12,10 10,0 0,0 12,2z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M17,8.41L15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12z" />
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One UI: sesl_ic_close.xml из системной прошивки -->
+<vector android:tint="?android:attr/textColorSecondary"
+    android:height="24dp" android:width="24dp" android:viewportWidth="24.0" android:viewportHeight="24.0"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <path android:fillColor="#69696c" android:pathData="M12,12m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" android:strokeColor="#00000000" android:strokeWidth="1.0" android:strokeAlpha="0.398432" android:fillAlpha="0.1" android:fillType="evenOdd" />
+    <path android:fillColor="#00000000" android:pathData="M7.667,16.333L16.333,7.667M7.667,7.667L16.333,16.333" android:strokeColor="@color/sesl_btn_default_text_color_light" android:strokeWidth="1.0" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillType="evenOdd" />
 </vector>
