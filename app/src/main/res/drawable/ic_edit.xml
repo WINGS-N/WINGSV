@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Карандаш One UI: взят из системных настроек, чтобы кнопка правки выглядела
+     родной, а не нарисованной на коленке -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?android:attr/textColorSecondary">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M9.951,18.284L19.358,8.876C20.139,8.095 20.139,6.829 19.359,6.048L17.916,4.604C17.135,3.823 15.869,3.823 15.088,4.604C15.088,4.604 15.087,4.604 15.087,4.604L5.688,14.004C5.436,14.255 5.256,14.569 5.167,14.914L4.026,19.287C3.943,19.607 4.135,19.935 4.456,20.019C4.559,20.046 4.668,20.044 4.77,20.015L9.082,18.794C9.41,18.701 9.71,18.525 9.951,18.284Z"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M13.971,6.069L18.213,10.312"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FF000000" />
+</vector>

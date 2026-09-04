@@ -1646,7 +1646,6 @@
     <string name="wings_account_traffic_caption">передано</string>
     <string name="wings_account_traffic_of">%1$s / %2$s</string>
     <string name="wings_account_traffic_unlimited">без лимита</string>
-    <string name="wings_account_quota_left">осталось %1$s</string>
     <string name="wings_account_subscription_title">Подписка</string>
     <string name="wings_account_trust_full">полный доступ</string>
     <string name="wings_account_trust_reduced">урезанный доступ</string>
@@ -1674,6 +1673,7 @@
     <string name="federation_profile_password_mismatch">Новый пароль и повтор не совпадают</string>
     <string name="federation_profile_password_changed">Пароль сменён</string>
     <string name="wings_account_error">Что-то пошло не так</string>
+    <string name="wings_account_error_title">Не получилось</string>
     <string name="federation_row_clients_title">Управление клиентами</string>
     <string name="federation_row_clients_summary">Свои клиенты и их устройства</string>
     <string name="federation_avatar_title">Аватар</string>

@@ -1647,7 +1647,6 @@
     <string name="wings_account_traffic_caption">carried</string>
     <string name="wings_account_traffic_of">%1$s / %2$s</string>
     <string name="wings_account_traffic_unlimited">no cap</string>
-    <string name="wings_account_quota_left">%1$s left</string>
     <string name="wings_account_subscription_title">Subscription</string>
     <string name="wings_account_trust_full">full access</string>
     <string name="wings_account_trust_reduced">reduced access</string>
@@ -1675,6 +1674,7 @@
     <string name="federation_profile_password_mismatch">The new password and the repeat do not match</string>
     <string name="federation_profile_password_changed">Password changed</string>
     <string name="wings_account_error">Something went wrong</string>
+    <string name="wings_account_error_title">Something went wrong</string>
     <string name="federation_row_clients_title">Client management</string>
     <string name="federation_row_clients_summary">Your own clients and their devices</string>
     <string name="federation_avatar_title">Profile picture</string>

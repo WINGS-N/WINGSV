@@ -161,7 +161,8 @@ public final class FederationDonorActivity extends AppCompatActivity {
         TextView versions = card.findViewById(R.id.donor_node_versions);
 
         name.setText(TextUtils.isEmpty(node.hostname) ? node.nodeId : node.hostname);
-        state.setText(node.online ? R.string.federation_donor_online : R.string.federation_donor_offline);
+        state.setText(node.online ? R.string.xray_routing_badge_ready : R.string.federation_donor_offline);
+        state.setBackgroundResource(node.online ? R.drawable.bg_profile_ping_good : R.drawable.bg_profile_ping_bad);
         state.setTextColor(getColor(node.online ? R.color.traffic_rx : R.color.traffic_tx));
         versions.setText(
             (TextUtils.isEmpty(node.xrayVersion) ? "-" : node.xrayVersion) +
@@ -316,13 +317,22 @@ public final class FederationDonorActivity extends AppCompatActivity {
             .show();
     }
 
+    /**
+     * Ошибку показываем диалогом: строчка наверху экрана теряется, а из окна
+     * текст можно прочитать целиком и выделить
+     */
     private void complain(@Nullable String message) {
         if (isFinishing() || isDestroyed() || Thread.currentThread().isInterrupted()) {
             return;
         }
+        String text = TextUtils.isEmpty(message) ? getString(R.string.wings_account_error) : message;
         runOnUiThread(() -> {
-            error.setText(TextUtils.isEmpty(message) ? getString(R.string.wings_account_error) : message);
-            error.setVisibility(View.VISIBLE);
+            error.setVisibility(View.GONE);
+            new AlertDialog.Builder(this)
+                .setTitle(R.string.wings_account_error_title)
+                .setMessage(text)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
         });
     }
 }

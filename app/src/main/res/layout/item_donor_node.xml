@@ -26,12 +26,19 @@
             android:textAppearance="?android:attr/textAppearanceMedium"
             android:textStyle="bold" />
 
+        <!-- Тот же бейдж, что у проверок в настройках роутинга: цвет несёт
+             состояние, а слово короткое и не растягивает строку -->
         <TextView
             android:id="@+id/donor_node_state"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:textAppearance="?android:attr/textAppearanceSmall" />
+            android:paddingStart="10dp"
+            android:paddingTop="2dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="2dp"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <TextView
@@ -74,12 +81,14 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp">
 
-        <androidx.appcompat.widget.AppCompatButton
+        <ImageView
             android:id="@+id/donor_node_budget"
-            style="?android:attr/borderlessButtonStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/federation_donor_change_budget" />
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/federation_donor_change_budget"
+            android:padding="8dp"
+            android:src="@drawable/ic_edit" />
 
         <ProgressBar
             android:id="@+id/donor_node_budget_progress"

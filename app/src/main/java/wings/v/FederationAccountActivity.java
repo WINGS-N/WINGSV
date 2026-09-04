@@ -366,8 +366,14 @@ public class FederationAccountActivity extends AppCompatActivity {
         double remaining = Math.max(0d, (double) (cap - usedBytes) / (double) cap);
         quotaProgress.setProgress((int) Math.round(remaining * 1000));
         quotaProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(getColor(quotaColor(remaining))));
+        // Формат тот же, что у подписок: сколько прошло из скольки. "Осталось X"
+        // это своя выдумка, и человеку приходится считать в уме
         quotaText.setText(
-            getString(R.string.wings_account_quota_left, UiFormatter.formatBytes(this, Math.max(0L, cap - usedBytes)))
+            getString(
+                R.string.xray_profiles_subscription_quota_used,
+                UiFormatter.formatBytes(this, usedBytes),
+                UiFormatter.formatBytes(this, cap)
+            )
         );
     }
 
