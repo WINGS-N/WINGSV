@@ -12,8 +12,8 @@ import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
-import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceScreen;
 import androidx.preference.SwitchPreferenceCompat;
 import dev.oneuiproject.oneui.preference.UpdatableWidgetPreference;
 import java.util.LinkedHashSet;
@@ -29,6 +29,7 @@ import wings.v.FirstLaunchActivity;
 import wings.v.ProxyLogsActivity;
 import wings.v.R;
 import wings.v.RootInterfaceSettingsActivity;
+import wings.v.SettingsSectionActivity;
 import wings.v.SubscriptionsActivity;
 import wings.v.ThemeSettingsActivity;
 import wings.v.VkTurnSettingsActivity;
@@ -115,6 +116,20 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.proxy_preferences, rootKey);
         configurePreferences();
+    }
+
+    /**
+     * Раздел открывается своим экраном, а не подменой списка на месте.
+     *
+     * <p>Иначе у ветки нет ни шапки с заголовком, ни кнопки назад, и человек
+     * проваливается в список, из которого непонятно как выбираться.
+     */
+    @Override
+    public void onNavigateToScreen(@Nullable PreferenceScreen screen) {
+        if (screen == null || TextUtils.isEmpty(screen.getKey())) {
+            return;
+        }
+        startActivity(SettingsSectionActivity.createIntent(requireContext(), screen.getKey(), screen.getTitle()));
     }
 
     @Override
@@ -494,15 +509,17 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
         // DNS resolver setting moved into VK TURN / WB Stream settings - see
         // their respective fragments. Nothing to gate here anymore.
-        PreferenceCategory rootCategory = findPreference("pref_category_root");
+        // Раздел целиком: без рута ему на оглавлении делать нечего, а
+        // задизейбленная строка только дразнит
+        Preference rootSection = findPreference("pref_section_root");
         SwitchPreferenceCompat rootModePreference = findPreference(AppPrefs.KEY_ROOT_MODE);
         SwitchPreferenceCompat kernelWireGuardPreference = findPreference(AppPrefs.KEY_KERNEL_WIREGUARD);
         SwitchPreferenceCompat xrayTproxyPreference = findPreference(AppPrefs.KEY_XRAY_TPROXY_MODE);
         Preference rootInterfaceSettingsPreference = findPreference(AppPrefs.KEY_OPEN_ROOT_INTERFACE_SETTINGS);
         Preference xposedSettingsPreference = findPreference(XposedModulePrefs.KEY_OPEN_SETTINGS);
         boolean rootGranted = AppPrefs.isRootAccessGranted(context);
-        if (rootCategory != null) {
-            rootCategory.setVisible(rootGranted);
+        if (rootSection != null) {
+            rootSection.setVisible(rootGranted);
         }
         if (rootModePreference == null || kernelWireGuardPreference == null) {
             return;

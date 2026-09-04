@@ -364,6 +364,11 @@
             android:theme="@style/Theme.WINGSV" />
 
         <activity
+            android:name=".SettingsSectionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WINGSV" />
+
+        <activity
             android:name="dev.oneuiproject.oneui.qr.app.QrScanActivity"
             android:exported="false"
             android:label="@string/qr_scan_title"

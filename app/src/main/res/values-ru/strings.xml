@@ -1721,4 +1721,13 @@
     <string name="wings_account_subscription_added_state">Подписка добавлена в приложение</string>
     <string name="wings_account_subscription_missing">Подписка ещё не добавлена</string>
     <string name="wings_account_no_subscription">Серверы пока не выданы</string>
+    <string name="settings_section_connection">Подключение</string>
+    <string name="settings_section_connection_summary">Бэкенд, Xray, VK TURN, ByeDPI</string>
+    <string name="settings_section_profiles">Профили и подписки</string>
+    <string name="settings_section_profiles_summary">Подписки, автопоиск</string>
+    <string name="settings_section_root_summary">Root-режим, kernel WireGuard, Xposed</string>
+    <string name="settings_section_app">Приложение</string>
+    <string name="settings_section_app_summary">Интерфейс, Guardian, разрешения, резервная копия</string>
+    <string name="settings_section_logs">Логи</string>
+    <string name="settings_section_logs_summary">Xray, vk-turn-proxy, среда выполнения</string>
 </resources>

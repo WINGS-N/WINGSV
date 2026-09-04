@@ -1722,4 +1722,13 @@
     <string name="wings_account_subscription_added_state">Subscription added to the app</string>
     <string name="wings_account_subscription_missing">Subscription is not added yet</string>
     <string name="wings_account_no_subscription">No servers assigned yet</string>
+    <string name="settings_section_connection">Connection</string>
+    <string name="settings_section_connection_summary">Backend, Xray, VK TURN, ByeDPI</string>
+    <string name="settings_section_profiles">Profiles and subscriptions</string>
+    <string name="settings_section_profiles_summary">Subscriptions, auto search</string>
+    <string name="settings_section_root_summary">Root mode, kernel WireGuard, Xposed</string>
+    <string name="settings_section_app">App</string>
+    <string name="settings_section_app_summary">Interface, Guardian, permissions, backup</string>
+    <string name="settings_section_logs">Logs</string>
+    <string name="settings_section_logs_summary">Xray, vk-turn-proxy, runtime</string>
 </resources>
