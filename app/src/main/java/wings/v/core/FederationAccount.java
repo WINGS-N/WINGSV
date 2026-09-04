@@ -48,6 +48,17 @@ public final class FederationAccount {
         public int nodesEntitled;
         /** Кто мы для федерации. Им подписываются расписки */
         public String subjectId = "";
+        /** Трафик по строкам списка, как его посчитала башка */
+        public final java.util.List<ServerUsage> servers = new java.util.ArrayList<>();
+    }
+
+    /** Сколько прошло через одну строку доступа: сервер плюс транспорт */
+    public static final class ServerUsage {
+
+        public String name = "";
+        public String transport = "";
+        public long upBytes;
+        public long downBytes;
     }
 
     /** Ответ входа */
@@ -212,6 +223,49 @@ public final class FederationAccount {
         }
     }
 
+    /** Держит серверный трафик там, где его найдёт список профилей */
+    private static void rememberServerUsage(@NonNull Context context, @Nullable JSONArray servers) {
+        if (servers == null) {
+            return;
+        }
+        AppPrefs.prefs(context).edit().putString(AppPrefs.KEY_FEDERATION_SERVER_USAGE, servers.toString()).apply();
+    }
+
+    /**
+     * Трафик по строкам доступа: ключ - имя сервера и транспорт через дробь,
+     * ровно как строка выглядит у человека
+     */
+    @NonNull
+    public static java.util.Map<String, long[]> serverUsage(@NonNull Context context) {
+        java.util.Map<String, long[]> out = new java.util.HashMap<>();
+        String raw = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_SERVER_USAGE, "");
+        if (TextUtils.isEmpty(raw)) {
+            return out;
+        }
+        try {
+            JSONArray items = new JSONArray(raw);
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item == null) {
+                    continue;
+                }
+                String key = usageKey(item.optString("name", ""), item.optString("transport", ""));
+                out.put(key, new long[] { item.optLong("down_bytes"), item.optLong("up_bytes") });
+            }
+        } catch (Exception broken) {
+            return out;
+        }
+        return out;
+    }
+
+    /** Ключ строки: имя сервера плюс транспорт, оба в нижнем регистре */
+    @NonNull
+    public static String usageKey(@NonNull String name, @NonNull String transport) {
+        return (
+            name.trim().toLowerCase(java.util.Locale.ROOT) + "|" + transport.trim().toLowerCase(java.util.Locale.ROOT)
+        );
+    }
+
     /** Что показывали в прошлый раз в разделе серверов */
     @Nullable
     public static Donor cachedDonor(@NonNull Context context) {
@@ -239,6 +293,19 @@ public final class FederationAccount {
         access.uplinkBps = response.optLong("uplink_bps", 0L);
         access.downlinkBps = response.optLong("downlink_bps", 0L);
         access.nodesEntitled = response.optInt("nodes_entitled");
+        JSONArray servers = response.optJSONArray("servers");
+        for (int i = 0; servers != null && i < servers.length(); i++) {
+            JSONObject item = servers.optJSONObject(i);
+            if (item == null) {
+                continue;
+            }
+            ServerUsage usage = new ServerUsage();
+            usage.name = item.optString("name", "");
+            usage.transport = item.optString("transport", "");
+            usage.upBytes = item.optLong("up_bytes");
+            usage.downBytes = item.optLong("down_bytes");
+            access.servers.add(usage);
+        }
         JSONObject trust = response.optJSONObject("trust");
         if (trust != null) {
             access.trustConfidence = trust.optInt("confidence");
@@ -258,6 +325,7 @@ public final class FederationAccount {
         Access access = accessOf(response);
         rememberPanel(context, access.panelAccess);
         rememberSubject(context, access.subjectId);
+        rememberServerUsage(context, response.optJSONArray("servers"));
         return access;
     }
 

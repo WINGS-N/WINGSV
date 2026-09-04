@@ -1646,6 +1646,7 @@
     <string name="wings_account_traffic_caption">передано</string>
     <string name="wings_account_traffic_of">%1$s / %2$s</string>
     <string name="wings_account_traffic_unlimited">без лимита</string>
+    <string name="wings_account_quota_left">осталось %1$s</string>
     <string name="wings_account_subscription_title">Подписка</string>
     <string name="wings_account_trust_full">полный доступ</string>
     <string name="wings_account_trust_reduced">урезанный доступ</string>

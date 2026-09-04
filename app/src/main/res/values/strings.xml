@@ -1647,6 +1647,7 @@
     <string name="wings_account_traffic_caption">carried</string>
     <string name="wings_account_traffic_of">%1$s / %2$s</string>
     <string name="wings_account_traffic_unlimited">no cap</string>
+    <string name="wings_account_quota_left">%1$s left</string>
     <string name="wings_account_subscription_title">Subscription</string>
     <string name="wings_account_trust_full">full access</string>
     <string name="wings_account_trust_reduced">reduced access</string>

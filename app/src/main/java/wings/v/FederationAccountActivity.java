@@ -53,6 +53,9 @@ public class FederationAccountActivity extends AppCompatActivity {
     private TextView nodesMeta;
     private TextView traffic;
     private TextView trafficMeta;
+    private View quotaBar;
+    private ProgressBar quotaProgress;
+    private TextView quotaText;
     private TextView speedDown;
     private TextView speedUp;
     private ImageView avatar;
@@ -90,6 +93,9 @@ public class FederationAccountActivity extends AppCompatActivity {
         nodesMeta = findViewById(R.id.federation_nodes_meta);
         traffic = findViewById(R.id.federation_traffic);
         trafficMeta = findViewById(R.id.federation_traffic_caption);
+        quotaBar = findViewById(R.id.federation_quota_bar);
+        quotaProgress = findViewById(R.id.federation_quota_progress);
+        quotaText = findViewById(R.id.federation_quota);
         speedDown = findViewById(R.id.federation_speed_down);
         speedUp = findViewById(R.id.federation_speed_up);
         avatar = findViewById(R.id.federation_avatar);
@@ -346,10 +352,23 @@ public class FederationAccountActivity extends AppCompatActivity {
         if (cap > 0L) {
             traffic.setText(getString(R.string.wings_account_traffic_of, used, UiFormatter.formatBytes(this, cap)));
             trafficMeta.setText(R.string.wings_account_traffic_caption);
+            applyQuotaBar(access.usedBytes, cap);
             return;
         }
         traffic.setText(used);
         trafficMeta.setText(R.string.wings_account_traffic_unlimited);
+        quotaBar.setVisibility(View.GONE);
+    }
+
+    /** Полоса потолка: показывает ОСТАТОК и красится по нему, как у подписок */
+    private void applyQuotaBar(long usedBytes, long cap) {
+        quotaBar.setVisibility(View.VISIBLE);
+        double remaining = Math.max(0d, (double) (cap - usedBytes) / (double) cap);
+        quotaProgress.setProgress((int) Math.round(remaining * 1000));
+        quotaProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(getColor(quotaColor(remaining))));
+        quotaText.setText(
+            getString(R.string.wings_account_quota_left, UiFormatter.formatBytes(this, Math.max(0L, cap - usedBytes)))
+        );
     }
 
     /** Полоса доверия читается так же, как полоса трафика у подписки */

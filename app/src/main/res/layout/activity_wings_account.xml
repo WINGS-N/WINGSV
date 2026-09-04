@@ -348,33 +348,63 @@
                 </LinearLayout>
 
                 <!-- Доверие: полоса читается так же, как полоса трафика -->
-                <LinearLayout
+                <FrameLayout
                     android:id="@+id/federation_trust_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="24dp"
                     android:layout_marginTop="10dp"
-                    android:orientation="vertical"
                     android:visibility="gone">
 
                     <ProgressBar
                         android:id="@+id/federation_trust_progress"
                         style="?android:attr/progressBarStyleHorizontal"
                         android:layout_width="match_parent"
-                        android:layout_height="10dp"
+                        android:layout_height="match_parent"
                         android:indeterminate="false"
                         android:max="1000"
-                        android:minHeight="10dp"
+                        android:minHeight="24dp"
                         android:progress="0"
                         android:progressDrawable="@drawable/progress_profile_quota" />
 
                     <TextView
                         android:id="@+id/federation_trust"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
                         android:textAppearance="?android:attr/textAppearanceSmall"
-                        android:textColor="?android:textColorSecondary" />
-                </LinearLayout>
+                        android:textColor="?android:textColorPrimary"
+                        android:textStyle="bold" />
+                </FrameLayout>
+
+                <!-- Потолок трафика: он появляется только как наказание, поэтому
+                     при полном доверии полосы нет вовсе -->
+                <FrameLayout
+                    android:id="@+id/federation_quota_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone">
+
+                    <ProgressBar
+                        android:id="@+id/federation_quota_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        android:minHeight="24dp"
+                        android:progress="0"
+                        android:progressDrawable="@drawable/progress_profile_quota" />
+
+                    <TextView
+                        android:id="@+id/federation_quota"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:textColor="?android:textColorPrimary"
+                        android:textStyle="bold" />
+                </FrameLayout>
             </LinearLayout>
 
             <!-- Разделы: у каждого своя активити -->

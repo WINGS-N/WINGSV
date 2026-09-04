@@ -304,6 +304,9 @@ public final class AppPrefs {
     // пустым, пока едет свежий
     public static final String KEY_FEDERATION_DONOR_CACHE = "pref_federation_donor_cache";
     public static final String KEY_FEDERATION_INVITES_CACHE = "pref_federation_invites_cache";
+    // Трафик по строкам доступа, как его посчитала башка. Локальный счётчик
+    // обнуляется при переустановке и врёт после смены профиля
+    public static final String KEY_FEDERATION_SERVER_USAGE = "pref_federation_server_usage";
 
     /** Отдан ли голове публичный ключ. Без него расписки проверить нечем */
     public static final String KEY_FEDERATION_KEY_SENT = "pref_federation_key_sent";

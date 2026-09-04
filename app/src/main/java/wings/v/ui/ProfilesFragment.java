@@ -51,6 +51,7 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.ByeDpiStore;
+import wings.v.core.FederationAccount;
 import wings.v.core.FederationSubscription;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
@@ -122,6 +123,8 @@ public class ProfilesFragment extends Fragment {
     // стрелками трафика, потому что прячет их ровно тот код, который до неё уже
     // не доходит
     private final List<ProfileRowViews> rowViews = new ArrayList<>();
+    // Трафик строк по версии башки: локальный счётчик обнуляется переустановкой
+    private Map<String, long[]> serverUsage = java.util.Collections.emptyMap();
     private final LinkedHashMap<String, PingState> pingStates = new LinkedHashMap<>();
     private final LinkedHashMap<String, XrayStore.ProfileTrafficStats> profileTrafficStats = new LinkedHashMap<>();
     private final LinkedHashSet<String> selectedProfileIds = new LinkedHashSet<>();
@@ -286,6 +289,7 @@ public class ProfilesFragment extends Fragment {
             return;
         }
         Context appContext = requireContext().getApplicationContext();
+        serverUsage = FederationAccount.serverUsage(appContext);
         String pendingFilterId = AppPrefs.consumePendingProfilesFilterId(appContext);
         if (!TextUtils.isEmpty(pendingFilterId)) {
             activeFilterId = pendingFilterId;
@@ -918,14 +922,39 @@ public class ProfilesFragment extends Fragment {
             return;
         }
         XrayStore.ProfileTrafficStats stats = trafficStats != null ? trafficStats : XrayStore.ProfileTrafficStats.ZERO;
-        boolean visible = stats.rxBytes > 0L || stats.txBytes > 0L;
+        long[] fromHead = serverUsageFor(views.profile);
+        long rxBytes = fromHead != null ? fromHead[0] : stats.rxBytes;
+        long txBytes = fromHead != null ? fromHead[1] : stats.txBytes;
+        boolean visible = rxBytes > 0L || txBytes > 0L;
         views.trafficRow.setVisibility(visible ? View.VISIBLE : View.GONE);
         if (!visible) {
             return;
         }
         Context context = views.root.getContext();
-        views.rxText.setText(UiFormatter.formatBytes(context, stats.rxBytes));
-        views.txText.setText(UiFormatter.formatBytes(context, stats.txBytes));
+        views.rxText.setText(UiFormatter.formatBytes(context, rxBytes));
+        views.txText.setText(UiFormatter.formatBytes(context, txBytes));
+    }
+
+    /**
+     * Трафик строки по версии башки. Она считает по учётке, поэтому переживает и
+     * переустановку приложения, и смену активного профиля
+     */
+    @Nullable
+    private long[] serverUsageFor(XrayProfile profile) {
+        if (profile == null || !FederationSubscription.ID.equals(profile.subscriptionId)) {
+            return null;
+        }
+        if (serverUsage.isEmpty()) {
+            return null;
+        }
+        String title = profileTitle(profile);
+        int slash = title.lastIndexOf('/');
+        if (slash <= 0) {
+            return null;
+        }
+        String name = title.substring(0, slash).trim();
+        String transport = title.substring(slash + 1).trim();
+        return serverUsage.get(FederationAccount.usageKey(name, transport));
     }
 
     private void applyPingState(ProfileRowViews views, @Nullable PingState pingState) {
