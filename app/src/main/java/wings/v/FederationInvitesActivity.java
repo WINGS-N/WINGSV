@@ -42,6 +42,8 @@ public final class FederationInvitesActivity extends AppCompatActivity {
     private TextView redeemState;
     private EditText redeemInput;
     private ProgressBar progress;
+    private ProgressBar redeemProgress;
+    private TextView redeemError;
     private View share;
 
     private String link = "";
@@ -55,7 +57,7 @@ public final class FederationInvitesActivity extends AppCompatActivity {
             String scanned = result.getData().getStringExtra(QrScanActivity.EXTRA_QR_SCANNER_RESULT);
             String parsed = InviteCode.parse(scanned);
             if (parsed == null) {
-                complain(getString(R.string.invite_scan_failed));
+                complainRedeem(getString(R.string.invite_scan_failed));
                 return;
             }
             redeemInput.setText(parsed);
@@ -91,6 +93,8 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         redeemState = findViewById(R.id.invite_redeem_state);
         redeemInput = findViewById(R.id.invite_redeem_input);
         progress = findViewById(R.id.invite_progress);
+        redeemProgress = findViewById(R.id.invite_redeem_progress);
+        redeemError = findViewById(R.id.invite_redeem_error);
         share = findViewById(R.id.invite_share);
 
         findViewById(R.id.invite_create).setOnClickListener(v -> createInvite());
@@ -215,12 +219,12 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(token)) {
             return;
         }
-        setBusy(true);
+        setRedeemBusy(true);
         submit(() -> {
             try {
                 FederationAccount.redeemInvite(this, token);
                 runOnUiThread(() -> {
-                    setBusy(false);
+                    setRedeemBusy(false);
                     redeemInput.setText("");
                     redeemState.setText(R.string.federation_invites_already);
                     redeemState.setVisibility(View.VISIBLE);
@@ -228,8 +232,10 @@ public final class FederationInvitesActivity extends AppCompatActivity {
                     load();
                 });
             } catch (Exception failure) {
-                runOnUiThread(() -> setBusy(false));
-                complain(failure.getMessage());
+                runOnUiThread(() -> {
+                    setRedeemBusy(false);
+                    complainRedeem(failure.getMessage());
+                });
             }
         });
     }
@@ -248,19 +254,42 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         startActivity(Intent.createChooser(intent, getString(R.string.federation_invites_share)));
     }
 
+    /**
+     * Занятость блока приглашения.
+     *
+     * <p>Скелетон поднимается только тогда, когда кода на экране ещё нет: если он
+     * уже нарисован, подменять его крутилкой незачем, а после ошибки он так и
+     * остался бы крутиться вечно.
+     */
     private void setBusy(boolean busy) {
         progress.setVisibility(busy ? View.VISIBLE : View.GONE);
-        if (busy) {
-            // Пока ответ едет, на месте кода стоит скелетон с крутилкой
-            qrFrame.setVisibility(View.GONE);
+        boolean hasCode = qrFrame.getVisibility() == View.VISIBLE;
+        if (busy && !hasCode) {
             qrSkeleton.setVisibility(View.VISIBLE);
+        } else if (!busy) {
+            qrSkeleton.setVisibility(View.GONE);
         }
         findViewById(R.id.invite_create).setEnabled(!busy);
+    }
+
+    /** Занятость применения кода: своя кнопка, своя крутилка */
+    private void setRedeemBusy(boolean busy) {
+        redeemProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         findViewById(R.id.invite_redeem).setEnabled(!busy);
+        findViewById(R.id.invite_scan).setEnabled(!busy);
+        if (busy) {
+            redeemError.setVisibility(View.GONE);
+        }
     }
 
     private String text(EditText field) {
         return field.getText() == null ? "" : field.getText().toString();
+    }
+
+    /** Ошибка набранного кода живёт под своей кнопкой, а не в блоке приглашения */
+    private void complainRedeem(@Nullable String message) {
+        redeemError.setText(TextUtils.isEmpty(message) ? getString(R.string.invite_scan_failed) : message);
+        redeemError.setVisibility(View.VISIBLE);
     }
 
     private void complain(@Nullable String message) {

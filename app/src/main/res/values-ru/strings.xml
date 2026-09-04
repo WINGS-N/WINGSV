@@ -1697,10 +1697,10 @@
     <string name="federation_invites_code_hint">Код приглашения</string>
     <string name="federation_invites_redeem">Применить код</string>
     <string name="federation_invites_scan">Отсканировать QR</string>
-    <string name="federation_invites_uses">использован %1$d из %2$d</string>
+    <string name="federation_invites_uses">%1$d / %2$d</string>
     <string name="federation_invites_already">Вы уже приняли приглашение</string>
     <string name="federation_invites_copied">Ссылка скопирована</string>
-    <string name="federation_invites_uses_unlimited">использован %1$d раз, без предела</string>
+    <string name="federation_invites_uses_unlimited">%1$d / ∞</string>
     <string name="federation_row_donor_title">Мои серверы</string>
     <string name="federation_row_donor_summary">Что вы отдали в федерацию</string>
     <string name="federation_donor_nodes_caption">серверов отдано</string>

@@ -178,12 +178,39 @@
                     android:paddingEnd="16dp"
                     android:paddingBottom="14dp" />
 
-                <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/invite_redeem"
+                <!-- Своя ошибка у кода: чужая, в блоке приглашения, читается как
+                     поломка приглашения, а не набранного кода -->
+                <TextView
+                    android:id="@+id/invite_redeem_error"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/federation_invites_redeem" />
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textColor="?attr/colorError"
+                    android:visibility="gone" />
+
+                <!-- Крутилка стоит на своей кнопке: на чужой человек не понимает,
+                     что вообще происходит -->
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp">
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/invite_redeem"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:text="@string/federation_invites_redeem" />
+
+                    <ProgressBar
+                        android:id="@+id/invite_redeem_progress"
+                        style="?android:attr/progressBarStyleSmall"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center_vertical|end"
+                        android:layout_marginEnd="20dp"
+                        android:visibility="gone" />
+                </FrameLayout>
 
                 <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/invite_scan"
