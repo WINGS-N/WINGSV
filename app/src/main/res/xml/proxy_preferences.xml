@@ -5,10 +5,6 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <wings.v.ui.AccountCardPreference
-        android:key="pref_open_wings_account"
-        android:order="-100" />
-
     <PreferenceScreen
         android:key="pref_section_connection"
         android:icon="@drawable/ic_settings_connection_round"

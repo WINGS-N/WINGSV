@@ -425,6 +425,9 @@ public class MainActivity extends AppCompatActivity {
         if (tabId == R.id.menu_sharing && hasSharingTab) {
             return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_SHARING);
         }
+        if (tabId == R.id.menu_account) {
+            return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_ACCOUNT);
+        }
         if (tabId == R.id.menu_settings) {
             return pagerAdapter.positionForItem(MainPagerAdapter.ITEM_SETTINGS);
         }
@@ -445,6 +448,9 @@ public class MainActivity extends AppCompatActivity {
         }
         if (itemId == MainPagerAdapter.ITEM_SHARING) {
             return R.id.menu_sharing;
+        }
+        if (itemId == MainPagerAdapter.ITEM_ACCOUNT) {
+            return R.id.menu_account;
         }
         if (itemId == MainPagerAdapter.ITEM_SETTINGS) {
             return R.id.menu_settings;

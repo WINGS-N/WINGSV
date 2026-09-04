@@ -27,10 +27,11 @@ public final class UiPrefs {
     public static final String NAVBAR_PROFILES = "profiles";
     public static final String NAVBAR_APPS = "apps";
     public static final String NAVBAR_SHARING = "sharing";
+    public static final String NAVBAR_ACCOUNT = "account";
     public static final String NAVBAR_SETTINGS = "settings";
 
     public static final List<String> NAVBAR_DEFAULT_ORDER = Collections.unmodifiableList(
-        Arrays.asList(NAVBAR_HOME, NAVBAR_PROFILES, NAVBAR_APPS, NAVBAR_SHARING, NAVBAR_SETTINGS)
+        Arrays.asList(NAVBAR_HOME, NAVBAR_PROFILES, NAVBAR_APPS, NAVBAR_SHARING, NAVBAR_ACCOUNT, NAVBAR_SETTINGS)
     );
 
     /** Always visible, cannot be hidden by the user. */
