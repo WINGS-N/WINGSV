@@ -105,6 +105,7 @@ import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.CaptchaPromptSource;
 import wings.v.core.FederationAccount;
+import wings.v.core.FederationReceiptQueue;
 import wings.v.core.FederationReceipts;
 import wings.v.core.FederationSubscription;
 import wings.v.core.ProxySettings;
@@ -10331,19 +10332,28 @@ public class ProxyTunnelService extends Service {
         if (receipt == null) {
             return;
         }
-        // Сеть в отдельном потоке: сэмплер бежит по несколько раз в секунду, и
-        // вешать на него http значит подвесить весь учёт трафика
+        FederationReceiptQueue.add(context, receipt);
+        flushFederationReceipts(context, "fed-receipt");
+    }
+
+    /**
+     * Досылает всё, что накопилось в очереди расписок.
+     *
+     * <p>Сеть в отдельном потоке: сэмплер бежит по несколько раз в секунду, и
+     * вешать на него http значит подвесить весь учёт трафика.
+     */
+    private void flushFederationReceipts(Context context, String threadName) {
         new Thread(
             () -> {
                 try {
-                    JSONArray batch = new JSONArray();
-                    batch.put(receipt);
-                    FederationAccount.sendReceipts(context, batch);
+                    FederationReceiptQueue.flush(context);
                 } catch (Exception error) {
-                    appendRuntimeLogLine("Federation receipt not delivered: " + error.getMessage());
+                    // Расписка осталась в очереди и уедет со следующим окном:
+                    // терять её нельзя, ноду накажут за наш обосранный интернет
+                    appendRuntimeLogLine("Federation receipts queued: " + error.getMessage());
                 }
             },
-            "fed-receipt"
+            threadName
         )
             .start();
     }
@@ -10380,19 +10390,8 @@ public class ProxyTunnelService extends Service {
         if (receipt == null) {
             return;
         }
-        new Thread(
-            () -> {
-                try {
-                    JSONArray batch = new JSONArray();
-                    batch.put(receipt);
-                    FederationAccount.sendReceipts(context, batch);
-                } catch (Exception error) {
-                    appendRuntimeLogLine("Federation receipt not delivered: " + error.getMessage());
-                }
-            },
-            "fed-receipt-vktp"
-        )
-            .start();
+        FederationReceiptQueue.add(context, receipt);
+        flushFederationReceipts(context, "fed-receipt-vktp");
     }
 
     private void closeXrayStatsClient() {

@@ -5,6 +5,7 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -366,7 +367,7 @@ public final class FederationAccount {
             throw new IllegalStateException("нет сессии");
         }
         String boundary = "wings" + System.nanoTime();
-        HttpURLConnection connection = open(context, "/api/app/avatar", token);
+        HttpURLConnection connection = open(context, "/api/app/avatar", token, false);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
@@ -402,7 +403,7 @@ public final class FederationAccount {
         if (TextUtils.isEmpty(token)) {
             throw new IllegalStateException("нет сессии");
         }
-        HttpURLConnection connection = open(context, "/api/app/avatar", token);
+        HttpURLConnection connection = open(context, "/api/app/avatar", token, false);
         connection.setRequestMethod("DELETE");
         readResponse(connection);
         rememberAvatarVersion(context, 0L);
@@ -656,36 +657,62 @@ public final class FederationAccount {
     }
 
     private static JSONObject post(Context context, String path, String body, @Nullable String token) throws Exception {
-        HttpURLConnection connection = open(context, path, token);
-        connection.setRequestMethod("POST");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-        try (OutputStream output = connection.getOutputStream()) {
-            output.write(body.getBytes(StandardCharsets.UTF_8));
-        }
-        return readResponse(connection);
+        return send(context, "POST", path, body, token);
     }
 
     private static JSONObject put(Context context, String path, String body, @Nullable String token) throws Exception {
-        HttpURLConnection connection = open(context, path, token);
-        connection.setRequestMethod("PUT");
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-        try (OutputStream output = connection.getOutputStream()) {
-            output.write(body.getBytes(StandardCharsets.UTF_8));
+        return send(context, "PUT", path, body, token);
+    }
+
+    private static JSONObject get(Context context, String path, @Nullable String token) throws Exception {
+        return send(context, "GET", path, null, token);
+    }
+
+    /**
+     * Ходит в панель сначала мимо туннеля, а если сеть не пустила - через него.
+     *
+     * <p>Мимо туннеля путь основной: иначе нода, через которую человек сидит,
+     * может душить расписки о собственном трафике. Но у провайдера панель бывает
+     * закрыта, и тогда единственный живой путь как раз туннельный. Пробуем оба,
+     * потому что молча потерянная расписка это трафик, который не подпишет уже
+     * никто.
+     *
+     * <p>Второй заход только на сетевую ошибку: ответ сервера, каким бы он ни
+     * был, означает что путь рабочий и повторять нехуй.
+     */
+    private static JSONObject send(
+        Context context,
+        String method,
+        String path,
+        @Nullable String body,
+        @Nullable String token
+    ) throws Exception {
+        try {
+            return exchange(open(context, path, token, false), method, body);
+        } catch (IOException direct) {
+            return exchange(open(context, path, token, true), method, body);
+        }
+    }
+
+    private static JSONObject exchange(HttpURLConnection connection, String method, @Nullable String body)
+        throws Exception {
+        connection.setRequestMethod(method);
+        if (body != null) {
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body.getBytes(StandardCharsets.UTF_8));
+            }
         }
         return readResponse(connection);
     }
 
-    private static JSONObject get(Context context, String path, @Nullable String token) throws Exception {
-        HttpURLConnection connection = open(context, path, token);
-        connection.setRequestMethod("GET");
-        return readResponse(connection);
-    }
-
-    private static HttpURLConnection open(Context context, String path, @Nullable String token) throws Exception {
+    private static HttpURLConnection open(Context context, String path, @Nullable String token, boolean viaTunnel)
+        throws Exception {
         URL url = new URL(panelUrl(context) + path);
-        HttpURLConnection connection = DirectNetworkConnection.openHttpConnection(context, url);
+        HttpURLConnection connection = viaTunnel
+            ? (HttpURLConnection) url.openConnection()
+            : DirectNetworkConnection.openHttpConnection(context, url);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setInstanceFollowRedirects(false);

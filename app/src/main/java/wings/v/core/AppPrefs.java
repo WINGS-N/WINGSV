@@ -296,6 +296,14 @@ public final class AppPrefs {
     public static final String KEY_FEDERATION_RECEIPT_MARK = "pref_federation_receipt_mark";
 
     /**
+     * Подписанные расписки, которые ещё не доехали. Окно закрывается по
+     * счётчикам, а не по факту отправки, поэтому потерянная в сети расписка
+     * означала бы трафик, который не подпишет уже никто, и ноду накажут за наш
+     * обосранный интернет
+     */
+    public static final String KEY_FEDERATION_RECEIPT_QUEUE = "pref_federation_receipt_queue";
+
+    /**
      * Как участника зовут в федерации. Приходит от панели: схема имён её, и
      * выдумывать её тут значит однажды подписать расписки не тем именем
      */
