@@ -69,6 +69,18 @@ public final class XrayConfigFactory {
     public static final int REDIRECT_PORT = 55556;
     private static final String REDIR_TAG = "redirect-in";
     private static final String SOCKS_TAG = "socks-in";
+
+    /**
+     * Служебный socks только для нашего контрол-плейна: расписки о трафике идут
+     * через ноду, когда снаружи до панели не достучаться.
+     *
+     * <p>Пользовательский локальный прокси для этого не годится - его выключают,
+     * переносят и вешают пароль. Этот слушает петлю и живёт, пока живёт ядро.
+     */
+    private static final String CONTROL_TAG = "wings-control-in";
+
+    /** Имя учётки служебного socks. Значение имеет только пароль */
+    private static final String CONTROL_USER = "wings";
     private static final String HTTP_TAG = "http-in";
     private static final String DEFAULT_LOOPBACK_LISTEN = "127.0.0.1";
     private static final String PROXY_TAG = "proxy";
@@ -778,6 +790,26 @@ public final class XrayConfigFactory {
             inbounds.put(tproxyInbound);
         }
 
+        if (settings.controlProxyPort > 0 && !TextUtils.isEmpty(trim(settings.controlProxySecret))) {
+            JSONObject controlInbound = new JSONObject();
+            controlInbound.put("tag", CONTROL_TAG);
+            controlInbound.put("protocol", "socks");
+            controlInbound.put("listen", "127.0.0.1");
+            controlInbound.put("port", settings.controlProxyPort);
+            JSONObject controlSettings = new JSONObject();
+            // Пароль обязателен: петля на телефоне общая, и открытый порт раздал
+            // бы туннель человека любому установленному приложению
+            controlSettings.put("auth", "password");
+            controlSettings.put(
+                "accounts",
+                new JSONArray().put(
+                    new JSONObject().put("user", CONTROL_USER).put("pass", trim(settings.controlProxySecret))
+                )
+            );
+            controlSettings.put("udp", false);
+            controlInbound.put("settings", controlSettings);
+            inbounds.put(controlInbound);
+        }
         if (isLocalProxyEnabled(settings)) {
             JSONObject socksInbound = new JSONObject();
             socksInbound.put("tag", SOCKS_TAG);
@@ -1021,6 +1053,9 @@ public final class XrayConfigFactory {
         }
         if (tproxyPort > 0) {
             inboundTags.put(TPROXY_TAG);
+        }
+        if (settings.controlProxyPort > 0 && !TextUtils.isEmpty(trim(settings.controlProxySecret))) {
+            inboundTags.put(CONTROL_TAG);
         }
         if (isLocalProxyEnabled(settings)) {
             inboundTags.put(SOCKS_TAG);

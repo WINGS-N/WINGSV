@@ -11,6 +11,13 @@ public final class XraySettings {
     public String localProxyUsername;
     public String localProxyPassword;
     public int localProxyPort;
+    /**
+     * Порт служебного socks на петле, через который наш контрол-плейн ходит
+     * сквозь ноду. Ноль означает "не поднимать".
+     */
+    public int controlProxyPort;
+    /** Пароль к нему. Пустой означает, что инбаунд поднимать нельзя */
+    public String controlProxySecret;
     public String localProxyListenAddress;
     public boolean httpProxyEnabled;
     public boolean httpProxyAuthEnabled = true;

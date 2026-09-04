@@ -8,7 +8,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.Authenticator;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -367,7 +371,7 @@ public final class FederationAccount {
             throw new IllegalStateException("нет сессии");
         }
         String boundary = "wings" + System.nanoTime();
-        HttpURLConnection connection = open(context, "/api/app/avatar", token, false);
+        HttpURLConnection connection = open(context, "/api/app/avatar", token, Route.DIRECT);
         connection.setRequestMethod("POST");
         connection.setDoOutput(true);
         connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
@@ -403,7 +407,7 @@ public final class FederationAccount {
         if (TextUtils.isEmpty(token)) {
             throw new IllegalStateException("нет сессии");
         }
-        HttpURLConnection connection = open(context, "/api/app/avatar", token, false);
+        HttpURLConnection connection = open(context, "/api/app/avatar", token, Route.DIRECT);
         connection.setRequestMethod("DELETE");
         readResponse(connection);
         rememberAvatarVersion(context, 0L);
@@ -688,10 +692,26 @@ public final class FederationAccount {
         @Nullable String token
     ) throws Exception {
         try {
-            return exchange(open(context, path, token, false), method, body);
+            return exchange(open(context, path, token, Route.DIRECT), method, body);
         } catch (IOException direct) {
-            return exchange(open(context, path, token, true), method, body);
+            try {
+                return exchange(open(context, path, token, Route.TUNNEL), method, body);
+            } catch (IOException tunnel) {
+                // Последний путь: в белом списке приложение само вне туннеля, и
+                // войти внутрь можно только через служебный socks нашего ядра
+                return exchange(open(context, path, token, Route.CONTROL_PROXY), method, body);
+            }
         }
+    }
+
+    /** Каким путём стучимся в панель */
+    private enum Route {
+        /** Мимо туннеля, по физической сети */
+        DIRECT,
+        /** Как получится: активный туннель заворачивает нас сам */
+        TUNNEL,
+        /** Через служебный socks ядра, то есть сквозь ноду */
+        CONTROL_PROXY,
     }
 
     private static JSONObject exchange(HttpURLConnection connection, String method, @Nullable String body)
@@ -707,12 +727,10 @@ public final class FederationAccount {
         return readResponse(connection);
     }
 
-    private static HttpURLConnection open(Context context, String path, @Nullable String token, boolean viaTunnel)
+    private static HttpURLConnection open(Context context, String path, @Nullable String token, Route route)
         throws Exception {
         URL url = new URL(panelUrl(context) + path);
-        HttpURLConnection connection = viaTunnel
-            ? (HttpURLConnection) url.openConnection()
-            : DirectNetworkConnection.openHttpConnection(context, url);
+        HttpURLConnection connection = openFor(context, url, route);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setInstanceFollowRedirects(false);
@@ -721,6 +739,67 @@ public final class FederationAccount {
         }
         return connection;
     }
+
+    private static HttpURLConnection openFor(Context context, URL url, Route route) throws Exception {
+        if (route == Route.DIRECT) {
+            return DirectNetworkConnection.openHttpConnection(context, url);
+        }
+        if (route == Route.TUNNEL) {
+            return (HttpURLConnection) url.openConnection();
+        }
+        int port = controlProxyPort(context);
+        String secret = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_CONTROL_SECRET, "");
+        if (port <= 0 || TextUtils.isEmpty(secret)) {
+            throw new IOException("служебный socks не поднят");
+        }
+        armControlProxyAuth(port, secret);
+        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", port));
+        return (HttpURLConnection) url.openConnection(proxy);
+    }
+
+    private static int controlProxyPort(Context context) {
+        try {
+            return Integer.parseInt(AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_CONTROL_PORT, "0"));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    /**
+     * Отдаёт пароль от служебного socks и только ему.
+     *
+     * <p>Authenticator в Java один на процесс, поэтому проверяем, кто спрашивает:
+     * пароль уходит лишь на запрос ОТ ПРОКСИ, с петли и с нашего порта. Любому
+     * другому запросу отвечаем пустотой, чтобы не отдать секрет чужому серверу,
+     * который просто попросил авторизацию.
+     */
+    private static void armControlProxyAuth(int port, String secret) {
+        synchronized (CONTROL_AUTH_LOCK) {
+            if (controlAuthArmed) {
+                return;
+            }
+            controlAuthArmed = true;
+            Authenticator.setDefault(
+                new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        boolean ours =
+                            getRequestorType() == RequestorType.PROXY &&
+                            port == getRequestingPort() &&
+                            "127.0.0.1".equals(String.valueOf(getRequestingHost()));
+                        if (!ours) {
+                            return null;
+                        }
+                        return new PasswordAuthentication("wings", secret.toCharArray());
+                    }
+                }
+            );
+        }
+    }
+
+    private static final Object CONTROL_AUTH_LOCK = new Object();
+
+    private static boolean controlAuthArmed;
 
     private static JSONObject readResponse(HttpURLConnection connection) throws Exception {
         int code = connection.getResponseCode();

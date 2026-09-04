@@ -304,6 +304,20 @@ public final class AppPrefs {
     public static final String KEY_FEDERATION_RECEIPT_QUEUE = "pref_federation_receipt_queue";
 
     /**
+     * Порт служебного socks на петле. Через него расписки уходят СКВОЗЬ ноду,
+     * когда снаружи до панели не достучаться: в белом списке приложение вне
+     * туннеля, и другого пути внутрь у него нет
+     */
+    public static final String KEY_FEDERATION_CONTROL_PORT = "pref_federation_control_port";
+
+    /**
+     * Пароль к служебному socks. Порт слушает петлю, но петля на телефоне общая:
+     * без пароля любое приложение получило бы туннель наружу через наш профиль,
+     * а отвечать за его трафик пришлось бы человеку
+     */
+    public static final String KEY_FEDERATION_CONTROL_SECRET = "pref_federation_control_secret";
+
+    /**
      * Как участника зовут в федерации. Приходит от панели: схема имён её, и
      * выдумывать её тут значит однажды подписать расписки не тем именем
      */

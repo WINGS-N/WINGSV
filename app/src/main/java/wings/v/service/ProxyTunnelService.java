@@ -104,7 +104,6 @@ import wings.v.core.AppPrefs;
 import wings.v.core.BackendType;
 import wings.v.core.ByeDpiSettings;
 import wings.v.core.CaptchaPromptSource;
-import wings.v.core.FederationAccount;
 import wings.v.core.FederationReceiptQueue;
 import wings.v.core.FederationReceipts;
 import wings.v.core.FederationSubscription;

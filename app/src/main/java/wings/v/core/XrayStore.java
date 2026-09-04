@@ -85,6 +85,8 @@ public final class XrayStore {
             prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_PORT, String.valueOf(DEFAULT_LOCAL_PROXY_PORT)),
             DEFAULT_LOCAL_PROXY_PORT
         );
+        settings.controlProxyPort = resolveControlProxyPort(prefs);
+        settings.controlProxySecret = resolveControlProxySecret(prefs);
         settings.localProxyListenAddress = trim(
             prefs.getString(AppPrefs.KEY_XRAY_LOCAL_PROXY_LISTEN_ADDRESS, DEFAULT_LOCAL_LISTEN_ADDRESS)
         );
@@ -876,5 +878,51 @@ public final class XrayStore {
 
     private static String trim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    /**
+     * Порт служебного socks для нашего контрол-плейна.
+     *
+     * <p>Держится в настройках, а не выбирается каждый раз заново: конфиг ядра и
+     * отправитель расписок обязаны сойтись на одном числе, иначе труба есть, а
+     * ходить по ней некому.
+     */
+    /**
+     * Пароль к служебному socks, 256 бит из системного генератора.
+     *
+     * <p>Порт слушает только петлю, но петля на телефоне общая: без пароля любое
+     * установленное приложение ходило бы наружу через профиль человека, а
+     * отвечать за этот трафик пришлось бы ему.
+     */
+    private static String resolveControlProxySecret(android.content.SharedPreferences prefs) {
+        String stored = trim(prefs.getString(AppPrefs.KEY_FEDERATION_CONTROL_SECRET, ""));
+        if (!TextUtils.isEmpty(stored)) {
+            return stored;
+        }
+        byte[] raw = new byte[32];
+        new java.security.SecureRandom().nextBytes(raw);
+        StringBuilder out = new StringBuilder(raw.length * 2);
+        for (byte value : raw) {
+            out.append(String.format(java.util.Locale.US, "%02x", value));
+        }
+        String secret = out.toString();
+        prefs.edit().putString(AppPrefs.KEY_FEDERATION_CONTROL_SECRET, secret).apply();
+        return secret;
+    }
+
+    private static int resolveControlProxyPort(android.content.SharedPreferences prefs) {
+        int stored = parseInt(prefs.getString(AppPrefs.KEY_FEDERATION_CONTROL_PORT, ""), 0);
+        if (stored > 0 && stored <= 65535) {
+            return stored;
+        }
+        int picked;
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            socket.setReuseAddress(true);
+            picked = socket.getLocalPort();
+        } catch (java.io.IOException error) {
+            return 0;
+        }
+        prefs.edit().putString(AppPrefs.KEY_FEDERATION_CONTROL_PORT, String.valueOf(picked)).apply();
+        return picked;
     }
 }
