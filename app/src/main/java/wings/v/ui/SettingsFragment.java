@@ -114,7 +114,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.ensureDefaults(requireContext());
         appUpdateManager = AppUpdateManager.getInstance(requireContext());
         getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
-        setPreferencesFromResource(R.xml.proxy_preferences, rootKey);
+        // Раскладку выбирает человек: разделы с иконками или прежний список
+        // одним куском
+        setPreferencesFromResource(
+            AppPrefs.isSettingsClassicLayout(requireContext())
+                ? R.xml.proxy_preferences_classic
+                : R.xml.proxy_preferences,
+            rootKey
+        );
         configurePreferences();
     }
 

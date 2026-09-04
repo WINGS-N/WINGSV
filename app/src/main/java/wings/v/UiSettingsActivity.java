@@ -38,6 +38,13 @@ public class UiSettingsActivity extends AppCompatActivity {
             return kotlin.Unit.INSTANCE;
         });
 
+        binding.rowClassicSettings.setSummary(getString(R.string.settings_classic_layout_summary));
+        binding.rowClassicSettings.setChecked(AppPrefs.isSettingsClassicLayout(this));
+        binding.rowClassicSettings.setOnCheckedChangedListener((id, checked) -> {
+            AppPrefs.setSettingsClassicLayout(this, checked);
+            return kotlin.Unit.INSTANCE;
+        });
+
         binding.rowOpenNavbar.setTitle(getString(R.string.ui_settings_navbar_title));
         binding.rowOpenNavbar.setSummary(getString(R.string.ui_settings_navbar_summary));
         binding.rowOpenNavbar.setOnClickListener(view -> {
@@ -59,6 +66,7 @@ public class UiSettingsActivity extends AppCompatActivity {
         if (binding != null) {
             binding.rowOpenTheme.setSummary(themeModeSummary());
             binding.rowHideIp.setChecked(AppPrefs.isHideIpEnabled(this));
+            binding.rowClassicSettings.setChecked(AppPrefs.isSettingsClassicLayout(this));
         }
     }
 

@@ -1730,4 +1730,6 @@
     <string name="settings_section_app_summary">Интерфейс, Guardian, разрешения, резервная копия</string>
     <string name="settings_section_logs">Логи</string>
     <string name="settings_section_logs_summary">Xray, vk-turn-proxy, среда выполнения</string>
+    <string name="settings_classic_layout_title">Классический список настроек</string>
+    <string name="settings_classic_layout_summary">Всё одним списком, без разделов</string>
 </resources>

@@ -26,4 +26,10 @@
     <color name="account_icon_blue">#2C7DF0</color>
     <color name="account_icon_indigo">#5A63E8</color>
     <color name="account_icon_violet">#8A63E8</color>
+    <!-- Кружки разделов настроек: тот же приём, что в аккаунте -->
+    <color name="settings_icon_teal">#0FA3A3</color>
+    <color name="settings_icon_green">#28A745</color>
+    <color name="settings_icon_orange">#E8833A</color>
+    <color name="settings_icon_pink">#E0518C</color>
+    <color name="settings_icon_grey">#6D7A88</color>
 </resources>

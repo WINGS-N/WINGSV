@@ -11,7 +11,7 @@
 
     <PreferenceScreen
         android:key="pref_section_connection"
-        android:icon="@drawable/ic_settings_connection"
+        android:icon="@drawable/ic_settings_connection_round"
         android:title="@string/settings_section_connection"
         android:summary="@string/settings_section_connection_summary">
 
@@ -74,7 +74,7 @@
 
     <PreferenceScreen
         android:key="pref_section_profiles"
-        android:icon="@drawable/ic_settings_profiles"
+        android:icon="@drawable/ic_settings_profiles_round"
         android:title="@string/settings_section_profiles"
         android:summary="@string/settings_section_profiles_summary">
 
@@ -92,7 +92,7 @@
 
     <PreferenceScreen
         android:key="pref_section_root"
-        android:icon="@drawable/ic_settings_root"
+        android:icon="@drawable/ic_settings_root_round"
         android:title="@string/root_category_title"
         android:summary="@string/settings_section_root_summary">
 
@@ -133,7 +133,7 @@
 
     <PreferenceScreen
         android:key="pref_section_app"
-        android:icon="@drawable/ic_settings_interface"
+        android:icon="@drawable/ic_settings_app_round"
         android:title="@string/settings_section_app"
         android:summary="@string/settings_section_app_summary">
 
@@ -169,7 +169,7 @@
 
     <PreferenceScreen
         android:key="pref_section_logs"
-        android:icon="@drawable/ic_settings_service"
+        android:icon="@drawable/ic_settings_logs_round"
         android:title="@string/settings_section_logs"
         android:summary="@string/settings_section_logs_summary">
 
@@ -192,7 +192,7 @@
 
     <dev.oneuiproject.oneui.preference.UpdatableWidgetPreference
         android:key="pref_open_about"
-        android:icon="@drawable/ic_settings_about"
+        android:icon="@drawable/ic_settings_about_round"
         android:title="@string/about_app_title"
         android:summary="@string/about_app_summary"
         app:widgetLayout="@layout/widget_preference_update_badge" />
