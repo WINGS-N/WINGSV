@@ -315,12 +315,10 @@ public class FederationAccountActivity extends AppCompatActivity {
             nodesMeta.setText(R.string.wings_account_no_access);
             return;
         }
+        // Сколько выдано, и всё. Сколько положено по доверию - наша внутренняя
+        // арифметика, человеку от неё ни тепло ни холодно
         nodes.setText(getString(R.string.wings_account_nodes, access.nodes));
-        nodesMeta.setText(
-            access.nodesEntitled > access.nodes
-                ? getString(R.string.wings_account_nodes_short, access.nodesEntitled)
-                : ""
-        );
+        nodesMeta.setText("");
         applyTraffic(access);
         applySpeed(access);
         applyTrust(access);
