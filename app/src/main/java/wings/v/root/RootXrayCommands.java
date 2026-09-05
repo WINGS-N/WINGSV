@@ -1,7 +1,6 @@
 package wings.v.root;
 
 import android.text.TextUtils;
-import android.util.Base64;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -45,6 +44,9 @@ import org.json.JSONObject;
 )
 final class RootXrayCommands {
 
+    /** Версия контракта libXray. Библиотека отбивает запрос с чужой */
+    private static final int LIBXRAY_API_VERSION = 1;
+
     private static final Object LOCK = new Object();
     private static final int API_SOCKET_WAIT_MS = 2000;
     private static final int API_SOCKET_POLL_MS = 50;
@@ -75,7 +77,7 @@ final class RootXrayCommands {
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> {
                 try {
-                    LibXray.stopXray();
+                    invoke("stopXray", null);
                 } catch (Exception ignored) {}
                 synchronized (LOCK) {
                     stopRequested = true;
@@ -85,10 +87,13 @@ final class RootXrayCommands {
         );
 
         String resolvedDataDir = TextUtils.isEmpty(dataDir) ? "" : dataDir;
+        // Каталог ассетов и дескриптор - окружение процесса: ядро читает их,
+        // пока поднимает inbound, а в запрос они больше не входят
+        LibXray.setAssetDir(resolvedDataDir);
         LibXray.setTunFd(0);
-        String request = LibXray.newXrayRunFromJSONRequest(resolvedDataDir, configJson);
-        String response = LibXray.runXrayFromJSON(request);
-        decodeResponse(response);
+        JSONObject payload = new JSONObject();
+        payload.put("configJSON", configJson);
+        invoke("runXrayFromJson", payload);
 
         handApiSocketToApp(
             parseArg(args, "--api-socket"),
@@ -208,12 +213,19 @@ final class RootXrayCommands {
         return out.toString(StandardCharsets.UTF_8.name());
     }
 
-    private static void decodeResponse(String base64Response) throws Exception {
-        if (TextUtils.isEmpty(base64Response)) {
+    /** Один вызов в libXray: имя метода и его данные едут в единственную дверь */
+    private static void invoke(String method, JSONObject payload) throws Exception {
+        JSONObject request = new JSONObject();
+        request.put("apiVersion", LIBXRAY_API_VERSION);
+        request.put("method", method);
+        if (payload != null) {
+            request.put("payload", payload);
+        }
+        String raw = LibXray.invoke(request.toString());
+        if (TextUtils.isEmpty(raw)) {
             throw new IllegalStateException("libXray returned empty response");
         }
-        byte[] decoded = Base64.decode(base64Response, Base64.DEFAULT);
-        JSONObject response = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
+        JSONObject response = new JSONObject(raw);
         if (!response.optBoolean("success", false)) {
             throw new IllegalStateException("libXray request failed: " + response.optString("error", "unknown"));
         }

@@ -7,7 +7,6 @@ import android.net.LocalSocketAddress;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.text.TextUtils;
-import android.util.Base64;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
@@ -49,6 +48,9 @@ import wings.v.service.XrayVpnService;
     }
 )
 public final class XrayBridge {
+
+    /** Версия контракта libXray. Библиотека отбивает запрос с чужой */
+    private static final int LIBXRAY_API_VERSION = 1;
 
     private static final AtomicBoolean LOADED = new AtomicBoolean();
     private static final AtomicBoolean RUNTIME_STARTED = new AtomicBoolean();
@@ -215,8 +217,9 @@ public final class XrayBridge {
     public static String convertShareLinkToOutboundJson(String rawLink) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            String request = Base64.encodeToString(rawLink.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-            JSONObject response = decodeResponse(LibXray.convertShareLinksToXrayJson(request));
+            JSONObject payload = new JSONObject();
+            payload.put("text", rawLink);
+            JSONObject response = invoke("convertShareLinksToXrayJson", payload);
             Object data = response.opt("data");
             if (data instanceof JSONObject) {
                 return ((JSONObject) data).toString();
@@ -231,11 +234,12 @@ public final class XrayBridge {
     public static String convertXrayJsonToShareLinks(String configJson) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            String request = Base64.encodeToString(configJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-            JSONObject response = decodeResponse(LibXray.convertXrayJsonToShareLinks(request));
-            Object data = response.opt("data");
-            if (data != null) {
-                return String.valueOf(data);
+            JSONObject payload = new JSONObject();
+            payload.put("xrayJson", configJson);
+            JSONObject response = invoke("convertXrayJsonToShareLinks", payload);
+            JSONObject data = response.optJSONObject("data");
+            if (data != null && !TextUtils.isEmpty(data.optString("links"))) {
+                return data.optString("links");
             }
             throw new IllegalStateException(WingsApplication.getStringSafe(R.string.xray_bridge_empty_share_links));
         }
@@ -246,9 +250,13 @@ public final class XrayBridge {
         synchronized (JNI_LOCK) {
             RUNTIME_STARTED.set(false);
             File datDir = ensureDatDir(context);
+            // Дескриптор и каталог ассетов - окружение процесса, а не часть
+            // запроса: ядро читает их, пока поднимает inbound
+            LibXray.setAssetDir(datDir.getAbsolutePath());
             LibXray.setTunFd(tunFd);
-            String request = LibXray.newXrayRunFromJSONRequest(datDir.getAbsolutePath(), configJson);
-            decodeResponse(LibXray.runXrayFromJSON(request));
+            JSONObject payload = new JSONObject();
+            payload.put("configJSON", configJson);
+            invoke("runXrayFromJson", payload);
             RUNTIME_STARTED.set(true);
         }
     }
@@ -258,18 +266,15 @@ public final class XrayBridge {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             File datDir = ensureDatDir(context);
-            JSONObject request = new JSONObject();
-            request.put("datDir", datDir.getAbsolutePath());
-            request.put("configPath", configFile.getAbsolutePath());
-            request.put("timeout", timeoutSeconds);
-            request.put("url", url);
-            request.put("proxy", proxy);
-            String encodedRequest = Base64.encodeToString(
-                request.toString().getBytes(StandardCharsets.UTF_8),
-                Base64.NO_WRAP
-            );
-            JSONObject response = decodeResponse(LibXray.ping(encodedRequest));
-            return response.optLong("data", 0L);
+            LibXray.setAssetDir(datDir.getAbsolutePath());
+            JSONObject payload = new JSONObject();
+            payload.put("configPath", configFile.getAbsolutePath());
+            payload.put("timeout", timeoutSeconds);
+            payload.put("url", url);
+            payload.put("proxy", proxy);
+            JSONObject response = invoke("ping", payload);
+            JSONObject data = response.optJSONObject("data");
+            return data == null ? 0L : data.optLong("delay", 0L);
         }
     }
 
@@ -280,23 +285,18 @@ public final class XrayBridge {
     public static void countGeoData(File datDir, String name, String geoType) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            JSONObject request = new JSONObject();
-            request.put("datDir", datDir.getAbsolutePath());
-            request.put("name", trim(name));
-            request.put("geoType", trim(geoType));
-            String encodedRequest = Base64.encodeToString(
-                request.toString().getBytes(StandardCharsets.UTF_8),
-                Base64.NO_WRAP
-            );
-            decodeResponse(LibXray.countGeoData(encodedRequest));
+            JSONObject payload = new JSONObject();
+            payload.put("datDir", datDir.getAbsolutePath());
+            payload.put("name", trim(name));
+            payload.put("geoType", trim(geoType));
+            invoke("countGeoData", payload);
         }
     }
 
     public static JSONObject readGeoFiles(String configJson) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
-            String request = Base64.encodeToString(configJson.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-            return decodeResponse(LibXray.readGeoFiles(request)).optJSONObject("data");
+            return new JSONObject(LibXray.readGeoFiles(configJson));
         }
     }
 
@@ -305,7 +305,7 @@ public final class XrayBridge {
         synchronized (JNI_LOCK) {
             try {
                 if (RUNTIME_STARTED.get()) {
-                    decodeResponse(LibXray.stopXray());
+                    invoke("stopXray", null);
                 }
             } finally {
                 RUNTIME_STARTED.set(false);
@@ -423,9 +423,18 @@ public final class XrayBridge {
         return value == null ? "" : value.trim();
     }
 
-    private static JSONObject decodeResponse(String base64Response) throws Exception {
-        byte[] decoded = Base64.decode(base64Response, Base64.DEFAULT);
-        JSONObject response = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
+    /**
+     * Один вызов в libXray. Библиотека свела всё к единственной двери, куда едет
+     * имя метода и его данные, поэтому обёртка тут одна на всех.
+     */
+    private static JSONObject invoke(String method, JSONObject payload) throws Exception {
+        JSONObject request = new JSONObject();
+        request.put("apiVersion", LIBXRAY_API_VERSION);
+        request.put("method", method);
+        if (payload != null) {
+            request.put("payload", payload);
+        }
+        JSONObject response = new JSONObject(LibXray.invoke(request.toString()));
         if (!response.optBoolean("success", false)) {
             throw new IllegalStateException(response.optString("error", "libXray request failed"));
         }
