@@ -191,7 +191,7 @@ public final class FederationDonorActivity extends AppCompatActivity {
         bar.setProgress((int) Math.round(remainingRatio * 1000));
         bar.setProgressTintList(
             android.content.res.ColorStateList.valueOf(
-                getColor(wings.v.ui.AccountFragment.quotaColor(declared > 0 ? remainingRatio : 1d))
+                getColor(FederationAccountActivity.quotaColor(declared > 0 ? remainingRatio : 1d))
             )
         );
         label.setText(

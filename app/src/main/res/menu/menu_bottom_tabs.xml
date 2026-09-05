@@ -23,11 +23,6 @@
         android:title="@string/sharing" />
 
     <item
-        android:id="@+id/menu_account"
-        android:icon="@drawable/ic_account_avatar"
-        android:title="@string/wings_account_title" />
-
-    <item
         android:id="@+id/menu_settings"
         android:icon="@drawable/ic_settings"
         android:title="@string/settings" />

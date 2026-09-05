@@ -6,7 +6,6 @@ import androidx.fragment.app.Fragment;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import java.util.ArrayList;
 import java.util.List;
-import wings.v.ui.AccountFragment;
 import wings.v.ui.AppsFragment;
 import wings.v.ui.BackendProfilesFragment;
 import wings.v.ui.HomeFragment;
@@ -19,7 +18,6 @@ public class MainPagerAdapter extends FragmentStateAdapter {
     public static final long ITEM_PROFILES = 101L;
     public static final long ITEM_APPS = 102L;
     public static final long ITEM_SHARING = 103L;
-    public static final long ITEM_ACCOUNT = 105L;
     public static final long ITEM_SETTINGS = 104L;
 
     private final List<Long> items = new ArrayList<>();
@@ -68,9 +66,6 @@ public class MainPagerAdapter extends FragmentStateAdapter {
         }
         if (itemId == ITEM_SHARING) {
             return new SharingFragment();
-        }
-        if (itemId == ITEM_ACCOUNT) {
-            return new AccountFragment();
         }
         if (itemId == ITEM_SETTINGS) {
             return new SettingsFragment();

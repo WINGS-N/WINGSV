@@ -39,9 +39,6 @@ public final class NavbarItems {
         if (UiPrefs.NAVBAR_SHARING.equals(key)) {
             return R.menu.menu_bottom_tab_sharing;
         }
-        if (UiPrefs.NAVBAR_ACCOUNT.equals(key)) {
-            return R.menu.menu_bottom_tab_account;
-        }
         if (UiPrefs.NAVBAR_SETTINGS.equals(key)) {
             return R.menu.menu_bottom_tab_settings;
         }
@@ -57,9 +54,6 @@ public final class NavbarItems {
         }
         if (UiPrefs.NAVBAR_SHARING.equals(key)) {
             return R.id.menu_sharing;
-        }
-        if (UiPrefs.NAVBAR_ACCOUNT.equals(key)) {
-            return R.id.menu_account;
         }
         if (UiPrefs.NAVBAR_SETTINGS.equals(key)) {
             return R.id.menu_settings;
@@ -77,9 +71,6 @@ public final class NavbarItems {
         if (UiPrefs.NAVBAR_SHARING.equals(key)) {
             return MainPagerAdapter.ITEM_SHARING;
         }
-        if (UiPrefs.NAVBAR_ACCOUNT.equals(key)) {
-            return MainPagerAdapter.ITEM_ACCOUNT;
-        }
         if (UiPrefs.NAVBAR_SETTINGS.equals(key)) {
             return MainPagerAdapter.ITEM_SETTINGS;
         }
@@ -95,9 +86,6 @@ public final class NavbarItems {
         }
         if (menuItemId == R.id.menu_sharing) {
             return UiPrefs.NAVBAR_SHARING;
-        }
-        if (menuItemId == R.id.menu_account) {
-            return UiPrefs.NAVBAR_ACCOUNT;
         }
         if (menuItemId == R.id.menu_settings) {
             return UiPrefs.NAVBAR_SETTINGS;
