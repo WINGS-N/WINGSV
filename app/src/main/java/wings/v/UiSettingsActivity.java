@@ -38,10 +38,10 @@ public class UiSettingsActivity extends AppCompatActivity {
             return kotlin.Unit.INSTANCE;
         });
 
-        binding.rowClassicSettings.setSummary(getString(R.string.settings_classic_layout_summary));
-        binding.rowClassicSettings.setChecked(AppPrefs.isSettingsClassicLayout(this));
-        binding.rowClassicSettings.setOnCheckedChangedListener((id, checked) -> {
-            AppPrefs.setSettingsClassicLayout(this, checked);
+        binding.rowSectionSettings.setSummary(getString(R.string.settings_sections_summary));
+        binding.rowSectionSettings.setChecked(AppPrefs.isSettingsSections(this));
+        binding.rowSectionSettings.setOnCheckedChangedListener((id, checked) -> {
+            AppPrefs.setSettingsSections(this, checked);
             return kotlin.Unit.INSTANCE;
         });
 
@@ -66,7 +66,7 @@ public class UiSettingsActivity extends AppCompatActivity {
         if (binding != null) {
             binding.rowOpenTheme.setSummary(themeModeSummary());
             binding.rowHideIp.setChecked(AppPrefs.isHideIpEnabled(this));
-            binding.rowClassicSettings.setChecked(AppPrefs.isSettingsClassicLayout(this));
+            binding.rowSectionSettings.setChecked(AppPrefs.isSettingsSections(this));
         }
     }
 

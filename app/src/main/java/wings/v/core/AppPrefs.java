@@ -309,10 +309,10 @@ public final class AppPrefs {
      * туннеля, и другого пути внутрь у него нет
      */
     /**
-     * Классическая раскладка настроек: всё одним списком, как было до разделов.
-     * Кому 24 пункта в скролле привычнее, тот их и получает
+     * Настройки разделами: оглавление с иконками вместо одного списка. По
+     * умолчанию выключено, потому что привычная раскладка старше
      */
-    public static final String KEY_SETTINGS_CLASSIC_LAYOUT = "pref_settings_classic_layout";
+    public static final String KEY_SETTINGS_SECTIONS = "pref_settings_sections";
 
     public static final String KEY_FEDERATION_CONTROL_PORT = "pref_federation_control_port";
 
@@ -438,13 +438,13 @@ public final class AppPrefs {
         return prefs(context).getBoolean(KEY_UI_HIDE_IP_ADDRESS, false);
     }
 
-    /** Классическая раскладка настроек: одним списком, без разделов */
-    public static boolean isSettingsClassicLayout(Context context) {
-        return prefs(context).getBoolean(KEY_SETTINGS_CLASSIC_LAYOUT, false);
+    /** Настройки разделами вместо одного списка */
+    public static boolean isSettingsSections(Context context) {
+        return prefs(context).getBoolean(KEY_SETTINGS_SECTIONS, false);
     }
 
-    public static void setSettingsClassicLayout(Context context, boolean enabled) {
-        prefs(context).edit().putBoolean(KEY_SETTINGS_CLASSIC_LAYOUT, enabled).apply();
+    public static void setSettingsSections(Context context, boolean enabled) {
+        prefs(context).edit().putBoolean(KEY_SETTINGS_SECTIONS, enabled).apply();
     }
 
     public static void setHideIpEnabled(Context context, boolean enabled) {

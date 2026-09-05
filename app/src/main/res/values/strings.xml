@@ -1731,6 +1731,6 @@
     <string name="settings_section_app_summary">Interface, Guardian, permissions, backup</string>
     <string name="settings_section_logs">Logs</string>
     <string name="settings_section_logs_summary">Xray, vk-turn-proxy, runtime</string>
-    <string name="settings_classic_layout_title">Classic settings list</string>
-    <string name="settings_classic_layout_summary">Everything in one list, without sections</string>
+    <string name="settings_sections_title">Settings in sections</string>
+    <string name="settings_sections_summary">Table of contents with icons instead of one list</string>
 </resources>

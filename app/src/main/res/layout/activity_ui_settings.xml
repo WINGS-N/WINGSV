@@ -68,12 +68,12 @@
                     app:title="@string/settings_hide_ip_title" />
 
                 <dev.oneuiproject.oneui.widget.SwitchItemView
-                    android:id="@+id/row_classic_settings"
+                    android:id="@+id/row_section_settings"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:showBottomDivider="false"
                     app:showTopDivider="false"
-                    app:title="@string/settings_classic_layout_title" />
+                    app:title="@string/settings_sections_title" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

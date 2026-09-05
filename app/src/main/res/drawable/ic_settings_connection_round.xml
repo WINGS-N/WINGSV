@@ -3,7 +3,7 @@
         android:width="34dp"
         android:height="34dp">
         <shape android:shape="oval">
-            <solid android:color="@color/account_icon_blue" />
+            <solid android:color="@color/settings_icon_blue" />
         </shape>
     </item>
     <item
