@@ -9,6 +9,11 @@
         android:key="pref_open_wings_account"
         android:order="-100" />
 
+    <!-- Отбивка после карточки: аккаунт стоит своей плашкой, а не первой
+         строкой в списке разделов -->
+    <dev.oneuiproject.oneui.preference.InsetPreferenceCategory
+        android:key="pref_inset_after_account" />
+
     <PreferenceScreen
         android:key="pref_section_connection"
         android:icon="@drawable/ic_settings_connection_round"

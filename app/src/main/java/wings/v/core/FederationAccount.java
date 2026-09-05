@@ -476,7 +476,9 @@ public final class FederationAccount {
                 continue;
             }
             DonorNode node = new DonorNode();
-            node.nodeId = item.optString("node_id", "");
+            // Панель зовёт это поле просто id. Пустой идентификатор уходил в
+            // адрес запроса, и правка потолка отвечала "нет такой ноды"
+            node.nodeId = item.optString("id", item.optString("node_id", ""));
             node.hostname = item.optString("hostname", "");
             node.state = item.optString("state", "");
             node.online = item.optBoolean("online");

@@ -163,7 +163,9 @@ public final class FederationDonorActivity extends AppCompatActivity {
         name.setText(TextUtils.isEmpty(node.hostname) ? node.nodeId : node.hostname);
         state.setText(node.online ? R.string.xray_routing_badge_ready : R.string.federation_donor_offline);
         state.setBackgroundResource(node.online ? R.drawable.bg_profile_ping_good : R.drawable.bg_profile_ping_bad);
-        state.setTextColor(getColor(node.online ? R.color.traffic_rx : R.color.traffic_tx));
+        // Белым, как у бейджей в роутинге: цветной текст на своём же цветном
+        // фоне сливается и не читается вовсе
+        state.setTextColor(getColor(android.R.color.white));
         versions.setText(
             (TextUtils.isEmpty(node.xrayVersion) ? "-" : node.xrayVersion) +
                 "  |  " +
