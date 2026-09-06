@@ -10,9 +10,10 @@
     <include domain="file" path="mmkv/" />
     <include domain="file" path="byedpi_domain_lists.json" />
     <include domain="sharedpref" path="." />
+    <!-- Backed up is exactly what the includes above name, so databases and
+         external storage stay out without a rule of their own: excluding what was
+         never included is what lint calls a path outside the included set. -->
     <!-- Runtime scratch: rebuilt on next launch, restoring it only revives stale state. -->
     <exclude domain="file" path="mmkv/wingsv_runtime_state" />
     <exclude domain="file" path="mmkv/wingsv_xray_runtime" />
-    <exclude domain="database" path="." />
-    <exclude domain="external" path="." />
 </full-backup-content>
