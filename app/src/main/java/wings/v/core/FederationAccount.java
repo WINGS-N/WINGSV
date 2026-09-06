@@ -1,6 +1,7 @@
 package wings.v.core;
 
 import android.content.Context;
+import android.net.Uri;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -169,7 +170,46 @@ public final class FederationAccount {
         return sessionOf(post(context, "/api/app/login", body.toString(), null), login);
     }
 
-    /** Обмен одноразового кода на токен. Так возвращается вход через Matrix */
+    /**
+     * Вход учёткой WINGS Account.
+     *
+     * <p>Пароль проверяет сервис учёток, а панель по нему находит, кому выдать
+     * токен устройства. Браузер тут не нужен нахуй: форму рисуем сами.
+     */
+    public static Session signInWithAccount(
+        @NonNull Context context,
+        @NonNull String login,
+        @NonNull String password,
+        @Nullable String ticket,
+        @Nullable String code
+    ) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("login", login);
+        body.put("password", password);
+        body.put("ticket", ticket == null ? "" : ticket);
+        body.put("code", code == null ? "" : code);
+        body.put("device_name", android.os.Build.MODEL);
+        JSONObject response = post(context, "/api/app/account/login", body.toString(), null);
+        // Учётка попросила второй фактор: пароль уже принят, дальше нужен только код
+        if (response.optBoolean("second_factor", false)) {
+            throw new SecondFactorRequired(response.optString("ticket"));
+        }
+        return sessionOf(response, login);
+    }
+
+    /** Кто просится войти по коду: показываем это перед тем, как впустить */
+    public static JSONObject qrPending(@NonNull Context context, @NonNull String code) throws Exception {
+        return get(context, "/api/app/qr/pending?code=" + Uri.encode(code), token(context));
+    }
+
+    /** Впустить ноутбук, который показал этот код */
+    public static void qrApprove(@NonNull Context context, @NonNull String code) throws Exception {
+        JSONObject body = new JSONObject();
+        body.put("code", code);
+        post(context, "/api/app/qr/approve", body.toString(), token(context));
+    }
+
+    /** Обмен одноразового кода на токен. Так возвращается вход из браузера */
     public static Session exchangeCode(@NonNull Context context, @NonNull String code) throws Exception {
         JSONObject body = new JSONObject();
         body.put("code", code);

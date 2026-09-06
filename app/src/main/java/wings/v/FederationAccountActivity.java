@@ -12,12 +12,17 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import dev.oneuiproject.oneui.layout.ToolbarLayout;
+import dev.oneuiproject.oneui.qr.app.QrScanActivity;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONObject;
 import wings.v.core.AvatarFetcher;
 import wings.v.core.FederationAccount;
 import wings.v.core.FederationSubscription;
@@ -37,6 +42,32 @@ public class FederationAccountActivity extends AppCompatActivity {
     private View panelSections;
     /** Код из панели, который ждёт входа в аккаунт */
     private String pendingInvite = "";
+    /** Квиток недодошедшего входа учёткой: по нему досылается код из аутентификатора */
+    private String accountTicket = "";
+
+    private View approveQr;
+
+    /**
+     * Сканер подтверждения входа: телефон впускает компьютер.
+     *
+     * <p>Код показывает тот, кто хочет войти, а решает тот, кто уже вошёл. Поэтому
+     * сканируем здесь, а вход происходит там - на компьютере.
+     */
+    private final ActivityResultLauncher<Intent> approveScan = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        result -> {
+            if (result.getData() == null) {
+                return;
+            }
+            String scanned = result.getData().getStringExtra(QrScanActivity.EXTRA_QR_SCANNER_RESULT);
+            String code = signInCodeOf(scanned);
+            if (code == null) {
+                showError(getString(R.string.wings_account_approve_bad));
+                return;
+            }
+            askToApprove(code);
+        }
+    );
     private View signOutButton;
     private ProgressBar signInProgress;
     private ProgressBar signOutProgress;
@@ -101,7 +132,9 @@ public class FederationAccountActivity extends AppCompatActivity {
         avatar = findViewById(R.id.federation_avatar);
 
         findViewById(R.id.federation_sign_in).setOnClickListener(v -> signIn());
-        findViewById(R.id.federation_sign_in_matrix).setOnClickListener(v -> openBrowserLogin());
+        findViewById(R.id.federation_sign_in_browser).setOnClickListener(v -> openBrowserLogin());
+        approveQr = findViewById(R.id.federation_approve_qr);
+        approveQr.setOnClickListener(v -> openApproveScanner());
         findViewById(R.id.federation_sign_out).setOnClickListener(v -> signOut());
         findViewById(R.id.federation_row_subscription).setOnClickListener(v ->
             startActivity(FederationSubscriptionActivity.createIntent(this))
@@ -129,7 +162,7 @@ public class FederationAccountActivity extends AppCompatActivity {
         handleCode(intent);
     }
 
-    /** Возврат из браузера после входа через Matrix приносит одноразовый код */
+    /** Возврат из браузера после входа приносит одноразовый код */
     private void handleCode(@Nullable Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data != null) {
@@ -164,7 +197,9 @@ public class FederationAccountActivity extends AppCompatActivity {
         setSigningIn(true);
         submit(() -> {
             try {
-                FederationAccount.Session session = FederationAccount.signIn(this, user, pass, secondFactor);
+                // Сперва учётка: переехавшим панельный пароль уже не подходит, а
+                // не переехавшим не подходит учётка - разбирается панель, не человек
+                FederationAccount.Session session = signInEitherDoor(user, pass, secondFactor);
                 FederationAccount.store(this, session);
                 runOnUiThread(() -> {
                     setSigningIn(false);
@@ -180,6 +215,7 @@ public class FederationAccountActivity extends AppCompatActivity {
                     }
                 });
             } catch (FederationAccount.SecondFactorRequired needsCode) {
+                accountTicket = needsCode.getMessage();
                 runOnUiThread(() -> {
                     setSigningIn(false);
                     code.setVisibility(View.VISIBLE);
@@ -230,6 +266,81 @@ public class FederationAccountActivity extends AppCompatActivity {
             try {
                 FederationAccount.redeemInvite(this, code);
                 runOnUiThread(() -> Toast.makeText(this, R.string.invite_scan_done, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                showError(error.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Вход одной формой: сначала учёткой, потом панельным паролём.
+     *
+     * <p>Порядок именно такой, потому что панель переезжает на общий вход: у
+     * переехавшего свой пароль больше не работает, и спрашивать человека, какую
+     * дверь он хочет, это перекладывать нашу кухню на него.
+     */
+    private FederationAccount.Session signInEitherDoor(String user, String pass, String secondFactor) throws Exception {
+        if (!TextUtils.isEmpty(accountTicket)) {
+            String ticket = accountTicket;
+            accountTicket = "";
+            return FederationAccount.signInWithAccount(this, user, pass, ticket, secondFactor);
+        }
+        try {
+            return FederationAccount.signInWithAccount(this, user, pass, null, secondFactor);
+        } catch (FederationAccount.SecondFactorRequired needsCode) {
+            throw needsCode;
+        } catch (Exception accountFailed) {
+            // Учётка не приняла - остаётся панельный пароль. Ошибку покажет он,
+            // если тоже не подойдёт: две подряд человеку читать незачем
+            return FederationAccount.signIn(this, user, pass, secondFactor);
+        }
+    }
+
+    private void openApproveScanner() {
+        approveScan.launch(QrScanActivity.Companion.createIntent(this, getString(R.string.qr_scan_title)));
+    }
+
+    /** Ссылка входа вида panel/link/CODE. Чужой QR сюда попасть не должен */
+    @Nullable
+    private String signInCodeOf(@Nullable String scanned) {
+        if (TextUtils.isEmpty(scanned)) {
+            return null;
+        }
+        String prefix = FederationAccount.panelUrl(this) + "/link/";
+        if (!scanned.startsWith(prefix)) {
+            return null;
+        }
+        String code = scanned.substring(prefix.length()).trim();
+        return TextUtils.isEmpty(code) ? null : code;
+    }
+
+    /** Показываем, кого впускаем: QR со стороны это чужой QR */
+    private void askToApprove(String code) {
+        submit(() -> {
+            try {
+                JSONObject pending = FederationAccount.qrPending(this, code);
+                String from = pending.optString("from_ip", "");
+                runOnUiThread(() ->
+                    new AlertDialog.Builder(this)
+                        .setTitle(R.string.wings_account_approve_title)
+                        .setMessage(getString(R.string.wings_account_approve_body, from))
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .setPositiveButton(R.string.wings_account_approve_yes, (dialog, which) -> approve(code))
+                        .show()
+                );
+            } catch (Exception error) {
+                showError(error.getMessage());
+            }
+        });
+    }
+
+    private void approve(String code) {
+        submit(() -> {
+            try {
+                FederationAccount.qrApprove(this, code);
+                runOnUiThread(() ->
+                    Toast.makeText(this, R.string.wings_account_approve_done, Toast.LENGTH_LONG).show()
+                );
             } catch (Exception error) {
                 showError(error.getMessage());
             }

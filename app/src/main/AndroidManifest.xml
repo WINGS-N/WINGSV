@@ -170,7 +170,7 @@
             android:process=":tunnel"
             android:theme="@style/Theme.WINGSV" />
 
-        <!-- Возврат из браузера после входа через Matrix приносит одноразовый код -->
+        <!-- Возврат из браузера после входа приносит одноразовый код -->
         <activity
             android:name=".FederationAccountActivity"
             android:exported="true"

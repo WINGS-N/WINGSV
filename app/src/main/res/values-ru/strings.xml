@@ -1632,7 +1632,13 @@
     <string name="wings_account_login_hint">Логин</string>
     <string name="wings_account_password_hint">Пароль</string>
     <string name="wings_account_sign_in">Войти</string>
-    <string name="wings_account_sign_in_matrix">Войти через Matrix ID</string>
+    <string name="wings_account_sign_in_browser">Войти через браузер</string>
+    <string name="wings_account_approve_qr">Подтвердить вход на компьютере</string>
+    <string name="wings_account_approve_title">Впустить этот компьютер?</string>
+    <string name="wings_account_approve_body">Компьютер с адреса %1$s просит войти вашей учёткой. Вход произойдёт там, а не здесь.</string>
+    <string name="wings_account_approve_yes">Впустить</string>
+    <string name="wings_account_approve_done">Впущено. Вернитесь к компьютеру - там уже вошли.</string>
+    <string name="wings_account_approve_bad">Это не код входа</string>
     <string name="wings_account_sign_out">Выйти</string>
     <string name="wings_account_apply_subscription">Добавить подписку федерации</string>
     <string name="wings_account_nodes">%1$d</string>

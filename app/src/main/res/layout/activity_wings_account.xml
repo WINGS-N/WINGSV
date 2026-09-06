@@ -132,15 +132,14 @@
                 </FrameLayout>
 
                 <androidx.appcompat.widget.AppCompatButton
-                    android:id="@+id/federation_sign_in_matrix"
+                    android:id="@+id/federation_sign_in_browser"
                     style="?android:attr/borderlessButtonStyle"
                     android:layout_width="match_parent"
                     android:layout_height="52dp"
                     android:layout_marginTop="8dp"
-                    android:drawableStart="@drawable/ic_matrix"
                     android:drawablePadding="10dp"
                     android:gravity="center"
-                    android:text="@string/wings_account_sign_in_matrix" />
+                    android:text="@string/wings_account_sign_in_browser" />
             </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
 
             <!-- Шапка профиля: имя слева, аватар справа -->
@@ -492,6 +491,20 @@
                         app:title="@string/federation_row_clients_title" />
                 </dev.oneuiproject.oneui.widget.RoundedLinearLayout>
             </LinearLayout>
+
+            <!-- Телефон впускает компьютер: сканируем код с его экрана -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/federation_approve_qr"
+                android:layout_width="wrap_content"
+                android:layout_height="52dp"
+                android:layout_gravity="center_horizontal"
+                android:minWidth="220dp"
+                android:layout_marginTop="18dp"
+                android:paddingStart="40dp"
+                android:paddingEnd="40dp"
+                android:drawablePadding="10dp"
+                android:text="@string/wings_account_approve_qr"
+                android:visibility="gone" />
 
             <FrameLayout
                 android:layout_width="wrap_content"

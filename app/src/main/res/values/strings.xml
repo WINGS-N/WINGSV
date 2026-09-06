@@ -1633,7 +1633,13 @@
     <string name="wings_account_login_hint">Login</string>
     <string name="wings_account_password_hint">Password</string>
     <string name="wings_account_sign_in">Sign in</string>
-    <string name="wings_account_sign_in_matrix">Sign in with a Matrix ID</string>
+    <string name="wings_account_sign_in_browser">Sign in through the browser</string>
+    <string name="wings_account_approve_qr">Approve a computer sign-in</string>
+    <string name="wings_account_approve_title">Let this computer in?</string>
+    <string name="wings_account_approve_body">A computer at %1$s is asking to sign in with your account. It will sign in there, not here.</string>
+    <string name="wings_account_approve_yes">Let in</string>
+    <string name="wings_account_approve_done">Let in. Go back to the computer, it is already signed in.</string>
+    <string name="wings_account_approve_bad">That code is not a sign-in request</string>
     <string name="wings_account_sign_out">Sign out</string>
     <string name="wings_account_apply_subscription">Add the federation subscription</string>
     <string name="wings_account_nodes">%1$d</string>
