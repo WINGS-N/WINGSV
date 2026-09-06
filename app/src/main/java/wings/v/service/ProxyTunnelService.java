@@ -10393,14 +10393,23 @@ public class ProxyTunnelService extends Service {
      * пропажу расписок ищут вслепую, разбирая хранилище телефона руками
      */
     private void noteReceiptSkip(@Nullable String reason) {
-        if (reason == null) {
+        noteReceiptSkip(reason, reason);
+    }
+
+    /**
+     * То же, но повтор ловится по классу причины, а не по тексту: счётчики в
+     * строке меняются каждый сэмпл, и без этого лог тонет в одной и той же
+     * причине с разными цифрами
+     */
+    private void noteReceiptSkip(@Nullable String kind, @Nullable String reason) {
+        if (reason == null || kind == null) {
             sReceiptSkipReason = null;
             return;
         }
-        if (reason.equals(sReceiptSkipReason)) {
+        if (kind.equals(sReceiptSkipReason)) {
             return;
         }
-        sReceiptSkipReason = reason;
+        sReceiptSkipReason = kind;
         appendRuntimeLogLine(reason);
     }
 

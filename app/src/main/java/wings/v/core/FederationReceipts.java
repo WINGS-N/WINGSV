@@ -30,6 +30,7 @@ public final class FederationReceipts {
      * разных причин, и отличить "окно ещё идёт" от "подпись не собралась"
      * нельзя */
     private static volatile String sSkip = "";
+    private static volatile String sSkipKind = "";
 
     private FederationReceipts() {}
 
@@ -38,7 +39,13 @@ public final class FederationReceipts {
         return sSkip;
     }
 
-    private static JSONObject skip(String reason) {
+    /** Класс последнего пустого сбора: по нему лог отсеивает повторы */
+    public static String lastSkipKind() {
+        return sSkipKind;
+    }
+
+    private static JSONObject skip(String kind, String reason) {
+        sSkipKind = kind;
         sSkip = reason;
         return null;
     }
@@ -82,21 +89,21 @@ public final class FederationReceipts {
     ) {
         String clientId = FederationAccount.subjectId(context);
         if (TextUtils.isEmpty(clientId) || TextUtils.isEmpty(nodeId)) {
-            return skip("no ids, client=[" + clientId + "] node=[" + nodeId + "]");
+            return skip("no-ids", "no ids, client=[" + clientId + "] node=[" + nodeId + "]");
         }
         // Окно не прошло - выходим сразу, не дёргая ядро: сэмплер бежит по
         // несколько раз в секунду, и лезть к нему за счётчиками так часто незачем
         Mark mark = readMark(context);
         long since = System.currentTimeMillis() - mark.atMs;
         if (mark.atMs > 0 && since < WINDOW_MS) {
-            return skip("window open, " + (WINDOW_MS - since) / 1000L + "s left");
+            return skip("window", "window open, " + (WINDOW_MS - since) / 1000L + "s left");
         }
         long uplink = uplinkTotal;
         long downlink = downlinkTotal;
         // Счётчика, которого ещё нет, ядро отдаёт ошибкой, а не нулём. Принять
         // это за обнуление - значит выписать расписку на весь трафик заново
         if (uplink < 0 || downlink < 0) {
-            return skip("counters unavailable");
+            return skip("counters", "counters unavailable");
         }
 
         long now = System.currentTimeMillis();
@@ -107,12 +114,12 @@ public final class FederationReceipts {
         // поэтому пере-базируемся и ждём следующего окна
         if (upDelta < 0 || downDelta < 0) {
             writeMark(context, uplink, downlink, now);
-            return skip("counters restarted, rebased to up=" + uplink + " down=" + downlink);
+            return skip("rebase", "counters restarted, rebased to up=" + uplink + " down=" + downlink);
         }
         long start = previous.atMs > 0 ? previous.atMs : now;
         writeMark(context, uplink, downlink, now);
         if (upDelta + downDelta < MIN_BYTES) {
-            return skip("below the floor, up=" + upDelta + " down=" + downDelta);
+            return skip("floor", "below the floor, up=" + upDelta + " down=" + downDelta);
         }
 
         String nonce = newNonce();
@@ -130,7 +137,7 @@ public final class FederationReceipts {
             downDelta
         );
         if (signature == null) {
-            return skip("no signing key, cannot sign");
+            return skip("no-key", "no signing key, cannot sign");
         }
         try {
             JSONObject receipt = new JSONObject();
@@ -144,9 +151,10 @@ public final class FederationReceipts {
             receipt.put("nonce", nonce);
             receipt.put("signature", signature);
             sSkip = "";
+            sSkipKind = "";
             return receipt;
         } catch (Exception error) {
-            return skip("receipt build failed: " + error);
+            return skip("broken", "receipt build failed: " + error);
         }
     }
 
@@ -184,9 +192,11 @@ public final class FederationReceipts {
             // никогда, а выглядит это как молчание клиента
             String stored = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_RECEIPT_MARK, "");
             if (!encoded.equals(stored)) {
+                sSkipKind = "mark";
                 sSkip = "mark did not stick, stored=" + stored;
             }
         } catch (Exception error) {
+            sSkipKind = "mark";
             sSkip = "mark write failed: " + error;
         }
     }
