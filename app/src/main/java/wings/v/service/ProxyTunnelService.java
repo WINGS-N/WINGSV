@@ -365,6 +365,11 @@ public class ProxyTunnelService extends Service {
     private static final String ROOT_BYPASS_MARK_CHAIN = "wingsv_bypass_mark";
     private static final String ROOT_TETHER_IPV6_CHAIN = "wingsv_t6_fwd";
     private static final String TAG = "WINGSV";
+
+    /** Последняя причина, по которой расписка не собралась: пишем её на смену, а не на каждый сэмпл */
+    @Nullable
+    private static volatile String sReceiptSkipReason;
+
     private static final Pattern ACTIVE_TETHER_DUMPSYS_PATTERN = Pattern.compile(
         "^([^\\s]+) - TetheredState - lastError = \\d+$"
     );
@@ -10337,21 +10342,66 @@ public class ProxyTunnelService extends Service {
     private void collectFederationReceipt(Context context, String activeProfileId) {
         XrayStatsClient stats = xrayStats();
         if (stats == null) {
+            noteReceiptSkip("receipts: xray counters are unavailable");
             return;
         }
         XrayProfile profile = XrayStore.getActiveProfile(context);
         if (profile == null || !activeProfileId.equals(profile.id)) {
+            noteReceiptSkip("receipts: the active profile changed mid-sample");
             return;
         }
         if (!FederationSubscription.ID.equals(profile.subscriptionId)) {
+            noteReceiptSkip("receipts: profile is not from the federation subscription, nothing to sign");
             return;
         }
-        JSONObject receipt = FederationReceipts.collect(context, stats, profile.address, "xray");
+        // Счётчики снимаем тут, а не внутри сбора: отрицательное значение это
+        // отказ ядра, и без обоих чисел в логе причину не отличить от "окно ещё
+        // идёт". Ошибку клиента читать бесполезно - удачное второе чтение её
+        // затирает
+        long uplink = stats.readUplinkBytes();
+        long downlink = stats.readDownlinkBytes();
+        if (uplink < 0 || downlink < 0) {
+            noteReceiptSkip("receipts: xray counters unavailable (up=" + uplink + " down=" + downlink + ")");
+            return;
+        }
+        JSONObject receipt = FederationReceipts.collect(context, uplink, downlink, profile.address, "xray");
         if (receipt == null) {
+            noteReceiptSkip(
+                "receipts: " + FederationReceipts.lastSkip() + " (up=" + uplink + " down=" + downlink + ")"
+            );
             return;
         }
+        noteReceiptSkip(null);
+        appendRuntimeLogLine(
+            "Receipt signed for " +
+                profile.address +
+                ", up " +
+                receipt.optLong("payload_up_bytes") +
+                " B, down " +
+                receipt.optLong("payload_down_bytes") +
+                " B"
+        );
         FederationReceiptQueue.add(context, receipt);
         flushFederationReceipts(context, "fed-receipt");
+    }
+
+    /**
+     * Пишет причину, по которой расписка не собралась, один раз на смену причины.
+     *
+     * <p>Сэмплер бежит по несколько раз в секунду, и та же строка в логе каждые
+     * двести миллисекунд топит всё остальное. Молчать тоже нельзя: без причины
+     * пропажу расписок ищут вслепую, разбирая хранилище телефона руками
+     */
+    private void noteReceiptSkip(@Nullable String reason) {
+        if (reason == null) {
+            sReceiptSkipReason = null;
+            return;
+        }
+        if (reason.equals(sReceiptSkipReason)) {
+            return;
+        }
+        sReceiptSkipReason = reason;
+        appendRuntimeLogLine(reason);
     }
 
     /**
@@ -10364,7 +10414,12 @@ public class ProxyTunnelService extends Service {
         new Thread(
             () -> {
                 try {
-                    FederationReceiptQueue.flush(context);
+                    int accepted = FederationReceiptQueue.flush(context);
+                    if (accepted > 0) {
+                        appendRuntimeLogLine("Receipts accepted by the head: " + accepted);
+                    } else {
+                        appendRuntimeLogLine("Receipts were sent but the head accepted none");
+                    }
                 } catch (Exception error) {
                     // Расписка осталась в очереди и уедет со следующим окном:
                     // терять её нельзя, ноду накажут за наш обосранный интернет
@@ -10386,6 +10441,7 @@ public class ProxyTunnelService extends Service {
     private void collectVkTurnReceipt(Context context, String activeProfileId) {
         VkTurnProfile profile = VkTurnProfileStore.getActiveProfile(context);
         if (profile == null || !activeProfileId.equals(profile.id) || !profile.isSettingsManaged()) {
+            noteReceiptSkip("receipts: vk turn profile is not from the federation subscription");
             return;
         }
         wings.v.ipc.AppControlClient control = appControlClient;
@@ -10402,12 +10458,24 @@ public class ProxyTunnelService extends Service {
             return;
         }
         if (up == 0L && down == 0L) {
+            noteReceiptSkip("receipts: the relay reported no payload bytes");
             return;
         }
         JSONObject receipt = FederationReceipts.collect(context, up, down, profile.vkTurnEndpoint, "vktp");
         if (receipt == null) {
+            noteReceiptSkip("receipts: window still open or the relay counters gave no delta");
             return;
         }
+        noteReceiptSkip(null);
+        appendRuntimeLogLine(
+            "Receipt signed for " +
+                profile.vkTurnEndpoint +
+                ", up " +
+                receipt.optLong("payload_up_bytes") +
+                " B, down " +
+                receipt.optLong("payload_down_bytes") +
+                " B"
+        );
         FederationReceiptQueue.add(context, receipt);
         flushFederationReceipts(context, "fed-receipt-vktp");
     }
