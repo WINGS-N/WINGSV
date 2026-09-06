@@ -17,6 +17,16 @@ public final class FederationSubscription {
     /** Идентификатор один на всё приложение: подписка федерации ровно одна */
     public static final String ID = "wingsvpn-federation";
 
+    /**
+     * Как часто перечитывать выдачу.
+     *
+     * <p>Общий дефолт в сутки для федерации не годится: ноды переезжают между
+     * портами, уходят в карантин и меняются ротацией, и человек с суточным
+     * профилем узнаёт об этом последним. Один HTTP-запрос в полчаса не стоит
+     * ничего ни батарее, ни трафику.
+     */
+    private static final int REFRESH_MINUTES = 30;
+
     private FederationSubscription() {}
 
     /** Заводит подписку или обновляет её адрес, ничего не дублируя */
@@ -37,7 +47,7 @@ public final class FederationSubscription {
                 context.getString(wings.v.R.string.wings_account_title),
                 url,
                 "auto",
-                0,
+                REFRESH_MINUTES,
                 true,
                 0L,
                 0L,
