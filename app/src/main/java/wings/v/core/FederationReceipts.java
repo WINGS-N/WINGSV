@@ -26,7 +26,22 @@ public final class FederationReceipts {
     /** Меньше этого за окно - не расписка, а шум, нехуй гонять его наверх */
     private static final long MIN_BYTES = 64 * 1024L;
 
+    /** Почему прошлый сбор ничего не отдал. Иначе в логе одна строка на шесть
+     * разных причин, и отличить "окно ещё идёт" от "подпись не собралась"
+     * нельзя */
+    private static volatile String sSkip = "";
+
     private FederationReceipts() {}
+
+    /** Причина последнего пустого сбора, для рантайм-лога */
+    public static String lastSkip() {
+        return sSkip;
+    }
+
+    private static JSONObject skip(String reason) {
+        sSkip = reason;
+        return null;
+    }
 
     /** Показания на конец прошлого окна */
     private static final class Mark {
@@ -65,23 +80,23 @@ public final class FederationReceipts {
         @NonNull String nodeId,
         @NonNull String transport
     ) {
-        String clientId = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_SUBJECT_ID, "");
+        String clientId = FederationAccount.subjectId(context);
         if (TextUtils.isEmpty(clientId) || TextUtils.isEmpty(nodeId)) {
-            return null;
+            return skip("no ids, client=[" + clientId + "] node=[" + nodeId + "]");
         }
         // Окно не прошло - выходим сразу, не дёргая ядро: сэмплер бежит по
         // несколько раз в секунду, и лезть к нему за счётчиками так часто незачем
         Mark mark = readMark(context);
         long since = System.currentTimeMillis() - mark.atMs;
         if (mark.atMs > 0 && since < WINDOW_MS) {
-            return null;
+            return skip("window open, " + (WINDOW_MS - since) / 1000L + "s left");
         }
         long uplink = uplinkTotal;
         long downlink = downlinkTotal;
         // Счётчика, которого ещё нет, ядро отдаёт ошибкой, а не нулём. Принять
         // это за обнуление - значит выписать расписку на весь трафик заново
         if (uplink < 0 || downlink < 0) {
-            return null;
+            return skip("counters unavailable");
         }
 
         long now = System.currentTimeMillis();
@@ -92,12 +107,12 @@ public final class FederationReceipts {
         // поэтому пере-базируемся и ждём следующего окна
         if (upDelta < 0 || downDelta < 0) {
             writeMark(context, uplink, downlink, now);
-            return null;
+            return skip("counters restarted, rebased to up=" + uplink + " down=" + downlink);
         }
         long start = previous.atMs > 0 ? previous.atMs : now;
         writeMark(context, uplink, downlink, now);
         if (upDelta + downDelta < MIN_BYTES) {
-            return null;
+            return skip("below the floor, up=" + upDelta + " down=" + downDelta);
         }
 
         String nonce = newNonce();
@@ -115,7 +130,7 @@ public final class FederationReceipts {
             downDelta
         );
         if (signature == null) {
-            return null;
+            return skip("no signing key, cannot sign");
         }
         try {
             JSONObject receipt = new JSONObject();
@@ -128,9 +143,10 @@ public final class FederationReceipts {
             receipt.put("payload_down_bytes", downDelta);
             receipt.put("nonce", nonce);
             receipt.put("signature", signature);
+            sSkip = "";
             return receipt;
         } catch (Exception error) {
-            return null;
+            return skip("receipt build failed: " + error);
         }
     }
 
@@ -162,9 +178,16 @@ public final class FederationReceipts {
             json.put("up", uplink);
             json.put("down", downlink);
             json.put("at", atMs);
-            AppPrefs.prefs(context).edit().putString(AppPrefs.KEY_FEDERATION_RECEIPT_MARK, json.toString()).apply();
-        } catch (Exception ignored) {
-            // Не записалось - следующее окно само пере-базируется, хуй с ним
+            String encoded = json.toString();
+            AppPrefs.prefs(context).edit().putString(AppPrefs.KEY_FEDERATION_RECEIPT_MARK, encoded).commit();
+            // Метка это вся память об окне: не записалась - расписка не соберётся
+            // никогда, а выглядит это как молчание клиента
+            String stored = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_RECEIPT_MARK, "");
+            if (!encoded.equals(stored)) {
+                sSkip = "mark did not stick, stored=" + stored;
+            }
+        } catch (Exception error) {
+            sSkip = "mark write failed: " + error;
         }
     }
 
