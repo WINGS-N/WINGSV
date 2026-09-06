@@ -99,6 +99,31 @@ public final class FederationAccount {
         return AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_USERNAME, "");
     }
 
+    /**
+     * Наш идентификатор в федерации.
+     *
+     * <p>Отдельный ключ обновляется только на заходе за доступом, а туда ходит
+     * один экран аккаунта. Кто на него не заходил, оставался без имени, и
+     * расписки за его трафик не подписывались вообще. Поэтому при пустом ключе
+     * достаём имя из последнего ответа панели и запоминаем
+     */
+    public static String subjectId(@NonNull Context context) {
+        String stored = AppPrefs.prefs(context).getString(AppPrefs.KEY_FEDERATION_SUBJECT_ID, "");
+        if (!TextUtils.isEmpty(stored)) {
+            return stored;
+        }
+        JSONObject cached = cachedSection(context, AppPrefs.KEY_FEDERATION_ACCESS_CACHE);
+        if (cached == null) {
+            return "";
+        }
+        String fromCache = cached.optString("federation_id", "");
+        if (TextUtils.isEmpty(fromCache)) {
+            return "";
+        }
+        rememberSubject(context, fromCache);
+        return fromCache;
+    }
+
     public static boolean isSignedIn(@NonNull Context context) {
         return !TextUtils.isEmpty(token(context));
     }

@@ -47,6 +47,21 @@ public final class XraySubscriptionUpdater {
 
     private XraySubscriptionUpdater() {}
 
+    /**
+     * Перечитывает доступ вместе с подпиской федерации.
+     *
+     * <p>Оттуда приезжает наш идентификатор в федерации, а без него расписки не
+     * подписываются. Ходил за ним один экран аккаунта, так что не открывший его
+     * молча копил неподписанный трафик
+     */
+    private static void refreshFederationAccess(Context context) {
+        try {
+            FederationAccount.access(context);
+        } catch (Exception ignored) {
+            // Панель недоступна - подписку это не отменяет
+        }
+    }
+
     public static RefreshResult refreshAll(Context context) throws Exception {
         return refreshAll(context, null);
     }
@@ -119,11 +134,11 @@ public final class XraySubscriptionUpdater {
                 listener.onSubscriptionStarted(subscription);
             }
             try {
-                FetchResult fetched = fetch(
-                    context,
-                    subscription.url,
-                    FederationSubscription.ID.equals(subscription.id)
-                );
+                boolean federation = FederationSubscription.ID.equals(subscription.id);
+                if (federation) {
+                    refreshFederationAccess(context);
+                }
+                FetchResult fetched = fetch(context, subscription.url, federation);
                 Map<String, String> reuseIds = existingIdsBySubAndKey.get(subscription.id);
                 List<XrayProfile> parsed = WingsImportParser.extractXrayProfilesFromSubscriptionBody(
                     fetched.body,
