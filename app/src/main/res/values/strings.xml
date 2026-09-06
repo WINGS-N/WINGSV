@@ -1650,9 +1650,9 @@
     <string name="wings_account_code_hint">Code from your authenticator</string>
     <string name="wings_account_sign_in_title">Sign in to WINGS V</string>
     <string name="wings_account_nodes_caption">servers assigned</string>
-    <string name="wings_account_traffic_caption">carried</string>
+    <string name="wings_account_traffic_caption">Available</string>
     <string name="wings_account_traffic_of">%1$s / %2$s</string>
-    <string name="wings_account_traffic_unlimited">no cap</string>
+    <string name="wings_account_traffic_unlimited">∞</string>
     <string name="wings_account_subscription_title">Subscription</string>
     <string name="wings_account_trust_full">full access</string>
     <string name="wings_account_trust_reduced">reduced access</string>
@@ -1666,7 +1666,6 @@
     <string name="federation_row_subscription_title">Subscription</string>
     <string name="federation_row_subscription_summary">The link the app updates itself from</string>
     <string name="wings_account_signing_in">Signing in...</string>
-    <string name="wings_account_period_caption">this month</string>
     <string name="wings_account_subscription_copy">Copy the link</string>
     <string name="wings_account_subscription_copied">Link copied</string>
     <string name="federation_row_profile_title">Profile information</string>

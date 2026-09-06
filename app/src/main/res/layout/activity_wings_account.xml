@@ -268,13 +268,6 @@
                             android:textColor="?android:textColorPrimary"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="@string/wings_account_period_caption"
-                            android:textAppearance="?android:attr/textAppearanceSmall"
-                            android:textColor="?android:textColorSecondary" />
                     </LinearLayout>
                 </LinearLayout>
 

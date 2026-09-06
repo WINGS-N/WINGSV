@@ -822,6 +822,9 @@ public class MainActivity extends AppCompatActivity {
         if (intent == null) {
             return;
         }
+        if (routeAccountLink(intent)) {
+            return;
+        }
 
         String rawData = extractImportLink(intent);
         if (TextUtils.isEmpty(rawData)) {
@@ -1016,6 +1019,32 @@ public class MainActivity extends AppCompatActivity {
         if (hasProfilesTab != nextHasProfilesTab || hasSharingTab != nextHasSharingTab) {
             rebuildNavigationStateInPlace(currentTabId, nextHasProfilesTab, nextHasSharingTab);
         }
+    }
+
+    /**
+     * Уводит ссылки аккаунта на их экран.
+     *
+     * <p>Схему ловит только эта активность: когда её ловили две, андроид на
+     * каждый переход из браузера спрашивал, каким из двух WINGS V открыть, и в
+     * списке два раза стояло одно и то же приложение.
+     */
+    private boolean routeAccountLink(@NonNull Intent intent) {
+        Uri data = intent.getData();
+        if (data == null || !"wingsv".equalsIgnoreCase(data.getScheme())) {
+            return false;
+        }
+        String host = data.getHost();
+        if (!"account".equalsIgnoreCase(host) && !"invite".equalsIgnoreCase(host)) {
+            return false;
+        }
+        Intent account = new Intent(this, FederationAccountActivity.class);
+        account.setAction(Intent.ACTION_VIEW);
+        account.setData(data);
+        startActivity(account);
+        // Данные сожраны: без сброса тот же интент разберётся ещё раз при
+        // возврате на экран
+        setIntent(new Intent(this, MainActivity.class));
+        return true;
     }
 
     @Nullable

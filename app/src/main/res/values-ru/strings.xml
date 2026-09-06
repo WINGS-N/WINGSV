@@ -1649,9 +1649,9 @@
     <string name="wings_account_code_hint">Код из аутентификатора</string>
     <string name="wings_account_sign_in_title">Вход в WINGS V</string>
     <string name="wings_account_nodes_caption">серверов выдано</string>
-    <string name="wings_account_traffic_caption">передано</string>
+    <string name="wings_account_traffic_caption">Доступно</string>
     <string name="wings_account_traffic_of">%1$s / %2$s</string>
-    <string name="wings_account_traffic_unlimited">без лимита</string>
+    <string name="wings_account_traffic_unlimited">∞</string>
     <string name="wings_account_subscription_title">Подписка</string>
     <string name="wings_account_trust_full">полный доступ</string>
     <string name="wings_account_trust_reduced">урезанный доступ</string>
@@ -1665,7 +1665,6 @@
     <string name="federation_row_subscription_title">Подписка</string>
     <string name="federation_row_subscription_summary">Ссылка, по которой приложение обновляется само</string>
     <string name="wings_account_signing_in">Входим...</string>
-    <string name="wings_account_period_caption">за месяц</string>
     <string name="wings_account_subscription_copy">Скопировать ссылку</string>
     <string name="wings_account_subscription_copied">Ссылка скопирована</string>
     <string name="federation_row_profile_title">Информация профиля</string>

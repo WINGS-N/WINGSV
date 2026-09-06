@@ -171,19 +171,12 @@
             android:theme="@style/Theme.WINGSV" />
 
         <!-- Возврат из браузера после входа приносит одноразовый код -->
+        <!-- Схему ловит только MainActivity и сама уводит сюда: с двумя
+             обработчиками андроид спрашивал, каким из двух WINGS V открыть -->
         <activity
             android:name=".FederationAccountActivity"
-            android:exported="true"
-            android:launchMode="singleTop">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="wingsv" android:host="account" />
-                <!-- Кнопка в панели: код приглашения приезжает прямо на этот экран -->
-                <data android:scheme="wingsv" android:host="invite" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:launchMode="singleTop" />
 
         <activity
             android:name=".FederationSubscriptionActivity"

@@ -83,7 +83,6 @@ public class FederationAccountActivity extends AppCompatActivity {
     private TextView nodes;
     private TextView nodesMeta;
     private TextView traffic;
-    private TextView trafficMeta;
     private View quotaBar;
     private ProgressBar quotaProgress;
     private TextView quotaText;
@@ -123,7 +122,6 @@ public class FederationAccountActivity extends AppCompatActivity {
         nodes = findViewById(R.id.federation_nodes);
         nodesMeta = findViewById(R.id.federation_nodes_meta);
         traffic = findViewById(R.id.federation_traffic);
-        trafficMeta = findViewById(R.id.federation_traffic_caption);
         quotaBar = findViewById(R.id.federation_quota_bar);
         quotaProgress = findViewById(R.id.federation_quota_progress);
         quotaText = findViewById(R.id.federation_quota);
@@ -460,21 +458,21 @@ public class FederationAccountActivity extends AppCompatActivity {
                 break;
             }
         }
-        if (cap > 0L) {
-            traffic.setText(getString(R.string.wings_account_traffic_of, used, UiFormatter.formatBytes(this, cap)));
-            trafficMeta.setText(R.string.wings_account_traffic_caption);
-            applyQuotaBar(access.usedBytes, cap);
-            return;
-        }
-        traffic.setText(used);
-        trafficMeta.setText(R.string.wings_account_traffic_unlimited);
-        quotaBar.setVisibility(View.GONE);
+        // Плитка читается одинаково при любом потолке: сколько прошло из скольки.
+        // Безлимит это тоже потолок, просто бесконечный, и прятать из-за него
+        // полосу незачем - человек всё равно хочет видеть свой расход
+        String limit =
+            cap > 0L ? UiFormatter.formatBytes(this, cap) : getString(R.string.wings_account_traffic_unlimited);
+        traffic.setText(getString(R.string.wings_account_traffic_of, used, limit));
+        applyQuotaBar(access.usedBytes, cap);
     }
 
     /** Полоса потолка: показывает ОСТАТОК и красится по нему, как у подписок */
     private void applyQuotaBar(long usedBytes, long cap) {
         quotaBar.setVisibility(View.VISIBLE);
-        double remaining = Math.max(0d, (double) (cap - usedBytes) / (double) cap);
+        // Без потолка остаток всегда полный: делить на ноль нечего, а пустая
+        // полоса врала бы, будто человек всё выбрал
+        double remaining = cap > 0L ? Math.max(0d, (double) (cap - usedBytes) / (double) cap) : 1d;
         quotaProgress.setProgress((int) Math.round(remaining * 1000));
         quotaProgress.setProgressTintList(android.content.res.ColorStateList.valueOf(getColor(quotaColor(remaining))));
         // Формат тот же, что у подписок: сколько прошло из скольки. "Осталось X"
@@ -483,7 +481,7 @@ public class FederationAccountActivity extends AppCompatActivity {
             getString(
                 R.string.xray_profiles_subscription_quota_used,
                 UiFormatter.formatBytes(this, usedBytes),
-                UiFormatter.formatBytes(this, cap)
+                cap > 0L ? UiFormatter.formatBytes(this, cap) : getString(R.string.wings_account_traffic_unlimited)
             )
         );
     }
