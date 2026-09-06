@@ -63,6 +63,17 @@ jobs:
             ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}-
             ${{ runner.os }}-vkturn-go-
 
+      # Geo-базы ядра качаются заново каждой сборкой, без таймаута и с тремя
+      # заходами retry: это самая долгая и самая хрупкая часть сборки libXray
+      - name: Restore Xray-core geo databases
+        uses: actions/cache/restore@v5
+        with:
+          path: .gradle/libxray/dat
+          key: ${{ runner.os }}-xraycore-geo-${{ hashFiles('external/Xray-core/go.mod') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-xraycore-geo-${{ hashFiles('external/Xray-core/go.mod') }}-
+            ${{ runner.os }}-xraycore-geo-
+
       - name: Restore libXray Go build state
         uses: actions/cache/restore@v5
         with:
@@ -71,9 +82,9 @@ jobs:
             .gradle/libxray/go-cache
             .gradle/libxray/go-path
             .gradle/libxray/go-bin
-          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py', 'external/Xray-core/go.mod', 'external/Xray-core/go.sum') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}-
+            ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py', 'external/Xray-core/go.mod', 'external/Xray-core/go.sum') }}-
             ${{ runner.os }}-libxray-go-
 
       - name: Set up Android SDK
@@ -154,6 +165,13 @@ jobs:
             .gradle/vkturn/go-cache
           key: ${{ runner.os }}-vkturn-go-${{ hashFiles('external/vk-turn-proxy/go.sum') }}-${{ github.run_id }}
 
+      - name: Save Xray-core geo databases
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: .gradle/libxray/dat
+          key: ${{ runner.os }}-xraycore-geo-${{ hashFiles('external/Xray-core/go.mod') }}-${{ github.run_id }}
+
       - name: Save libXray Go build state
         if: always()
         uses: actions/cache/save@v5
@@ -163,7 +181,7 @@ jobs:
             .gradle/libxray/go-cache
             .gradle/libxray/go-path
             .gradle/libxray/go-bin
-          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-libxray-go-${{ hashFiles('external/libXray/go.mod', 'external/libXray/go.sum', 'external/libXray/build/**/*.py', 'external/Xray-core/go.mod', 'external/Xray-core/go.sum') }}-${{ github.run_id }}
 
       - name: Build release patch
         id: build-patch
