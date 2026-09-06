@@ -346,7 +346,12 @@ public class FederationAccountActivity extends AppCompatActivity {
     }
 
     private void openBrowserLogin() {
-        Uri target = Uri.parse(FederationAccount.panelUrl(this) + "/app/link");
+        // Модель едет с собой: на экране согласия человек обязан видеть, какое
+        // устройство просит доступ, иначе он разрешает непонятно кому
+        Uri target = Uri.parse(FederationAccount.panelUrl(this) + "/app/link")
+            .buildUpon()
+            .appendQueryParameter("device", android.os.Build.MODEL)
+            .build();
         startActivity(new Intent(Intent.ACTION_VIEW, target));
     }
 
