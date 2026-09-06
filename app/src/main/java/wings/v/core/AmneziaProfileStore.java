@@ -388,6 +388,13 @@ public final class AmneziaProfileStore {
         result.addAll(fetchedByKey.values());
         setProfiles(context, result);
         ensureActivePresent(context);
+        // Плоские ключи читает рантайм, и без проекции обновлённый профиль лежит
+        // в сторе, а туннель поднимается по прежнему адресу - до тех пор, пока
+        // человек не переключит профиль руками
+        AmneziaProfile active = getActiveProfile(context);
+        if (active != null && TextUtils.equals(subId, active.subscriptionId)) {
+            applyActiveToPrefs(context);
+        }
     }
 
     /** Distinct non-empty source subscription ids present in the stored profiles. */
