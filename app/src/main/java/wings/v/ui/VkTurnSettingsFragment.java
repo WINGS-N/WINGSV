@@ -40,6 +40,28 @@ import wings.v.service.ProxyTunnelService;
 public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
 
     private static final int SECRET_PREVIEW_PLAIN_LENGTH = 12;
+    private static final String KEY_VK_CLEAR_COOKIES = "pref_vk_clear_cookies";
+
+    /**
+     * Что остаётся в руках человека даже на выданном профиле.
+     *
+     * <p>Сервер держит связь, а это ручки про поведение на телефоне: как проходить
+     * капчу, каким аккаунтом представляться и через какой резолвер ходить. Заперев
+     * их, мы оставляем человека без выхода ровно в тот момент, когда у него не
+     * пускает капча
+     */
+    private static final Set<String> MANAGED_EDITABLE_KEYS = new java.util.HashSet<>(
+        java.util.Arrays.asList(
+            AppPrefs.KEY_THREADS,
+            AppPrefs.KEY_CREDS_GROUP_SIZE,
+            AppPrefs.KEY_MANUAL_CAPTCHA,
+            AppPrefs.KEY_CAPTCHA_AUTO_SOLVER,
+            AppPrefs.KEY_VK_AUTH_MODE,
+            KEY_VK_CLEAR_COOKIES,
+            AppPrefs.KEY_DNS_MODE,
+            AppPrefs.KEY_VK_TURN_USER_DNS
+        )
+    );
     private static final String[] TURN_PROXY_PREFERENCE_KEYS = {
         AppPrefs.KEY_VK_TURN_RUNTIME_MODE,
         AppPrefs.KEY_ENDPOINT,
@@ -249,6 +271,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         setPreferencesFromResource(R.xml.vk_turn_preferences, rootKey);
         bindNumericPreference(AppPrefs.KEY_THREADS);
         bindNumericPreference(AppPrefs.KEY_CREDS_GROUP_SIZE);
+        bindManagedFloor(AppPrefs.KEY_THREADS, AppPrefs.MANAGED_MIN_THREADS);
+        bindManagedFloor(AppPrefs.KEY_CREDS_GROUP_SIZE, AppPrefs.MANAGED_MIN_CREDS_GROUP_SIZE);
         bindNumericPreference(AppPrefs.KEY_WG_MTU);
         bindNumericPreference(AmneziaStore.KEY_INTERFACE_LISTEN_PORT);
         bindNumericPreference(AmneziaStore.KEY_INTERFACE_MTU);
@@ -369,6 +393,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 lockGroup((PreferenceGroup) preference);
                 continue;
             }
+            if (MANAGED_EDITABLE_KEYS.contains(preference.getKey())) {
+                continue;
+            }
             preference.setEnabled(false);
         }
     }
@@ -382,6 +409,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AmneziaStore.maybeBackfillStructuredPrefs(requireContext());
         syncFromStore();
         refreshBackendSections();
+        lockManagedProfileSettings();
     }
 
     @Override
@@ -588,7 +616,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void bindClearVkCookiesPreference() {
-        Preference preference = findPreference("pref_vk_clear_cookies");
+        Preference preference = findPreference(KEY_VK_CLEAR_COOKIES);
         if (preference == null) {
             return;
         }
@@ -605,7 +633,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     // The clear-cookies button only makes sense inside a VK TURN relay section with
     // VK ID auth enabled, so its visibility tracks both.
     private void setClearVkCookiesVisible(boolean authModeEnabled) {
-        Preference button = findPreference("pref_vk_clear_cookies");
+        Preference button = findPreference(KEY_VK_CLEAR_COOKIES);
         if (button != null) {
             button.setVisible(authModeEnabled && isVkTurnRelayActive());
         }
@@ -706,6 +734,44 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             String value = ((EditTextPreference) pref).getText();
             return TextUtils.isEmpty(value) ? getString(R.string.common_not_set) : value;
         });
+    }
+
+    /**
+     * Пол для числа на выданном профиле.
+     *
+     * <p>Опустить ниже дефолта значит выжечь кредлы капчей и остаться без связи,
+     * а сервер потом отвечает за чужую правку
+     */
+    private void bindManagedFloor(String key, int floor) {
+        EditTextPreference preference = findPreference(key);
+        if (preference == null) {
+            return;
+        }
+        preference.setOnPreferenceChangeListener((changedPreference, newValue) -> {
+            if (!isSettingsManagedProfile()) {
+                return true;
+            }
+            int parsed;
+            try {
+                parsed = Integer.parseInt(String.valueOf(newValue).trim());
+            } catch (NumberFormatException error) {
+                parsed = 0;
+            }
+            if (parsed >= floor) {
+                return true;
+            }
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.vk_turn_managed_floor_toast, floor),
+                Toast.LENGTH_SHORT
+            ).show();
+            return false;
+        });
+    }
+
+    private boolean isSettingsManagedProfile() {
+        VkTurnProfile active = VkTurnProfileStore.getActiveProfile(requireContext());
+        return active != null && active.isSettingsManaged();
     }
 
     private void bindListPreference(String key) {

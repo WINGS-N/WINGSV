@@ -1028,6 +1028,7 @@
     <string name="vk_links_summary_count_many">%d links</string>
     <string name="creds_group_size_title">Workers per TURN credential</string>
     <string name="creds_group_size_summary">How many workers share one VK credential. Fewer - more credentials (higher rate-limit ceiling, but more captcha requests). Default is 12.</string>
+    <string name="vk_turn_managed_floor_toast">Not below %1$d on a provisioned profile</string>
     <string name="vk_account_auth_title">Use VK ID</string>
     <string name="vk_account_auth_summary">TURN credentials via VK ID sign-in instead of anonymous mode</string>
     <string name="vk_clear_cookies_title">Delete VK cookies</string>

@@ -1027,6 +1027,7 @@
     <string name="vk_links_summary_count_many">%d ссылок</string>
     <string name="creds_group_size_title">Воркеров на TURN-учётку</string>
     <string name="creds_group_size_summary">Сколько воркеров делят одну VK-учётку. Меньше - больше учёток (выше потолок до rate-limit, но больше captcha-запросов). По умолчанию 12.</string>
+    <string name="vk_turn_managed_floor_toast">Не ниже %1$d на выданном профиле</string>
     <string name="vk_account_auth_title">Использовать VK ID</string>
     <string name="vk_account_auth_summary">TURN-креды через вход по VK ID вместо анонимного режима</string>
     <string name="vk_clear_cookies_title">Удалить cookies VK</string>
