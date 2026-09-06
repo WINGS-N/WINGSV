@@ -10258,17 +10258,34 @@ public class ProxyTunnelService extends Service {
      * Exact per-direction totals straight from Xray, or null when they are not
      * available yet and the caller should fall back.
      */
+    /**
+     * Клиент статистики Xray, поднятый по требованию.
+     *
+     * <p>Раньше он рождался только на пути tproxy, и в обычном VPN-режиме
+     * оставался пустым: расписки федерации тогда не выписывались вовсе, потому
+     * что счётчики брать было не у кого
+     */
+    @Nullable
+    private XrayStatsClient xrayStats() {
+        XrayStatsClient client = xrayStatsClient;
+        if (client != null) {
+            return client;
+        }
+        File socket = XrayConfigFactory.apiSocketFile(getApplicationContext());
+        if (!socket.exists()) {
+            noteXrayStatsUnavailable("api socket was never created: " + socket.getAbsolutePath());
+            return null;
+        }
+        client = new XrayStatsClient(socket.getAbsolutePath());
+        xrayStatsClient = client;
+        return client;
+    }
+
     @Nullable
     private InterfaceTrafficSnapshot readXrayStatsSnapshot() {
-        XrayStatsClient client = xrayStatsClient;
+        XrayStatsClient client = xrayStats();
         if (client == null) {
-            File socket = XrayConfigFactory.apiSocketFile(getApplicationContext());
-            if (!socket.exists()) {
-                noteXrayStatsUnavailable("api socket was never created: " + socket.getAbsolutePath());
-                return null;
-            }
-            client = new XrayStatsClient(socket.getAbsolutePath());
-            xrayStatsClient = client;
+            return null;
         }
         long tx = client.readUplinkBytes();
         long rx = client.readDownlinkBytes();
@@ -10318,7 +10335,7 @@ public class ProxyTunnelService extends Service {
      * ждёт, и слать их туда незачем.
      */
     private void collectFederationReceipt(Context context, String activeProfileId) {
-        XrayStatsClient stats = xrayStatsClient;
+        XrayStatsClient stats = xrayStats();
         if (stats == null) {
             return;
         }
