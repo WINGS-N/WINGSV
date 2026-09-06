@@ -351,6 +351,9 @@ public class FederationAccountActivity extends AppCompatActivity {
         Uri target = Uri.parse(FederationAccount.panelUrl(this) + "/app/link")
             .buildUpon()
             .appendQueryParameter("device", android.os.Build.MODEL)
+            // Ключ, а не имя: имя панель берёт из своего списка, иначе на экране
+            // согласия можно было бы нарисовать любую вывеску
+            .appendQueryParameter("app", "wingsv")
             .build();
         startActivity(new Intent(Intent.ACTION_VIEW, target));
     }
