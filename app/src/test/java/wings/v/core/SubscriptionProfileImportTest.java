@@ -35,7 +35,7 @@ public class SubscriptionProfileImportTest {
             "", "", "", "", "",
             "", false, "preferred", "srtp-aes-gcm", "", true,
             "127.0.0.1:9000", "", "", "sub-1", "Subscription",
-            provisioned, provisioned ? "client-42" : "", provisioned ? "dG9rZW4=" : ""
+            provisioned, provisioned ? "client-42" : "", provisioned ? "746f6b656e" : ""
         );
     }
 
@@ -72,7 +72,34 @@ public class SubscriptionProfileImportTest {
         assertNotNull(entry.vkTurnProfile);
         assertTrue("the profile lost its provisioned flag", entry.vkTurnProfile.wgProvisioned);
         assertEquals("client-42", entry.vkTurnProfile.provisionClientId);
-        assertEquals("dG9rZW4=", entry.vkTurnProfile.provisionToken);
+        // Токен хранится одним видом - hex-строкой, и круг через подписку его не
+        // перекодирует ни во что другое
+        assertEquals("746f6b656e", entry.vkTurnProfile.provisionToken);
+    }
+
+    // Ссылка, выданная до перехода на hex, несёт сырой дайджест: его переводим
+    // сами, иначе модель хранила бы два вида и гадала при каждой отправке
+    @Test
+    public void aRawTokenFromAnOlderLinkBecomesHex() throws Exception {
+        WingsvProto.Config config = baseConfig()
+            .setTurn(
+                WingsvProto.Turn.newBuilder()
+                    .addProfiles(
+                        WingsImportParser.toProtoTurnProfile(turnProfile("free-2", "", true))
+                            .toBuilder()
+                            .setProvisionToken(com.google.protobuf.ByteString.copyFrom(new byte[] {(byte) 0xde, (byte) 0xad}))
+                            .build()
+                    )
+            )
+            .build();
+
+        List<WingsImportParser.ImportedBackendProfile> got =
+            WingsImportParser.extractBackendProfilesFromSubscriptionBody(
+                RuntimeEnvironment.getApplication(), subscriptionBody(config)
+            );
+
+        assertEquals(1, got.size());
+        assertEquals("dead", got.get(0).vkTurnProfile.provisionToken);
     }
 
     // Тело подписки федерации - наш кадр, а не список vless-ссылок. Обычный

@@ -3565,14 +3565,9 @@ public final class WingsImportParser {
                 builder.setProvisionClientId(value(profile.provisionClientId));
             }
             if (!TextUtils.isEmpty(value(profile.provisionToken))) {
-                // The app model holds the raw provision token base64-encoded so it
-                // round-trips any bytes losslessly through JSON; the wire field is
-                // the raw bytes.
-                builder.setProvisionToken(
-                    com.google.protobuf.ByteString.copyFrom(
-                        android.util.Base64.decode(value(profile.provisionToken), android.util.Base64.NO_WRAP)
-                    )
-                );
+                // Токен ездит одним видом - hex-строкой: её же держит модель, её
+                // же байты лежат в поле. Панель и федерация читают одинаково
+                builder.setProvisionToken(com.google.protobuf.ByteString.copyFromUtf8(value(profile.provisionToken)));
             }
         }
         return builder.build();
@@ -3765,13 +3760,43 @@ public final class WingsImportParser {
             value(profile.getSubscriptionTitle()),
             profile.getWgProvisioned(),
             value(profile.getProvisionClientId()),
-            profile.getProvisionToken().isEmpty()
-                ? ""
-                : android.util.Base64.encodeToString(
-                      profile.getProvisionToken().toByteArray(),
-                      android.util.Base64.NO_WRAP
-                  )
+            provisionTokenHex(profile.getProvisionToken().toByteArray())
         );
+    }
+
+    /**
+     * Приводит токен провижна к одному виду - hex-строке.
+     *
+     * <p>Свежая ссылка несёт её байтами и остаётся как есть, а выданная раньше
+     * приезжает сырым дайджестом, и его мы переводим сами. Хранить два вида
+     * значит гадать при каждой отправке, какой из них перед нами
+     */
+    private static String provisionTokenHex(byte[] raw) {
+        if (raw == null || raw.length == 0) {
+            return "";
+        }
+        String text = new String(raw, java.nio.charset.StandardCharsets.US_ASCII);
+        if (isHexToken(text)) {
+            return text;
+        }
+        StringBuilder out = new StringBuilder(raw.length * 2);
+        for (byte b : raw) {
+            out.append(Character.forDigit((b >> 4) & 0xF, 16));
+            out.append(Character.forDigit(b & 0xF, 16));
+        }
+        return out.toString();
+    }
+
+    private static boolean isHexToken(String value) {
+        if (value.length() < 2 || value.length() % 2 != 0) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.digit(value.charAt(i), 16) < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static XraySettings fromProtoXraySettings(WingsvProto.XraySettings settings) {

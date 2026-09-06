@@ -4507,9 +4507,11 @@ public class ProxyTunnelService extends Service {
         if (!appControlGrpcActive || client == null) {
             throw new IllegalStateException("managed VK TURN profile requires the AppControl channel");
         }
+        // Токен уходит тем же видом, в котором приехал в ссылке - hex-строкой.
+        // Раскодировать его тут значило бы слать сырые байты туда, где ждут строку
         byte[] token = TextUtils.isEmpty(settings.provisionToken)
             ? new byte[0]
-            : android.util.Base64.decode(settings.provisionToken, android.util.Base64.NO_WRAP);
+            : settings.provisionToken.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
         String hwid = wings.v.core.SubscriptionHwidStore.getAutomaticPayload(getApplicationContext()).hwid;
         int localPort = parseEndpointPort(settings.localEndpoint);
         appendRuntimeLogLine("requesting managed WireGuard provisioning (client " + settings.provisionClientId + ")");
