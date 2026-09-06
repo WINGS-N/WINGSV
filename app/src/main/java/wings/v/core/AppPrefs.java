@@ -49,6 +49,16 @@ public final class AppPrefs {
     public static final String KEY_OPEN_VK_LINKS = "pref_open_vk_links";
     public static final String KEY_THREADS = "pref_threads";
     public static final String KEY_CREDS_GROUP_SIZE = "pref_creds_group_size";
+
+    /**
+     * Пол потоков и размера группы креденшелов на выданном профиле.
+     *
+     * <p>Ниже этого капча выжигает кредлы быстрее, чем они выдаются, и связь у
+     * человека отваливается на профиле, за который отвечаем мы
+     */
+    public static final int MANAGED_MIN_THREADS = 12;
+
+    public static final int MANAGED_MIN_CREDS_GROUP_SIZE = 12;
     public static final String KEY_USE_UDP = "pref_use_udp";
     public static final String KEY_NO_OBFUSCATION = "pref_no_obfuscation";
     public static final String KEY_MANUAL_CAPTCHA = "pref_manual_captcha";
@@ -1573,6 +1583,11 @@ public final class AppPrefs {
         }
         settings.threads = parseInt(prefs.getString(KEY_THREADS, "24"), 24);
         settings.credsGroupSize = parseInt(prefs.getString(KEY_CREDS_GROUP_SIZE, "12"), 12);
+        VkTurnProfile activeVkTurnProfile = VkTurnProfileStore.getActiveProfile(context);
+        if (activeVkTurnProfile != null && activeVkTurnProfile.isSettingsManaged()) {
+            settings.threads = Math.max(settings.threads, MANAGED_MIN_THREADS);
+            settings.credsGroupSize = Math.max(settings.credsGroupSize, MANAGED_MIN_CREDS_GROUP_SIZE);
+        }
         settings.useUdp = prefs.getBoolean(KEY_USE_UDP, true);
         settings.noObfuscation = prefs.getBoolean(KEY_NO_OBFUSCATION, false);
         settings.manualCaptcha = prefs.getBoolean(KEY_MANUAL_CAPTCHA, false);
