@@ -903,6 +903,45 @@ public final class WingsImportParser {
     }
 
     /**
+     * Собирает пул VK-ссылок из тела подписки.
+     *
+     * <p>Ссылки лежат внутри каждого выданного профиля, а хранятся у нас одним
+     * общим списком. Разбор профиля их отбрасывал, и человек оставался без
+     * единого звонка
+     */
+    public static List<String> extractVkLinksFromSubscriptionBody(String body) {
+        ArrayList<String> out = new ArrayList<>();
+        if (TextUtils.isEmpty(body)) {
+            return out;
+        }
+        for (String link : collectWingsvLinks(body)) {
+            try {
+                byte[] payload = decompressFrame(decodePayload(link));
+                if (payload == null) {
+                    continue;
+                }
+                WingsvProto.Config config = WingsvProto.Config.parseFrom(payload);
+                collectTurnLinks(config.getTurn().getLinksList(), out);
+                for (WingsvProto.TurnProfile profile : config.getTurn().getProfilesList()) {
+                    collectTurnLinks(profile.getConfig().getLinksList(), out);
+                }
+            } catch (Exception ignored) {
+                // Одна битая ссылка не должна ронять остальные
+            }
+        }
+        return out;
+    }
+
+    private static void collectTurnLinks(List<String> from, List<String> into) {
+        for (String entry : from) {
+            String trimmed = value(entry);
+            if (!TextUtils.isEmpty(trimmed) && !into.contains(trimmed)) {
+                into.add(trimmed);
+            }
+        }
+    }
+
+    /**
      * Достаёт Xray-профили из тела подписки, отданного нашим кадром. Обычный
      * разбор ищет в теле vless-ссылки, а федерация присылает их внутри
      * wingsv-конфига, где голова уже проставила имена.

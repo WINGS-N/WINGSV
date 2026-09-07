@@ -343,6 +343,10 @@ public final class XraySubscriptionUpdater {
     // a successful fetch, so a failed subscription never prunes its profiles.
     private static void dispatchBackendProfiles(Context context, XraySubscription subscription, String body) {
         try {
+            // Пул звонков общий на всё приложение, поэтому он не едет внутри
+            // профиля: без этого слива подписка привозит профиль VK TURN, по
+            // которому некуда звонить
+            AppPrefs.mergeProvisionedVkLinks(context, WingsImportParser.extractVkLinksFromSubscriptionBody(body));
             List<WingsImportParser.ImportedBackendProfile> imported =
                 WingsImportParser.extractBackendProfilesFromSubscriptionBody(context, body);
             String subId = subscription.id;
