@@ -94,6 +94,13 @@ public class FederationAccountActivity extends AppCompatActivity {
         return new Intent(context, FederationAccountActivity.class);
     }
 
+    /** Открыть экран сразу с подтверждением входа: ссылку поймал чужой сканер */
+    public static Intent createApprove(@NonNull Context context, @NonNull String link) {
+        Intent intent = new Intent(context, FederationAccountActivity.class);
+        intent.setData(Uri.parse(link));
+        return intent;
+    }
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -167,6 +174,11 @@ public class FederationAccountActivity extends AppCompatActivity {
             String invite = wings.v.core.InviteCode.parse(data.toString());
             if (invite != null) {
                 applyInvite(invite);
+                return;
+            }
+            String signIn = signInCodeOf(data.toString());
+            if (signIn != null) {
+                askToApprove(signIn);
                 return;
             }
         }
@@ -301,15 +313,7 @@ public class FederationAccountActivity extends AppCompatActivity {
     /** Ссылка входа вида panel/link/CODE. Чужой QR сюда попасть не должен */
     @Nullable
     private String signInCodeOf(@Nullable String scanned) {
-        if (TextUtils.isEmpty(scanned)) {
-            return null;
-        }
-        String prefix = FederationAccount.panelUrl(this) + "/link/";
-        if (!scanned.startsWith(prefix)) {
-            return null;
-        }
-        String code = scanned.substring(prefix.length()).trim();
-        return TextUtils.isEmpty(code) ? null : code;
+        return FederationAccount.signInCode(this, scanned);
     }
 
     /** Показываем, кого впускаем: QR со стороны это чужой QR */

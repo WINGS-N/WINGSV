@@ -222,6 +222,26 @@ public final class FederationAccount {
         return sessionOf(response, login);
     }
 
+    /**
+     * Код входа из ссылки вида panel/link/CODE, или null, если это не она.
+     *
+     * Лежит здесь, а не в экране аккаунта: такую ссылку ловит и общий сканер,
+     * иначе человек наводит камеру и получает предложение импортировать конфиг
+     */
+    @Nullable
+    public static String signInCode(@NonNull Context context, @Nullable String scanned) {
+        if (TextUtils.isEmpty(scanned)) {
+            return null;
+        }
+        String prefix = panelUrl(context) + "/link/";
+        String trimmed = scanned.trim();
+        if (!trimmed.startsWith(prefix)) {
+            return null;
+        }
+        String code = trimmed.substring(prefix.length()).trim();
+        return TextUtils.isEmpty(code) ? null : code;
+    }
+
     /** Кто просится войти по коду: показываем это перед тем, как впустить */
     public static JSONObject qrPending(@NonNull Context context, @NonNull String code) throws Exception {
         return get(context, "/api/app/qr/pending?code=" + Uri.encode(code), token(context));

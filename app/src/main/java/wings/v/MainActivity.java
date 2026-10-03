@@ -570,6 +570,12 @@ public class MainActivity extends AppCompatActivity {
             redeemScannedInvite(invite);
             return;
         }
+        // Ссылка входа с панели: её наводят на этот же сканер, а конфигом она
+        // не является - без проверки человек получал предложение импорта
+        if (wings.v.core.FederationAccount.signInCode(this, trimmed) != null) {
+            startActivity(FederationAccountActivity.createApprove(this, trimmed));
+            return;
+        }
         WingsImportParser.ImportedConfig parsed;
         try {
             parsed = WingsImportParser.parseFromText(trimmed);
