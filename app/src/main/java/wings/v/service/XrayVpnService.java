@@ -416,6 +416,13 @@ public class XrayVpnService extends VpnService implements DialerController {
                 for (String packageName : packages) {
                     builder.addAllowedApplication(packageName);
                 }
+                // Своё приложение входит в туннель всегда: иначе проверка
+                // внешнего адреса уходит по физической сети и показывает адрес
+                // провайдера. Роутинг уводит его трафик мимо туннеля, кроме
+                // самой проверки
+                if (!packages.contains(getPackageName())) {
+                    builder.addAllowedApplication(getPackageName());
+                }
                 addByeDpiAllowedApplications(builder, byeDpiPackages);
                 ProxyTunnelService.writeRuntimeLogLine(
                     "App routing: WHITELIST addAllowedApplication x" + packages.size()

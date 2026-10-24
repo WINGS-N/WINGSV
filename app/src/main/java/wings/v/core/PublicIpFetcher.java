@@ -13,6 +13,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -51,6 +53,26 @@ public final class PublicIpFetcher {
     };
 
     private PublicIpFetcher() {}
+
+    /**
+     * Хосты, по которым определяется внешний адрес. Роутинг ведёт замер через
+     * туннель даже в режимах, где само приложение идёт мимо него, иначе юзер
+     * видит адрес провайдера вместо адреса сервера.
+     */
+    public static List<String> probeHosts() {
+        ArrayList<String> hosts = new ArrayList<>(ENDPOINTS.length + 1);
+        for (Endpoint endpoint : ENDPOINTS) {
+            String host = android.net.Uri.parse(endpoint.url).getHost();
+            if (!TextUtils.isEmpty(host) && !hosts.contains(host)) {
+                hosts.add(host);
+            }
+        }
+        String selfHost = SelfAddress.probeHost();
+        if (!TextUtils.isEmpty(selfHost) && !hosts.contains(selfHost)) {
+            hosts.add(selfHost);
+        }
+        return hosts;
+    }
 
     public static final class IpInfo {
 

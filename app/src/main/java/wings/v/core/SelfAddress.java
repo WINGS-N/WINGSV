@@ -36,6 +36,12 @@ public final class SelfAddress {
 
     private SelfAddress() {}
 
+    /** Хост замера: роутингу он нужен, чтобы вести проверку через туннель */
+    @NonNull
+    public static String probeHost() {
+        return "api.ipify.org";
+    }
+
     /** Последний замер или пустая строка, если его ещё не делали */
     @NonNull
     public static String cached() {

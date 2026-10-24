@@ -1058,6 +1058,7 @@ public final class XrayConfigFactory {
             }
         }
         wings.v.core.AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
+        appendSelfRoutingRules(rules, mode);
         if (!mode.isTunDivert()) {
             return;
         }
@@ -1097,6 +1098,25 @@ public final class XrayConfigFactory {
                 packages
         );
         rules.put(appRoutingRule(diverted, DIRECT_TAG));
+    }
+
+    // В режимах, где туннелируются только выбранные приложения, само приложение
+    // в выбор не входит, и проверка внешнего адреса показывает адрес
+    // провайдера. Замер уводится в туннель отдельным правилом, а весь прочий
+    // свой трафик - подписки, панель, обновления - идёт мимо, как и раньше
+    private static void appendSelfRoutingRules(JSONArray rules, wings.v.core.AppRoutingMode mode) throws Exception {
+        if (!mode.isWhitelistFamily()) {
+            return;
+        }
+        JSONArray self = new JSONArray().put(String.valueOf(android.os.Process.myUid()));
+        JSONObject probeRule = appRoutingRule(self, PROXY_TAG);
+        JSONArray probeDomains = new JSONArray();
+        for (String host : wings.v.core.PublicIpFetcher.probeHosts()) {
+            probeDomains.put("full:" + host);
+        }
+        probeRule.put("domain", probeDomains);
+        rules.put(probeRule);
+        rules.put(appRoutingRule(self, DIRECT_TAG));
     }
 
     // Роутер неизвестных владельцев выключен - они идут в туннель наравне с

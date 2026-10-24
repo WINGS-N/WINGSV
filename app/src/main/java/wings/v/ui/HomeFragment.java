@@ -523,7 +523,7 @@ public class HomeFragment extends Fragment {
         startIpRefreshAnimation();
         ipRequestGeneration++;
         final int requestGeneration = ipRequestGeneration;
-        ipRequest = PublicIpFetcher.fetchAsyncCancelable(requireContext(), false, result -> {
+        ipRequest = PublicIpFetcher.fetchAsyncCancelable(requireContext(), true, result -> {
             if (!isAdded()) {
                 return;
             }
