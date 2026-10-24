@@ -33,7 +33,7 @@ import wings.v.core.XraySettings;
 public final class XrayAutoSearchConfigFactory {
 
     private static final String SOCKS_TAG = "socks-in";
-    private static final String PROXY_TAG = "proxy";
+    static final String PROXY_TAG = "proxy";
     private static final String BYEDPI_FRONT_TAG = "byedpi-front";
     private static final String DNS_TAG = "dns-internal";
     private static final String DNS_OUT_TAG = "dns-out";

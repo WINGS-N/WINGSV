@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import libXray.DialerController;
 import libXray.LibXray;
 import libXray.UIDLookupController;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import wings.v.R;
 import wings.v.WingsApplication;
@@ -255,26 +256,34 @@ public final class XrayBridge {
             LibXray.setAssetDir(datDir.getAbsolutePath());
             LibXray.setTunFd(tunFd);
             JSONObject payload = new JSONObject();
-            payload.put("configJSON", configJson);
-            invoke("runXrayFromJson", payload);
+            payload.put("xrayJson", configJson);
+            invoke("runXray", payload);
             RUNTIME_STARTED.set(true);
         }
     }
 
-    public static long pingConfig(Context context, File configFile, int timeoutSeconds, String url, String proxy)
-        throws Exception {
+    public static long pingConfig(Context context, String configJson, int timeoutSeconds, String url) throws Exception {
         ensureLoaded();
         synchronized (JNI_LOCK) {
             File datDir = ensureDatDir(context);
             LibXray.setAssetDir(datDir.getAbsolutePath());
+            // Ядро само поднимает инстанс и ходит через указанный outbound,
+            // локальный socks для замера больше не нужен
+            JSONObject item = new JSONObject();
+            item.put("xrayJson", configJson);
+            item.put("outboundTag", XrayAutoSearchConfigFactory.PROXY_TAG);
             JSONObject payload = new JSONObject();
-            payload.put("configPath", configFile.getAbsolutePath());
+            payload.put("configs", new JSONArray().put(item));
             payload.put("timeout", timeoutSeconds);
             payload.put("url", url);
-            payload.put("proxy", proxy);
-            JSONObject response = invoke("ping", payload);
+            JSONObject response = invoke("pingBatch", payload);
             JSONObject data = response.optJSONObject("data");
-            return data == null ? 0L : data.optLong("delay", 0L);
+            JSONArray results = data == null ? null : data.optJSONArray("results");
+            JSONObject result = results == null || results.length() == 0 ? null : results.optJSONObject(0);
+            if (result == null || !result.optBoolean("success", false)) {
+                return 0L;
+            }
+            return result.optLong("delay", 0L);
         }
     }
 

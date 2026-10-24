@@ -26,7 +26,7 @@ import org.json.JSONObject;
  *     from {@code go.Seq}'s static init the first time {@code LibXray} is
  *     touched) can resolve the lib - app_process started with a bare
  *     {@code CLASSPATH=base.apk} doesn't propagate the app's lib search path.
- *  3. {@code LibXray.runXrayFromJSON} kicks the runtime into goroutines and
+ *  3. {@code LibXray.runXray} kicks the runtime into goroutines and
  *     returns immediately. We park on a monitor until shutdown.
  *  4. Parent calls {@code Process.destroy()} (SIGTERM); the JVM shutdown hook
  *     calls {@code LibXray.stopXray()} for graceful drain.
@@ -92,8 +92,8 @@ final class RootXrayCommands {
         LibXray.setAssetDir(resolvedDataDir);
         LibXray.setTunFd(0);
         JSONObject payload = new JSONObject();
-        payload.put("configJSON", configJson);
-        invoke("runXrayFromJson", payload);
+        payload.put("xrayJson", configJson);
+        invoke("runXray", payload);
 
         handApiSocketToApp(
             parseArg(args, "--api-socket"),
