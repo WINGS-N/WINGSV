@@ -3844,7 +3844,6 @@ public final class WingsImportParser {
             result.allowLan = settings.getAllowLan();
         }
         if (settings.hasAllowInsecure()) {
-            result.allowInsecure = settings.getAllowInsecure();
         }
         if (settings.hasLocalProxyPort()) {
             result.localProxyPort = settings.getLocalProxyPort();
@@ -3921,9 +3920,6 @@ public final class WingsImportParser {
         }
         if (includeDefaults || settings.allowLan) {
             builder.setAllowLan(settings.allowLan);
-        }
-        if (includeDefaults || settings.allowInsecure) {
-            builder.setAllowInsecure(settings.allowInsecure);
         }
         if (settings.localProxyPort > 0) {
             builder.setLocalProxyPort(settings.localProxyPort);
@@ -4027,7 +4023,6 @@ public final class WingsImportParser {
     private static XraySettings defaultXraySettings() {
         XraySettings settings = new XraySettings();
         settings.allowLan = false;
-        settings.allowInsecure = false;
         settings.localProxyPort = 10808;
         settings.localProxyListenAddress = "127.0.0.1";
         settings.httpProxyEnabled = false;

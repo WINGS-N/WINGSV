@@ -35,7 +35,6 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
 
     static {
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_ALLOW_LAN);
-        RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_ALLOW_INSECURE);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED);
         RUNTIME_AFFECTING_KEYS.add(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME);
@@ -84,7 +83,6 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         getPreferenceManager().setPreferenceDataStore(AppPrefs.mainPreferenceDataStore(requireContext()));
         setPreferencesFromResource(R.xml.xray_preferences, rootKey);
         bindSwitch(AppPrefs.KEY_XRAY_ALLOW_LAN);
-        bindSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE);
         bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED);
         bindSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED);
@@ -173,17 +171,6 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                 );
                 return false;
             }
-            String enableWarning = warningForEnable(key, preference, newValue);
-            if (enableWarning != null) {
-                showWarningBeforeApplying(
-                    () -> {
-                        AppPrefs.defaultSharedPreferences(requireContext()).edit().putBoolean(key, true).commit();
-                        requestRuntimeReconnectIfActive(key);
-                    },
-                    enableWarning
-                );
-                return false;
-            }
             if (
                 TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED) ||
                 TextUtils.equals(key, AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED) ||
@@ -260,7 +247,6 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
         syncEditText(AppPrefs.KEY_XRAY_HTTP_PROXY_PASSWORD, settings.httpProxyPassword);
         syncEditText(AppPrefs.KEY_XRAY_HTTP_PROXY_LISTEN_ADDRESS, settings.httpProxyListenAddress);
         syncSwitch(AppPrefs.KEY_XRAY_ALLOW_LAN, settings.allowLan);
-        syncSwitch(AppPrefs.KEY_XRAY_ALLOW_INSECURE, settings.allowInsecure);
         syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, settings.localProxyEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, settings.localProxyAuthEnabled);
         syncSwitch(AppPrefs.KEY_XRAY_HTTP_PROXY_ENABLED, settings.httpProxyEnabled);
@@ -469,16 +455,6 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
                 return null;
             }
             return getString(R.string.warning_xray_tun_unknown_uid_bypass_disable);
-        }
-        return null;
-    }
-
-    private String warningForEnable(String key, SwitchPreferenceCompat preference, Object newValue) {
-        if (preference.isChecked() || !Boolean.TRUE.equals(newValue)) {
-            return null;
-        }
-        if (TextUtils.equals(key, AppPrefs.KEY_XRAY_ALLOW_INSECURE)) {
-            return getString(R.string.warning_xray_allow_insecure_enable);
         }
         return null;
     }

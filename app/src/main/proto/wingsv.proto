@@ -420,7 +420,10 @@ message VlessProfile {
 
 message XraySettings {
   optional bool allow_lan = 1;
-  optional bool allow_insecure = 2;
+  // Ядро больше не принимает allowInsecure и замены ему не даёт, поэтому
+  // приложение поле не читает и не пишет. Номер занят навсегда: старые ссылки
+  // всё ещё могут его нести
+  optional bool allow_insecure = 2 [deprecated = true];
   optional uint32 local_proxy_port = 3;
   string remote_dns = 4;
   string direct_dns = 5;

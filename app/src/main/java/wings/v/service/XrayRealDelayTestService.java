@@ -51,7 +51,6 @@ public abstract class XrayRealDelayTestService extends Service {
     private static final String REQUEST_PROFILE_ADDRESS = "profile_address";
     private static final String REQUEST_PROFILE_PORT = "profile_port";
     private static final String REQUEST_PROFILE_PING_KEY = "profile_ping_key";
-    private static final String REQUEST_XRAY_ALLOW_INSECURE = "xray_allow_insecure";
     private static final String REQUEST_XRAY_REMOTE_DNS = "xray_remote_dns";
     private static final String REQUEST_XRAY_DIRECT_DNS = "xray_direct_dns";
     private static final String REQUEST_XRAY_IPV6 = "xray_ipv6";
@@ -117,7 +116,6 @@ public abstract class XrayRealDelayTestService extends Service {
         bundle.putInt(REQUEST_PROFILE_PORT, profile.port);
         bundle.putString(REQUEST_PROFILE_PING_KEY, pingKey);
         if (settings != null) {
-            bundle.putBoolean(REQUEST_XRAY_ALLOW_INSECURE, settings.allowInsecure);
             bundle.putString(REQUEST_XRAY_REMOTE_DNS, settings.remoteDns);
             bundle.putString(REQUEST_XRAY_DIRECT_DNS, settings.directDns);
             bundle.putBoolean(REQUEST_XRAY_IPV6, settings.ipv6);
@@ -221,7 +219,6 @@ public abstract class XrayRealDelayTestService extends Service {
 
     private XraySettings readSettings(Bundle request) {
         XraySettings settings = new XraySettings();
-        settings.allowInsecure = request.getBoolean(REQUEST_XRAY_ALLOW_INSECURE, false);
         settings.remoteDns = request.getString(REQUEST_XRAY_REMOTE_DNS, "");
         settings.directDns = request.getString(REQUEST_XRAY_DIRECT_DNS, "");
         settings.ipv6 = request.getBoolean(REQUEST_XRAY_IPV6, false);

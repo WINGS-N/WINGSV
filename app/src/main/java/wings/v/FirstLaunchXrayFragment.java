@@ -59,7 +59,6 @@ public class FirstLaunchXrayFragment extends Fragment {
     private FragmentFirstLaunchXrayBinding binding;
 
     private AppCompatCheckBox allowLanCheckBox;
-    private AppCompatCheckBox allowInsecureCheckBox;
     private AppCompatCheckBox ipv6CheckBox;
     private AppCompatCheckBox sniffingCheckBox;
 
@@ -94,7 +93,6 @@ public class FirstLaunchXrayFragment extends Fragment {
     @Override
     public void onDestroyView() {
         allowLanCheckBox = null;
-        allowInsecureCheckBox = null;
         ipv6CheckBox = null;
         sniffingCheckBox = null;
         binding = null;
@@ -108,7 +106,6 @@ public class FirstLaunchXrayFragment extends Fragment {
         LinearLayout container = binding.containerXrayFields;
         container.removeAllViews();
         allowLanCheckBox = addCheckBox(container, R.string.xray_settings_allow_lan_title);
-        allowInsecureCheckBox = addCheckBox(container, R.string.xray_settings_allow_insecure_title);
         ipv6CheckBox = addCheckBox(container, R.string.xray_settings_ipv6_title);
         sniffingCheckBox = addCheckBox(container, R.string.xray_settings_sniffing_title);
     }
@@ -252,9 +249,6 @@ public class FirstLaunchXrayFragment extends Fragment {
         if (allowLanCheckBox != null) {
             allowLanCheckBox.setChecked(value.allowLan);
         }
-        if (allowInsecureCheckBox != null) {
-            allowInsecureCheckBox.setChecked(value.allowInsecure);
-        }
         if (ipv6CheckBox != null) {
             ipv6CheckBox.setChecked(value.ipv6);
         }
@@ -313,7 +307,6 @@ public class FirstLaunchXrayFragment extends Fragment {
     private void saveAndContinue() {
         XraySettings settings = XrayStore.getXraySettings(requireContext()).copy();
         settings.allowLan = allowLanCheckBox != null && allowLanCheckBox.isChecked();
-        settings.allowInsecure = allowInsecureCheckBox != null && allowInsecureCheckBox.isChecked();
         settings.ipv6 = ipv6CheckBox == null || ipv6CheckBox.isChecked();
         settings.sniffingEnabled = sniffingCheckBox == null || sniffingCheckBox.isChecked();
         XrayStore.setXraySettings(requireContext(), settings);

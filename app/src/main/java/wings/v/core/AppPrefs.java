@@ -116,7 +116,6 @@ public final class AppPrefs {
     public static final String KEY_OPEN_ROOT_INTERFACE_SETTINGS = "pref_open_root_interface_settings";
     public static final String KEY_ROOT_WIREGUARD_INTERFACE_NAME = "pref_root_wg_interface_name";
     public static final String KEY_XRAY_ALLOW_LAN = "pref_xray_allow_lan";
-    public static final String KEY_XRAY_ALLOW_INSECURE = "pref_xray_allow_insecure";
     public static final String KEY_XRAY_LOCAL_PROXY_ENABLED = "pref_xray_local_proxy_enabled";
     public static final String KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED = "pref_xray_local_proxy_auth_enabled";
     public static final String KEY_XRAY_LOCAL_PROXY_USERNAME = "pref_xray_local_proxy_username";

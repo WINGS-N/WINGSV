@@ -67,7 +67,6 @@ public final class XrayAutoSearchConfigFactory {
         proxyOutbound.put("tag", PROXY_TAG);
         proxyOutbound.remove("sendThrough");
         XrayConfigFactory.sanitizeOutbound(proxyOutbound, profile);
-        XrayConfigFactory.applySecurityOverrides(proxyOutbound, settings);
         if (useByeDpi && byeDpiSettings != null) {
             XrayConfigFactory.enableByeDpiFrontProxy(proxyOutbound, settings);
         }

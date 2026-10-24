@@ -76,7 +76,6 @@ public final class XrayStore {
         );
         XraySettings settings = new XraySettings();
         settings.allowLan = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, false);
-        settings.allowInsecure = prefs.getBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, false);
         settings.localProxyEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, false);
         settings.localProxyAuthEnabled = prefs.getBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, true);
         settings.localProxyUsername = credentials.username;
@@ -147,7 +146,6 @@ public final class XrayStore {
         prefs(context)
             .edit()
             .putBoolean(AppPrefs.KEY_XRAY_ALLOW_LAN, value.allowLan)
-            .putBoolean(AppPrefs.KEY_XRAY_ALLOW_INSECURE, value.allowInsecure)
             .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_ENABLED, value.localProxyEnabled)
             .putBoolean(AppPrefs.KEY_XRAY_LOCAL_PROXY_AUTH_ENABLED, value.localProxyAuthEnabled)
             .putString(AppPrefs.KEY_XRAY_LOCAL_PROXY_USERNAME, trim(value.localProxyUsername))

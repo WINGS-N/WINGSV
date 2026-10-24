@@ -12,12 +12,6 @@
         android:defaultValue="false" />
 
     <SwitchPreferenceCompat
-        android:key="pref_xray_allow_insecure"
-        android:title="@string/xray_settings_allow_insecure_title"
-        android:summary="@string/xray_settings_allow_insecure_summary"
-        android:defaultValue="false" />
-
-    <SwitchPreferenceCompat
         android:key="pref_xray_ipv6_enabled"
         android:title="@string/xray_settings_ipv6_title"
         android:summary="@string/xray_settings_ipv6_summary"

@@ -871,8 +871,6 @@
     <string name="xray_settings_title">Настройки Xray</string>
     <string name="xray_settings_allow_lan_title">Разрешать подключения из LAN</string>
     <string name="xray_settings_allow_lan_summary">Открывает локальный прокси для других устройств в локальной сети</string>
-    <string name="xray_settings_allow_insecure_title">Разрешать небезопасные соединения</string>
-    <string name="xray_settings_allow_insecure_summary">Разрешает insecure TLS там, где это поддерживает профиль</string>
     <string name="xray_settings_ipv6_title">Включить IPv6</string>
     <string name="xray_settings_ipv6_summary">Использовать IPv6 в Xray runtime</string>
     <string name="xray_settings_sniffing_title">Sniffing</string>
@@ -930,7 +928,6 @@
     <string name="warning_http_auth_disable">Вы отключаете аутентификацию HTTP прокси. Это снизит безопасность вашего соединения</string>
     <string name="warning_xray_tun_unknown_uid_bypass_disable">Вы отключаете защиту от утечек для пакетов с неизвестным UID. Приложения, биндящиеся к tun0 напрямую (через SO_BINDTODEVICE или явный source IP), будут уходить через VPN даже если они в bypass-списке, раскрывая IP VPN сервера.</string>
     <string name="warning_http_password_weak">Задан слишком простой пароль HTTP прокси. Это снизит безопасность вашего соединения</string>
-    <string name="warning_xray_allow_insecure_enable">Вы отключаете проверку TLS-сертификатов в outbound Xray. Соединение становится уязвимым к MITM-атакам</string>
     <string name="xray_routing_settings_title">Маршрутизация Xray</string>
     <string name="xray_routing_geo_files_title">Geo-файлы</string>
     <string name="xray_routing_geo_files_summary">Эти файлы используются для geoip/geosite routing правил</string>

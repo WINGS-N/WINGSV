@@ -175,7 +175,6 @@ public final class XrayConfigFactory {
         proxyOutbound.put("tag", PROXY_TAG);
         proxyOutbound.remove("sendThrough");
         sanitizeOutbound(proxyOutbound, settings.activeXrayProfile);
-        applySecurityOverrides(proxyOutbound, xraySettings);
         if (!TextUtils.isEmpty(trim(outboundHostOverride)) && outboundPortOverride > 0) {
             rewritePrimaryOutboundEndpoint(proxyOutbound, trim(outboundHostOverride), outboundPortOverride);
         }
@@ -1499,16 +1498,6 @@ public final class XrayConfigFactory {
         server.put("users", new JSONArray().put(new JSONObject().put("user", username).put("pass", password)));
     }
 
-    static void applySecurityOverrides(JSONObject outbound, XraySettings settings) {
-        if (settings == null || !settings.allowInsecure) {
-            return;
-        }
-        // Ядро больше не грузит конфиг с allowInsecure и замены ему не даёт:
-        // pinnedPeerCertSha256 и verifyPeerCertByName всё равно проверяют
-        // цепочку. Поэтому настройка остаётся без эффекта, но туннель живой
-        android.util.Log.w("WINGSV-Xray", "allowInsecure is not supported by the core any more, ignoring it");
-    }
-
     static void rewritePrimaryOutboundEndpoint(JSONObject outbound, String host, int port) throws Exception {
         JSONObject settings = outbound == null ? null : outbound.optJSONObject("settings");
         if (settings == null || TextUtils.isEmpty(trim(host)) || port <= 0) {
@@ -1545,6 +1534,7 @@ public final class XrayConfigFactory {
 
     static void sanitizeOutbound(JSONObject outbound, XrayProfile activeProfile) throws Exception {
         pruneJsonObject(outbound);
+        dropOptionsTheCoreRejects(outbound);
         JSONObject streamSettings = outbound.optJSONObject("streamSettings");
         if (streamSettings == null) {
             return;
@@ -1553,6 +1543,44 @@ public final class XrayConfigFactory {
         sanitizeTlsSettings(streamSettings, fallbackServerName);
         sanitizeRealitySettings(streamSettings, fallbackServerName);
         pruneJsonObject(streamSettings);
+    }
+
+    // Профиль приезжает из ссылки, подписки или правки JSON, и в нём может
+    // лежать то, что ядро уже не принимает - такой конфиг не грузится целиком,
+    // то есть туннель просто не поднимается. Что переносится - переносим,
+    // остальное выкидываем
+    private static void dropOptionsTheCoreRejects(JSONObject outbound) throws Exception {
+        JSONObject proxySettings = outbound.optJSONObject("proxySettings");
+        if (proxySettings != null) {
+            outbound.remove("proxySettings");
+            String tag = trim(proxySettings.optString("tag"));
+            if (!TextUtils.isEmpty(tag)) {
+                JSONObject streamSettings = outbound.optJSONObject("streamSettings");
+                if (streamSettings == null) {
+                    streamSettings = new JSONObject();
+                    outbound.put("streamSettings", streamSettings);
+                }
+                JSONObject sockopt = streamSettings.optJSONObject("sockopt");
+                if (sockopt == null) {
+                    sockopt = new JSONObject();
+                    streamSettings.put("sockopt", sockopt);
+                }
+                if (TextUtils.isEmpty(trim(sockopt.optString("dialerProxy")))) {
+                    sockopt.put("dialerProxy", tag);
+                }
+            }
+        }
+        JSONObject streamSettings = outbound.optJSONObject("streamSettings");
+        if (streamSettings == null) {
+            return;
+        }
+        for (String section : new String[] { "tlsSettings", "realitySettings" }) {
+            JSONObject settings = streamSettings.optJSONObject(section);
+            if (settings != null && settings.has("allowInsecure")) {
+                settings.remove("allowInsecure");
+                android.util.Log.w("WINGSV-Xray", "dropped allowInsecure from " + section + ", the core rejects it");
+            }
+        }
     }
 
     private static void sanitizeTlsSettings(JSONObject streamSettings, String fallbackServerName) throws Exception {

@@ -15,7 +15,6 @@ final class XraySettingsBundle {
         }
         bundle.putBoolean(prefix + "present", true);
         bundle.putBoolean(prefix + "allow_lan", settings.allowLan);
-        bundle.putBoolean(prefix + "allow_insecure", settings.allowInsecure);
         bundle.putBoolean(prefix + "local_proxy_enabled", settings.localProxyEnabled);
         bundle.putBoolean(prefix + "local_proxy_auth_enabled", settings.localProxyAuthEnabled);
         bundle.putString(prefix + "local_proxy_username", settings.localProxyUsername);
@@ -49,7 +48,6 @@ final class XraySettingsBundle {
         }
         XraySettings settings = new XraySettings();
         settings.allowLan = bundle.getBoolean(prefix + "allow_lan", false);
-        settings.allowInsecure = bundle.getBoolean(prefix + "allow_insecure", false);
         settings.localProxyEnabled = bundle.getBoolean(prefix + "local_proxy_enabled", false);
         settings.localProxyAuthEnabled = bundle.getBoolean(prefix + "local_proxy_auth_enabled", true);
         settings.localProxyUsername = bundle.getString(prefix + "local_proxy_username");

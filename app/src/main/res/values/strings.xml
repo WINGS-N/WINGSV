@@ -872,8 +872,6 @@
     <string name="xray_settings_title">Xray settings</string>
     <string name="xray_settings_allow_lan_title">Allow connections from LAN</string>
     <string name="xray_settings_allow_lan_summary">Opens the local proxy to other devices on the local network</string>
-    <string name="xray_settings_allow_insecure_title">Allow insecure connections</string>
-    <string name="xray_settings_allow_insecure_summary">Allows insecure TLS where the profile supports it</string>
     <string name="xray_settings_ipv6_title">Enable IPv6</string>
     <string name="xray_settings_ipv6_summary">Use IPv6 in the Xray runtime</string>
     <string name="xray_settings_sniffing_title">Sniffing</string>
@@ -931,7 +929,6 @@
     <string name="warning_http_auth_disable">You are disabling HTTP proxy authentication. This reduces the security of your connection</string>
     <string name="warning_xray_tun_unknown_uid_bypass_disable">You are disabling the leak guard for unknown-UID packets. Apps that bind tun0 directly (e.g. via SO_BINDTODEVICE or explicit source IP) will be tunneled through the VPN even when they are in the bypass list, deanonymizing them.</string>
     <string name="warning_http_password_weak">The HTTP proxy password is too simple. This reduces the security of your connection</string>
-    <string name="warning_xray_allow_insecure_enable">You are disabling TLS certificate verification for Xray outbounds. This makes the connection vulnerable to MITM attacks</string>
     <string name="xray_routing_settings_title">Xray routing</string>
     <string name="xray_routing_geo_files_title">Geo files</string>
     <string name="xray_routing_geo_files_summary">These files are used for geoip/geosite routing rules</string>
