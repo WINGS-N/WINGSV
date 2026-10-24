@@ -45,7 +45,7 @@ import org.json.JSONObject;
 final class RootXrayCommands {
 
     /** Версия контракта libXray. Библиотека отбивает запрос с чужой */
-    private static final int LIBXRAY_API_VERSION = 1;
+    private static final int LIBXRAY_API_VERSION = 3;
 
     private static final Object LOCK = new Object();
     private static final int API_SOCKET_WAIT_MS = 2000;

@@ -927,8 +927,6 @@ public final class XrayConfigFactory {
     }
 
     static void enableByeDpiFrontProxy(JSONObject proxyOutbound, XraySettings xraySettings) throws Exception {
-        proxyOutbound.put("proxySettings", new JSONObject().put("tag", BYEDPI_FRONT_TAG).put("transportLayer", true));
-
         JSONObject streamSettings = proxyOutbound.optJSONObject("streamSettings");
         if (streamSettings == null) {
             streamSettings = new JSONObject();
@@ -943,6 +941,9 @@ public final class XrayConfigFactory {
             boolean ipv6 = xraySettings != null && xraySettings.ipv6;
             sockopt.put("domainStrategy", ipv6 ? "ForceIP" : "ForceIPv4");
         }
+        // Транспорт прокси поднимается через локальный byedpi: ядро больше не
+        // принимает это как proxySettings у outbound, только как dialerProxy
+        sockopt.put("dialerProxy", BYEDPI_FRONT_TAG);
     }
 
     private static JSONObject buildRouting(
@@ -1498,18 +1499,14 @@ public final class XrayConfigFactory {
         server.put("users", new JSONArray().put(new JSONObject().put("user", username).put("pass", password)));
     }
 
-    static void applySecurityOverrides(JSONObject outbound, XraySettings settings) throws Exception {
-        if (!settings.allowInsecure) {
+    static void applySecurityOverrides(JSONObject outbound, XraySettings settings) {
+        if (settings == null || !settings.allowInsecure) {
             return;
         }
-        JSONObject streamSettings = outbound.optJSONObject("streamSettings");
-        if (streamSettings == null) {
-            return;
-        }
-        JSONObject tlsSettings = streamSettings.optJSONObject("tlsSettings");
-        if (tlsSettings != null) {
-            tlsSettings.put("allowInsecure", true);
-        }
+        // Ядро больше не грузит конфиг с allowInsecure и замены ему не даёт:
+        // pinnedPeerCertSha256 и verifyPeerCertByName всё равно проверяют
+        // цепочку. Поэтому настройка остаётся без эффекта, но туннель живой
+        android.util.Log.w("WINGSV-Xray", "allowInsecure is not supported by the core any more, ignoring it");
     }
 
     static void rewritePrimaryOutboundEndpoint(JSONObject outbound, String host, int port) throws Exception {

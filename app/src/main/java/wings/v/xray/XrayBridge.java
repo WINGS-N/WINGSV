@@ -53,7 +53,7 @@ import wings.v.service.XrayVpnService;
 public final class XrayBridge {
 
     /** Версия контракта libXray. Библиотека отбивает запрос с чужой */
-    private static final int LIBXRAY_API_VERSION = 1;
+    private static final int LIBXRAY_API_VERSION = 3;
 
     private static final AtomicBoolean LOADED = new AtomicBoolean();
     private static final AtomicBoolean RUNTIME_STARTED = new AtomicBoolean();
