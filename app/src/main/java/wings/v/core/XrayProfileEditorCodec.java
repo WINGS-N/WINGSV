@@ -182,18 +182,24 @@ public final class XrayProfileEditorCodec {
     }
 
     private static String extractJsonTitle(JSONObject outbound, Endpoint endpoint, String fallbackTitle) {
-        if (!endpoint.isEmpty()) {
-            return endpoint.displayValue();
+        // Имя даёт профилю пользователь, и правка JSON не повод его терять.
+        // Остальное - только для профиля, у которого имени ещё нет
+        String existing = trim(fallbackTitle);
+        if (!TextUtils.isEmpty(existing)) {
+            return existing;
         }
         String tag = outbound == null ? "" : trim(outbound.optString("tag"));
         if (!TextUtils.isEmpty(tag)) {
             return tag;
         }
+        if (!endpoint.isEmpty()) {
+            return endpoint.displayValue();
+        }
         String protocol = outbound == null ? "" : trim(outbound.optString("protocol"));
         if (!TextUtils.isEmpty(protocol)) {
             return protocol.toUpperCase(Locale.ROOT);
         }
-        return TextUtils.isEmpty(fallbackTitle) ? "Xray" : fallbackTitle;
+        return "Xray";
     }
 
     private static String firstNonEmptyLine(String rawValue) {
