@@ -445,10 +445,16 @@ val buildLibXrayAndroidAar: TaskProvider<Exec> by tasks.registering(Exec::class)
         workingDir = workDir
         environment(
             mapOf(
-                "GOTOOLCHAIN" to "go1.26.3",
+                "GOTOOLCHAIN" to "go1.27.2",
+                // @latest из file-прокси не резолвится - он отдаёт пустой список
+                // версий, и go на этом встаёт, не пробуя сеть. Поэтому версия
+                // gomobile задаётся точно: такой запрос file-прокси либо отдаёт
+                // из кэша, либо честно промахивается и go уходит в сеть
+                "LIBXRAY_GOMOBILE_VERSION" to (System.getenv("LIBXRAY_GOMOBILE_VERSION")
+                    ?: "v0.0.0-20261011034528-197770444867"),
                 // Скачанные модули лежат рядом и годятся как прокси: go резолвит
-                // из них даже @latest и без сети, а в сеть идёт только за тем,
-                // чего в кэше нет. Свой GOPROXY, если задан, важнее
+                // из них и без сети, а в сеть идёт только за тем, чего в кэше
+                // нет. Свой GOPROXY, если задан, важнее
                 "GOPROXY" to (System.getenv("GOPROXY")
                     ?: "file://${File(libXrayGoModCacheDir, "cache/download").absolutePath},https://proxy.golang.org,direct"),
                 "ANDROID_SDK_ROOT" to resolveAndroidSdkDir().absolutePath,
