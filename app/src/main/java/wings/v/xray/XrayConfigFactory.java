@@ -289,30 +289,14 @@ public final class XrayConfigFactory {
         if (settings == null) {
             throw new IllegalArgumentException("settings required");
         }
-        // DNS server selection for xray's internal resolver. Three buckets:
-        //   1. VK TURN backend - mirror vk-turn-proxy's own bootstrap
-        //      resolver list (protected_net.go defaultResolverAddrs).
-        //      Yandex 77.88.8.x is first because in RU block conditions it
-        //      is rarely censored while 1.1.1.1 often is.
-        //   2. Other WG-style backends - use settings.wgDns ([Interface]
-        //      DNS line), matching wireguard-android's defaults.
-        //   3. Fallback - 1.1.1.1, 1.0.0.1.
+        // Внутренний резолвер ядра берёт DNS из строки [Interface] профиля:
+        // запросы уходят через WG-outbound, то есть работают и там, где с
+        // физической сети до публичных резолверов не добраться открытым UDP
         XraySettings sourceXraySettings = settings.xraySettings != null ? settings.xraySettings : new XraySettings();
         XraySettings effectiveXraySettings = sourceXraySettings.copy();
         boolean turnFlavor = settings.backendType != null && settings.backendType.usesTurnProxy();
-        String dnsServers;
-        if (turnFlavor) {
-            // For WG-style backends (VK TURN / WB Stream / AmneziaWG) use
-            // the wgDns from the WireGuard [Interface] preference. Routed
-            // through the WG outbound below so resolve works in block
-            // conditions where the underlying network cannot reach public
-            // resolvers in the clear.
-            String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
-            dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
-        } else {
-            String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
-            dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
-        }
+        String wgDns = settings.wgDns == null ? "" : settings.wgDns.trim();
+        String dnsServers = wgDns.isEmpty() ? "1.1.1.1, 1.0.0.1" : wgDns;
         effectiveXraySettings.remoteDns = dnsServers;
         effectiveXraySettings.directDns = dnsServers;
         JSONObject wgOutbound = buildWireGuardOutbound(settings, peerEndpointOverride);
@@ -387,6 +371,15 @@ public final class XrayConfigFactory {
         wgSettings.put("mtu", settings.wgMtu > 0 ? settings.wgMtu : 1420);
         wgSettings.put("isClient", true);
         wgSettings.put("noKernelTun", true);
+        // Внутренний резолвер userspace-WG: без него ядро подставляет свой
+        // дефолт 1.1.1.1/1.0.0.1, и домены, пришедшие в этот outbound, уходят
+        // резолвиться туда через туннель, мимо DNS из профиля. Ядро парсит
+        // адреса строго как литералы и паникует на домене, поэтому тут только
+        // чистые IP
+        JSONArray wgDnsServers = plainIpDnsServers(settings.wgDns);
+        if (wgDnsServers.length() > 0) {
+            wgSettings.put("remoteDNS", wgDnsServers);
+        }
 
         JSONObject outbound = new JSONObject();
         outbound.put("tag", PROXY_TAG);
@@ -553,11 +546,14 @@ public final class XrayConfigFactory {
         }
         addDnsServer(servers, settings.remoteDns);
         addDnsServer(servers, settings.directDns);
-        // Plain-IP fallback resolvers (vk-turn-proxy's defaultResolverAddrs,
-        // Yandex first: rarely censored under RU block conditions where 1.1.1.1
-        // often is). Last, so configured/DoH servers stay preferred; they keep
-        // resolution working when those are unreachable.
-        addPlainFallbackResolvers(servers);
+        // Публичные резолверы по plain UDP нужны только как опора, когда все
+        // настроенные серверы адресованы доменами (DoH/DoT) и сами требуют
+        // резолва. Если хоть один сервер задан литералом, они только мешают:
+        // запросы к заблокированным в стране адресам висят по таймауту, а в
+        // VK TURN уходят ещё и через туннель
+        if (!hasPlainIpServer(servers)) {
+            addPlainFallbackResolvers(servers);
+        }
         if (servers.length() > 0) {
             dns.put("servers", servers);
         }
@@ -687,6 +683,27 @@ public final class XrayConfigFactory {
             }
         }
         return true;
+    }
+
+    private static boolean hasPlainIpServer(JSONArray servers) {
+        for (int index = 0; index < servers.length(); index++) {
+            Object entry = servers.opt(index);
+            if (entry instanceof String && looksLikeIpLiteral(((String) entry).trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static JSONArray plainIpDnsServers(String rawValue) {
+        JSONArray servers = new JSONArray();
+        for (String entry : splitDnsEntries(rawValue)) {
+            String normalized = entry == null ? "" : entry.trim();
+            if (!normalized.isEmpty() && looksLikeIpLiteral(normalized)) {
+                servers.put(normalized);
+            }
+        }
+        return servers;
     }
 
     private static void addPlainFallbackResolvers(JSONArray servers) {
