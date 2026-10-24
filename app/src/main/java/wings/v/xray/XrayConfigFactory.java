@@ -54,7 +54,7 @@ public final class XrayConfigFactory {
 
     private static final String TUN_TAG = "tun-in";
     private static final String TUN_BYPASS_TAG = "tun-in-bypass";
-    // gVisor stamps connections from per-app ByeDPI UIDs with this inbound tag
+    // the TUN stack stamps connections from per-app ByeDPI UIDs with this inbound tag
     // (route_inbound_tag) so a routing rule can divert them to the standalone
     // ByeDPI SOCKS outbound below, independent of the app-routing mode.
     private static final String TUN_BYEDPI_TAG = "tun-in-byedpi";
@@ -65,7 +65,7 @@ public final class XrayConfigFactory {
     // VpnService xray can bind it - unlike the TPROXY inbound which needs
     // IP_TRANSPARENT (root). iptables nat REDIRECT diverts shared-client traffic
     // here, where SO_ORIGINAL_DST is recovered and routed through the active
-    // tunnel outbound, bypassing the gVisor TUN (and its unknown-uid policy).
+    // tunnel outbound, bypassing the TUN (and its unknown-uid policy).
     public static final int REDIRECT_PORT = 55556;
     private static final String REDIR_TAG = "redirect-in";
     private static final String SOCKS_TAG = "socks-in";
@@ -195,7 +195,7 @@ public final class XrayConfigFactory {
         // bootstrap servers in buildDns are reachable without the system resolver.
         applyDirectResolveStrategy(outbounds, xraySettings.ipv6);
         // Standalone ByeDPI SOCKS outbound for per-app ByeDPI routing (distinct
-        // from the byedpi-front transport chain): only relevant on the gVisor
+        // from the byedpi-front transport chain): only relevant on the TUN
         // TUN path, where applyTunUidFilter stamps the selected UIDs so the
         // routing rule below can divert them here.
         if (includeTunInbound) {
@@ -273,7 +273,7 @@ public final class XrayConfigFactory {
 
     /**
      * Builds an xray config that pipes the VpnService TUN through xray-core's
-     * gVisor inbound (which honors excludedUids/allowedUids the same way the
+     * TUN inbound (which honors excludedUids/allowedUids the same way the
      * Xray VPN path does) into a synthetic WireGuard outbound. Used as the
      * non-root replacement for wireguard-android GoBackend on the userspace
      * WG / VK TURN VpnService path: bypassed apps that try to bind to tun
@@ -755,7 +755,7 @@ public final class XrayConfigFactory {
             inbounds.put(tunInbound);
 
             // Transparent redirect inbound for shared (tethering) clients. Always
-            // present next to the gVisor TUN so the iptables nat REDIRECT can point
+            // present next to the TUN so the iptables nat REDIRECT can point
             // here while sharing is active; idle otherwise. followRedirect recovers
             // SO_ORIGINAL_DST; no tproxy sockopt, so it binds under the app uid.
             JSONObject redirInbound = new JSONObject();
@@ -976,7 +976,7 @@ public final class XrayConfigFactory {
             rules.put(bypassRule);
         }
         // ByeDPI per-app rule, like the bypass rule, must precede the DNS rule so
-        // the selected apps' DNS also egresses through ByeDPI. gVisor stamps their
+        // the selected apps' DNS also egresses through ByeDPI. the TUN stack stamps their
         // connections with TUN_BYEDPI_TAG (applyTunUidFilter route_uids); this rule
         // sends that tag to the standalone ByeDPI SOCKS outbound. Gated on the same
         // condition as appendByeDpiAppOutbound so the referenced tag always exists.
@@ -1304,13 +1304,13 @@ public final class XrayConfigFactory {
     }
 
     // Mirrors Android's per-app VPN routing into xray's TUN inbound as a
-    // secondary gVisor-level filter. Android's addDisallowedApplication does
+    // secondary TUN-level filter. Android's addDisallowedApplication does
     // not reliably stop excluded apps from binding to the tun interface
     // directly, so we look up the UID of every new TCP/UDP connection inside
     // xray and drop it when it does not match. See
     // external/Xray-core/proxy/tun/uid_lookup_linux.go for the lookup, and
-    // proxy/tun/stack_gvisor.go for the enforcement point.
-    // Maps the unknown-UID router/policy settings onto the gVisor TUN filter
+    // proxy/tun/uid_filter.go for the enforcement point.
+    // Maps the unknown-UID router/policy settings onto the TUN filter
     // flags: router off -> let unresolved-UID connections fall through to the
     // tunnel; router on + "direct" -> divert them to the bypass inbound (direct);
     // router on + "drop" -> leave both flags unset so the filter drops them.
@@ -1361,19 +1361,19 @@ public final class XrayConfigFactory {
         wings.v.core.AppRoutingMode routingMode = AppPrefs.getAppRoutingMode(context);
         if (routingMode == wings.v.core.AppRoutingMode.BYPASS || routingMode == wings.v.core.AppRoutingMode.WHITELIST) {
             // Plain Bypass / Whitelist filter at the VpnService framework layer
-            // (addDisallowedApplication / addAllowedApplication) and use NO gVisor
-            // TUN UID filter - symmetric with each other. The gVisor allowlist needs
+            // (addDisallowedApplication / addAllowedApplication) and use NO TUN
+            // TUN UID filter - symmetric with each other. The TUN allowlist needs
             // per-connection UID resolution (getConnectionOwnerUid on non-root), which
             // does not reliably attribute forwarded connections; a known-but-not-listed
             // UID (e.g. a system resolver) then hits a hard drop and black-holes the
-            // whole mode. Only XBYPASS/XWHITELIST run the gVisor filter - they divert
+            // whole mode. Only XBYPASS/XWHITELIST run the TUN filter - they divert
             // non-listed UIDs to direct instead of dropping, so a missed UID degrades
             // to a leak, not a blackout. On root, per-UID routing is enforced by
             // iptables owner-match (RootMultiUserRouter / TPROXY) regardless of mode,
             // so nothing is lost here.
             android.util.Log.i(
                 "WINGSV-Xray",
-                "applyTunUidFilter: plain " + routingMode.prefValue + " uses VpnService filter, no gVisor filter"
+                "applyTunUidFilter: plain " + routingMode.prefValue + " uses VpnService filter, no TUN filter"
             );
             return;
         }
@@ -1381,7 +1381,7 @@ public final class XrayConfigFactory {
         if (packages == null || packages.isEmpty()) {
             android.util.Log.i(
                 "WINGSV-Xray",
-                "applyTunUidFilter: no effective app-routing packages, gVisor UID filter disabled"
+                "applyTunUidFilter: no effective app-routing packages, TUN UID filter disabled"
             );
             return;
         }
@@ -1406,7 +1406,7 @@ public final class XrayConfigFactory {
             // traffic enters the tunnel and ConnectivityManager
             // .getConnectionOwnerUid resolves their UIDs - including
             // bypass apps that try --interface tun0 tricks. Their packets
-            // are redirected back to the underlying network at gVisor
+            // are redirected back to the underlying network at TUN
             // level, transparently to the app, instead of being dropped.
             tunSettings.put("bypassUids", uidArray);
             tunSettings.put("bypassInboundTag", TUN_BYPASS_TAG);
@@ -1420,7 +1420,7 @@ public final class XrayConfigFactory {
         } else if (routingMode == wings.v.core.AppRoutingMode.XWHITELIST) {
             // XWhitelist (inverse of XBypass): keep every app inside the tunnel
             // but tunnel ONLY the listed UIDs; divert the rest to direct at the
-            // gVisor level. allowedUids restricts the tunnel to the listed UIDs,
+            // TUN level. allowedUids restricts the tunnel to the listed UIDs,
             // and bypass_inbound_tag makes the core re-route the non-listed (and,
             // when opted-in, unknown) UIDs to the direct/freedom outbound instead
             // of dropping them - so non-selected apps keep working while the
@@ -1437,7 +1437,7 @@ public final class XrayConfigFactory {
         // and the connection is dropped, closing the SO_BINDTODEVICE escape
         // route. To absorb the race between an app opening sockets in rapid
         // succession (Tor pulling 6+ guards at once, SSH multiplexing) and
-        // the kernel publishing those sockets in /proc/net/tcp*, gVisor will
+        // the kernel publishing those sockets in /proc/net/tcp*, the TUN stack will
         // retry the lookup every ~5 ms for up to uidLookupTimeoutMs before
         // dropping. 0 disables retries entirely.
         if (xraySettings != null && xraySettings.tunUidLookupTimeoutMs > 0) {

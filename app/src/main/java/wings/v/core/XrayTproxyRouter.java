@@ -236,7 +236,7 @@ public final class XrayTproxyRouter {
     // Uses iptables nat REDIRECT (not TPROXY): the destination is DNATed to the
     // box before the routing decision, so the app-uid VpnService xray receives it
     // via SO_ORIGINAL_DST without needing IP_TRANSPARENT, and the packet never
-    // reaches the gVisor TUN nor the system tether MASQUERADE. IPv4 only (shared
+    // reaches the TUN nor the system tether MASQUERADE. IPv4 only (shared
     // clients are IPv4; REDIRECT is an IPv4 nat target).
     public static void applyForwardedRedirect(
         @NonNull Context context,

@@ -274,7 +274,7 @@ public class AppsFragment extends Fragment {
         loadApplications();
     }
 
-    // XBypass (gVisor-direct) is only reachable on the xray-core TUN path: plain
+    // XBypass (TUN-direct) is only reachable on the xray-core TUN path: plain
     // Xray (not TPROXY, not proxy-only) or VK TURN / WireGuard running over xray-WG
     // with root off. On kernel WG, TPROXY and the native WG/Amnezia backends it is
     // hidden and a stored XBYPASS selection degrades to plain Bypass.
@@ -283,7 +283,7 @@ public class AppsFragment extends Fragment {
         if (backend == null) {
             return false;
         }
-        // X (gVisor divert) modes are a non-root mechanism: on root, per-UID routing
+        // X (TUN divert) modes are a non-root mechanism: on root, per-UID routing
         // is enforced in-kernel by ip-rules / iptables (RootMultiUserRouter), which
         // also closes the leak X handles, so X is redundant and hidden here.
         // getAppRoutingMode() collapses any stored X selection to its plain family on

@@ -389,7 +389,7 @@ public class XrayVpnService extends VpnService implements DialerController {
     private void applyAppRouting(Builder builder) {
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(this);
         AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
-        // ByeDPI per-app routing diverts these apps at the gVisor level, so they
+        // ByeDPI per-app routing diverts these apps at the TUN level, so they
         // must stay INSIDE the VpnService tunnel regardless of the routing mode:
         // whitelist them explicitly, and never disallow them under plain Bypass.
         Set<String> byeDpiPackages = AppPrefs.getByeDpiAppPackages(this);
@@ -424,7 +424,7 @@ public class XrayVpnService extends VpnService implements DialerController {
                 // Plain Bypass: exclude the selected apps at the Android layer.
                 // Simple and native, but a non-excluded app could still escape the
                 // tunnel by binding directly to the underlying interface. A ByeDPI
-                // per-app app stays tunneled so its gVisor divert can fire.
+                // per-app app stays tunneled so its TUN divert can fire.
                 for (String packageName : packages) {
                     if (byeDpiPackages.contains(packageName)) {
                         continue;
@@ -434,7 +434,7 @@ public class XrayVpnService extends VpnService implements DialerController {
             }
             // XBYPASS / XWHITELIST modes: deliberately do NOT touch the
             // VpnService app list. Every app's traffic enters the tunnel,
-            // xray-core resolves the UID, and the gVisor stack diverts the
+            // xray-core resolves the UID, and the TUN stack diverts the
             // relevant UIDs to the direct/freedom outbound via the
             // bypass_inbound_tag tagging (applyTunUidFilter) - the selected
             // apps for xbypass, the non-selected apps for xwhitelist. This also
@@ -446,7 +446,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         }
     }
 
-    // Whitelist ByeDPI per-app packages into the tunnel so their gVisor divert can
+    // Whitelist ByeDPI per-app packages into the tunnel so their TUN divert can
     // fire. A missing package (uninstalled) is skipped rather than failing the
     // whole build. Own package is never added.
     private void addByeDpiAllowedApplications(Builder builder, Set<String> byeDpiPackages)

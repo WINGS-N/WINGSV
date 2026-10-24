@@ -131,7 +131,7 @@ public enum BackendType {
     }
 
     // True for backends that run over the userspace xray-core WireGuard path when
-    // root mode is off (gVisor TUN -> synthetic WG outbound). Xray DNS/routing/
+    // root mode is off (TUN -> synthetic WG outbound). Xray DNS/routing/
     // sniffing settings apply there too, even though it is not a plain Xray backend.
     public boolean usesUserspaceXrayWireGuard() {
         return this == VK_TURN_WIREGUARD || this == WIREGUARD;

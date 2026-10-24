@@ -201,7 +201,7 @@ public final class AppPrefs {
     public static final String KEY_APP_ROUTING_MODE = "pref_app_routing_mode";
     public static final String KEY_APP_ROUTING_BYPASS_PACKAGES = "pref_app_routing_bypass_packages";
     public static final String KEY_APP_ROUTING_WHITELIST_PACKAGES = "pref_app_routing_whitelist_packages";
-    // One-time migration: the former single "bypass" mode becomes XBYPASS (gVisor-
+    // One-time migration: the former single "bypass" mode becomes XBYPASS (TUN-
     // direct), preserving its leak-closed behavior; plain BYPASS (disallow) is new.
     private static final String KEY_APP_ROUTING_XBYPASS_MIGRATED = "pref_app_routing_xbypass_migrated";
     public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
@@ -1299,7 +1299,7 @@ public final class AppPrefs {
         AppRoutingMode mode = stored != null ? AppRoutingMode.fromPrefValue(stored) : migrateLegacyAppRouting(prefs);
         if (!prefs.getBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, false)) {
             // First run after the split: move existing "bypass" users to XBYPASS so
-            // their gVisor-direct behavior is preserved. Other modes are untouched.
+            // their TUN-direct behavior is preserved. Other modes are untouched.
             if (mode == AppRoutingMode.BYPASS) {
                 mode = AppRoutingMode.XBYPASS;
                 prefs
@@ -1313,11 +1313,11 @@ public final class AppPrefs {
         }
         // On root the per-UID routing is enforced in-kernel by ip-rules / iptables
         // (RootMultiUserRouter), which already closes the SO_BINDTODEVICE leak the
-        // gVisor X (divert) modes exist to handle for non-root. Collapse X to its
-        // plain family so we never run the redundant (and non-root-shaped) gVisor
+        // TUN X (divert) modes exist to handle for non-root. Collapse X to its
+        // plain family so we never run the redundant (and non-root-shaped) TUN
         // divert on root. The stored value is left untouched, so turning root off
         // restores the X selection.
-        if (mode.isGvisorDivert() && isRootModeEnabled(context)) {
+        if (mode.isTunDivert() && isRootModeEnabled(context)) {
             mode = mode.plainFamily();
         }
         return mode;

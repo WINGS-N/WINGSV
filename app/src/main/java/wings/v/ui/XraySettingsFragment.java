@@ -122,7 +122,7 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void applyTunUidPrefVisibility() {
-        // Both settings only act inside the gVisor TUN inbound. In TPROXY mode the
+        // Both settings only act inside the TUN inbound. In TPROXY mode the
         // TUN is not built and UID matching is a synchronous kernel owner-match, so
         // neither applies - hide them there. The UID lookup timeout drives the
         // /proc/net retry window, which needs root to read /proc, so it stays root-
@@ -133,25 +133,25 @@ public class XraySettingsFragment extends PreferenceFragmentCompat {
             rootMode &&
             AppPrefs.isXrayTproxyModeEnabled(requireContext()) &&
             RootUtils.isXrayTproxySupported(requireContext(), false);
-        // The gVisor TUN UID filter is built ONLY for the X (divert) modes - plain
+        // The TUN UID filter is built ONLY for the X (divert) modes - plain
         // Bypass/Whitelist filter at the VpnService framework layer (non-root) or via
-        // iptables owner-match (root), never the gVisor filter. So its unknown-UID
+        // iptables owner-match (root), never the TUN filter. So its unknown-UID
         // router/policy and the /proc lookup timeout act only in XBYPASS/XWHITELIST;
         // hide them everywhere else (plain modes on root and non-root, and TPROXY).
         // The timeout additionally needs root (it drives the root-only /proc retry).
         wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(requireContext());
-        boolean gvisorUidFilterActive = !tproxyActive && appMode.isGvisorDivert();
+        boolean tunUidFilterActive = !tproxyActive && appMode.isTunDivert();
         androidx.preference.Preference timeoutPref = findPreference(AppPrefs.KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS);
         if (timeoutPref != null) {
-            timeoutPref.setVisible(rootMode && gvisorUidFilterActive);
+            timeoutPref.setVisible(rootMode && tunUidFilterActive);
         }
         androidx.preference.Preference unknownRouterPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER);
         if (unknownRouterPref != null) {
-            unknownRouterPref.setVisible(gvisorUidFilterActive);
+            unknownRouterPref.setVisible(tunUidFilterActive);
         }
         androidx.preference.Preference unknownPolicyPref = findPreference(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_POLICY);
         if (unknownPolicyPref != null) {
-            unknownPolicyPref.setVisible(gvisorUidFilterActive);
+            unknownPolicyPref.setVisible(tunUidFilterActive);
         }
     }
 

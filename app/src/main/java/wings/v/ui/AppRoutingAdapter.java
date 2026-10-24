@@ -58,7 +58,7 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         notifyItemChanged(0);
     }
 
-    // When the xray gVisor divert is not available for the current backend the
+    // When the xray TUN divert is not available for the current backend the
     // XBypass/XWhitelist options are hidden and a selected X-mode is shown as its
     // plain equivalent (it degrades to that at runtime).
     private AppRoutingMode displayMode() {

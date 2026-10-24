@@ -32,7 +32,7 @@ public final class XraySettings {
     public boolean proxyQuicEnabled;
     public boolean restartOnNetworkChange;
     public int tunUidLookupTimeoutMs;
-    // Unknown-UID router: when enabled the gVisor TUN filter applies tunUnknownUidPolicy
+    // Unknown-UID router: when enabled the TUN filter applies tunUnknownUidPolicy
     // ("direct" or "drop") to connections whose UID could not be resolved; when disabled
     // such connections are let into the tunnel unchanged.
     public boolean tunUnknownUidRouter = true;

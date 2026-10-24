@@ -1611,7 +1611,7 @@ public class ProxyTunnelService extends Service {
         // Hand the application context to XrayBridge so its UID lookup
         // controller can reach ConnectivityManager.getConnectionOwnerUid().
         // This is the only non-root API that lets the VPN see UIDs of
-        // connections crossing its tunnel, which is what backs the gVisor
+        // connections crossing its tunnel, which is what backs the TUN
         // TUN inbound's excludedUids/allowedUids enforcement.
         XrayBridge.setUidLookupContext(getApplicationContext());
         try {
@@ -2457,7 +2457,7 @@ public class ProxyTunnelService extends Service {
         // Non-root userspace WG/VK TURN VpnService path: Android's
         // addDisallowedApplication does not stop bypassed apps from binding
         // to tun directly, and we cannot install iptables to plug the leak
-        // without root. Route the TUN through xray-core's gVisor inbound
+        // without root. Route the TUN through xray-core's TUN inbound
         // (same UID lookup the Xray VPN mode uses) into a synthetic WG
         // outbound. Same protect-bridge fd path as the regular Xray VPN.
         // Gate by user's master Root functions toggle, not OS-level grant:
@@ -3354,7 +3354,7 @@ public class ProxyTunnelService extends Service {
 
         BackendType resolvedBackendToStop = backendToStop != null ? backendToStop : activeBackendType;
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly(resolvedBackendToStop);
-        // A non-root VK TURN / plain-WG run tunnels through the xray-core gVisor TUN
+        // A non-root VK TURN / plain-WG run tunnels through the xray-core TUN
         // (XrayVpnService), not the GoBackend userspace VpnService, even though its
         // backend type is not an xray one. Route its teardown to the XrayVpnService
         // stop, or the tun is never torn down and the VpnService lingers after
@@ -7138,7 +7138,7 @@ public class ProxyTunnelService extends Service {
     // Transparently REDIRECT shared (tethering) client traffic into the local xray
     // dokodemo-door redirect inbound, so AP/hotspot clients are tunneled through
     // the active backend instead of leaking out the physical upstream. Root only;
-    // bypasses the gVisor TUN entirely. Reverts when the interface set is empty.
+    // bypasses the the TUN inbound entirely. Reverts when the interface set is empty.
     private void applyForwardedClientRedirect(Set<String> downstreamInterfaces) {
         if (!rootModeActive) {
             return;
@@ -8345,8 +8345,8 @@ public class ProxyTunnelService extends Service {
         }
         RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
-        // The gVisor-divert modes (XBYPASS / XWHITELIST) route every app THROUGH
-        // the tun and divert the relevant UIDs at the gVisor level, so iptables
+        // The TUN-divert modes (XBYPASS / XWHITELIST) route every app THROUGH
+        // the tun and divert the relevant UIDs at the TUN level, so iptables
         // must not reject them on tun egress there. Plain BYPASS excludes apps at
         // the VpnService layer (addDisallowedApplication): they never enter the
         // tun, and the filter must instead kick them OFF the tun (block 1) while
@@ -8356,7 +8356,7 @@ public class ProxyTunnelService extends Service {
             usesXrayBackend(activeBackendType) &&
             !activeXrayTproxyMode &&
             !activeXrayProxyOnly &&
-            AppPrefs.getAppRoutingMode(appContext).isGvisorDivert();
+            AppPrefs.getAppRoutingMode(appContext).isTunDivert();
         try {
             RootMultiUserRouter.applyFilterOnly(
                 appContext,

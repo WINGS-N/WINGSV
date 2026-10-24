@@ -7,14 +7,14 @@ public enum AppRoutingMode {
     OFF("off"),
     // BYPASS excludes the selected apps at the VpnService layer
     // (addDisallowedApplication). XBYPASS keeps every app inside the tunnel and
-    // diverts the selected ones to direct at the xray-core gVisor level (closes
+    // diverts the selected ones to direct at the xray-core TUN level (closes
     // the unknown-UID / SO_BINDTODEVICE leak). Both share the bypass app list.
     BYPASS("bypass"),
     XBYPASS("xbypass"),
     // WHITELIST tunnels only the selected apps at the VpnService layer
     // (addAllowedApplication), the rest go direct. XWHITELIST is the inverse of
     // XBYPASS: it keeps every app inside the tunnel and diverts the NON-selected
-    // ones to direct at the xray-core gVisor level (closes the same leak for the
+    // ones to direct at the xray-core TUN level (closes the same leak for the
     // non-tunneled apps). Both share the whitelist app list.
     WHITELIST("whitelist"),
     XWHITELIST("xwhitelist");
@@ -26,27 +26,27 @@ public enum AppRoutingMode {
     }
 
     // True for the bypass family (selected apps go direct); both share the bypass
-    // app list and differ only in mechanism (framework disallow vs gVisor divert).
+    // app list and differ only in mechanism (framework disallow vs TUN divert).
     public boolean isBypassFamily() {
         return this == BYPASS || this == XBYPASS;
     }
 
     // True for the whitelist family (only selected apps are tunneled, the rest
     // go direct); both share the whitelist app list and differ only in mechanism
-    // (framework addAllowedApplication vs gVisor divert of the non-selected).
+    // (framework addAllowedApplication vs TUN divert of the non-selected).
     public boolean isWhitelistFamily() {
         return this == WHITELIST || this == XWHITELIST;
     }
 
-    // True when the selected apps are diverted at the xray-core gVisor level
+    // True when the selected apps are diverted at the xray-core TUN level
     // (every app stays inside the tunnel) rather than filtered by the VpnService
     // framework. These modes need the xray TUN inbound's uid filter.
-    public boolean isGvisorDivert() {
+    public boolean isTunDivert() {
         return this == XBYPASS || this == XWHITELIST;
     }
 
     // The non-X equivalent: XBYPASS -> BYPASS, XWHITELIST -> WHITELIST, others
-    // unchanged. Used on root, where the gVisor divert (the X modes) is replaced by
+    // unchanged. Used on root, where the TUN divert (the X modes) is replaced by
     // in-kernel ip-rules / iptables, so X collapses to its plain family.
     public AppRoutingMode plainFamily() {
         if (this == XBYPASS) {

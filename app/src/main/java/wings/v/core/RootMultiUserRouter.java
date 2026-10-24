@@ -220,10 +220,10 @@ public final class RootMultiUserRouter {
     /**
      * Same as {@link #applyFilterOnly(Context, String, Mode, Set, List)} but
      * with bypassEntersTun=true the BYPASS-direction REJECT against tun is
-     * skipped. Use it when the userspace VPN backend (Xray gVisor) needs all
+     * skipped. Use it when the userspace VPN backend (Xray TUN) needs all
      * apps - including bypass UIDs - to enter the tun device so it can divert
      * bypass connections at the stack level. Without this, iptables drops the
-     * packet before gVisor sees it and bypass apps lose all connectivity.
+     * packet before the TUN stack sees it and bypass apps lose all connectivity.
      */
     public static void applyFilterOnly(
         @NonNull Context context,
@@ -411,7 +411,7 @@ public final class RootMultiUserRouter {
             // Блок 1: пакеты, идущие через tun. REJECT для тех, кто не должен
             // туда ходить, RETURN для остальных - чтобы блок 2 их уже не трогал.
             // bypassEntersTun=true пропускает блок 1 для BYPASS: пакеты bypass-
-            // UID должны войти в tun, чтобы userspace VPN backend (gVisor)
+            // UID должны войти в tun, чтобы userspace VPN backend (TUN)
             // перехватил их и редиректнул на freedom outbound.
             if (hasTun) {
                 if (mode == Mode.BYPASS && !bypassEntersTun) {
