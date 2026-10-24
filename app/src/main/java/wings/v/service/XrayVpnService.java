@@ -434,12 +434,12 @@ public class XrayVpnService extends VpnService implements DialerController {
             }
             // XBYPASS / XWHITELIST modes: deliberately do NOT touch the
             // VpnService app list. Every app's traffic enters the tunnel,
-            // xray-core resolves the UID, and the TUN stack diverts the
-            // relevant UIDs to the direct/freedom outbound via the
-            // bypass_inbound_tag tagging (applyTunUidFilter) - the selected
-            // apps for xbypass, the non-selected apps for xwhitelist. This also
-            // catches apps that try to bypass by binding directly to tun
-            // (curl --interface tun0), which a plain disallow cannot.
+            // xray-core resolves the owning UID of each connection and a
+            // routing rule sends the relevant ones to the direct/freedom
+            // outbound - the selected apps for xbypass, the non-selected apps
+            // for xwhitelist. This also catches apps that try to bypass by
+            // binding directly to tun (curl --interface tun0), which a plain
+            // disallow cannot.
             // OFF mode: packages is empty above, so we never reach here.
         } catch (Exception error) {
             throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
