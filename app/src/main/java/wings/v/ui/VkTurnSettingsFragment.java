@@ -152,6 +152,15 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         AmneziaStore.KEY_INTERFACE_I3,
         AmneziaStore.KEY_INTERFACE_I4,
         AmneziaStore.KEY_INTERFACE_I5,
+        AmneziaStore.KEY_INTERFACE_HPK,
+        AmneziaStore.KEY_INTERFACE_CPA,
+        AmneziaStore.KEY_INTERFACE_REKEY_AFTER,
+        AmneziaStore.KEY_INTERFACE_REKEY_TIMEOUT,
+        AmneziaStore.KEY_INTERFACE_REJECT_AFTER,
+        AmneziaStore.KEY_INTERFACE_KEEPALIVE_TIMEOUT,
+        AmneziaStore.KEY_INTERFACE_MAX_HANDSHAKES,
+        AmneziaStore.KEY_INTERFACE_RANDOM_TRAILERS,
+        AmneziaStore.KEY_INTERFACE_DISABLE_COOKIES,
         "pref_inset_after_awg_interface",
         "pref_category_awg_peer",
         AmneziaStore.KEY_PEER_PUBLIC_KEY,
@@ -189,6 +198,15 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I3);
         RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I4);
         RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_I5);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_HPK);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_CPA);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_REKEY_AFTER);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_REKEY_TIMEOUT);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_REJECT_AFTER);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_KEEPALIVE_TIMEOUT);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_MAX_HANDSHAKES);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_RANDOM_TRAILERS);
+        RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_INTERFACE_DISABLE_COOKIES);
         RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_PUBLIC_KEY);
         RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_PRESHARED_KEY);
         RUNTIME_AFFECTING_KEYS.add(AmneziaStore.KEY_PEER_ALLOWED_IPS);
@@ -326,6 +344,15 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_I3);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_I4);
         bindSummaryPreference(AmneziaStore.KEY_INTERFACE_I5);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_HPK);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_CPA);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_REKEY_AFTER);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_REKEY_TIMEOUT);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_REJECT_AFTER);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_KEEPALIVE_TIMEOUT);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_MAX_HANDSHAKES);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_RANDOM_TRAILERS);
+        bindSummaryPreference(AmneziaStore.KEY_INTERFACE_DISABLE_COOKIES);
         bindIpSummaryPreference(AmneziaStore.KEY_PEER_ALLOWED_IPS);
         bindIpSummaryPreference(AmneziaStore.KEY_PEER_ENDPOINT);
         bindSummaryPreference(AmneziaStore.KEY_PEER_PERSISTENT_KEEPALIVE);
@@ -1233,6 +1260,36 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         syncEditTextPreference(AmneziaStore.KEY_INTERFACE_I3, prefs.getString(AmneziaStore.KEY_INTERFACE_I3, ""));
         syncEditTextPreference(AmneziaStore.KEY_INTERFACE_I4, prefs.getString(AmneziaStore.KEY_INTERFACE_I4, ""));
         syncEditTextPreference(AmneziaStore.KEY_INTERFACE_I5, prefs.getString(AmneziaStore.KEY_INTERFACE_I5, ""));
+        syncEditTextPreference(AmneziaStore.KEY_INTERFACE_HPK, prefs.getString(AmneziaStore.KEY_INTERFACE_HPK, ""));
+        syncEditTextPreference(AmneziaStore.KEY_INTERFACE_CPA, prefs.getString(AmneziaStore.KEY_INTERFACE_CPA, ""));
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_REKEY_AFTER,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_REKEY_AFTER, "")
+        );
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_REKEY_TIMEOUT,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_REKEY_TIMEOUT, "")
+        );
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_REJECT_AFTER,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_REJECT_AFTER, "")
+        );
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_KEEPALIVE_TIMEOUT,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_KEEPALIVE_TIMEOUT, "")
+        );
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_MAX_HANDSHAKES,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_MAX_HANDSHAKES, "")
+        );
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_RANDOM_TRAILERS,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_RANDOM_TRAILERS, "")
+        );
+        syncEditTextPreference(
+            AmneziaStore.KEY_INTERFACE_DISABLE_COOKIES,
+            prefs.getString(AmneziaStore.KEY_INTERFACE_DISABLE_COOKIES, "")
+        );
         syncEditTextPreference(AmneziaStore.KEY_PEER_PUBLIC_KEY, prefs.getString(AmneziaStore.KEY_PEER_PUBLIC_KEY, ""));
         syncEditTextPreference(
             AmneziaStore.KEY_PEER_PRESHARED_KEY,

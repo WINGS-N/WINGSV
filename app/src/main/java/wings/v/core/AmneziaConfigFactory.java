@@ -58,6 +58,36 @@ public final class AmneziaConfigFactory {
         ifaceBuilder.setSpecialJunkI3(iface.getSpecialJunkI3().orElse(null));
         ifaceBuilder.setSpecialJunkI4(iface.getSpecialJunkI4().orElse(null));
         ifaceBuilder.setSpecialJunkI5(iface.getSpecialJunkI5().orElse(null));
+        // Параметры AWG 3.1: защита заголовков, добивка содержимого, свои
+        // таймауты и отказ от cookie. Интерфейс пересобирается тут по полям,
+        // так что не перенесённое просто теряется по дороге в туннель
+        if (iface.getHeaderProtectionKey().isPresent()) {
+            ifaceBuilder.setHeaderProtectionKey(iface.getHeaderProtectionKey().get());
+        }
+        if (iface.getContentPaddingAddition().isPresent()) {
+            ifaceBuilder.setContentPaddingAddition(iface.getContentPaddingAddition().get());
+        }
+        if (iface.getRekeyAfterTime().isPresent()) {
+            ifaceBuilder.setRekeyAfterTime(iface.getRekeyAfterTime().get());
+        }
+        if (iface.getRekeyTimeout().isPresent()) {
+            ifaceBuilder.setRekeyTimeout(iface.getRekeyTimeout().get());
+        }
+        if (iface.getRejectAfterTime().isPresent()) {
+            ifaceBuilder.setRejectAfterTime(iface.getRejectAfterTime().get());
+        }
+        if (iface.getKeepaliveTimeout().isPresent()) {
+            ifaceBuilder.setKeepaliveTimeout(iface.getKeepaliveTimeout().get());
+        }
+        if (iface.getMaxHandshakeAttempts().isPresent()) {
+            ifaceBuilder.setMaxHandshakeAttempts(iface.getMaxHandshakeAttempts().get());
+        }
+        if (iface.getRandomTrailers().isPresent()) {
+            ifaceBuilder.setRandomTrailers(iface.getRandomTrailers().get());
+        }
+        if (iface.getDisableCookies().isPresent()) {
+            ifaceBuilder.setDisableCookies(iface.getDisableCookies().get());
+        }
         Set<String> appRoutingPackages = AppPrefs.getEffectiveAppRoutingPackages(context);
         if (!appRoutingPackages.isEmpty()) {
             AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);

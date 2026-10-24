@@ -12,6 +12,7 @@ import org.amnezia.awg.config.Config;
 import org.amnezia.awg.config.InetEndpoint;
 import org.amnezia.awg.config.Interface;
 import org.amnezia.awg.config.Peer;
+import org.amnezia.awg.crypto.Key;
 
 @SuppressWarnings(
     {
@@ -49,6 +50,15 @@ public final class AmneziaStore {
     public static final String KEY_INTERFACE_I3 = "pref_awg_interface_i3";
     public static final String KEY_INTERFACE_I4 = "pref_awg_interface_i4";
     public static final String KEY_INTERFACE_I5 = "pref_awg_interface_i5";
+    public static final String KEY_INTERFACE_HPK = "pref_awg_interface_hpk";
+    public static final String KEY_INTERFACE_CPA = "pref_awg_interface_cpa";
+    public static final String KEY_INTERFACE_REKEY_AFTER = "pref_awg_interface_rekey_after";
+    public static final String KEY_INTERFACE_REKEY_TIMEOUT = "pref_awg_interface_rekey_timeout";
+    public static final String KEY_INTERFACE_REJECT_AFTER = "pref_awg_interface_reject_after";
+    public static final String KEY_INTERFACE_KEEPALIVE_TIMEOUT = "pref_awg_interface_keepalive_timeout";
+    public static final String KEY_INTERFACE_MAX_HANDSHAKES = "pref_awg_interface_max_handshakes";
+    public static final String KEY_INTERFACE_RANDOM_TRAILERS = "pref_awg_interface_random_trailers";
+    public static final String KEY_INTERFACE_DISABLE_COOKIES = "pref_awg_interface_disable_cookies";
     public static final String KEY_PEER_PUBLIC_KEY = "pref_awg_peer_public_key";
     public static final String KEY_PEER_PRESHARED_KEY = "pref_awg_peer_preshared_key";
     public static final String KEY_PEER_ALLOWED_IPS = "pref_awg_peer_allowed_ips";
@@ -168,6 +178,15 @@ public final class AmneziaStore {
             KEY_INTERFACE_I3.equals(key) ||
             KEY_INTERFACE_I4.equals(key) ||
             KEY_INTERFACE_I5.equals(key) ||
+            KEY_INTERFACE_HPK.equals(key) ||
+            KEY_INTERFACE_CPA.equals(key) ||
+            KEY_INTERFACE_REKEY_AFTER.equals(key) ||
+            KEY_INTERFACE_REKEY_TIMEOUT.equals(key) ||
+            KEY_INTERFACE_REJECT_AFTER.equals(key) ||
+            KEY_INTERFACE_KEEPALIVE_TIMEOUT.equals(key) ||
+            KEY_INTERFACE_MAX_HANDSHAKES.equals(key) ||
+            KEY_INTERFACE_RANDOM_TRAILERS.equals(key) ||
+            KEY_INTERFACE_DISABLE_COOKIES.equals(key) ||
             KEY_PEER_PUBLIC_KEY.equals(key) ||
             KEY_PEER_PRESHARED_KEY.equals(key) ||
             KEY_PEER_ALLOWED_IPS.equals(key) ||
@@ -202,6 +221,15 @@ public final class AmneziaStore {
         result.i3 = iface.getSpecialJunkI3().orElse("");
         result.i4 = iface.getSpecialJunkI4().orElse("");
         result.i5 = iface.getSpecialJunkI5().orElse("");
+        result.hpk = iface.getHeaderProtectionKey().map(Key::toBase64).orElse("");
+        result.cpa = iface.getContentPaddingAddition().orElse("");
+        result.rekeyAfter = iface.getRekeyAfterTime().orElse("");
+        result.rekeyTimeout = iface.getRekeyTimeout().orElse("");
+        result.rejectAfter = iface.getRejectAfterTime().orElse("");
+        result.keepaliveTimeout = iface.getKeepaliveTimeout().orElse("");
+        result.maxHandshakes = iface.getMaxHandshakeAttempts().orElse("");
+        result.randomTrailers = iface.getRandomTrailers().orElse("");
+        result.disableCookies = iface.getDisableCookies().orElse("");
         if (!config.getPeers().isEmpty()) {
             Peer peer = config.getPeers().get(0);
             result.peerPublicKey = peer.getPublicKey().toBase64();
@@ -238,6 +266,15 @@ public final class AmneziaStore {
         editor.putString(KEY_INTERFACE_I3, config.i3);
         editor.putString(KEY_INTERFACE_I4, config.i4);
         editor.putString(KEY_INTERFACE_I5, config.i5);
+        editor.putString(KEY_INTERFACE_HPK, config.hpk);
+        editor.putString(KEY_INTERFACE_CPA, config.cpa);
+        editor.putString(KEY_INTERFACE_REKEY_AFTER, config.rekeyAfter);
+        editor.putString(KEY_INTERFACE_REKEY_TIMEOUT, config.rekeyTimeout);
+        editor.putString(KEY_INTERFACE_REJECT_AFTER, config.rejectAfter);
+        editor.putString(KEY_INTERFACE_KEEPALIVE_TIMEOUT, config.keepaliveTimeout);
+        editor.putString(KEY_INTERFACE_MAX_HANDSHAKES, config.maxHandshakes);
+        editor.putString(KEY_INTERFACE_RANDOM_TRAILERS, config.randomTrailers);
+        editor.putString(KEY_INTERFACE_DISABLE_COOKIES, config.disableCookies);
         editor.putString(KEY_PEER_PUBLIC_KEY, config.peerPublicKey);
         editor.putString(KEY_PEER_PRESHARED_KEY, config.peerPresharedKey);
         editor.putString(KEY_PEER_ALLOWED_IPS, config.peerAllowedIps);
@@ -269,6 +306,15 @@ public final class AmneziaStore {
         appendLine(builder, "I3", sharedPreferences.getString(KEY_INTERFACE_I3, ""));
         appendLine(builder, "I4", sharedPreferences.getString(KEY_INTERFACE_I4, ""));
         appendLine(builder, "I5", sharedPreferences.getString(KEY_INTERFACE_I5, ""));
+        appendLine(builder, "HeaderProtectionKey", sharedPreferences.getString(KEY_INTERFACE_HPK, ""));
+        appendLine(builder, "ContentPaddingAddition", sharedPreferences.getString(KEY_INTERFACE_CPA, ""));
+        appendLine(builder, "RekeyAfterTime", sharedPreferences.getString(KEY_INTERFACE_REKEY_AFTER, ""));
+        appendLine(builder, "RekeyTimeout", sharedPreferences.getString(KEY_INTERFACE_REKEY_TIMEOUT, ""));
+        appendLine(builder, "RejectAfterTime", sharedPreferences.getString(KEY_INTERFACE_REJECT_AFTER, ""));
+        appendLine(builder, "KeepaliveTimeout", sharedPreferences.getString(KEY_INTERFACE_KEEPALIVE_TIMEOUT, ""));
+        appendLine(builder, "MaxHandshakeAttempts", sharedPreferences.getString(KEY_INTERFACE_MAX_HANDSHAKES, ""));
+        appendLine(builder, "RandomTrailers", sharedPreferences.getString(KEY_INTERFACE_RANDOM_TRAILERS, ""));
+        appendLine(builder, "DisableCookies", sharedPreferences.getString(KEY_INTERFACE_DISABLE_COOKIES, ""));
         builder.append('\n').append("[Peer]\n");
         appendLine(builder, "PublicKey", sharedPreferences.getString(KEY_PEER_PUBLIC_KEY, ""));
         appendLine(builder, "PreSharedKey", sharedPreferences.getString(KEY_PEER_PRESHARED_KEY, ""));
@@ -348,6 +394,15 @@ public final class AmneziaStore {
         private String i3 = "";
         private String i4 = "";
         private String i5 = "";
+        private String hpk = "";
+        private String cpa = "";
+        private String rekeyAfter = "";
+        private String rekeyTimeout = "";
+        private String rejectAfter = "";
+        private String keepaliveTimeout = "";
+        private String maxHandshakes = "";
+        private String randomTrailers = "";
+        private String disableCookies = "";
         private String peerPublicKey = "";
         private String peerPresharedKey = "";
         private String peerAllowedIps = "";

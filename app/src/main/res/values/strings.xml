@@ -580,6 +580,15 @@
     <string name="awg_settings_interface_i3_title">I3</string>
     <string name="awg_settings_interface_i4_title">I4</string>
     <string name="awg_settings_interface_i5_title">I5</string>
+    <string name="awg_settings_interface_hpk_title">HeaderProtectionKey</string>
+    <string name="awg_settings_interface_cpa_title">ContentPaddingAddition</string>
+    <string name="awg_settings_interface_rekey_after_title">RekeyAfterTime</string>
+    <string name="awg_settings_interface_rekey_timeout_title">RekeyTimeout</string>
+    <string name="awg_settings_interface_reject_after_title">RejectAfterTime</string>
+    <string name="awg_settings_interface_keepalive_timeout_title">KeepaliveTimeout</string>
+    <string name="awg_settings_interface_max_handshakes_title">MaxHandshakeAttempts</string>
+    <string name="awg_settings_interface_random_trailers_title">RandomTrailers</string>
+    <string name="awg_settings_interface_disable_cookies_title">DisableCookies</string>
     <string name="awg_settings_peer_public_key_title">PublicKey</string>
     <string name="awg_settings_peer_preshared_key_title">PreSharedKey</string>
     <string name="awg_settings_peer_allowed_ips_title">AllowedIPs</string>

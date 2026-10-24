@@ -132,6 +132,51 @@
         android:title="@string/awg_settings_interface_i5_title"
         app:useSimpleSummaryProvider="true" />
 
+    <EditTextPreference
+        android:key="pref_awg_interface_hpk"
+        android:title="@string/awg_settings_interface_hpk_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_cpa"
+        android:title="@string/awg_settings_interface_cpa_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_rekey_after"
+        android:title="@string/awg_settings_interface_rekey_after_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_rekey_timeout"
+        android:title="@string/awg_settings_interface_rekey_timeout_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_reject_after"
+        android:title="@string/awg_settings_interface_reject_after_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_keepalive_timeout"
+        android:title="@string/awg_settings_interface_keepalive_timeout_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_max_handshakes"
+        android:title="@string/awg_settings_interface_max_handshakes_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_random_trailers"
+        android:title="@string/awg_settings_interface_random_trailers_title"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="pref_awg_interface_disable_cookies"
+        android:title="@string/awg_settings_interface_disable_cookies_title"
+        app:useSimpleSummaryProvider="true" />
+
     <dev.oneuiproject.oneui.preference.InsetPreferenceCategory />
 
     <PreferenceCategory
