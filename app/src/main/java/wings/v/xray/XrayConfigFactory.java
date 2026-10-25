@@ -188,7 +188,7 @@ public final class XrayConfigFactory {
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context));
         root.put("dns", buildDns(xraySettings));
-        root.put("inbounds", buildInbounds(xraySettings, includeTunInbound, tproxyPort));
+        root.put("inbounds", buildInbounds(xraySettings, includeTunInbound, tproxyPort, settings.redirectPort));
         JSONArray outbounds = buildOutbounds(proxyOutbound, xraySettings, byeDpiSettings);
         // The direct outbound carries DoH connections and direct-routed traffic;
         // let it resolve hostnames through the internal DNS too so the DoH
@@ -309,7 +309,7 @@ public final class XrayConfigFactory {
         JSONObject root = new JSONObject();
         root.put("log", buildLog(context, "info"));
         root.put("dns", buildDns(effectiveXraySettings, directDnsPlan));
-        root.put("inbounds", buildInbounds(effectiveXraySettings, true, 0));
+        root.put("inbounds", buildInbounds(effectiveXraySettings, true, 0, settings.redirectPort));
         root.put("outbounds", buildOutbounds(wgOutbound, effectiveXraySettings, null));
         // For TURN/WG flavors route xray's internal DNS resolver through
         // the WG outbound so DNS queries ride the tunnel instead of leaking
@@ -751,8 +751,12 @@ public final class XrayConfigFactory {
         return sockopt;
     }
 
-    private static JSONArray buildInbounds(XraySettings settings, boolean includeTunInbound, int tproxyPort)
-        throws Exception {
+    private static JSONArray buildInbounds(
+        XraySettings settings,
+        boolean includeTunInbound,
+        int tproxyPort,
+        int redirectPort
+    ) throws Exception {
         JSONArray inbounds = new JSONArray();
         if (includeTunInbound) {
             JSONObject tunInbound = new JSONObject();
@@ -774,7 +778,7 @@ public final class XrayConfigFactory {
             redirInbound.put("tag", REDIR_TAG);
             redirInbound.put("protocol", "dokodemo-door");
             redirInbound.put("listen", "0.0.0.0");
-            redirInbound.put("port", REDIRECT_PORT);
+            redirInbound.put("port", redirectPort > 0 ? redirectPort : REDIRECT_PORT);
             JSONObject redirSettings = new JSONObject();
             redirSettings.put("network", "tcp,udp");
             redirSettings.put("followRedirect", true);

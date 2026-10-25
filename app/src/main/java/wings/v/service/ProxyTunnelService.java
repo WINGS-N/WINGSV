@@ -596,6 +596,8 @@ public class ProxyTunnelService extends Service {
     // free-port probe fails.
     private static final int XRAY_TPROXY_PORT_FALLBACK = 55555;
     private volatile int xrayTproxyPort = XRAY_TPROXY_PORT_FALLBACK;
+    // Порт transparent-redirect этой сессии: стандартный, пока он свободен
+    private volatile int xrayRedirectPort = XrayConfigFactory.REDIRECT_PORT;
     private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
     private static final String XRAY_TPROXY_LISTENER_LOG_MARKER = "listening TCP on";
     private static final long TPROXY_MARK_REFRESH_INTERVAL_MS = 1_000L;
@@ -2101,6 +2103,14 @@ public class ProxyTunnelService extends Service {
             // config, iptables rules and the listener-readiness checks.
             xrayTproxyPort = allocateFreeTproxyPort();
         }
+        // Порт transparent-redirect держит кто угодно - второй профиль, прошлый
+        // не добитый процесс, чужая программа. Занят - ядро не поднимает ни один
+        // инбаунд и валится целиком, поэтому порт выбирается на каждую сессию
+        xrayRedirectPort = allocateRedirectPort();
+        settings.redirectPort = xrayRedirectPort;
+        if (xrayRedirectPort != XrayConfigFactory.REDIRECT_PORT) {
+            appendRuntimeLogLine("Shared-client redirect port taken, using " + xrayRedirectPort);
+        }
         final ProxySettings fSettings = settings;
         final Context appCtxForConfig = getApplicationContext();
         java.util.concurrent.CompletableFuture<String> configBuildFuture = null;
@@ -2846,6 +2856,25 @@ public class ProxyTunnelService extends Service {
     // collides with whatever else is bound. There is a small window between the probe
     // and xray binding the port, acceptable for an ephemeral port; on any failure it
     // falls back to the fixed port.
+    // Отдаёт стандартный порт redirect-инбаунда, пока его можно занять, иначе
+    // любой свободный. Инбаунд слушает все интерфейсы, поэтому и проба идёт по
+    // ним же: занятость на 127.0.0.1 тут ничего не говорит
+    private static int allocateRedirectPort() {
+        try (java.net.ServerSocket probe = new java.net.ServerSocket()) {
+            probe.bind(new java.net.InetSocketAddress("0.0.0.0", XrayConfigFactory.REDIRECT_PORT));
+            return XrayConfigFactory.REDIRECT_PORT;
+        } catch (Exception ignored) {}
+        try (java.net.ServerSocket socket = new java.net.ServerSocket()) {
+            socket.setReuseAddress(true);
+            socket.bind(new java.net.InetSocketAddress("0.0.0.0", 0));
+            int port = socket.getLocalPort();
+            if (port > 0) {
+                return port;
+            }
+        } catch (Exception ignored) {}
+        return XrayConfigFactory.REDIRECT_PORT;
+    }
+
     private static int allocateFreeTproxyPort() {
         try (java.net.ServerSocket socket = new java.net.ServerSocket()) {
             socket.setReuseAddress(true);
@@ -7150,7 +7179,7 @@ public class ProxyTunnelService extends Service {
             RootExecutor.applyForwardedRedirectViaDaemon(
                 getApplicationContext(),
                 downstreamInterfaces,
-                XrayConfigFactory.REDIRECT_PORT
+                xrayRedirectPort
             )
         ) {
             if (hasInterfaces) {
@@ -7165,7 +7194,7 @@ public class ProxyTunnelService extends Service {
                 XrayTproxyRouter.applyForwardedRedirect(
                     getApplicationContext(),
                     downstreamInterfaces,
-                    XrayConfigFactory.REDIRECT_PORT
+                    xrayRedirectPort
                 );
                 appendRuntimeLogLine("Shared-client redirect applied: " + downstreamInterfaces);
             }

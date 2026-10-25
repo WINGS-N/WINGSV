@@ -46,6 +46,9 @@ public class ProxySettings {
     public boolean vkTurnRestartOnNetworkChange = true;
     public ProxyRuntimeMode vkTurnRuntimeMode = ProxyRuntimeMode.VPN;
     /** WRAP per-packet obfuscation mode: "off" / "preferred" / "required". */
+    // Порт transparent-redirect инбаунда, выбранный на эту сессию. Ноль - берётся
+    // стандартный: порт может быть занят кем угодно, и тогда ядро не поднимется
+    public int redirectPort;
     public String vkTurnWrapMode = "preferred";
     public String vkTurnBrowserFingerprint = "safari";
     /** WRAP SRTP-mimicry AEAD: "srtp-aes-gcm" (default) or "srtp-chacha20-poly1305". */
