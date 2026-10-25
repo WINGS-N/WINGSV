@@ -2613,6 +2613,10 @@ public final class WingsImportParser {
         if (includeDefaults || !"preferred".equals(wrapMode)) {
             builder.setWrapMode(wrapModeFromPref(wrapMode));
         }
+        String browserFingerprint = AppPrefs.normalizeVkTurnBrowserFingerprint(settings.vkTurnBrowserFingerprint);
+        if (includeDefaults || !AppPrefs.VK_TURN_BROWSER_FP_SAFARI.equals(browserFingerprint)) {
+            builder.setBrowserFingerprint(browserFingerprint);
+        }
         String wrapCipher = AppPrefs.normalizeWrapCipher(settings.vkTurnWrapCipher);
         if (includeDefaults || !"srtp-aes-gcm".equals(wrapCipher)) {
             builder.addWrapCiphers(wrapCipherFromPref(wrapCipher));
@@ -3050,6 +3054,11 @@ public final class WingsImportParser {
         }
         if (turn.getWrapMode() != WingsvProto.WrapMode.WRAP_MODE_UNSPECIFIED) {
             importedConfig.vkTurnWrapMode = wrapModeToPref(turn.getWrapMode());
+        }
+        if (!turn.getBrowserFingerprint().isEmpty()) {
+            importedConfig.vkTurnBrowserFingerprint = AppPrefs.normalizeVkTurnBrowserFingerprint(
+                turn.getBrowserFingerprint()
+            );
         }
         if (turn.getWrapCiphersCount() > 0) {
             importedConfig.vkTurnWrapCipher = wrapCipherToPref(turn.getWrapCiphers(0));
@@ -4167,6 +4176,7 @@ public final class WingsImportParser {
         public Boolean vkTurnRestartOnNetworkChange;
         public ProxyRuntimeMode vkTurnRuntimeMode;
         public String vkTurnUserDns;
+        public String vkTurnBrowserFingerprint;
         public String vkTurnWrapMode;
         public String vkTurnWrapCipher;
         public String vkTurnWrapKeyHex;

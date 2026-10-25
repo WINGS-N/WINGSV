@@ -1600,6 +1600,9 @@ public final class AppPrefs {
         );
         settings.vkTurnUserDns = trim(prefs.getString(KEY_VK_TURN_USER_DNS, ""));
         settings.vkTurnWrapMode = normalizeWrapMode(prefs.getString(KEY_VK_TURN_WRAP_MODE, "preferred"));
+        settings.vkTurnBrowserFingerprint = normalizeVkTurnBrowserFingerprint(
+            prefs.getString(KEY_VK_TURN_BROWSER_FINGERPRINT, VK_TURN_BROWSER_FP_SAFARI)
+        );
         settings.vkTurnWrapCipher = normalizeWrapCipher(prefs.getString(KEY_VK_TURN_WRAP_CIPHER, "srtp-aes-gcm"));
         settings.vkTurnWrapKeyHex = trim(prefs.getString(KEY_VK_TURN_WRAP_KEY_HEX, ""));
         settings.vkTurnWrapSendKey = prefs.getBoolean(KEY_VK_TURN_WRAP_SEND_KEY, true);
@@ -1943,6 +1946,12 @@ public final class AppPrefs {
         );
         if (importedConfig.vkTurnRuntimeMode != null) {
             editor.putString(KEY_VK_TURN_RUNTIME_MODE, importedConfig.vkTurnRuntimeMode.prefValue);
+        }
+        if (importedConfig.vkTurnBrowserFingerprint != null) {
+            editor.putString(
+                KEY_VK_TURN_BROWSER_FINGERPRINT,
+                normalizeVkTurnBrowserFingerprint(importedConfig.vkTurnBrowserFingerprint)
+            );
         }
         if (importedConfig.vkTurnUserDns != null) {
             editor.putString(KEY_VK_TURN_USER_DNS, trim(importedConfig.vkTurnUserDns));
