@@ -118,8 +118,8 @@ android {
 // the subset of VPNHotspot mobile sources we need, copy them into a generated
 // directory and feed that to variant.sources.java via the new
 // androidComponents API.
-val mobileSourceRoot = layout.projectDirectory.dir("../../external/VPNHotspot/mobile/src/main/java")
-val mobileResRoot = layout.projectDirectory.dir("../../external/VPNHotspot/mobile/src/main/res")
+val mobileSourceRoot = layout.projectDirectory.dir("../../../external/VPNHotspot/mobile/src/main/java")
+val mobileResRoot = layout.projectDirectory.dir("../../../external/VPNHotspot/mobile/src/main/res")
 val mobileIncludedSources = listOf(
     "be/mygod/vpnhotspot/RoutingManager.kt",
     "be/mygod/vpnhotspot/io/Utils.kt",
@@ -192,8 +192,8 @@ androidComponents {
             ?.maxByOrNull { it.name }
             ?: error("No Android NDK installed under $ndkParent")
         val daemonTask = tasks.register<BuildDaemonNativeLibsTask>("build${variantTitle}DaemonNativeLibs") {
-            sourceDir.set(layout.projectDirectory.dir("../../external/VPNHotspot/mobile/src/main/rust/vpnhotspotd"))
-            protoDir.set(layout.projectDirectory.dir("../../external/VPNHotspot/mobile/src/main/proto"))
+            sourceDir.set(layout.projectDirectory.dir("../../../external/VPNHotspot/mobile/src/main/rust/vpnhotspotd"))
+            protoDir.set(layout.projectDirectory.dir("../../../external/VPNHotspot/mobile/src/main/proto"))
             cargoProfile.set(if (variant.buildType == "release") "release" else "debug")
             androidPlatform.set(29)
             outputDir.set(layout.buildDirectory.dir("generated/nativeLibs/daemon/${variant.name}"))
@@ -223,13 +223,13 @@ wire {
         rpcRole = "none"
     }
     sourcePath {
-        srcDir("../../external/VPNHotspot/mobile/src/main/proto")
+        srcDir("../../../external/VPNHotspot/mobile/src/main/proto")
     }
 }
 
 val hiddenApiStubAnnotations by configurations.creating
 val compileHiddenApiStubs by tasks.registering(JavaCompile::class) {
-    source("../../external/VPNHotspot/mobile/src/hiddenApiStubs/java")
+    source("../../../external/VPNHotspot/mobile/src/hiddenApiStubs/java")
     classpath = files(androidComponents.sdkComponents.bootClasspath) + hiddenApiStubAnnotations
     destinationDirectory.set(layout.buildDirectory.dir("intermediates/hiddenApiStubs/classes"))
     sourceCompatibility = "11"

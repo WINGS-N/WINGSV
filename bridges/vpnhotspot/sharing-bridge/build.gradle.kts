@@ -22,6 +22,6 @@ android {
 }
 
 dependencies {
-    api(project(":vpnhotspot:sharing-runtime"))
+    api(project(":bridges:vpnhotspot:sharing-runtime"))
     implementation(libs.androidx.annotation)
 }

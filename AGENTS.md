@@ -20,11 +20,14 @@ WireGuard/AmneziaWG, with a Samsung One UI (SESL 8) interface.
 Gradle modules (`settings.gradle.kts`):
 
 - `:app` - the application, all Java.
-- `:vpnhotspot:bridge`, `:vpnhotspot:sharing-bridge`, `:vpnhotspot:sharing-runtime`,
-  `:vpnhotspot:upstream-runtime` - root-tethering / VPN-sharing support under the top-level
-  `vpnhotspot/` directory. These are mixed JVM (Kotlin and Java), not all Kotlin: `bridge` is
-  Kotlin, `upstream-runtime` is Kotlin with a native Rust daemon built via cargo-ndk,
-  `sharing-runtime` is mixed, `sharing-bridge` is pure Java.
+- `:bridges:vpnhotspot:bridge`, `:bridges:vpnhotspot:sharing-bridge`,
+  `:bridges:vpnhotspot:sharing-runtime`, `:bridges:vpnhotspot:upstream-runtime` -
+  root-tethering / VPN-sharing support under `bridges/vpnhotspot/`. Every bridge to an
+  `external/` fork lives under `bridges/<name>/`, lowercase, so the module tree never
+  collides with the upstream mirror it wraps (`external/VPNHotspot`). These are mixed JVM
+  (Kotlin and Java), not all Kotlin: `bridge` is Kotlin, `upstream-runtime` is Kotlin with a
+  native Rust daemon built via cargo-ndk, `sharing-runtime` is mixed, `sharing-bridge` is
+  pure Java.
 - `:amneziawg-tunnel` - mapped to `external/amneziawg-android/tunnel`.
 
 App subpackages under `app/src/main/java/wings/v/`: core, ui, service, guardian, root, xray,

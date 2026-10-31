@@ -22,7 +22,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":vpnhotspot:upstream-runtime"))
+    implementation(project(":bridges:vpnhotspot:upstream-runtime"))
     implementation(libs.androidx.annotation)
     implementation(libs.kotlinx.coroutines.android)
     implementation("androidx.core:core-ktx:1.17.0")

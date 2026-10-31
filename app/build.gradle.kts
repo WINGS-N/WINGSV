@@ -895,8 +895,8 @@ dependencies {
     implementation(libs.livekit.android)
     implementation(project(":amneziawg-tunnel"))
     implementation(files(generatedLibXrayAar))
-    implementation(project(":vpnhotspot:bridge"))
-    implementation(project(":vpnhotspot:sharing-bridge"))
+    implementation(project(":bridges:vpnhotspot:bridge"))
+    implementation(project(":bridges:vpnhotspot:sharing-bridge"))
     compileOnly(files("libs/xposed-api-82.jar"))
 
     testImplementation(libs.junit)
