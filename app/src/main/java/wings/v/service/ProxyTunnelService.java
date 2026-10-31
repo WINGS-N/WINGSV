@@ -5782,7 +5782,7 @@ public class ProxyTunnelService extends Service {
     }
 
     // B' authorized account TURN: the relay needs the live VK web session to mint
-    // the privileged token. Open the WebView at vk.com so the user can sign in (or
+    // the privileged token. Open the WebView at vk.ru so the user can sign in (or
     // reuse the persisted session); VkAuthBrowserActivity then delivers the cookies
     // back via ACTION_VK_COOKIES.
     private void handleVkCookiesRequired() {
@@ -5825,10 +5825,10 @@ public class ProxyTunnelService extends Service {
     private void launchVkCookieBrowser() {
         boolean foreground = isApplicationInForeground();
         if (!foreground) {
-            postVkAccountAuthNotification("https://vk.com/");
+            postVkAccountAuthNotification("https://vk.ru/");
         }
         try {
-            Intent intent = VkAuthBrowserActivity.createIntent(this, "https://vk.com/").addFlags(
+            Intent intent = VkAuthBrowserActivity.createIntent(this, "https://vk.ru/").addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP
             );
             startActivity(intent);

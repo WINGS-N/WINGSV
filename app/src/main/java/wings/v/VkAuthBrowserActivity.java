@@ -333,7 +333,7 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
             new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                    // Load vk.com directly; let the WebView follow all navigations.
+                    // Load vk.ru directly; let the WebView follow all navigations.
                     return false;
                 }
 
@@ -385,6 +385,7 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
             if (trimmed.isEmpty() || trimmed.indexOf('=') <= 0) {
                 continue;
             }
+            cookieManager.setCookie("https://vk.ru", trimmed + "; Domain=.vk.ru; Path=/");
             cookieManager.setCookie("https://vk.com", trimmed + "; Domain=.vk.com; Path=/");
         }
         cookieManager.flush();
@@ -399,8 +400,17 @@ public class VkAuthBrowserActivity extends AppCompatActivity {
             return;
         }
         CookieManager cookieManager = CookieManager.getInstance();
-        String cookies = cookieManager.getCookie("https://login.vk.com/");
-        if (TextUtils.isEmpty(cookies)) {
+        // vk.com редиректит на vk.ru, и remixsid теперь садится на .vk.ru.
+        // Старый .com оставлен запасным: сессия, заведённая до переезда, ещё
+        // жива, пока её не ротировали
+        String cookies = cookieManager.getCookie("https://login.vk.ru/");
+        if (TextUtils.isEmpty(cookies) || !cookies.contains("remixsid")) {
+            cookies = cookieManager.getCookie("https://vk.ru/");
+        }
+        if (TextUtils.isEmpty(cookies) || !cookies.contains("remixsid")) {
+            cookies = cookieManager.getCookie("https://login.vk.com/");
+        }
+        if (TextUtils.isEmpty(cookies) || !cookies.contains("remixsid")) {
             cookies = cookieManager.getCookie("https://vk.com/");
         }
         if (TextUtils.isEmpty(cookies) || !cookies.contains("remixsid")) {
