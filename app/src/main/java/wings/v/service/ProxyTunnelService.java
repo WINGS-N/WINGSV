@@ -7088,23 +7088,30 @@ public class ProxyTunnelService extends Service {
         boolean forceReapply =
             lastTetherForceReapplyAtElapsedMs <= 0L ||
             now - lastTetherForceReapplyAtElapsedMs >= ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS;
+        boolean interfacesChanged = !configuredInterfaces.equals(lastTetherSyncInterfaces);
+        // Вырез REDIRECT перекладываем только когда сменился набор интерфейсов или
+        // правило смыли. Пересборка идёт через снос хука из nat PREROUTING, и на это
+        // время форвард-клиенты остаются без DNAT: соединение, начатое в такую щель,
+        // уходит мимо туннеля и остаётся таким до конца жизни, потому что трансляцию
+        // кеширует conntrack. Раз в 10 секунд это давало ровные отвалы у раздачи
+        boolean redirectNeedsApply = interfacesChanged;
         boolean stateUnchanged =
             !forceReapply &&
-            configuredInterfaces.equals(lastTetherSyncInterfaces) &&
+            !interfacesChanged &&
             Objects.equals(upstreamNameForLog, lastTetherSyncUpstream) &&
             Objects.equals(sharingConfig, lastTetherSyncConfig);
         if (stateUnchanged) {
-            // Nothing changed and the blind reapply is not yet due. Cheaply probe the
-            // forwarded REDIRECT carve-out on its own throttle; if the system flushed it
-            // out from under us, re-assert now instead of waiting out the force cadence.
+            // Ничего не менялось: дёшево проверяем вырез по своему таймеру и
+            // восстанавливаем только если его реально смыло
             if (now - lastTetherDriftCheckAtElapsedMs < ROOT_TETHER_DRIFT_CHECK_INTERVAL_MS) {
                 return;
             }
             lastTetherDriftCheckAtElapsedMs = now;
-            if (XrayTproxyRouter.isForwardedRedirectApplied(getApplicationContext())) {
+            if (activeXrayTproxyMode || XrayTproxyRouter.isForwardedRedirectApplied(getApplicationContext())) {
                 return;
             }
             appendRuntimeLogLine("Shared-client redirect carve-out drifted, reasserting");
+            redirectNeedsApply = true;
         }
         if (!SharingApiGuard.isSupported()) {
             appendRuntimeLogLine("Root tether routing skipped: requires Android 10 or newer");
@@ -7116,7 +7123,9 @@ public class ProxyTunnelService extends Service {
             applySharingTtlHide(configuredInterfaces);
             // Sharing is on here (the off case returned hands-off above): tunnel the
             // forwarded AP/hotspot clients through the active backend.
-            applyForwardedClientRedirect(configuredInterfaces);
+            if (redirectNeedsApply) {
+                applyForwardedClientRedirect(configuredInterfaces);
+            }
             appliedTetherUpstreamName = upstreamNameForLog;
             lastTetherSyncInterfaces = new LinkedHashSet<>(configuredInterfaces);
             lastTetherSyncUpstream = upstreamNameForLog;
@@ -7170,6 +7179,22 @@ public class ProxyTunnelService extends Service {
     // bypasses the the TUN inbound entirely. Reverts when the interface set is empty.
     private void applyForwardedClientRedirect(Set<String> downstreamInterfaces) {
         if (!rootModeActive) {
+            return;
+        }
+        // В режиме TPROXY форвард-трафик уже забирает правило TPROXY в mangle
+        // PREROUTING. nat PREROUTING идёт тем же хуком следом и перебивает уже
+        // назначенный сокет своим DNAT на другой порт - два захвата одного потока
+        // рвут раздачу. Тут REDIRECT не ставим и подчищаем остаток от прошлого режима
+        if (activeXrayTproxyMode) {
+            if (
+                !RootExecutor.applyForwardedRedirectViaDaemon(
+                    getApplicationContext(),
+                    new LinkedHashSet<>(),
+                    xrayRedirectPort
+                )
+            ) {
+                XrayTproxyRouter.revertForwardedRedirectQuietly(getApplicationContext());
+            }
             return;
         }
         boolean hasInterfaces = downstreamInterfaces != null && !downstreamInterfaces.isEmpty();
