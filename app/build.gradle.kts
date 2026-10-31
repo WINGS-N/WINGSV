@@ -260,7 +260,7 @@ val buildVkTurnProxyArm64: TaskProvider<Exec> by tasks.registering(Exec::class) 
         exclude(".git/**")
         exclude("**/build/**")
     })
-    inputs.property("vkTurnGoToolchain", "go1.25.5")
+    inputs.property("vkTurnGoToolchain", "go1.27.2")
     outputs.file(generatedVkTurnBinary)
 
     doFirst {
@@ -280,7 +280,7 @@ val buildVkTurnProxyArm64: TaskProvider<Exec> by tasks.registering(Exec::class) 
             mapOf(
                 "GOMODCACHE" to goModCacheDir.absolutePath,
                 "GOCACHE" to goCacheDir.absolutePath,
-                "GOTOOLCHAIN" to "go1.25.5",
+                "GOTOOLCHAIN" to "go1.27.2",
                 "CGO_ENABLED" to "1",
                 "GOOS" to "android",
                 "GOARCH" to "arm64",
@@ -315,7 +315,7 @@ val buildVkTurnProxyArm32: TaskProvider<Exec> by tasks.registering(Exec::class) 
         exclude(".git/**")
         exclude("**/build/**")
     })
-    inputs.property("vkTurnGoToolchain", "go1.25.5")
+    inputs.property("vkTurnGoToolchain", "go1.27.2")
     outputs.file(generatedVkTurnBinaryArm32)
 
     doFirst {
@@ -335,7 +335,7 @@ val buildVkTurnProxyArm32: TaskProvider<Exec> by tasks.registering(Exec::class) 
             mapOf(
                 "GOMODCACHE" to goModCacheDir.absolutePath,
                 "GOCACHE" to goCacheDir.absolutePath,
-                "GOTOOLCHAIN" to "go1.25.5",
+                "GOTOOLCHAIN" to "go1.27.2",
                 "CGO_ENABLED" to "1",
                 "GOOS" to "android",
                 "GOARCH" to "arm",
