@@ -115,11 +115,18 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default package set still contains the obsolete "tools"
+          # package, which Google dropped from the SDK repository; sdkmanager then
+          # exits 1 and the job dies before it builds anything. Everything the
+          # build needs is installed explicitly in the next step.
+          packages: ""
 
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null
           sdkmanager --install \
+            "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.0.0" \
             "ndk;28.2.13676358" \
