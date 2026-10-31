@@ -311,6 +311,7 @@ public final class AppPrefs {
      * обосранный интернет
      */
     public static final String KEY_FEDERATION_RECEIPT_QUEUE = "pref_federation_receipt_queue";
+    public static final String KEY_FEDERATION_RECEIPTS_OFF = "pref_federation_receipts_off";
 
     /**
      * Порт служебного socks на петле. Через него расписки уходят СКВОЗЬ ноду,

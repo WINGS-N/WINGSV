@@ -62,6 +62,13 @@ public final class FederationReceiptQueue {
                 // До панели не дотянулись ни одним из путей. Остаётся сама нода:
                 // она тут курьер, подпись наша, и подделать расписку она не может
                 accepted = FederationNodeDoor.deliver(context, queue);
+                if (accepted == FederationNodeDoor.RECEIPTS_OFF) {
+                    // Нода в режиме без выплат: расписки не нужны. Бросаем очередь
+                    // и перестаём подписывать до следующей сессии
+                    forget(context, queue);
+                    FederationReceipts.markOff(context);
+                    return 0;
+                }
                 if (accepted == 0) {
                     throw panelUnreachable;
                 }

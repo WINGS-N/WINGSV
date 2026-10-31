@@ -50,6 +50,23 @@ public final class FederationReceipts {
         return null;
     }
 
+    // Через час после 410 клиент снова пробует подписать: вдруг оператор включил
+    // выплаты. Один отбитый запрос в час - не нагрузка, а флаг не залипает навсегда
+    private static final long RECEIPTS_OFF_WINDOW_MS = 60 * 60 * 1000L;
+
+    /** Нода ответила 410: расписки не нужны, перестаём подписывать на окно */
+    public static void markOff(@NonNull Context context) {
+        AppPrefs.prefs(context)
+            .edit()
+            .putLong(AppPrefs.KEY_FEDERATION_RECEIPTS_OFF, System.currentTimeMillis())
+            .apply();
+    }
+
+    private static boolean isOff(@NonNull Context context) {
+        long at = AppPrefs.prefs(context).getLong(AppPrefs.KEY_FEDERATION_RECEIPTS_OFF, 0L);
+        return at > 0 && System.currentTimeMillis() - at < RECEIPTS_OFF_WINDOW_MS;
+    }
+
     /** Показания на конец прошлого окна */
     private static final class Mark {
 
@@ -87,6 +104,9 @@ public final class FederationReceipts {
         @NonNull String nodeId,
         @NonNull String transport
     ) {
+        if (isOff(context)) {
+            return skip("receipts-off", "node runs without payouts, receipts not needed");
+        }
         String clientId = FederationAccount.subjectId(context);
         if (TextUtils.isEmpty(clientId) || TextUtils.isEmpty(nodeId)) {
             return skip("no-ids", "no ids, client=[" + clientId + "] node=[" + nodeId + "]");

@@ -43,12 +43,18 @@ public final class FederationNodeDoor {
      *
      * @return сколько она забрала, ноль если не вышло
      */
+    /** Дверь ответила 410: нода в режиме без выплат, расписки ей не нужны */
+    public static final int RECEIPTS_OFF = -1;
+
     public static int deliver(@NonNull Context context, @NonNull JSONArray receipts) {
         if (receipts.length() == 0) {
             return 0;
         }
         String body = new JSONObject(java.util.Collections.singletonMap("receipts", receipts)).toString();
         int viaXray = post(xrayUrl(), controlProxy(context), body);
+        if (viaXray == RECEIPTS_OFF) {
+            return RECEIPTS_OFF;
+        }
         if (viaXray > 0) {
             return viaXray;
         }
@@ -110,7 +116,11 @@ public final class FederationNodeDoor {
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(body.getBytes(StandardCharsets.UTF_8));
             }
-            if (connection.getResponseCode() / 100 != 2) {
+            int code = connection.getResponseCode();
+            if (code == HttpURLConnection.HTTP_GONE) {
+                return RECEIPTS_OFF;
+            }
+            if (code / 100 != 2) {
                 return 0;
             }
             return 1;
