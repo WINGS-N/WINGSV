@@ -1,9 +1,13 @@
 package wings.v.core;
 
 import android.text.TextUtils;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -23,6 +27,9 @@ public final class XraySubscription {
     public final String id;
     public final String title;
     public final String url;
+    // Запасные адреса той же подписки. Если основной перестал отвечать, обновление
+    // идёт по ним по порядку - один упавший хост не оставляет человека без профилей
+    public final List<String> mirrorUrls;
     public final String formatHint;
     public final int refreshIntervalMinutes;
     public final boolean autoUpdate;
@@ -45,9 +52,40 @@ public final class XraySubscription {
         long advertisedTotalBytes,
         long advertisedExpireAt
     ) {
+        this(
+            id,
+            title,
+            url,
+            null,
+            formatHint,
+            refreshIntervalMinutes,
+            autoUpdate,
+            lastUpdatedAt,
+            advertisedUploadBytes,
+            advertisedDownloadBytes,
+            advertisedTotalBytes,
+            advertisedExpireAt
+        );
+    }
+
+    public XraySubscription(
+        String id,
+        String title,
+        String url,
+        List<String> mirrorUrls,
+        String formatHint,
+        int refreshIntervalMinutes,
+        boolean autoUpdate,
+        long lastUpdatedAt,
+        long advertisedUploadBytes,
+        long advertisedDownloadBytes,
+        long advertisedTotalBytes,
+        long advertisedExpireAt
+    ) {
         this.id = TextUtils.isEmpty(id) ? UUID.randomUUID().toString() : id;
         this.title = emptyIfNull(title);
         this.url = emptyIfNull(url);
+        this.mirrorUrls = normalizeMirrors(url, mirrorUrls);
         this.formatHint = emptyIfNull(formatHint);
         this.refreshIntervalMinutes = Math.max(refreshIntervalMinutes, 0);
         this.autoUpdate = autoUpdate;
@@ -63,6 +101,9 @@ public final class XraySubscription {
         object.put("id", id);
         object.put("title", title);
         object.put("url", url);
+        if (!mirrorUrls.isEmpty()) {
+            object.put("mirror_urls", new JSONArray(mirrorUrls));
+        }
         object.put("format_hint", formatHint);
         object.put("refresh_interval_minutes", refreshIntervalMinutes);
         if (refreshIntervalMinutes > 0 && refreshIntervalMinutes % 60 == 0) {
@@ -85,6 +126,7 @@ public final class XraySubscription {
             object.optString("id"),
             object.optString("title"),
             object.optString("url"),
+            readMirrors(object),
             object.optString("format_hint"),
             resolveRefreshIntervalMinutes(object),
             object.optBoolean("auto_update"),
@@ -120,6 +162,7 @@ public final class XraySubscription {
             Objects.equals(id, that.id) &&
             Objects.equals(title, that.title) &&
             Objects.equals(url, that.url) &&
+            Objects.equals(mirrorUrls, that.mirrorUrls) &&
             Objects.equals(formatHint, that.formatHint)
         );
     }
@@ -130,6 +173,7 @@ public final class XraySubscription {
             id,
             title,
             url,
+            mirrorUrls,
             formatHint,
             refreshIntervalMinutes,
             autoUpdate,
@@ -139,6 +183,63 @@ public final class XraySubscription {
             advertisedTotalBytes,
             advertisedExpireAt
         );
+    }
+
+    /**
+     * Адреса для обновления по порядку: сначала основной, затем запасные.
+     */
+    public List<String> allUrls() {
+        List<String> all = new ArrayList<>(mirrorUrls.size() + 1);
+        if (!TextUtils.isEmpty(url)) {
+            all.add(url);
+        }
+        all.addAll(mirrorUrls);
+        return all;
+    }
+
+    private static List<String> normalizeMirrors(String primary, List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String primaryKey = normalizeUrlKey(primary);
+        List<String> out = new ArrayList<>(raw.size());
+        for (String candidate : raw) {
+            String trimmed = candidate == null ? "" : candidate.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String key = normalizeUrlKey(trimmed);
+            if (key.equals(primaryKey)) {
+                continue;
+            }
+            boolean duplicate = false;
+            for (String kept : out) {
+                if (normalizeUrlKey(kept).equals(key)) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                out.add(trimmed);
+            }
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    private static List<String> readMirrors(JSONObject object) {
+        JSONArray array = object.optJSONArray("mirror_urls");
+        if (array == null) {
+            return Collections.emptyList();
+        }
+        List<String> out = new ArrayList<>(array.length());
+        for (int i = 0; i < array.length(); i++) {
+            out.add(array.optString(i));
+        }
+        return out;
+    }
+
+    private static String normalizeUrlKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private static String emptyIfNull(String value) {

@@ -841,6 +841,7 @@
     <string name="xray_subscriptions_last_updated_label">Updated: %1$s</string>
     <string name="xray_subscriptions_title_hint">Name</string>
     <string name="xray_subscriptions_url_hint">Subscription URL</string>
+    <string name="xray_subscriptions_mirror_urls_hint">Backup URLs, one per line</string>
     <string name="xray_subscriptions_url_required">Enter a subscription URL</string>
     <string name="xray_subscriptions_auto_update_per_subscription">Auto-refresh this subscription</string>
     <string name="xray_subscriptions_auto_update_disabled_label">Auto-refresh disabled</string>

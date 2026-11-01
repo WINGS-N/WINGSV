@@ -138,7 +138,7 @@ public final class XraySubscriptionUpdater {
                 if (federation) {
                     refreshFederationAccess(context);
                 }
-                FetchResult fetched = fetch(context, subscription.url, federation);
+                FetchResult fetched = fetchFirstAvailable(context, subscription, federation);
                 Map<String, String> reuseIds = existingIdsBySubAndKey.get(subscription.id);
                 List<XrayProfile> parsed = WingsImportParser.extractXrayProfilesFromSubscriptionBody(
                     fetched.body,
@@ -177,6 +177,7 @@ public final class XraySubscriptionUpdater {
                         subscription.id,
                         subscription.title,
                         subscription.url,
+                        subscription.mirrorUrls,
                         subscription.formatHint,
                         subscription.refreshIntervalMinutes,
                         subscription.autoUpdate,
@@ -425,6 +426,37 @@ public final class XraySubscriptionUpdater {
 
     /** Тип тела, которым федерация отдаёт подписку своим кадром */
     private static final String WINGS_CONTENT_TYPE = "application/x-wingsv-config";
+
+    /**
+     * Обходит адреса подписки по порядку и отдаёт первый ответивший. Падает только
+     * когда не ответил ни один, и тогда причина первого хранит причины остальных.
+     */
+    private static FetchResult fetchFirstAvailable(Context context, XraySubscription subscription, boolean forceHwid)
+        throws Exception {
+        List<String> urls = subscription.allUrls();
+        Exception firstFailure = null;
+        for (int i = 0; i < urls.size(); i++) {
+            String candidate = urls.get(i);
+            try {
+                FetchResult result = fetch(context, candidate, forceHwid);
+                if (i > 0) {
+                    ProxyTunnelService.writeRuntimeLogLine(
+                        "Subscription refreshed from a backup url [" +
+                            (TextUtils.isEmpty(subscription.title) ? candidate : subscription.title) +
+                            "]"
+                    );
+                }
+                return result;
+            } catch (Exception failure) {
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                } else {
+                    firstFailure.addSuppressed(failure);
+                }
+            }
+        }
+        throw firstFailure == null ? new IllegalStateException("subscription has no url") : firstFailure;
+    }
 
     private static FetchResult fetch(Context context, String urlString, boolean forceHwid) throws Exception {
         // Refresh through the tunnel while the VPN is up, otherwise direct off the
