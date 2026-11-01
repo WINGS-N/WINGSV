@@ -294,6 +294,17 @@ public class SubscriptionsActivity extends AppCompatActivity {
         });
     }
 
+    private static List<String> splitMirrorUrls(String raw) {
+        List<String> urls = new ArrayList<>();
+        for (String line : raw.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty()) {
+                urls.add(trimmed);
+            }
+        }
+        return urls;
+    }
+
     private void showSubscriptionDialog(@Nullable XraySubscription existing) {
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
@@ -314,6 +325,18 @@ public class SubscriptionsActivity extends AppCompatActivity {
         urlInput.setText(existing != null ? existing.url : "");
         container.addView(
             urlInput,
+            new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        );
+
+        EditText mirrorsInput = new EditText(this);
+        mirrorsInput.setHint(R.string.xray_subscriptions_mirror_urls_hint);
+        mirrorsInput.setInputType(
+            InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        );
+        mirrorsInput.setSingleLine(false);
+        mirrorsInput.setText(existing != null ? TextUtils.join("\n", existing.mirrorUrls) : "");
+        container.addView(
+            mirrorsInput,
             new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         );
 
@@ -344,6 +367,7 @@ public class SubscriptionsActivity extends AppCompatActivity {
                     existing != null ? existing.id : null,
                     titleInput.getText() != null ? titleInput.getText().toString().trim() : "",
                     url,
+                    splitMirrorUrls(mirrorsInput.getText() == null ? "" : mirrorsInput.getText().toString()),
                     "auto",
                     existing != null ? existing.refreshIntervalMinutes : XrayStore.getRefreshIntervalMinutes(this),
                     autoUpdateCheckbox.isChecked(),
