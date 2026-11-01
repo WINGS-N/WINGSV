@@ -74,6 +74,7 @@ public final class AutoSearchManager {
     public static final String KEY_TARGET_COUNT = "pref_auto_search_target_count";
     public static final String KEY_TCPING_TIMEOUT_MS = "pref_auto_search_tcping_timeout_ms";
     public static final String KEY_DOWNLOAD_SIZE_MB = "pref_auto_search_download_size_mb";
+    public static final String KEY_MIN_SPEED_MBITS = "pref_auto_search_min_speed_mbits";
     public static final String KEY_DOWNLOAD_TIMEOUT_SECONDS = "pref_auto_search_download_timeout_seconds";
     public static final String KEY_DOWNLOAD_ATTEMPTS = "pref_auto_search_download_attempts";
 
@@ -83,6 +84,8 @@ public final class AutoSearchManager {
     private static final int DEFAULT_DOWNLOAD_ATTEMPTS = 2;
     private static final int DEFAULT_TARGET_COUNT = 5;
     private static final int DEFAULT_DOWNLOAD_SIZE_MB = 5;
+    // Ноль - порога нет, как было до появления настройки
+    private static final int DEFAULT_MIN_SPEED_MBITS = 0;
     private static final long SERVICE_STOP_TIMEOUT_MS = 8_000L;
     private static final long SERVICE_STOP_POLL_MS = 200L;
     private static final long VPN_RELEASE_GRACE_MS = 1_000L;
@@ -176,6 +179,22 @@ public final class AutoSearchManager {
 
     public static void setDownloadSizeMb(@NonNull Context context, int value) {
         settings(context).edit().putInt(KEY_DOWNLOAD_SIZE_MB, clamp(value, 1, 100)).apply();
+    }
+
+    /**
+     * Желаемая скорость в Mbit/s. Сервер, не взявший этот порог на скачивании тест-файла,
+     * в подписку автопоиска не попадает. Ноль отключает проверку.
+     */
+    public static int getMinSpeedMbits(@NonNull Context context) {
+        return clamp(settings(context).getInt(KEY_MIN_SPEED_MBITS, DEFAULT_MIN_SPEED_MBITS), 0, 1000);
+    }
+
+    public static void setMinSpeedMbits(@NonNull Context context, int value) {
+        settings(context).edit().putInt(KEY_MIN_SPEED_MBITS, clamp(value, 0, 1000)).apply();
+    }
+
+    private static long getMinSpeedBytesPerSecond(@NonNull Context context) {
+        return (getMinSpeedMbits(context) * 1_000_000L) / 8L;
     }
 
     public static int getDownloadTimeoutSeconds(@NonNull Context context) {
@@ -1009,12 +1028,16 @@ public final class AutoSearchManager {
     }
 
     private boolean isDownloadSuccessful(@Nullable CandidateResult candidate) {
-        return (
-            candidate != null &&
-            candidate.profile != null &&
-            candidate.successfulAttempts > 0 &&
-            candidate.downloadedBytes > 0L
-        );
+        if (
+            candidate == null ||
+            candidate.profile == null ||
+            candidate.successfulAttempts <= 0 ||
+            candidate.downloadedBytes <= 0L
+        ) {
+            return false;
+        }
+        long minSpeed = getMinSpeedBytesPerSecond(appContext);
+        return minSpeed <= 0L || candidate.averageDownloadSpeedBytesPerSecond >= minSpeed;
     }
 
     private static long resolveStableBytes(long downloadSizeBytes) {
