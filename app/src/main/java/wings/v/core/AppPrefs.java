@@ -146,6 +146,8 @@ public final class AppPrefs {
     public static final String KEY_XRAY_ROUTING_GEOSITE_URL = "pref_xray_routing_geosite_url";
     public static final String KEY_XRAY_ROUTING_RULES_JSON = "pref_xray_routing_rules_json";
     public static final String KEY_XRAY_ROUTING_BOOTSTRAP_ATTEMPTED = "pref_xray_routing_bootstrap_attempted";
+    public static final String KEY_XRAY_ROUTING_GEO_AUTO_UPDATE = "pref_xray_routing_geo_auto_update";
+    public static final String KEY_XRAY_ROUTING_GEO_LAST_CHECK = "pref_xray_routing_geo_last_check";
     public static final String KEY_XRAY_SUBSCRIPTIONS_JSON = "pref_xray_subscriptions_json";
     public static final String KEY_XRAY_DEFAULT_SUBSCRIPTION_SEEDED = "pref_xray_default_subscription_seeded";
     public static final String KEY_XRAY_UNIVERSAL_SUBSCRIPTION_MIGRATED = "pref_xray_universal_subscription_migrated";

@@ -14,6 +14,7 @@ import wings.v.core.ActiveProbingBackgroundScheduler;
 import wings.v.core.AppPrefs;
 import wings.v.core.AppUpdateBackgroundScheduler;
 import wings.v.core.ThemeModeController;
+import wings.v.core.XrayRoutingGeoScheduler;
 import wings.v.core.XraySubscriptionBackgroundScheduler;
 import wings.v.service.ProxyTunnelService;
 import wings.v.service.RuntimeStateStore;
@@ -103,6 +104,7 @@ public class WingsApplication extends Application {
         AppUpdateBackgroundScheduler.schedule(this);
         ActiveProbingBackgroundScheduler.refresh(this);
         XraySubscriptionBackgroundScheduler.refresh(this);
+        XrayRoutingGeoScheduler.refresh(this);
     }
 
     // Android forbids a WebView in two processes sharing one data directory

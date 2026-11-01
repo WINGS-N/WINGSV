@@ -99,6 +99,59 @@ public final class XrayRoutingStore {
             .commit();
     }
 
+    /** Базы живут сутки: Loyalsoldier пересобирает их раз в день */
+    private static final long GEO_REFRESH_INTERVAL_MS = 24L * 60L * 60L * 1000L;
+
+    public static boolean isGeoAutoUpdateEnabled(Context context) {
+        return AppPrefs.defaultSharedPreferences(context).getBoolean(AppPrefs.KEY_XRAY_ROUTING_GEO_AUTO_UPDATE, true);
+    }
+
+    public static void setGeoAutoUpdateEnabled(Context context, boolean enabled) {
+        AppPrefs.defaultSharedPreferences(context)
+            .edit()
+            .putBoolean(AppPrefs.KEY_XRAY_ROUTING_GEO_AUTO_UPDATE, enabled)
+            .apply();
+    }
+
+    public static long getGeoLastCheckAt(Context context) {
+        return AppPrefs.defaultSharedPreferences(context).getLong(AppPrefs.KEY_XRAY_ROUTING_GEO_LAST_CHECK, 0L);
+    }
+
+    /**
+     * Перекачивает базы, когда вышел их срок. Базы, которых нет вовсе, тянет сразу:
+     * без них правила geoip и geosite не матчат ничего. Отметка времени ставится
+     * по попытке, иначе лежачее зеркало будет дёргаться на каждый запуск.
+     */
+    public static boolean refreshGeoFilesIfStale(Context context) {
+        Context appContext = context.getApplicationContext();
+        if (!isGeoAutoUpdateEnabled(appContext)) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        long lastCheck = getGeoLastCheckAt(appContext);
+        boolean missing =
+            !getGeoDatFile(appContext, XrayRoutingRule.MatchType.GEOIP).exists() ||
+            !getGeoDatFile(appContext, XrayRoutingRule.MatchType.GEOSITE).exists();
+        if (!missing && lastCheck > 0L && now - lastCheck < GEO_REFRESH_INTERVAL_MS) {
+            return false;
+        }
+        AppPrefs.defaultSharedPreferences(appContext)
+            .edit()
+            .putLong(AppPrefs.KEY_XRAY_ROUTING_GEO_LAST_CHECK, now)
+            .apply();
+        boolean updated = false;
+        for (XrayRoutingRule.MatchType matchType : new XrayRoutingRule.MatchType[] {
+            XrayRoutingRule.MatchType.GEOIP,
+            XrayRoutingRule.MatchType.GEOSITE,
+        }) {
+            try {
+                downloadGeoFile(appContext, matchType, getSourceUrl(appContext, matchType));
+                updated = true;
+            } catch (Exception ignored) {}
+        }
+        return updated;
+    }
+
     public static void ensureGeoFilesBootstrap(Context context) {
         Context appContext = context.getApplicationContext();
         SharedPreferences preferences = AppPrefs.defaultSharedPreferences(appContext);
