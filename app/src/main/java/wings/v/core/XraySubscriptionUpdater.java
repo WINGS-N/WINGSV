@@ -12,6 +12,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import wings.v.service.ProxyTunnelService;
@@ -121,6 +125,41 @@ public final class XraySubscriptionUpdater {
         String firstError = null;
         boolean anySubscriptionUpdated = false;
 
+        // Качаем все подписки разом: это чистая сеть без общего состояния, и десять
+        // подписок больше не ждут друг друга. Разбор и запись в сторы ниже остаются
+        // последовательными - dispatchBackendProfiles правит сторы VK TURN и WG,
+        // гонять его параллельно нельзя
+        List<XraySubscription> toFetch = new ArrayList<>();
+        for (XraySubscription subscription : subscriptions) {
+            if (subscription == null || TextUtils.isEmpty(subscription.url)) {
+                continue;
+            }
+            if (dueOnly && !shouldRefreshSubscription(subscription, now, defaultRefreshIntervalMinutes)) {
+                continue;
+            }
+            toFetch.add(subscription);
+        }
+        // Доступ федерации обновляется один раз и до запросов: он правит общее состояние
+        for (XraySubscription subscription : toFetch) {
+            if (FederationSubscription.ID.equals(subscription.id)) {
+                refreshFederationAccess(context);
+                break;
+            }
+        }
+        Map<String, Future<FetchResult>> pending = new LinkedHashMap<>();
+        if (!toFetch.isEmpty()) {
+            ExecutorService pool = Executors.newFixedThreadPool(Math.min(toFetch.size(), MAX_PARALLEL_FETCHES));
+            try {
+                for (XraySubscription subscription : toFetch) {
+                    final XraySubscription target = subscription;
+                    final boolean federation = FederationSubscription.ID.equals(target.id);
+                    pending.put(target.id, pool.submit(() -> fetchFirstAvailable(context, target, federation)));
+                }
+            } finally {
+                pool.shutdown();
+            }
+        }
+
         for (XraySubscription subscription : subscriptions) {
             if (subscription == null || TextUtils.isEmpty(subscription.url)) {
                 continue;
@@ -134,11 +173,11 @@ public final class XraySubscriptionUpdater {
                 listener.onSubscriptionStarted(subscription);
             }
             try {
-                boolean federation = FederationSubscription.ID.equals(subscription.id);
-                if (federation) {
-                    refreshFederationAccess(context);
+                Future<FetchResult> task = pending.get(subscription.id);
+                if (task == null) {
+                    throw new IllegalStateException("subscription fetch was not scheduled");
                 }
-                FetchResult fetched = fetchFirstAvailable(context, subscription, federation);
+                FetchResult fetched = awaitFetch(task);
                 Map<String, String> reuseIds = existingIdsBySubAndKey.get(subscription.id);
                 List<XrayProfile> parsed = WingsImportParser.extractXrayProfilesFromSubscriptionBody(
                     fetched.body,
@@ -427,6 +466,8 @@ public final class XraySubscriptionUpdater {
     /** Тип тела, которым федерация отдаёт подписку своим кадром */
     private static final String WINGS_CONTENT_TYPE = "application/x-wingsv-config";
 
+    private static final int MAX_PARALLEL_FETCHES = 6;
+
     /**
      * Обходит адреса подписки по порядку и отдаёт первый ответивший. Падает только
      * когда не ответил ни один, и тогда причина первого хранит причины остальных.
@@ -456,6 +497,23 @@ public final class XraySubscriptionUpdater {
             }
         }
         throw firstFailure == null ? new IllegalStateException("subscription has no url") : firstFailure;
+    }
+
+    /**
+     * Разворачивает ошибку задачи, чтобы вызывающий увидел ту же причину, что при
+     * обычном последовательном запросе.
+     */
+    private static FetchResult awaitFetch(Future<FetchResult> task) throws Exception {
+        try {
+            return task.get();
+        } catch (ExecutionException wrapped) {
+            Throwable cause = wrapped.getCause();
+            if (cause instanceof Exception) {
+                cause.addSuppressed(wrapped);
+                throw (Exception) cause;
+            }
+            throw wrapped;
+        }
     }
 
     private static FetchResult fetch(Context context, String urlString, boolean forceHwid) throws Exception {
