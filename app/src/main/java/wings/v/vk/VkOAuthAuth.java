@@ -19,7 +19,12 @@ import wings.v.core.AppPrefs;
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AvoidUsingHardCodedIP", "PMD.LawOfDemeter" })
 public final class VkOAuthAuth {
 
+    // redirect_uri уезжает в VK как параметр и сверяется с зарегистрированным у
+    // приложения, поэтому отправляем по-прежнему .com. А вот приземлиться после
+    // согласия VK может уже на .ru, и ловить выход надо по обоим хостам: промах
+    // тут не ошибка, а вечно висящий webview
     public static final String OAUTH_REDIRECT_URI = "https://oauth.vk.com/blank.html";
+    private static final String OAUTH_REDIRECT_URI_RU = "https://oauth.vk.ru/blank.html";
     public static final String OAUTH_AUTHORIZE_URL = "https://oauth.vk.com/authorize";
     // calls (1<<28) | offline (1<<16) - minimum required to call calls.start and
     // keep the token valid past 24 hours. We do NOT request the legacy "all bits
@@ -98,7 +103,7 @@ public final class VkOAuthAuth {
     }
 
     public static boolean isRedirectUri(@NonNull String url) {
-        return url.startsWith(OAUTH_REDIRECT_URI);
+        return url.startsWith(OAUTH_REDIRECT_URI_RU) || url.startsWith(OAUTH_REDIRECT_URI);
     }
 
     // Returns null on success, otherwise a human-readable error message.

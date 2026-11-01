@@ -5835,7 +5835,7 @@ public class ProxyTunnelService extends Service {
             appendRuntimeLogLine("VK cookie browser launched (foreground=" + foreground + ")");
         } catch (Exception error) {
             if (foreground) {
-                postVkAccountAuthNotification("https://vk.com/");
+                postVkAccountAuthNotification("https://vk.ru/");
             }
         }
     }
