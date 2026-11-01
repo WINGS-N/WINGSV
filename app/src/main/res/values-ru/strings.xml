@@ -841,6 +841,8 @@
     <string name="xray_subscriptions_title_hint">Название</string>
     <string name="xray_subscriptions_url_hint">URL подписки</string>
     <string name="xray_subscriptions_mirror_urls_hint">Запасные URL, по одному на строку</string>
+    <string name="auto_search_setting_min_speed">Желаемая скорость</string>
+    <string name="auto_search_setting_min_speed_summary">%1$d Mbit/s, 0 отключает проверку</string>
     <string name="xray_subscriptions_url_required">Укажите URL подписки</string>
     <string name="xray_subscriptions_auto_update_per_subscription">Автообновлять эту подписку</string>
     <string name="xray_subscriptions_auto_update_disabled_label">Автообновление выключено</string>

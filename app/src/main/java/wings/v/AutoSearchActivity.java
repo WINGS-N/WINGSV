@@ -109,6 +109,15 @@ public class AutoSearchActivity extends AppCompatActivity {
                 value -> AutoSearchManager.setDownloadSizeMb(this, value)
             )
         );
+        binding.rowAutoSearchMinSpeed.setOnClickListener(view ->
+            showNumberSettingDialog(
+                R.string.auto_search_setting_min_speed,
+                AutoSearchManager.getMinSpeedMbits(this),
+                0,
+                1000,
+                value -> AutoSearchManager.setMinSpeedMbits(this, value)
+            )
+        );
         binding.rowAutoSearchDownloadTimeout.setOnClickListener(view ->
             showNumberSettingDialog(
                 R.string.auto_search_setting_download_timeout,
@@ -330,6 +339,9 @@ public class AutoSearchActivity extends AppCompatActivity {
         );
         binding.rowAutoSearchDownloadSize.setSummary(
             getString(R.string.auto_search_setting_download_size_summary, AutoSearchManager.getDownloadSizeMb(this))
+        );
+        binding.rowAutoSearchMinSpeed.setSummary(
+            getString(R.string.auto_search_setting_min_speed_summary, AutoSearchManager.getMinSpeedMbits(this))
         );
         binding.rowAutoSearchDownloadTimeout.setSummary(
             getString(
