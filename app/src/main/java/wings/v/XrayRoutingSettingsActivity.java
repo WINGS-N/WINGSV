@@ -14,9 +14,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import kotlin.Unit;
 import wings.v.core.BackendType;
 import wings.v.core.Haptics;
 import wings.v.core.UiFormatter;
+import wings.v.core.XrayRoutingGeoScheduler;
 import wings.v.core.XrayRoutingRule;
 import wings.v.core.XrayRoutingStore;
 import wings.v.core.XrayStore;
@@ -72,6 +74,7 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
         binding.toolbarLayout.setShowNavigationButtonAsBack(true);
         XrayRoutingStore.ensureGeoFilesBootstrap(this);
         bindGeoActions();
+        bindGeoAutoUpdate();
         binding.entryRules.setOnClickListener(v -> {
             Haptics.softSelection(v);
             startActivity(XrayRoutingRulesActivity.createIntent(this));
@@ -272,6 +275,32 @@ public class XrayRoutingSettingsActivity extends AppCompatActivity {
                 );
             }
         });
+    }
+
+    private void bindGeoAutoUpdate() {
+        binding.itemGeoAutoUpdate.setTitle(getString(R.string.xray_routing_geo_auto_update_title));
+        binding.itemGeoAutoUpdate.setSummary(getString(R.string.xray_routing_geo_auto_update_summary));
+        binding.itemGeoAutoUpdate.setChecked(XrayRoutingStore.isGeoAutoUpdateEnabled(this));
+        binding.itemGeoAutoUpdate.setOnCheckedChangedListener((viewId, checked) -> {
+            applyGeoAutoUpdate(checked);
+            return Unit.INSTANCE;
+        });
+        binding.itemGeoAutoUpdate.setOnClickListener(view -> {
+            Haptics.softSelection(view);
+            applyGeoAutoUpdate(!binding.itemGeoAutoUpdate.isChecked());
+        });
+    }
+
+    private void applyGeoAutoUpdate(boolean enabled) {
+        if (XrayRoutingStore.isGeoAutoUpdateEnabled(this) == enabled) {
+            return;
+        }
+        XrayRoutingStore.setGeoAutoUpdateEnabled(this, enabled);
+        binding.itemGeoAutoUpdate.setChecked(enabled);
+        XrayRoutingGeoScheduler.refresh(this);
+        if (enabled) {
+            executor.execute(() -> XrayRoutingStore.refreshGeoFilesIfStale(getApplicationContext()));
+        }
     }
 
     private void downloadGeoFile(XrayRoutingRule.MatchType matchType) {

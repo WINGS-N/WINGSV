@@ -935,6 +935,8 @@
     <string name="xray_routing_settings_title">Xray routing</string>
     <string name="xray_routing_geo_files_title">Geo files</string>
     <string name="xray_routing_geo_files_summary">These files are used for geoip/geosite routing rules</string>
+    <string name="xray_routing_geo_auto_update_title">Update automatically</string>
+    <string name="xray_routing_geo_auto_update_summary">Download the databases once a day</string>
     <string name="xray_routing_rules_title">Routing rules</string>
     <string name="xray_routing_rules_summary">Rule order matters: the first match wins before the generic proxy rule</string>
     <string name="xray_routing_rules_entry_summary">Add, reorder and validate routing rules</string>
