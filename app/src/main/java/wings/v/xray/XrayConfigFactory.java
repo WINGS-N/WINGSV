@@ -55,6 +55,10 @@ import wings.v.core.XraySettings;
 public final class XrayConfigFactory {
 
     private static final String TUN_TAG = "tun-in";
+    // Имя интерфейса обязано быть задано. Пустое ядро подбирает само, перебирая
+    // системные интерфейсы, а netlink приложению закрыт - инбаунд не собирается
+    // вовсе. На Android имя ни на что не влияет: туннель открывается по fd
+    private static final String TUN_NAME = "wingsv-tun";
     // the TUN stack stamps connections from per-app ByeDPI UIDs with this inbound tag
     // (route_inbound_tag) so a routing rule can divert them to the standalone
     // ByeDPI SOCKS outbound below, independent of the app-routing mode.
@@ -764,8 +768,9 @@ public final class XrayConfigFactory {
             tunInbound.put("protocol", "tun");
             tunInbound.put("port", 0);
             JSONObject tunSettings = new JSONObject();
-            tunSettings.put("MTU", DEFAULT_MTU);
-            tunSettings.put("user_level", 0);
+            tunSettings.put("name", TUN_NAME);
+            tunSettings.put("mtu", DEFAULT_MTU);
+            tunSettings.put("userLevel", 0);
             tunInbound.put("settings", tunSettings);
             tunInbound.put("sniffing", buildSniffing(settings));
             inbounds.put(tunInbound);
