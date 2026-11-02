@@ -38,7 +38,7 @@ import wings.v.proto.WingsvProto;
 )
 public final class WingsImportParser {
 
-    private static final Pattern LINK_PATTERN = Pattern.compile("wingsv://[A-Za-z0-9_\\-+/=]+");
+    private static final Pattern LINK_PATTERN = Pattern.compile("wingsv://[A-Za-z0-9_.\\-+/=]+");
     private static final Pattern SUBSCRIPTION_URL_PATTERN = Pattern.compile("https?://[^\\s\"']+");
     private static final String SCHEME_PREFIX = "wingsv://";
     private static final int CURRENT_VERSION = 1;
@@ -740,7 +740,7 @@ public final class WingsImportParser {
         byte[] framedPayload = new byte[compressedPayload.length + 1];
         framedPayload[0] = format;
         System.arraycopy(compressedPayload, 0, framedPayload, 1, compressedPayload.length);
-        return SCHEME_PREFIX + Base64.encodeToString(framedPayload, Base64.URL_SAFE | Base64.NO_WRAP);
+        return SCHEME_PREFIX + encodeLinkPayload(framedPayload);
     }
 
     private static final String[] LINK_URI_SCHEMES = { "vless://", "vmess://", "trojan://", "ss://", "wingsv://" };
@@ -3360,6 +3360,12 @@ public final class WingsImportParser {
             payload = payload.substring(1);
         }
         payload = payload.replaceAll("\\s+", "");
+        // Точка - это 63-й символ нашего алфавита, подчёркивания в новых ссылках
+        // нет вовсе; у ссылок прошлого формата точки нет, так что замена безобидна
+        while (payload.endsWith("=")) {
+            payload = payload.substring(0, payload.length() - 1);
+        }
+        payload = payload.replace('.', '_');
 
         try {
             return Base64.decode(normalizePadding(payload), Base64.URL_SAFE);
@@ -3370,7 +3376,24 @@ public final class WingsImportParser {
 
     /** Заворачивает готовый кадр в ссылку, не перепаковывая его */
     static String encodeFrame(byte[] framed) {
-        return SCHEME_PREFIX + Base64.encodeToString(framed, Base64.URL_SAFE | Base64.NO_WRAP);
+        return SCHEME_PREFIX + encodeLinkPayload(framed);
+    }
+
+    /**
+     * Кодирует кадр в тело ссылки. Отличие от base64url одно: 63-й символ алфавита
+     * не подчёркивание, а точка. Пара подчёркиваний подряд выходила сама собой, а
+     * мессенджеры читают её как разметку и съедают кусок ссылки.
+     *
+     * Завершающую точку автолинковка обрезает как знак конца предложения, поэтому
+     * такой хвост закрывается знаком равенства - его декодер снимает вместе с
+     * обычным padding.
+     */
+    private static String encodeLinkPayload(byte[] framed) {
+        String encoded = Base64.encodeToString(framed, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING).replace(
+            '_',
+            '.'
+        );
+        return encoded.endsWith(".") ? encoded + "=" : encoded;
     }
 
     /**
