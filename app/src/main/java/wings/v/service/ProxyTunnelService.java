@@ -599,7 +599,9 @@ public class ProxyTunnelService extends Service {
     // Порт transparent-redirect этой сессии: стандартный, пока он свободен
     private volatile int xrayRedirectPort = XrayConfigFactory.REDIRECT_PORT;
     private static final long XRAY_TPROXY_LISTEN_TIMEOUT_MS = 10_000L;
-    private static final String XRAY_TPROXY_LISTENER_LOG_MARKER = "listening TCP on";
+    // Строчными и сверяется без учёта регистра: ядро собирает эту строку из
+    // Network() сокета, а тот отдаёт "tcp". Регистр уже менялся и ещё поменяется
+    private static final String XRAY_TPROXY_LISTENER_LOG_MARKER = "listening tcp on";
     private static final long TPROXY_MARK_REFRESH_INTERVAL_MS = 1_000L;
     private long tproxyLoBaselineTxBytes = -1L;
     private long tproxyMarkAbsoluteBytes;
@@ -5618,18 +5620,19 @@ public class ProxyTunnelService extends Service {
     }
 
     private boolean matchesXrayTproxyListenerLogLine(String line) {
-        int markerIdx = line.indexOf(XRAY_TPROXY_LISTENER_LOG_MARKER);
+        String haystack = line.toLowerCase(Locale.ROOT);
+        int markerIdx = haystack.indexOf(XRAY_TPROXY_LISTENER_LOG_MARKER);
         if (markerIdx < 0) {
             return false;
         }
         String portTail = ":" + xrayTproxyPort;
-        int portIdx = line.indexOf(portTail, markerIdx);
+        int portIdx = haystack.indexOf(portTail, markerIdx);
         if (portIdx < 0) {
             return false;
         }
         int after = portIdx + portTail.length();
-        if (after < line.length()) {
-            char next = line.charAt(after);
+        if (after < haystack.length()) {
+            char next = haystack.charAt(after);
             if (Character.isDigit(next)) {
                 return false;
             }
@@ -7359,12 +7362,18 @@ public class ProxyTunnelService extends Service {
         tproxyXrayProcess = process;
         startProxyOutputReader(process, new AtomicReference<>());
         if (!waitForXrayTproxyListenerSignal(XRAY_TPROXY_LISTEN_TIMEOUT_MS, generation)) {
-            stopXrayTproxyErrorLogTailer();
-            try {
-                process.destroy();
-            } catch (Exception ignored) {}
-            tproxyXrayProcess = null;
-            throw new IllegalStateException(getString(R.string.proxy_xray_tproxy_listener_timeout, xrayTproxyPort));
+            // Маркер в логе - опора ненадёжная: ядро уже меняло его текст, и тогда
+            // правила не ложились при живом слушателе. Живой сокет врать не умеет
+            boolean listening = isLocalTcpPortReady("127.0.0.1", xrayTproxyPort);
+            if (!listening) {
+                stopXrayTproxyErrorLogTailer();
+                try {
+                    process.destroy();
+                } catch (Exception ignored) {}
+                tproxyXrayProcess = null;
+                throw new IllegalStateException(getString(R.string.proxy_xray_tproxy_listener_timeout, xrayTproxyPort));
+            }
+            appendRuntimeLogLine("Xray TPROXY listener answered on :" + xrayTproxyPort + " without its log marker");
         }
         stopXrayTproxyErrorLogTailer();
         appendRuntimeLogLine("Xray TPROXY runtime started under root, listener on :" + xrayTproxyPort);
