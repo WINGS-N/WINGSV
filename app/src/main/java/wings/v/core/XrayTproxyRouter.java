@@ -1,6 +1,7 @@
 package wings.v.core;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.text.TextUtils;
 import android.util.Log;
 import androidx.annotation.NonNull;
@@ -118,6 +119,7 @@ public final class XrayTproxyRouter {
 
         List<String> localV4 = enumerateLocalAddresses(4);
         List<String> localV6 = enumerateLocalAddresses(6);
+        List<Integer> probeUids = resolveNetworkProbeUids(context);
 
         StringBuilder s = new StringBuilder("set -e; ");
         appendStageMarker(s, "route");
@@ -157,6 +159,8 @@ public final class XrayTproxyRouter {
         // exclude wings.v's own UID, so app traffic stays routed via the
         // proxy when probing public IP endpoints.
         appendOwnerExclusion(s, IPT4, CHAIN_OUT, 0);
+        appendStageMarker(s, "v4_out_probes");
+        appendNetworkProbeExclusion(s, IPT4, CHAIN_OUT, probeUids);
         appendStageMarker(s, "v4_out_localbypass");
         // Same local-address bypass on OUTPUT: locally generated traffic to
         // our own IPs (e.g. localhost services, mdns, link-local) must not
@@ -184,6 +188,8 @@ public final class XrayTproxyRouter {
         appendTproxyRules(s, IPT6, CHAIN_PRE6, tproxyPort);
         appendStageMarker(s, "v6_out_owner");
         appendOwnerExclusion(s, IPT6, CHAIN_OUT6, 0);
+        appendStageMarker(s, "v6_out_probes");
+        appendNetworkProbeExclusion(s, IPT6, CHAIN_OUT6, probeUids);
         appendStageMarker(s, "v6_out_localbypass");
         appendLocalAddrBypass(s, IPT6, CHAIN_OUT6, localV6);
         appendStageMarker(s, "v6_out_dns");
@@ -743,6 +749,47 @@ public final class XrayTproxyRouter {
 
     private static void appendBypassDest(StringBuilder s, String tool, String chain, String cidr) {
         s.append(tool).append(" -t mangle -A ").append(chain).append(" -d ").append(cidr).append(" -j RETURN; ");
+    }
+
+    // Android признаёт сеть рабочей, только когда его собственная проба уходит
+    // ИМЕННО через эту сеть и оттуда же приходит ответ. Утащив пробу в туннель,
+    // мы ломаем проверку: у Wi-Fi пропадает VALIDATED, рядом с ним загорается
+    // восклицательный знак, и система уводит трафик на мобильную сеть
+    private static final int AID_NETWORK_STACK = 1073;
+
+    // У вендоров свои пробники рядом с общим, и их uid на каждой прошивке свой -
+    // поэтому ищем по имени, а не по числу
+    private static final String[] NETWORK_PROBE_PACKAGES = {
+        "com.android.networkstack",
+        "com.google.android.networkstack",
+        "com.samsung.android.networkstack",
+        "com.samsung.android.wcmurlsnetworkstack",
+        "com.android.captiveportallogin",
+        "com.google.android.captiveportallogin",
+    };
+
+    private static List<Integer> resolveNetworkProbeUids(Context context) {
+        List<Integer> uids = new ArrayList<>();
+        uids.add(AID_NETWORK_STACK);
+        PackageManager packageManager = context.getPackageManager();
+        for (String name : NETWORK_PROBE_PACKAGES) {
+            try {
+                int uid = packageManager.getApplicationInfo(name, 0).uid;
+                if (uid > 0 && !uids.contains(uid)) {
+                    uids.add(uid);
+                }
+            } catch (Exception ignored) {}
+        }
+        return uids;
+    }
+
+    private static void appendNetworkProbeExclusion(StringBuilder s, String tool, String chain, List<Integer> uids) {
+        for (Integer uid : uids) {
+            if (uid == null || uid < 0) {
+                continue;
+            }
+            appendOwnerExclusion(s, tool, chain, uid);
+        }
     }
 
     private static void appendOwnerExclusion(StringBuilder s, String tool, String chain, int uid) {
