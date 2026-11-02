@@ -7559,17 +7559,25 @@ public class ProxyTunnelService extends Service {
                 boolean mainApplied = XrayTproxyRouter.isFullyApplied(getApplicationContext());
                 boolean exclusionDrifted =
                     hasTetherDownstream() && !XrayTproxyRouter.isForwardedExclusionApplied(getApplicationContext());
-                if (mainApplied && !exclusionDrifted) {
+                // Адрес устройства уехал вместе с сетью: цепочки на месте, но обход
+                // своих адресов стоит на прежнем, и ответы сервера зацикливаются в xray
+                boolean localBypassStale =
+                    mainApplied && !XrayTproxyRouter.areLocalAddressBypassesCurrent(getApplicationContext());
+                if (mainApplied && !exclusionDrifted && !localBypassStale) {
                     return;
                 }
-                if (mainApplied) {
+                if (mainApplied && !localBypassStale) {
                     // Only the forwarded carve-out drifted (vpnhotspot / system tether
                     // flushed CHAIN_FWD); restore it without a full tproxy reapply.
                     appendRuntimeLogLine("TPROXY forwarded carve-out missing after " + reason + ", reconciling");
                     reconcileTproxyForwardedExclusion();
                     return;
                 }
-                appendRuntimeLogLine("Xray TPROXY routing missing after " + reason + ", reapplying");
+                appendRuntimeLogLine(
+                    localBypassStale
+                        ? "TPROXY local-address bypass went stale after " + reason + ", reapplying"
+                        : "Xray TPROXY routing missing after " + reason + ", reapplying"
+                );
                 XrayTproxyRouter.AppRoutingMode mode;
                 java.util.Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(getApplicationContext());
                 wings.v.core.AppRoutingMode appMode = AppPrefs.getAppRoutingMode(getApplicationContext());

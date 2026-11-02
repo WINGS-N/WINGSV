@@ -420,6 +420,41 @@ public final class XrayTproxyRouter {
     }
 
     /**
+     * Правила обхода своих адресов прописаны конкретными адресами, снятыми в момент
+     * применения. На переходе wifi -> rmnet адрес устройства меняется, правило со
+     * старым адресом перестаёт совпадать, и ответы сервера с dst = новый адрес
+     * уезжают обратно в tproxy: xray считает их входящим соединением к самому себе
+     * и течёт сокетами, а трафик встаёт. Цепочки при этом на месте, поэтому
+     * isFullyApplied такой дрейф не видит.
+     *
+     * IPv6 тут не сверяется: temporary-адреса приватности меняются сами собой и
+     * гоняли бы перенакат вхолостую
+     */
+    public static boolean areLocalAddressBypassesCurrent(@NonNull Context context) {
+        List<String> current = enumerateLocalAddresses(4);
+        if (current.isEmpty()) {
+            return true;
+        }
+        try {
+            String dump = RootShellCommand.exec(context, IPT4 + " -t mangle -S " + CHAIN_PRE + " 2>/dev/null; true");
+            if (dump == null) {
+                return false;
+            }
+            for (String addr : current) {
+                if (TextUtils.isEmpty(addr)) {
+                    continue;
+                }
+                if (!dump.contains(" -d " + addr + "/") && !dump.contains(" -d " + addr + " ")) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /**
      * Whether the forwarded-exclusion carve-out is currently in place: the jump
      * from the device tproxy chain into CHAIN_FWD exists and CHAIN_FWD still holds
      * its ACCEPT rules. Lets the runtime supervisor catch a partial drop of the
