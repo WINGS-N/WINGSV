@@ -488,6 +488,10 @@ public class MainActivity extends AppCompatActivity {
         // QR scan button - direct toolbar.inflateMenu() gets wiped on the first
         // invalidateOptionsMenu() that AppCompat issues during setup.
         getMenuInflater().inflate(R.menu.menu_main_toolbar, menu);
+        if (!wings.v.core.TvMode.hasCamera(this)) {
+            // setVisible перебивает пересоздание меню, так что выносим совсем
+            menu.removeItem(R.id.menu_qr_scan);
+        }
         return super.onCreateOptionsMenu(menu);
     }
 

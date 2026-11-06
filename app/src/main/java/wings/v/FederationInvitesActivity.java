@@ -100,6 +100,9 @@ public final class FederationInvitesActivity extends AppCompatActivity {
         findViewById(R.id.invite_create).setOnClickListener(v -> createInvite());
         findViewById(R.id.invite_redeem).setOnClickListener(v -> redeem(text(redeemInput)));
         findViewById(R.id.invite_scan).setOnClickListener(v -> openScanner());
+        if (!wings.v.core.TvMode.hasCamera(this)) {
+            findViewById(R.id.invite_scan).setVisibility(android.view.View.GONE);
+        }
         share.setOnClickListener(v -> shareLink());
 
         load();

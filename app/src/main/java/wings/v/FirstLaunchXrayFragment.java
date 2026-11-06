@@ -118,6 +118,9 @@ public class FirstLaunchXrayFragment extends Fragment {
             Haptics.softSelection(view);
             pasteFromClipboard();
         });
+        if (!wings.v.core.TvMode.hasCamera(requireContext())) {
+            binding.buttonFirstLaunchScanQr.setVisibility(View.GONE);
+        }
         binding.buttonFirstLaunchScanQr.setOnClickListener(view -> {
             Haptics.softSelection(view);
             launchQrScanner();

@@ -81,6 +81,9 @@ public class FirstLaunchConnectionFragment extends Fragment {
         binding.textFirstLaunchSkip.setOnClickListener(this::dispatchSkip);
         binding.buttonFirstLaunchPasteClipboard.setOnClickListener(this::onPasteClipboardClicked);
         binding.buttonFirstLaunchScanQr.setOnClickListener(this::onScanQrClicked);
+        if (!wings.v.core.TvMode.hasCamera(requireContext())) {
+            binding.buttonFirstLaunchScanQr.setVisibility(View.GONE);
+        }
     }
 
     private void dispatchChoice(View view, String choice) {
