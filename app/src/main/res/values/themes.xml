@@ -3,6 +3,11 @@
         <item name="android:fontFamily">@font/samsungone</item>
         <item name="fontFamily">@font/samsungone</item>
     </style>
+    <!-- Пока процесс поднимается, окно стоит пустое и телик показывает чёрную
+         дыру. Фон с лого рисует система ещё до первого кадра -->
+    <style name="Theme.WINGSV.Splash" parent="Theme.WINGSV">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
     <style name="Theme.WINGSV.NoDisplay" parent="@android:style/Theme.NoDisplay" />
 
     <!-- Full-screen, no app-bar theme for the OneUI QR scanner activity. The activity

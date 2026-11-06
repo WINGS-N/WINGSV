@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- С 12 андроида сплэш рисует система по своим атрибутам, а windowBackground
+         она в упор не видит -->
+    <style name="Theme.WINGSV.Splash" parent="Theme.WINGSV">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>

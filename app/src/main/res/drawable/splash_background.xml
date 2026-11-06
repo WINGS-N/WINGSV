@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Это windowBackground, а не разметка: рисуется до того, как приложение
+     вообще ожило, поэтому никакого кода тут быть не может -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:drawable="@mipmap/ic_launcher"
+        android:gravity="center"
+        android:height="144dp"
+        android:width="144dp" />
+</layer-list>

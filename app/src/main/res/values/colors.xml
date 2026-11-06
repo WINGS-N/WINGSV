@@ -33,4 +33,5 @@
     <color name="settings_icon_violet">#6C4DE8</color>
     <color name="settings_icon_orange">#E86A25</color>
     <color name="settings_icon_grey">#6D7A88</color>
+    <color name="splash_background">#000000</color>
 </resources>

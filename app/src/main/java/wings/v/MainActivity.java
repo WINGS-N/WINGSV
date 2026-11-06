@@ -170,6 +170,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        // Сплэш висит на окне до первого кадра, и если его не снять, лого
+        // так и останется торчать фоном под интерфейсом
+        setTheme(R.style.Theme_WINGSV);
         super.onCreate(savedInstanceState);
         currentUiNightMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         AppPrefs.ensureDefaults(this);

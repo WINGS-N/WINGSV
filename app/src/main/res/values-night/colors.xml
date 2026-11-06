@@ -2,4 +2,5 @@
 <resources>
     <!-- Подложка полос: светлая на тёмном фоне светит как ебаный фонарь -->
     <color name="wingsv_surface_alt">#2A2A2E</color>
+    <color name="splash_background">#000000</color>
 </resources>
