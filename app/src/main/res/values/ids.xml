@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Метка на decorView: иначе слушатели навесятся дохуя раз -->
+    <item name="tv_focus_attached" type="id" />
+    <item name="tv_focus_ring" type="id" />
+</resources>

@@ -75,7 +75,11 @@ public class WingsApplication extends Application {
                 }
 
                 @Override
-                public void onActivityResumed(@NonNull Activity activity) {}
+                public void onActivityResumed(@NonNull Activity activity) {
+                    // Не в onCreate: там окно ещё не прицеплено, и наблюдатель за
+                    // разметкой выкидывается вместе с временным деревом нахуй
+                    wings.v.core.TvFocus.attach(activity);
+                }
 
                 @Override
                 public void onActivityPaused(@NonNull Activity activity) {}
