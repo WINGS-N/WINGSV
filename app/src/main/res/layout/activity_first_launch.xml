@@ -15,6 +15,8 @@
         android:layout_height="match_parent"
         android:layout_gravity="center"
         android:alpha="0"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
         android:visibility="gone" />
 
     <View

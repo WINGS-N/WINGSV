@@ -56,6 +56,11 @@ public class ParallaxGradientBackgroundView extends AppCompatImageView {
         if (driftAnimator != null) {
             driftAnimator.cancel();
         }
+        // Вечная анимация фона жрёт кадры, и на говняном железе это видно глазом.
+        // Мощную коробку не обделяем - пусть переливается нахуй
+        if (wings.v.core.TvMode.isWeakDevice(getContext())) {
+            return;
+        }
         driftAnimator = ValueAnimator.ofFloat(0f, 1f);
         driftAnimator.setDuration(DRIFT_DURATION_MS);
         driftAnimator.setRepeatCount(ValueAnimator.INFINITE);

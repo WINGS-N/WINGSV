@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.animation.PathInterpolator;
 import android.widget.Toast;
@@ -25,6 +26,8 @@ import androidx.viewpager2.widget.ViewPager2;
 import wings.v.core.AppPrefs;
 import wings.v.core.AutoSearchManager;
 import wings.v.core.Haptics;
+import wings.v.core.TvFocus;
+import wings.v.core.TvMode;
 import wings.v.databinding.ActivityFirstLaunchBinding;
 import wings.v.ui.FirstLaunchPagerAdapter;
 
@@ -328,6 +331,9 @@ public class FirstLaunchActivity
                 @Override
                 public void onPageSelected(int position) {
                     updateForPage(position);
+                    if (binding != null) {
+                        TvFocus.refocus(binding.firstLaunchPager);
+                    }
                 }
             }
         );
@@ -416,6 +422,12 @@ public class FirstLaunchActivity
         }
         introVideoStarted = true;
         binding.contentFirstLaunch.setAlpha(1f);
+        // Говняное железо жуёт это видео в ущерб всему остальному, и онбординг
+        // превращается в слайд-шоу. Показываем сразу содержимое
+        if (TvMode.isWeakDevice(this)) {
+            binding.videoFirstLaunchIntro.setVisibility(View.GONE);
+            return;
+        }
         binding.videoFirstLaunchIntro.setAlpha(0f);
         binding.videoFirstLaunchIntro.setZOrderOnTop(false);
         binding.videoFirstLaunchIntro.setZOrderMediaOverlay(false);
@@ -652,6 +664,37 @@ public class FirstLaunchActivity
         }
         Haptics.softConfirm(binding.firstLaunchPager);
         animateToPage(currentPage + 1);
+    }
+
+    /**
+     * Свайпа на пульте нет, и онбординг встаёт колом на первой странице.
+     * Листаем только с пустым фокусом, иначе отберём крестовину у кнопок
+     */
+    @Override
+    public boolean dispatchKeyEvent(@NonNull KeyEvent event) {
+        View focused = getCurrentFocus();
+        boolean someoneTookIt = focused != null && TvFocus.isWorthFocusing(focused);
+        if (
+            event.getAction() != KeyEvent.ACTION_DOWN || binding == null || someoneTookIt || !TvMode.isTelevision(this)
+        ) {
+            return super.dispatchKeyEvent(event);
+        }
+        int page = binding.firstLaunchPager.getCurrentItem();
+        switch (event.getKeyCode()) {
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                onOnboardingCompleted();
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                if (page > 0) {
+                    animateToPage(page - 1);
+                }
+                return true;
+            default:
+                return super.dispatchKeyEvent(event);
+        }
     }
 
     private void animateToPage(int targetPage) {
