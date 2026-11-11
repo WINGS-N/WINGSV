@@ -518,7 +518,10 @@ public class MainActivity extends AppCompatActivity {
      * уже загруженная картинка ставится сразу, иначе на её месте моргает силуэт.
      */
     private void loadAccountAvatar(@NonNull MenuItem item) {
-        String url = wings.v.core.FederationAccount.avatarUrl(this);
+        String url = wings.v.core.AvatarFetcher.sized(
+            wings.v.core.FederationAccount.avatarUrl(this),
+            wings.v.core.AvatarFetcher.SIZE_SMALL
+        );
         if (android.text.TextUtils.isEmpty(url)) {
             return;
         }
@@ -969,7 +972,10 @@ public class MainActivity extends AppCompatActivity {
         }
         int pathStart = httpBase.indexOf('/', httpBase.indexOf("://") + 3);
         String origin = pathStart < 0 ? httpBase : httpBase.substring(0, pathStart);
-        return origin + "/api/admin/avatars/" + parsed.guardianAdminId + ".png?v=" + parsed.guardianAdminAvatarVersion;
+        return wings.v.core.AvatarFetcher.sized(
+            origin + "/api/admin/avatars/" + parsed.guardianAdminId + ".png?v=" + parsed.guardianAdminAvatarVersion,
+            wings.v.core.AvatarFetcher.SIZE_CARD
+        );
     }
 
     @Nullable

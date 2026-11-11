@@ -58,7 +58,13 @@ public class WingsApplication extends Application {
         wings.v.service.ProxyTunnelService.cleanStaleRootRoutingOnLaunch(this);
         // Аватар греем сразу: без этого первый показ на каждом экране лезет в
         // сеть, и человек успевает увидеть пустой кружок вместо своего лица
-        wings.v.core.AvatarFetcher.warmUp(this, wings.v.core.FederationAccount.avatarUrl(this));
+        wings.v.core.AvatarFetcher.warmUp(
+            this,
+            wings.v.core.AvatarFetcher.sized(
+                wings.v.core.FederationAccount.avatarUrl(this),
+                wings.v.core.AvatarFetcher.SIZE_SMALL
+            )
+        );
         registerActivityLifecycleCallbacks(
             new ActivityLifecycleCallbacks() {
                 @Override

@@ -403,7 +403,7 @@ public class FederationAccountActivity extends AppCompatActivity {
 
     /** Аватар грузится отдельно: без него экран уже полный, с ним - живой */
     private void loadAvatar() {
-        String url = FederationAccount.avatarUrl(this);
+        String url = AvatarFetcher.sized(FederationAccount.avatarUrl(this), AvatarFetcher.SIZE_FULL);
         if (TextUtils.isEmpty(url)) {
             return;
         }

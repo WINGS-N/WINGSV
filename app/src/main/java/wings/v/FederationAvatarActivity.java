@@ -140,7 +140,7 @@ public final class FederationAvatarActivity extends AppCompatActivity {
     }
 
     private void loadCurrent() {
-        String url = FederationAccount.avatarUrl(this);
+        String url = AvatarFetcher.sized(FederationAccount.avatarUrl(this), AvatarFetcher.SIZE_FULL);
         if (TextUtils.isEmpty(url)) {
             return;
         }

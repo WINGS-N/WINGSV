@@ -31,6 +31,15 @@ public final class AvatarFetcher {
     /** Потолок стороны: кружок в профиле крупный, и мелкая картинка на нём мылит */
     private static final int MAX_SIZE_PX = 512;
 
+    /** Иконка в тулбаре и строках списка */
+    public static final int SIZE_SMALL = 64;
+
+    /** Карточка аккаунта */
+    public static final int SIZE_CARD = 128;
+
+    /** Экран профиля, где кружок во всю ширину */
+    public static final int SIZE_FULL = 460;
+
     /**
      * Ревизия кэша стоит в имени файла и растёт вместе с MAX_SIZE_PX: иначе на
      * диске лежит картинка, ужатая под старый потолок, и её подсовывают вместо
@@ -48,6 +57,18 @@ public final class AvatarFetcher {
     private static volatile Bitmap memoryBitmap;
 
     private AvatarFetcher() {}
+
+    /**
+     * Дописывает к адресу нужный размер. Панель режет картинку заранее и отдаёт
+     * копию не меньше запрошенной, так что в тулбар не едет мегабайтное фото
+     */
+    @NonNull
+    public static String sized(@NonNull String url, int px) {
+        if (url.isEmpty() || px <= 0 || url.contains("s=")) {
+            return url;
+        }
+        return url + (url.indexOf('?') < 0 ? '?' : '&') + "s=" + px;
+    }
 
     /** Готовая картинка для этого адреса, если она уже загружена */
     @Nullable

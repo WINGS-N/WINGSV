@@ -123,7 +123,10 @@ public final class GuardianImportPrompt {
         }
         int pathStart = httpBase.indexOf('/', httpBase.indexOf("://") + 3);
         String origin = pathStart < 0 ? httpBase : httpBase.substring(0, pathStart);
-        return origin + "/api/admin/avatars/" + parsed.guardianAdminId + ".png?v=" + parsed.guardianAdminAvatarVersion;
+        return AvatarFetcher.sized(
+            origin + "/api/admin/avatars/" + parsed.guardianAdminId + ".png?v=" + parsed.guardianAdminAvatarVersion,
+            AvatarFetcher.SIZE_CARD
+        );
     }
 
     @Nullable

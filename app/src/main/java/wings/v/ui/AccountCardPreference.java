@@ -55,7 +55,7 @@ public final class AccountCardPreference extends Preference {
                 : context.getString(R.string.wings_account_summary)
         );
 
-        String url = FederationAccount.avatarUrl(context);
+        String url = AvatarFetcher.sized(FederationAccount.avatarUrl(context), AvatarFetcher.SIZE_CARD);
         if (TextUtils.isEmpty(url)) {
             avatar.setImageResource(R.drawable.ic_account_avatar);
             return;
