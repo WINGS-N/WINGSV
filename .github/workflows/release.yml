@@ -100,7 +100,7 @@ jobs:
         run: |
           yes | sdkmanager --licenses >/dev/null
           sdkmanager --install \
-            "platforms;android-36" \
+            "platforms;android-37.1" \
             "build-tools;36.0.0" \
             "ndk;28.2.13676358" \
             "cmake;3.22.1"

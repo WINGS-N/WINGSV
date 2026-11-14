@@ -706,6 +706,10 @@ android {
     namespace = "wings.v"
     compileSdk = 37
 
+    // oneui-design с 0.9.18 требует минорную 37.1: без неё checkAarMetadata
+    // валит сборку ещё до компиляции
+    compileSdkMinor = 1
+
     installation {
         // installDebug / installRelease push the APK only to user 0. Without this,
         // adb install on devices with secure/work-profile users picks the foreground
