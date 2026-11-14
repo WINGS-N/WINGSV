@@ -16,25 +16,22 @@ import javax.net.ssl.X509TrustManager;
 /**
  * TLS trust for a panel that has no publicly trusted certificate.
  *
- * <p>A deployment reachable only by bare IP cannot get a certificate from any
- * public CA, so the enrollment link carries the SPKI pin of the panel's own CA
- * and the chain is accepted when it contains a certificate matching that pin.
- * Hostname verification is left alone: the panel issues its leaf with the host
- * (including a bare IP) in the SAN, so the standard check still applies and this
- * only replaces the trust anchor, not the identity check.
+ * <p>No public CA issues for a bare IP, so the enrollment link carries the SPKI pin of
+ * the panel's own CA and a chain is accepted once some certificate in it matches the pin.
+ * Hostname verification stays untouched - the panel puts the host, bare IP included, in
+ * the leaf's SAN, so this swaps the trust anchor and nothing else
  */
 final class GuardianPinnedTrust {
 
-    // SHA-512/256 rather than SHA-256: same 256-bit strength and the same 32 bytes
-    // on the wire, without SHA-256's length-extension shape.
+    // SHA-512/256, not SHA-256: same 256-bit strength and the same 32 bytes on the wire,
+    // minus the length-extension shape
     private static final String PIN_DIGEST = "SHA-512/256";
 
     private GuardianPinnedTrust() {}
 
     /**
-     * Builds a socket factory that trusts only chains containing one of pins.
-     * Returns null when there is nothing to pin, leaving the caller on the system
-     * trust store.
+     * Socket factory that trusts only chains containing one of the pins. Null when there
+     * is nothing to pin, which leaves the caller on the system trust store
      */
     @Nullable
     static SSLSocketFactory socketFactory(@NonNull List<byte[]> pins) throws GeneralSecurityException {
@@ -74,8 +71,8 @@ final class GuardianPinnedTrust {
             try {
                 digest = MessageDigest.getInstance(PIN_DIGEST);
             } catch (NoSuchAlgorithmException error) {
-                // Fail closed: without the digest there is no way to tell a pinned
-                // panel from any other server presenting a self-signed chain.
+                // Fail closed: with no digest a pinned panel and any other server waving
+                // a self-signed chain look identical
                 throw new CertificateException("pin digest " + PIN_DIGEST + " unavailable", error);
             }
             for (X509Certificate certificate : chain) {

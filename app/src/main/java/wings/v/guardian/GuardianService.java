@@ -20,11 +20,10 @@ import wings.v.proto.GuardianProto;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Foreground service that owns the long-lived Guardian (panel) connection.
+ * Owns the long-lived Guardian connection to the panel.
  *
- * Runs independently of ProxyTunnelService - the panel can start/stop the
- * tunnel via Guardian commands. Restarted from boot when the user's preference
- * is on.
+ * Deliberately independent of ProxyTunnelService: the panel starts and stops the tunnel
+ * through this channel, so the channel cannot be a part of it
  */
 public final class GuardianService extends Service implements GuardianClient.Listener {
 
@@ -85,11 +84,9 @@ public final class GuardianService extends Service implements GuardianClient.Lis
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
-        // CRITICAL: any path triggered by startForegroundService() MUST call
-        // startForeground() within ~5 seconds, otherwise the OS throws
-        // ForegroundServiceDidNotStartInTimeException and the app crashes.
-        // We always promote ourselves to foreground first, then evaluate
-        // whether we actually want to keep running.
+        // startForegroundService() gives us ~5 seconds to call startForeground() or the
+        // OS kills us with ForegroundServiceDidNotStartInTimeException, so promote first
+        // and only then work out whether we even want to keep running
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.guardian_notification_connecting)));
 
         String action = intent == null ? "" : (intent.getAction() == null ? "" : intent.getAction());
@@ -107,8 +104,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             client = new GuardianClient(getApplicationContext(), this);
             client.start();
             registerPrefsListener();
-            // Anchor offsets at current EOF so we don't replay an entire
-            // historical log on first connect.
+            // Anchored at EOF, otherwise the first connect replays the whole log history
             runtimeLogOffset = new java.io.File(getFilesDir(), "wingsv_runtime.log").length();
             proxyLogOffset = new java.io.File(getFilesDir(), "wingsv_proxy.log").length();
             java.io.File xrayLogDir = new java.io.File(getFilesDir(), "xray/log");
@@ -187,7 +183,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             if (key == null || client == null) {
                 return;
             }
-            // Any settings change from UI or import = re-snapshot to panel.
+            // Any settings change, from the UI or an import, re-snapshots to the panel
             client.sendFrame(buildStateReport());
         };
         try {
@@ -372,8 +368,8 @@ public final class GuardianService extends Service implements GuardianClient.Lis
                             .build()
                     );
                     if (ok) {
-                        // Push fresh snapshot so the panel sees the new link
-                        // without waiting for the next regular report.
+                        // So the panel sees the new link without waiting for the next
+                        // regular report
                         client.sendFrame(buildStateReport());
                     }
                 }
@@ -461,7 +457,7 @@ public final class GuardianService extends Service implements GuardianClient.Lis
         return () -> ++xrayChunkSeq;
     }
 
-    /** Returns the new byte offset after draining (rotated files reset to 0). */
+    /** Returns the new byte offset after draining (rotated files reset to 0) */
     private long drainLogFile(
         java.io.File file,
         long lastOffset,
@@ -536,9 +532,8 @@ public final class GuardianService extends Service implements GuardianClient.Lis
             wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildGuardianSnapshotProto(
                 getApplicationContext()
             );
-            // Strip Guardian credentials from the snapshot we send back -
-            // they're already known to the panel and including them would only
-            // leak the token through StateReport echoes.
+            // The panel already knows its own credentials, and echoing them back in a
+            // StateReport only gives the token another way out
             wings.v.proto.WingsvProto.Config sanitised = snapshot.toBuilder().clearGuardian().build();
             report.setSnapshot(sanitised);
         } catch (Exception error) {

@@ -18,9 +18,9 @@ public final class GuardianRunner {
     private GuardianRunner() {}
 
     public static void applyMode(Context context) {
-        // Reapply honoring the actual app foreground state, so a guardian setting
-        // changed while the app is open still brings the foreground WS up (and a
-        // boot/background trigger still falls back to the periodic worker).
+        // Goes by the real foreground state, so a setting flipped with the app open
+        // brings the foreground channel up right away, and a boot trigger still lands on
+        // the periodic worker
         reapply(context);
     }
 
@@ -34,12 +34,10 @@ public final class GuardianRunner {
     }
 
     /**
-     * @param activityForeground true когда хотя бы одна Activity приложения
-     * сейчас находится в started-состоянии. Влияет на режимы FOREGROUND_ONLY и
-     * PERIODIC: пока юзер в приложении, держим живой WS через
-     * {@link GuardianForegroundClient}; как только активити уходит в onStop,
-     * закрываем WS и ставим WorkManager periodic, чтобы фоновая синхронизация
-     * шла раз в N минут.
+     * @param activityForeground хотя бы одна Activity в started. Важно для
+     * FOREGROUND_ONLY и PERIODIC: пока юзер в приложении, канал держит
+     * {@link GuardianForegroundClient}, а на onStop он закрывается и синхронизацию
+     * подхватывает periodic-воркер
      */
     public static void applyMode(Context context, boolean activityForeground) {
         if (context == null) return;
@@ -68,11 +66,10 @@ public final class GuardianRunner {
     }
 
     /**
-     * The whole app entered the foreground (first Activity started, not just
-     * MainActivity). In FOREGROUND_ONLY/PERIODIC this holds a live WS via
-     * {@link GuardianForegroundClient} and cancels the periodic worker, so the
-     * connection survives navigating between activities instead of dropping on
-     * every screen change.
+     * The whole app came to the foreground, not just MainActivity: in
+     * FOREGROUND_ONLY/PERIODIC that hands the channel to
+     * {@link GuardianForegroundClient} and cancels the periodic worker. Per-app scope is
+     * the point - otherwise the connection drops on every screen change
      */
     public static void onAppForeground(Context context) {
         if (context == null) return;
@@ -91,8 +88,8 @@ public final class GuardianRunner {
     }
 
     /**
-     * The whole app left the foreground (last Activity stopped). Drops the
-     * foreground WS and falls back to the periodic worker for the relevant modes.
+     * The last Activity stopped: drop the foreground channel and let the periodic worker
+     * take over in the modes that have one
      */
     public static void onAppBackground(Context context) {
         if (context == null) return;

@@ -15,7 +15,7 @@ import wings.v.R;
 import wings.v.WarningConfirmActivity;
 import wings.v.core.AppPrefs;
 
-/** Backing fragment for GuardianActivity. */
+/** Backing fragment for GuardianActivity */
 public final class GuardianSettingsFragment extends PreferenceFragmentCompat {
 
     private final ActivityResultLauncher<Intent> revokeLauncher = registerForActivityResult(

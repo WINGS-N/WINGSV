@@ -5,7 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import wings.v.core.AppPrefs;
 
-/** Brings GuardianService back up after boot when the user opted in. */
+/** Brings GuardianService back up after boot when the user opted in */
 public final class GuardianBootReceiver extends BroadcastReceiver {
 
     @Override

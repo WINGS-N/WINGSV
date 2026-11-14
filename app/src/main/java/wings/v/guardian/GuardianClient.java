@@ -19,35 +19,34 @@ import wings.v.proto.GuardianProto;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Live Guardian channel: a bidirectional gRPC stream to the panel carrying the
- * same Frame envelope in both directions.
+ * Live Guardian channel: one bidirectional gRPC stream to the panel, same Frame envelope
+ * both ways.
  *
- * <p>Reconnects with exponential backoff and prefers a socket bound to the
- * physical network, so the channel that manages the tunnel does not depend on the
- * tunnel being healthy; when phy bind keeps failing it falls back to the default
- * route for a while, which lets the connection ride through the tunnel instead.
+ * <p>Reconnects with exponential backoff and prefers a socket bound to the physical
+ * network - the channel that manages the tunnel must not depend on that tunnel being
+ * healthy. When phy bind keeps failing it falls back to the default route for a while and
+ * lets the connection ride the tunnel instead.
  *
- * <p>There is no application-level heartbeat or watchdog here. HTTP/2 keepalive
- * proves the channel and a dead stream surfaces as onError, so the frame-silence
- * timer the WebSocket transport needed is gone.
+ * <p>No application-level heartbeat or watchdog: HTTP/2 keepalive proves the channel and
+ * a dead stream arrives as onError, so there is nothing left for a frame-silence timer to
+ * catch
  */
 public final class GuardianClient {
 
     private static final String TAG = "GuardianClient";
     private static final long INITIAL_BACKOFF_MS = 3_000L;
     private static final long MAX_BACKOFF_MS = 60_000L;
-    // Backoff only resets once a stream has lived longer than the starting
-    // backoff; otherwise a "ServerHello then immediate close" loop keeps
-    // collapsing the delay back to 3s and reconnects every few seconds.
+    // Backoff resets only after a stream outlives the starting delay. Otherwise a
+    // "ServerHello then immediate close" loop collapses it back to 3s forever and we
+    // reconnect every few seconds
     private static final long BACKOFF_RESET_STABLE_MS = 30_000L;
-    // How many consecutive phy-bound attempts must fail before we start going out
-    // over the default route. With VK TURN + WireGuard a phy-bound socket
-    // sometimes hangs in the operator's core filter and the only working path is
-    // the tunnel itself.
+    // Consecutive phy-bound failures before we start going out over the default route.
+    // With VK TURN + WireGuard a phy-bound socket sometimes hangs in the operator's core
+    // filter, and then the tunnel itself is the only path that works
     private static final int PHY_FAILURES_BEFORE_TUNNEL_FALLBACK = 2;
-    // How long after "phy does not work" every attempt starts on the default
-    // route without spending more time on phy timeouts. Re-evaluated on each
-    // network change and on the first stable stream.
+    // How long we keep starting on the default route after phy proved broken, instead of
+    // paying for more phy timeouts. Re-evaluated on each network change and on the first
+    // stable stream
     private static final long TUNNEL_FALLBACK_TTL_MS = 6L * 60L * 60L * 1000L;
     private static final long SHUTDOWN_WAIT_SECONDS = 2L;
 
@@ -57,9 +56,9 @@ public final class GuardianClient {
 
     private ManagedChannel channel;
     private StreamObserver<GuardianProto.Frame> outbound;
-    // Frames are dropped until the panel has accepted the hello: the stream is
-    // ordered, so anything sent earlier would reach the server ahead of its
-    // ServerHello and be rejected as an unexpected frame.
+    // Frames are dropped until the panel accepts the hello: the stream is ordered, so
+    // anything sent earlier arrives ahead of the ServerHello and gets rejected as
+    // unexpected
     private volatile boolean accepted;
     private boolean phyBindActive;
     private int phyFailureStreak;
@@ -93,10 +92,9 @@ public final class GuardianClient {
     public void start() {
         mainHandler.post(() -> {
             stopped = false;
-            // The persisted hint survives process death so a freshly spawned
-            // client does not re-learn that phy bind is broken. It only means
-            // anything while a VPN is actually up: with no VPN the default route
-            // is phy itself, so trying phy bind costs nothing.
+            // The hint survives process death, so a freshly spawned client does not have
+            // to learn again that phy bind is broken. Only meaningful while a VPN is up -
+            // without one the default route is phy anyway
             long until = AppPrefs.getGuardianTunnelFallbackUntilMs(appContext);
             boolean hintFresh = until > 0L && System.currentTimeMillis() < until;
             if (hintFresh && isDefaultRouteVpn()) {
@@ -171,7 +169,7 @@ public final class GuardianClient {
                     stream.onCompleted();
                 }
             } catch (RuntimeException ignored) {
-                // Already torn down by the transport.
+                // Already torn down by the transport
             }
         }
         ManagedChannel open = channel;
@@ -186,7 +184,7 @@ public final class GuardianClient {
         }
     }
 
-    /** Called on any stream end; schedules the next attempt unless we are stopping. */
+    /** Called on any stream end; schedules the next attempt unless we are stopping */
     private void onStreamClosed(@Nullable String reason) {
         mainHandler.post(() -> {
             boolean wasAccepted = accepted;
@@ -204,8 +202,8 @@ public final class GuardianClient {
     }
 
     /**
-     * A phy-bound attempt that never got accepted counts against phy. Enough of
-     * those in a row and the next attempts go out over the default route.
+     * A phy-bound attempt that never got accepted counts against phy. Enough in a row and
+     * the next attempts go out over the default route
      */
     private void noteAttemptOutcome(boolean wasAccepted) {
         if (wasAccepted || !phyBindActive) {
@@ -227,8 +225,7 @@ public final class GuardianClient {
         }
         backoffMs = INITIAL_BACKOFF_MS;
         phyFailureStreak = 0;
-        // A stream that lasted on phy means phy bind works again, so clear the
-        // persisted hint too.
+        // A stream that lasted on phy proves phy bind works again, hint included
         if (!tunnelFallbackActive && AppPrefs.getGuardianTunnelFallbackUntilMs(appContext) > 0L) {
             AppPrefs.setGuardianTunnelFallbackUntilMs(appContext, 0L);
         }
@@ -312,15 +309,14 @@ public final class GuardianClient {
         try {
             manager.unregisterNetworkCallback(networkCallback);
         } catch (RuntimeException ignored) {
-            // Already gone.
+            // Already gone
         }
         networkCallback = null;
     }
 
     /**
-     * A real network change is a fresh chance for phy, so the fallback memory is
-     * wiped and the stream is rebuilt whenever the route we are on no longer
-     * matches the route we would pick now.
+     * A real network change is a fresh chance for phy: wipe the fallback memory and
+     * rebuild the stream whenever the route we are on is no longer the route we would pick
      */
     private void evaluateNetworkChange(String reason) {
         if (stopped) {
@@ -396,7 +392,7 @@ public final class GuardianClient {
                     listener.onLogControl(frame.getLogControl());
                     break;
                 default:
-                    // Heartbeat and anything we do not act on.
+                    // Heartbeat and anything else we do not act on
                     break;
             }
         }

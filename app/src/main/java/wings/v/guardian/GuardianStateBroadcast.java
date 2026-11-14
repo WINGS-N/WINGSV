@@ -7,7 +7,7 @@ import androidx.annotation.NonNull;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-/** In-process listener registry for GuardianService state changes. */
+/** In-process listener registry for GuardianService state changes */
 public final class GuardianStateBroadcast {
 
     @FunctionalInterface

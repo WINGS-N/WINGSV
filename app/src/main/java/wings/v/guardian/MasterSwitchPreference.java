@@ -10,11 +10,9 @@ import androidx.preference.PreferenceViewHolder;
 import androidx.preference.SwitchPreferenceCompat;
 
 /**
- * Settings-app style "two-target" preference: tapping the row body navigates
- * to a detail screen via the standard {@link androidx.preference.Preference#setOnPreferenceClickListener},
- * while tapping the switch widget itself toggles the bound boolean (calling
- * the change listener and persisting the value the same way as the parent
- * class would on a row click).
+ * Two-target preference in the Settings-app shape: the row body goes to a detail screen
+ * through the usual {@link androidx.preference.Preference#setOnPreferenceClickListener},
+ * and only the switch widget toggles the bound boolean
  */
 public final class MasterSwitchPreference extends SwitchPreferenceCompat {
 
@@ -41,9 +39,8 @@ public final class MasterSwitchPreference extends SwitchPreferenceCompat {
 
     @Override
     protected void onClick() {
-        // Row-level click is intercepted by setOnPreferenceClickListener.
-        // Skipping the parent toggle keeps the switch from flipping when the
-        // user taps the row body to drill into the detail activity.
+        // setOnPreferenceClickListener owns the row click; letting the parent toggle run
+        // would flip the switch while the user is only drilling into the detail screen
     }
 
     @Override

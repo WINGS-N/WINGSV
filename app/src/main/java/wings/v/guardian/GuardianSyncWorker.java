@@ -8,7 +8,7 @@ import wings.v.core.AppPrefs;
 
 /**
  * Guardian sync for the PERIODIC mode: one gRPC round trip, no socket to keep
- * alive and no fixed budget to burn through.
+ * alive and no fixed budget to burn through
  */
 public final class GuardianSyncWorker extends Worker {
 
@@ -26,9 +26,9 @@ public final class GuardianSyncWorker extends Worker {
         if (!AppPrefs.GUARDIAN_SYNC_MODE_PERIODIC.equals(AppPrefs.getGuardianSyncMode(app))) {
             return Result.success();
         }
-        // The in-app foreground client owns a live channel while the app is open;
-        // syncing underneath it would make the panel see one session replace the
-        // other for the same client id.
+        // While the app is open the foreground client owns a live channel, and syncing
+        // underneath it makes the panel watch two sessions replace each other under one
+        // client id
         if (GuardianForegroundClient.isActive()) {
             return Result.success();
         }
@@ -39,8 +39,7 @@ public final class GuardianSyncWorker extends Worker {
             GuardianStateBroadcast.send(app, false, "");
             return Result.success();
         }
-        // A failed exchange is worth another attempt on WorkManager's backoff
-        // rather than waiting out the whole period.
+        // Retry on WorkManager's backoff rather than sitting out the whole period
         GuardianStateBroadcast.send(app, false, "");
         return Result.retry();
     }

@@ -5,9 +5,8 @@ import wings.v.core.AppPrefs;
 import wings.v.proto.GuardianProto;
 
 /**
- * In-activity Guardian connection used by the FOREGROUND_ONLY sync mode.
- * No service, no notification: lives only while the user keeps the app
- * (any of its activities) on screen.
+ * In-activity Guardian connection for the FOREGROUND_ONLY sync mode. No service, no
+ * notification: it lives only while some activity of ours is on screen
  */
 public final class GuardianForegroundClient {
 
@@ -15,7 +14,7 @@ public final class GuardianForegroundClient {
 
     private GuardianForegroundClient() {}
 
-    /** True while an in-activity foreground connection owns the guardian socket. */
+    /** True while an in-activity foreground connection owns the guardian socket */
     public static synchronized boolean isActive() {
         return client != null;
     }
@@ -34,9 +33,9 @@ public final class GuardianForegroundClient {
                 @Override
                 public void onConnected(String host) {
                     GuardianStateBroadcast.send(app, true, host);
-                    // Mirror GuardianService: push the current config snapshot on
-                    // connect instead of waiting for a REPORT_NOW that may never
-                    // arrive, otherwise the panel only sees the hello with no config.
+                    // Snapshot on connect, same as GuardianService: waiting for a
+                    // REPORT_NOW that may never come leaves the panel with a hello and no
+                    // config at all
                     GuardianCommandHandler.sendStateReport(app, frame -> {
                         if (client != null) {
                             client.sendFrame(frame);

@@ -8,7 +8,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.R;
 
-/** Hosts the Guardian (popechitelstvo) settings screen. */
+/** Hosts the Guardian (popechitelstvo) settings screen */
 public class GuardianActivity extends AppCompatActivity {
 
     public static Intent createIntent(Context context) {

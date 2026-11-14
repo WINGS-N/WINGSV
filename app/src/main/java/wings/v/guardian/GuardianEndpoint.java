@@ -21,9 +21,9 @@ import wings.v.core.DirectNetworkConnection;
 import wings.v.proto.GuardianProto;
 
 /**
- * Shared panel addressing and identity for every Guardian transport. The gRPC
- * channel reuses the WebSocket endpoint's host, so a device that was provisioned
- * with a wingsv:// link needs no new setting to reach the gRPC service.
+ * Panel addressing and identity shared by every Guardian transport. The gRPC channel
+ * reuses the WebSocket endpoint's host, so a device provisioned from a wingsv:// link
+ * needs no new setting to reach the gRPC service
  */
 public final class GuardianEndpoint {
 
@@ -35,7 +35,7 @@ public final class GuardianEndpoint {
 
     private GuardianEndpoint() {}
 
-    /** Panel host taken from the configured Guardian URL, empty when unset. */
+    /** Panel host taken from the configured Guardian URL, empty when unset */
     @NonNull
     public static String host(@NonNull Context context) {
         URI url = panelUri(context);
@@ -47,10 +47,9 @@ public final class GuardianEndpoint {
     }
 
     /**
-     * Panel gRPC port. The panel serves the Guardian service on the same address
-     * as its web UI, so a deployment on a non-standard port (which the standalone
-     * installer offers) needs no separate setting - the enrollment URL already
-     * carries it.
+     * Panel gRPC port. The Guardian service sits on the same address as the web UI, so a
+     * deployment on the non-standard port the standalone installer offers needs no extra
+     * setting - the enrollment URL already carries it
      */
     public static int port(@NonNull Context context) {
         URI url = panelUri(context);
@@ -74,11 +73,10 @@ public final class GuardianEndpoint {
     }
 
     /**
-     * Opens a channel to the panel's Guardian service. Binding the socket to the
-     * physical network keeps the control channel outside the tunnel it manages,
-     * which is what lets the panel still reach a device whose VPN is wedged; when
-     * no physical network is usable the default route is used instead, and the
-     * channel simply rides the tunnel.
+     * Opens a channel to the panel's Guardian service. The socket binds to the physical
+     * network so the control channel stays outside the tunnel it manages - that is what
+     * keeps a device with a wedged VPN reachable. With no usable physical network it
+     * falls back to the default route and rides the tunnel
      */
     @NonNull
     public static ManagedChannel openChannel(@NonNull Context context, boolean preferPhysical) {
@@ -96,10 +94,9 @@ public final class GuardianEndpoint {
     }
 
     /**
-     * Pins the panel CA when the enrollment link carried one. This is what makes a
-     * domain-less panel usable: no public CA will issue for a bare IP, so the
-     * system trust store can never verify it and the pin is the only anchor. With
-     * no pins stored the channel keeps the default system trust.
+     * Pins the panel CA when the enrollment link carried one - the only way a panel with
+     * no domain is usable, since no public CA issues for a bare IP and the system trust
+     * store can never verify it. With no pins stored the channel keeps system trust
      */
     private static void applyPinnedTrust(@NonNull Context context, @NonNull OkHttpChannelBuilder builder) {
         java.util.List<byte[]> pins = AppPrefs.getGuardianCaPins(context);
@@ -112,8 +109,8 @@ public final class GuardianEndpoint {
                 builder.sslSocketFactory(pinned);
             }
         } catch (GeneralSecurityException error) {
-            // Leaving the default trust in place would silently drop the pin, so the
-            // channel is left to fail against the system store instead.
+            // Keeping the default trust here would silently drop the pin, so let the
+            // channel fail against the system store instead
             Log.w(TAG, "pinned trust unavailable: " + error.getMessage());
         }
     }

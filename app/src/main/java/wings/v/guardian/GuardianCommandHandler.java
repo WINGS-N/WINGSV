@@ -12,11 +12,9 @@ public final class GuardianCommandHandler {
     private static final String TAG = "GuardianCmd";
 
     /**
-     * Outbound channel used to ship command responses back to the panel. A
-     * caller that has a live WS client (foreground client, periodic worker)
-     * passes a responder backed by {@code client.sendFrame}; the background
-     * paths used to pass {@code null} here, which is exactly why command acks
-     * and REPORT_NOW snapshots never left the device.
+     * Carries command responses back to the panel. Every caller has to pass one backed by
+     * {@code client.sendFrame} - a null responder leaves the command acks and REPORT_NOW
+     * snapshots sitting on the device
      */
     @FunctionalInterface
     public interface Responder {
@@ -55,9 +53,9 @@ public final class GuardianCommandHandler {
                     sendInstalledAppsAsync(ctx, responder);
                     break;
                 case COMMAND_TYPE_GENERATE_VK_LINK:
-                    // VK link generation needs the foreground VK OAuth session;
-                    // background sync without a live UI cannot mint one. Ack
-                    // below so the panel stops waiting.
+                    // Minting a VK link needs the foreground VK OAuth session, which a
+                    // background sync has no way to get. Still acked below, so the panel
+                    // stops waiting on it
                     break;
                 default:
                     ok = false;
@@ -148,9 +146,8 @@ public final class GuardianCommandHandler {
         GuardianProto.StateReport.Builder report = GuardianProto.StateReport.newBuilder().setRuntime(runtime);
         try {
             wings.v.proto.WingsvProto.Config snapshot = wings.v.core.WingsImportParser.buildGuardianSnapshotProto(ctx);
-            // Strip Guardian credentials from the snapshot we send back -
-            // they're already known to the panel and including them would only
-            // leak the token through StateReport echoes.
+            // The panel already knows its own credentials, and echoing them back in a
+            // StateReport only gives the token another way out
             wings.v.proto.WingsvProto.Config sanitised = snapshot.toBuilder().clearGuardian().build();
             report.setSnapshot(sanitised);
         } catch (Exception error) {
@@ -166,8 +163,8 @@ public final class GuardianCommandHandler {
             wings.v.core.WingsImportParser.ImportedConfig imported = wings.v.core.WingsImportParser.parseProtoConfig(
                 push.getConfig()
             );
-            // Strip Guardian credentials but keep sync_mode/interval - those
-            // are panel-driven behavioural knobs and must propagate live.
+            // Credentials go, sync_mode/interval stay: the panel drives those and has to
+            // see them take effect
             imported.guardianWsUrl = null;
             imported.guardianClientId = null;
             imported.guardianClientToken = null;

@@ -16,12 +16,10 @@ import wings.v.service.ProxyTunnelService;
 /**
  * Background Guardian sync over a single gRPC round trip.
  *
- * <p>The periodic path used to open the live channel and sit on it for a fixed
- * budget hoping frames would arrive, which is exactly what a dozing device is
- * worst at: the handshake, the reconnect backoff and the heartbeat watchdog all
- * had to succeed inside a window the system was actively trying to close. Here
- * the device posts its state and takes back everything the panel had queued in
- * one request, so the work is done in a round trip rather than a vigil.
+ * <p>One request posts the device state and takes back everything the panel had queued.
+ * A dozing device is worst at the opposite shape - holding the live channel open for a
+ * budget and hoping frames arrive, with the handshake, the reconnect backoff and the
+ * watchdog all having to fit inside a window the system is actively closing
  */
 public final class GuardianSyncClient {
 
@@ -30,12 +28,12 @@ public final class GuardianSyncClient {
     private static final long SHUTDOWN_WAIT_SECONDS = 5L;
     // Commands can produce acks and a fresh report, which ride the next request.
     // Two follow-ups is enough for a command that queues another one, and bounds
-    // a panel that would otherwise keep us going indefinitely.
+    // a panel that would otherwise keep us going indefinitely
     private static final int MAX_FOLLOW_UPS = 2;
 
     private GuardianSyncClient() {}
 
-    /** Runs one sync exchange. Returns false when the panel could not be reached. */
+    /** Runs one sync exchange. Returns false when the panel could not be reached */
     public static boolean sync(@NonNull Context context) {
         Context app = context.getApplicationContext();
         if (GuardianEndpoint.host(app).isEmpty()) {
@@ -102,7 +100,7 @@ public final class GuardianSyncClient {
     /**
      * Folds whatever the command handlers produced into the next request. Acks and
      * installed-app lists travel as their own fields; a state report replaces the
-     * one we opened with so the panel sees the post-command result.
+     * one we opened with so the panel sees the post-command result
      */
     private static GuardianProto.SyncRequest.Builder followUp(
         @NonNull Context app,
