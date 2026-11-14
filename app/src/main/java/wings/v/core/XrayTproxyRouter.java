@@ -301,7 +301,10 @@ public final class XrayTproxyRouter {
             // dokodemo-door followRedirect path does not survive the UDP return
             // trip, so capturing it here black-holes client name resolution; the
             // gateway resolver already answers the clients.
-            s.append(" ! --dport 53");
+            //
+            // 67 и 68 отдаём локальному DHCP точки: завёрнутый в dokodemo-door
+            // запрос до него не доходит ни хуя, и клиент сидит без адреса
+            s.append(" -m multiport ! --dports 53,67,68");
         }
         s.append(" -j REDIRECT --to-ports ").append(redirectPort).append("; ");
     }
