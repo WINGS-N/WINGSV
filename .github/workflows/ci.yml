@@ -41,10 +41,10 @@ jobs:
         run: git submodule update --init --recursive external/amneziawg-android
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: pnpm
@@ -112,7 +112,7 @@ jobs:
             ${{ runner.os }}-libxray-go-
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           # The action's default package set still contains the obsolete "tools"
           # package, which Google dropped from the SDK repository; sdkmanager then
@@ -132,13 +132,30 @@ jobs:
 
       - name: Install protoc
         run: |
+          command -v protoc >/dev/null && exit 0
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
+
+      # cargo-ndk каждый раз собирается из исходников - это минуты коту под
+      # хвост. Target демона суём сюда же, иначе Rust перемалывает всё нахуй
+      # заново из-за одной правки
+      - name: Cache Rust toolchain state
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            bridges/vpnhotspot/upstream-runtime/build/rust/vpnhotspotd
+          key: ${{ runner.os }}-cargo-${{ hashFiles('external/VPNHotspot/mobile/src/main/rust/vpnhotspotd/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Set up cargo-ndk for the upstream-runtime daemon
         run: |
           rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-          cargo install cargo-ndk --locked
+          command -v cargo-ndk >/dev/null || cargo install cargo-ndk --locked
 
       - name: Check Java formatting
         run: pnpm format:java:check
@@ -196,4 +213,6 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: app-debug-${{ steps.resolve-version.outputs.version }}
-          path: app/build/outputs/apk/debug/app-debug.apk
+          # Флаворы по ABI: APK лежат в arm64/debug и arm32/debug, в apk/debug
+          # пусто
+          path: app/build/outputs/apk/*/debug/*.apk

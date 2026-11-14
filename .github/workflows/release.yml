@@ -88,7 +88,7 @@ jobs:
             ${{ runner.os }}-libxray-go-
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           # The action's default package set still contains the obsolete "tools"
           # package, which Google dropped from the SDK repository; sdkmanager then
