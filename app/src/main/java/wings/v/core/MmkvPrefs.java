@@ -7,15 +7,13 @@ import com.tencent.mmkv.MMKV;
 import java.util.HashMap;
 import java.util.Map;
 
-// Process-safe key-value storage for state shared between the main UI process
-// and the :tunnel process. Plain SharedPreferences opened with the deprecated
-// MODE_MULTI_PROCESS corrupted (and could wipe) the whole file when one process
-// was force-killed mid-write while another held its own cached copy. MMKV is
-// crash-safe (mmap + CRC, no truncate window) and coherent across processes, so
-// it replaces those multi-process SharedPreferences. Each instance migrates the
-// values from its legacy SharedPreferences file once, then becomes the source
-// of truth. MMKV implements the SharedPreferences interface, so call sites that
-// used getSharedPreferences keep working unchanged.
+// Process-safe key-value storage for state shared between the main UI process and
+// :tunnel. Plain SharedPreferences under the deprecated MODE_MULTI_PROCESS corrupts
+// and can wipe the whole file when one process is force-killed mid-write while
+// another holds its own cached copy; MMKV is mmap + CRC with no truncate window and
+// stays coherent across processes. Each instance imports its legacy
+// SharedPreferences file once and then owns the data. MMKV implements the
+// SharedPreferences interface, so getSharedPreferences call sites need no changes
 public final class MmkvPrefs {
 
     private static final String MIGRATED_FLAG_KEY = "__mmkv_migrated_from_xml__";
@@ -54,10 +52,9 @@ public final class MmkvPrefs {
         return kv;
     }
 
-    // The main settings store: a listenable SharedPreferences spread over one MMKV
-    // file per subsystem, replacing the default <pkg>_preferences XML file and the
-    // single file that first replaced it. A single instance per process keeps
-    // OnSharedPreferenceChangeListener registrations consistent.
+    // Main settings store: a listenable SharedPreferences spread over one MMKV file
+    // per subsystem. One instance per process, otherwise
+    // OnSharedPreferenceChangeListener registrations drift apart
     public static SharedPreferences mainPrefs(Context context) {
         MmkvRoutedPreferences cached = mainPrefs;
         if (cached != null) {
@@ -66,9 +63,9 @@ public final class MmkvPrefs {
         synchronized (MmkvPrefs.class) {
             if (mainPrefs == null) {
                 ensureInitialized(context);
-                // The pre-split file is still opened: it holds every key written
-                // before the split and the routed store reads through to it until
-                // each key has been touched once. A fresh install finds it empty.
+                // The pre-split file still gets opened: it holds the keys written
+                // before the split, and the routed store reads through to it until
+                // each key is touched once. On a fresh install it is empty
                 MMKV legacy = MmkvCompat.open(MAIN_PREFS_ID);
                 if (!legacy.getBoolean(MIGRATED_FLAG_KEY, false)) {
                     SharedPreferences xml = context
@@ -89,8 +86,8 @@ public final class MmkvPrefs {
         }
     }
 
-    // PreferenceDataStore over the main store, for PreferenceFragmentCompat
-    // screens so their widgets read and write MMKV instead of the XML file.
+    // PreferenceDataStore over the main store, so PreferenceFragmentCompat widgets
+    // read and write MMKV instead of the XML file
     public static PreferenceDataStore mainDataStore(Context context) {
         MmkvPreferenceDataStore cached = mainDataStore;
         if (cached != null) {

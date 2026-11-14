@@ -12,17 +12,16 @@ import java.util.Set;
 import org.json.JSONArray;
 
 /**
- * Per-profile store for the VK TURN backend, mirroring XrayStore's profile API.
- * A VkTurnProfile composes its transport BY REFERENCE: it carries a transport
- * kind plus the id of a WireGuardProfile or AmneziaProfile. The proxy fields and
- * the VK TURN endpoint live on the VkTurnProfile itself.
+ * Profile store for the VK TURN backend. A VkTurnProfile composes its transport BY
+ * REFERENCE - a transport kind plus the id of a WireGuardProfile or AmneziaProfile
+ * - while the proxy fields and the VK TURN endpoint sit on the profile itself.
  *
- * Phase 1 of multi-profile support: persists the profile list, active id,
- * favorites and traffic stats, plus a one-time migration that seeds a single
- * profile from the legacy flat KEY_ENDPOINT + VK TURN proxy keys, referencing
- * the WG/AWG transport profile seeded by the matching backend migration. The
- * flat keys remain the source of truth for the running tunnel; applyActiveToPrefs
- * resolves the transport reference and writes everything back to the flat keys.
+ * <p>Holds the profile list, active id, favorites and traffic stats, plus a
+ * one-time seed from the legacy flat KEY_ENDPOINT and VK TURN proxy keys, pointing
+ * at the WG/AWG profile the matching backend migration seeded.
+ *
+ * <p>The flat keys are what the running tunnel reads, so applyActiveToPrefs
+ * resolves the transport reference and writes the whole composition back onto them
  */
 @SuppressWarnings(
     {
@@ -97,12 +96,9 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * Adds an imported VK TURN profile to the list, deduped by stableDedupKey
-     * (transport kind + transport id + endpoint): when an identical profile
-     * already exists it is reused (and returned) instead of duplicating;
-     * otherwise the supplied profile is appended. Returns the stored profile
-     * (existing or newly added), or null when the candidate id is empty. Mirrors
-     * Xray's add-don't-replace import; does not change the active id.
+     * Deduped by stableDedupKey - transport kind plus transport id plus endpoint -
+     * so an identical profile is reused rather than stored twice. The active id
+     * stays where it was
      */
     public static VkTurnProfile addImportedProfile(Context context, VkTurnProfile profile) {
         if (profile == null || TextUtils.isEmpty(profile.id)) {
@@ -157,22 +153,18 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * True when any stored VkTurnProfile references the given transport (a
-     * WireGuardProfile when kind is "wg", an AmneziaProfile when kind is "awg").
-     * Callers (WireGuardProfileStore.deleteProfile / AmneziaProfileStore.delete-
-     * Profile) use this to refuse deleting a transport that a VK TURN profile
-     * still points at, since composition is by reference.
+     * True when some stored VkTurnProfile references this transport - a
+     * WireGuardProfile for kind "wg", an AmneziaProfile for "awg". The delete paths
+     * of both transport stores ask first, because composition is by reference and a
+     * deleted transport leaves the VK TURN profile pointing at nothing
      */
     public static boolean isTransportReferenced(Context context, String transportKind, String transportProfileId) {
         return !findVkTurnProfilesReferencing(context, transportKind, transportProfileId).isEmpty();
     }
 
     /**
-     * All stored VkTurnProfiles that reference the given transport (a
-     * WireGuardProfile when kind is "wg", an AmneziaProfile when kind is "awg")
-     * by id. The cascade-delete helpers on WireGuardProfileStore /
-     * AmneziaProfileStore use this to remove every dependent VK TURN profile
-     * before the shared transport is deleted.
+     * Every stored VkTurnProfile pointing at this transport by id. The cascade
+     * delete on either transport store wipes these first
      */
     public static List<VkTurnProfile> findVkTurnProfilesReferencing(
         Context context,
@@ -258,13 +250,10 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * Applies the active VK TURN profile to the legacy flat keys. Resolution of
-     * the transport reference happens here: transportProfileId is looked up in
-     * the matching transport store (WireGuardProfileStore for "wg",
-     * AmneziaProfileStore for "awg"); that transport's fields are written to the
-     * WG / AWG flat keys, then the VK TURN endpoint and proxy fields are written
-     * to KEY_ENDPOINT and the VK TURN proxy keys. This is the composition that
-     * happens at apply-time. No-op when there is no active profile.
+     * Where the composition actually happens: transportProfileId is looked up in
+     * its store (WireGuardProfileStore for "wg", AmneziaProfileStore for "awg"),
+     * that transport's fields go onto the WG / AWG flat keys, and the VK TURN
+     * endpoint and proxy fields go onto KEY_ENDPOINT and the VK TURN proxy keys
      */
     public static void applyActiveToPrefs(Context context) {
         VkTurnProfile profile = getActiveProfile(context);
@@ -278,8 +267,8 @@ public final class VkTurnProfileStore {
         if (profile == null) {
             return;
         }
-        // Resolve the transport by reference and apply its fields to the WG/AWG
-        // flat keys first, then layer the VK TURN endpoint + proxy fields.
+        // Transport first, onto the WG/AWG flat keys, then the VK TURN endpoint and
+        // proxy fields on top
         if (profile.usesAmneziaTransport()) {
             AmneziaProfile transport = AmneziaProfileStore.getProfileById(context, profile.transportProfileId);
             if (transport != null) {
@@ -292,9 +281,8 @@ public final class VkTurnProfileStore {
             }
         }
         // Threads, creds group size, the VK-ID auth mode, the session mode and the
-        // browser fingerprint are device-global user preferences, NOT per-profile:
-        // they are deliberately not projected here, so switching a profile never
-        // resets them. The flat keys stay as the user set them globally.
+        // browser fingerprint are device-global, NOT per-profile: project them here
+        // and switching a profile resets what the user set globally
         ProfileStoreSupport.prefs(context)
             .edit()
             .putString(AppPrefs.KEY_ENDPOINT, ProfileStoreSupport.trim(profile.vkTurnEndpoint))
@@ -325,21 +313,17 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * Updates the active VK TURN profile in place from the flat keys, keeping its
-     * id, title and transport reference (kind + transportProfileId stay stable).
-     * The referenced transport's own edits in the flat WG/AWG keys are folded
-     * back into that transport profile as well, since the settings screen edits
-     * the composed flat keys. Used by the UI editor on return from settings.
-     * Returns the updated profile, or null when there is no active profile or the
-     * endpoint is empty.
+     * The settings screen edits the composed flat keys, so on the way back the VK
+     * TURN half lands on the active profile (id, title and transport reference stay
+     * put) and the WG/AWG half lands on the referenced transport profile
      */
     public static VkTurnProfile updateActiveFromFlatPrefs(Context context) {
         VkTurnProfile active = getActiveProfile(context);
         if (active == null) {
             return null;
         }
-        // Fold the transport's flat-key edits back into the referenced transport
-        // profile (id stays stable) so the composition keeps pointing at it.
+        // The transport's flat-key edits go back into the referenced profile under
+        // its own id, so the composition keeps pointing at it
         if (active.usesAmneziaTransport()) {
             AmneziaProfile transport = AmneziaProfileStore.getProfileById(context, active.transportProfileId);
             if (transport != null) {
@@ -377,11 +361,11 @@ public final class VkTurnProfileStore {
             active.title,
             active.transportKind,
             active.transportProfileId,
-            // KEY_ENDPOINT in the flat keys is the WG peer endpoint (the local TURN
-            // relay, e.g. 127.0.0.1:9000) that the UI settings screen edits, not the
-            // VK TURN server. The VK TURN server endpoint is a VkTurnProfile-only
-            // field owned by the VK TURN editor, so preserve it across the WG-settings
-            // round-trip instead of folding the local relay back over it.
+            // Flat KEY_ENDPOINT is the WG peer endpoint - the local TURN relay,
+            // 127.0.0.1:9000 and friends - which the WG settings screen edits. The VK
+            // TURN server endpoint is a VkTurnProfile-only field owned by the VK TURN
+            // editor, so it survives the round-trip instead of being overwritten with
+            // the local relay
             active.vkTurnEndpoint,
             updated.threads,
             updated.credsGroupSize,
@@ -403,10 +387,10 @@ public final class VkTurnProfileStore {
             updated.turnHost,
             updated.turnPort
         );
-        // A managed profile provisions its wg transport on connect; folding the flat
-        // keys back must not strip its managed identity (wgProvisioned + provision
-        // client/token), or the round-trip through the settings screen would turn it
-        // into a plain profile and lose the provisioning credentials.
+        // A managed profile provisions its wg transport on connect, so its managed
+        // identity (wgProvisioned plus provision client and token) has to survive the
+        // fold-back - otherwise a trip through the settings screen turns it into a
+        // plain profile and the provisioning credentials are gone
         if (active.isManaged()) {
             merged = merged.withManaged(active.provisionClientId, active.provisionToken);
         }
@@ -417,12 +401,11 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * One-time migration: seeds a single profile from the legacy flat
-     * KEY_ENDPOINT + VK TURN proxy keys when the endpoint is non-empty. The
-     * transport is chosen from the current VK TURN sub-backend (TunnelMode wg vs
-     * awg) and resolved to the SAME WireGuardProfile/AmneziaProfile that the
-     * matching backend migration seeded; it is referenced by id, never copied.
-     * Idempotent and gated by the KEY_VK_TURN_PROFILES_MIGRATED flag.
+     * One-time seed of a single profile from the legacy flat KEY_ENDPOINT and VK
+     * TURN proxy keys, gated by KEY_VK_TURN_PROFILES_MIGRATED. The transport comes
+     * from the current VK TURN sub-backend (TunnelMode wg vs awg) and resolves to
+     * the SAME profile the matching backend migration seeded, referenced by id and
+     * never copied
      */
     public static VkTurnProfile migrateFromFlatPrefs(Context context) {
         SharedPreferences prefs = ProfileStoreSupport.prefs(context);
@@ -452,9 +435,7 @@ public final class VkTurnProfileStore {
         return seeded;
     }
 
-    // Reads the flat KEY_ENDPOINT + VK TURN proxy keys into a VkTurnProfile that
-    // references the given transport. Shared by the migration and the importer so
-    // the two stay in lockstep.
+    // Shared by the migration and the importer, so the two cannot drift apart
     static VkTurnProfile readFlatProfile(
         Context context,
         String title,
@@ -497,24 +478,21 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * Import-as-profile entry point: the importer has already written the flat
-     * VK TURN keys plus the WG/AWG transport sub-config. This first imports that
-     * transport as its own profile (deduped, made active in its backend), then
-     * builds a VkTurnProfile referencing that transport id from the flat VK TURN
-     * keys, adds it deduped, makes it active and re-projects everything back onto
-     * the flat keys. The title is synthesized from the endpoint when none is
-     * given. Returns the active profile, or null when the endpoint is empty.
+     * Import entry point: the importer has already written the flat VK TURN keys
+     * plus the WG/AWG transport sub-config. The transport becomes a profile of its
+     * own first (deduped, active in its backend), and only then does the
+     * VkTurnProfile get built pointing at that id. A missing title is synthesized
+     * from the endpoint
      */
     public static VkTurnProfile importActiveFromFlatPrefs(Context context, String title) {
         return importActiveFromFlatPrefs(context, title, "", "");
     }
 
     /**
-     * Import-as-profile entry point that also threads the transport titles carried
-     * by a single VK TURN profile share link. wireGuardTitle / amneziaTitle are
-     * used (when non-empty) for the embedded transport profile instead of a
-     * generic "WireGuard" / "AmneziaWG" placeholder. Both fall back to the
-     * placeholder when empty, preserving the legacy behavior.
+     * Same import, plus the transport titles a single VK TURN share link carries:
+     * wireGuardTitle / amneziaTitle name the embedded transport profile instead of
+     * the generic "WireGuard" / "AmneziaWG" placeholder, which is what an empty one
+     * falls back to
      */
     public static VkTurnProfile importActiveFromFlatPrefs(
         Context context,
@@ -544,10 +522,9 @@ public final class VkTurnProfileStore {
         return stored;
     }
 
-    // Imports (deduped) the WG/AWG transport sub-config that the importer wrote to
-    // the flat keys and returns the stored transport id to reference. The title
-    // args carry the transport name from a single-profile share link; empty falls
-    // back to the generic placeholder.
+    // Imports the transport sub-config the importer left in the flat keys and hands
+    // back the stored id to reference. The title args come from a single-profile
+    // share link; empty falls back to the generic placeholder
     private static String importTransportProfileId(
         Context context,
         boolean awg,
@@ -582,9 +559,8 @@ public final class VkTurnProfileStore {
         return host + " #" + (getProfiles(context).size() + 1);
     }
 
-    // Resolves (and seeds if necessary) the transport profile id that the VK TURN
-    // profile should reference. Reuses the active WG/AWG profile so the same
-    // transport is shared with the plain-backend list rather than duplicated.
+    // Reuses the active WG/AWG profile, so the transport is shared with the
+    // plain-backend list instead of duplicated. Seeds one when there is none
     private static String resolveTransportProfileId(Context context, boolean awg) {
         if (awg) {
             AmneziaProfile transport = AmneziaProfileStore.getActiveProfile(context);
@@ -601,16 +577,14 @@ public final class VkTurnProfileStore {
     }
 
     /**
-     * Replaces the set of stored VK TURN profiles tagged with subscriptionId by the
-     * given fetched list (already tagged with that same subscriptionId, and with
-     * their transportProfileId already resolved to a transport synced into the
-     * WireGuard / Amnezia stores by the caller). New profiles are added, vanished
-     * ones are pruned, and profiles from a different or empty subscription are left
-     * untouched. Ids are reused (by stableDedupKey) from the previous snapshot of
-     * THIS subscription so the active id and traffic stats stay stable. The
-     * embedded-transport creation is done by the caller before this call (it must
-     * sync the transports into their own stores first so the references resolve),
-     * mirroring XraySubscriptionUpdater's per-subscription replace.
+     * Swaps in the fetched list for one subscription: new profiles are added, the
+     * vanished ones are pruned, and anything from another subscription (or made by
+     * hand) is left alone. Ids are reused by stableDedupKey from the previous
+     * snapshot of THIS subscription, so the active id and traffic stats survive a
+     * refresh.
+     *
+     * <p>The caller syncs the embedded transports into their own stores BEFORE
+     * calling, otherwise every transportProfileId here resolves to nothing
      */
     public static void syncSubscriptionProfiles(Context context, String subscriptionId, List<VkTurnProfile> fetched) {
         String subId = ProfileStoreSupport.trim(subscriptionId);
@@ -646,8 +620,8 @@ public final class VkTurnProfileStore {
                 fetchedByKey.put(tagged.stableDedupKey(), tagged);
             }
         }
-        // Nothing stored for this subscription and nothing fetched: avoid a needless
-        // rewrite of the whole store on every refresh of an unrelated subscription.
+        // Nothing stored and nothing fetched: skip rewriting the whole store on every
+        // refresh of an unrelated subscription
         if (reuseIds.isEmpty() && fetchedByKey.isEmpty()) {
             return;
         }
@@ -663,7 +637,6 @@ public final class VkTurnProfileStore {
         }
     }
 
-    /** Distinct non-empty source subscription ids present in the stored profiles. */
     public static List<String> subscriptionIdsInUse(Context context) {
         java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
         for (VkTurnProfile profile : getProfiles(context)) {

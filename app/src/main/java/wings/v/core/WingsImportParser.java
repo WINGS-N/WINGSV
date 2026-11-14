@@ -89,10 +89,8 @@ public final class WingsImportParser {
     }
 
     /**
-     * Builds a {@code Config} proto that captures every user-facing setting,
-     * for the Guardian StateReport snapshot. Same payload as
-     * {@link #buildAllSettingsLink} but returns the proto directly (no zlib /
-     * base64 wrap).
+     * Та же начинка, что у {@link #buildAllSettingsLink}, но без обёртки zlib +
+     * base64 - в StateReport едет сам proto
      */
     public static WingsvProto.Config buildAllSettingsProto(Context context) throws Exception {
         requireContext(context);
@@ -100,17 +98,14 @@ public final class WingsImportParser {
     }
 
     /**
-     * Verbose snapshot used for the Guardian panel. Differs from
-     * {@link #buildAllSettingsProto}:
+     * Снимок для панели Guardian - жирнее, чем {@link #buildAllSettingsProto},
+     * ровно в двух местах:
      * <ul>
-     *   <li>includes Xray profiles imported from subscriptions
-     *       ({@code includeSubscriptionProfiles=true}); the panel needs to
-     *       show every profile the device knows about, not just hand-edited
-     *       ones;</li>
-     *   <li>passes {@code includeDefaults=true} to every sub-builder, so
-     *       sections like Xposed appear even when all fields are at default
-     *       values. Without this, the admin form would be empty for users
-     *       who haven't deviated from defaults.</li>
+     *   <li>{@code includeSubscriptionProfiles=true}: панели нужны все профили,
+     *       которые знает устройство, а не только набитые руками;</li>
+     *   <li>{@code includeDefaults=true} во всех подсборщиках, иначе секции
+     *       вроде Xposed не попадут в кадр и админ увидит пустую форму у
+     *       каждого, кто не трогал умолчания</li>
      * </ul>
      */
     public static WingsvProto.Config buildGuardianSnapshotProto(Context context) throws Exception {
@@ -157,8 +152,8 @@ public final class WingsImportParser {
         if (!wb.equals(WingsvProto.WbStream.getDefaultInstance())) {
             builder.setWbStream(wb);
         }
-        // includeDefaults=true on remaining sections so admin sees the full
-        // canvas even if user hasn't deviated from defaults.
+        // includeDefaults=true на остатке секций: иначе у юзера с голыми
+        // умолчаниями админ видит пустоту
         builder.setXposed(buildXposed(context, true));
         builder.setRoot(buildRootSettings(context, true));
         builder.setAppPreferences(buildAppPreferences(context, true));
@@ -183,17 +178,15 @@ public final class WingsImportParser {
 
     public static String buildVkTurnSettingsLink(Context context) throws Exception {
         requireContext(context);
-        // VK TURN composes its transport (WireGuard/AmneziaWG) by reference, so a
-        // bare VK_TURN scope drops the WG fields shown at the bottom of the screen.
-        // Export the active profile through buildTurnProfileLink, which resolves and
-        // embeds the transport (same self-contained link the profile long-press
-        // share produces). Fall back to the flat scope only when there is no active
-        // profile to resolve.
+        // VK TURN держит свой транспорт (WireGuard/AmneziaWG) по ссылке, поэтому
+        // голый скоуп VK_TURN теряет WG-поля из низа экрана. buildTurnProfileLink
+        // разрешает ссылку и вшивает транспорт внутрь. Плоский скоуп - только когда
+        // активного профиля нет и разрешать нечего
         VkTurnProfile active = VkTurnProfileStore.getActiveProfile(context);
         if (active != null && !TextUtils.isEmpty(value(active.vkTurnEndpoint))) {
-            // This is the settings export (moving your own VK TURN setup), so it
-            // carries the global VK account links too (issue #72). A per-profile
-            // share must not - see buildTurnProfileLink.
+            // Это экспорт настроек - человек перевозит свой же VK TURN, так что
+            // VK-ссылки аккаунта едут вместе с ним (issue #72). Шара отдельного
+            // профиля их не тащит, см. buildTurnProfileLink
             return buildTurnProfileLink(context, active, true);
         }
         WingsvProto.Config config = buildProtoConfig(
@@ -341,11 +334,10 @@ public final class WingsImportParser {
     }
 
     /**
-     * Single-profile share link for a saved WireGuard profile. Mirrors the Xray
-     * single-profile link: builds a Config carrying just the WireGuard message
-     * (plus a title field) and encodes it proto+deflate+base64. On import the
-     * existing VK / WireGuard parse path reconstructs an equivalent profile and
-     * AppPrefs.applyImportedConfig adds it to the WireGuard profile list.
+     * Ссылка на один профиль WireGuard: в Config кладётся только сообщение
+     * WireGuard плюс title, дальше proto+deflate+base64. На импорте тот же
+     * VK/WireGuard-разбор собирает профиль обратно, а applyImportedConfig
+     * докидывает его в список
      */
     public static String buildWireGuardProfileLink(WireGuardProfile profile) throws Exception {
         if (profile == null || profile.isEmpty()) {
@@ -366,9 +358,7 @@ public final class WingsImportParser {
     }
 
     /**
-     * Single-profile share link for a saved AmneziaWG profile. Carries the
-     * awg-quick config plus a title. On import the AmneziaWG parse path
-     * reconstructs an equivalent profile.
+     * Share link for one AmneziaWG profile: the awg-quick config plus a title
      */
     public static String buildAmneziaProfileLink(AmneziaProfile profile) throws Exception {
         if (profile == null || profile.isEmpty()) {
@@ -390,16 +380,15 @@ public final class WingsImportParser {
     }
 
     /**
-     * Single-profile share link for a saved VK TURN profile. The link MUST carry
-     * the referenced transport (the WG or AWG sub-config + endpoint) so the
-     * importer can fully reconstruct it on a device where the transport id does
-     * not exist. The Config therefore carries Turn (with title + tunnel_mode)
-     * AND the embedded transport message (wg OR awg). Resolution of the transport
-     * reference happens here against the matching transport store.
+     * Share link for one VK TURN profile. The referenced transport (WG or AWG
+     * sub-config + endpoint) has to ride along embedded, because the receiving
+     * device knows nothing about that transport id. So the Config carries Turn
+     * (title + tunnel_mode) AND exactly one of wg / awg, resolved here against
+     * the matching transport store
      */
-    // Per-profile share: NO VK account links (they are global and shared across
-    // profiles, so sharing one profile must not leak them). The settings export
-    // uses the includeVkLinks overload.
+    // No VK account links here: they are global, shared across profiles, and
+    // sharing one profile must not leak them. The settings export goes through
+    // the includeVkLinks overload
     public static String buildTurnProfileLink(Context context, VkTurnProfile profile) throws Exception {
         return buildTurnProfileLink(context, profile, false);
     }
@@ -413,14 +402,14 @@ public final class WingsImportParser {
             throw new IllegalArgumentException("No VK TURN profile to export");
         }
         ProxySettings settings = vkTurnProfileToSettings(profile);
-        // VK account links live globally in AppPrefs, not on the profile, so the
-        // profile-to-settings mapping cannot carry them. Only the settings export
-        // folds them in (issue #72); the importer merges them back into the pool.
+        // VK account links sit globally in AppPrefs, not on the profile, so the
+        // profile-to-settings mapping has nothing to carry. Only the settings
+        // export folds them in (issue #72); the importer merges them back
         if (includeVkLinks) {
             applyVkLinks(context, settings);
         }
         WingsvProto.Turn.Builder turn = buildTurn(settings, false).toBuilder();
-        // tunnel_mode tells the importer whether the transport below is WG or AWG.
+        // tunnel_mode tells the importer whether the transport below is WG or AWG
         turn.setTunnelMode(
             profile.usesAmneziaTransport()
                 ? WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG
@@ -463,12 +452,10 @@ public final class WingsImportParser {
         return encodeConfig(config.build());
     }
 
-    // Multi-select share for VK TURN profiles: one self-contained wingsv:// link
-    // carrying all selected profiles (turn.profiles, referencing their transport by
-    // id) plus every referenced WG/AWG transport (wg.profiles / awg.profiles), the
-    // same shape a subset of the ALL backup uses. On import parseBackendProfileLists
-    // merges them into the profile stores; the profiles-carrying messages skip the
-    // flat apply. Mirrors buildXrayProfilesLink for the Xray backend.
+    // Multi-select share: one wingsv:// link with turn.profiles (transport by id)
+    // plus every referenced transport in wg.profiles / awg.profiles - the shape a
+    // subset of the ALL backup uses. parseBackendProfileLists merges them on
+    // import, and a profiles-carrying message skips the flat apply
     public static String buildTurnProfilesLink(Context context, List<VkTurnProfile> profiles, String activeProfileId)
         throws Exception {
         if (context == null) {
@@ -500,16 +487,16 @@ public final class WingsImportParser {
             resolvedActiveId = value(activeProfile.id);
         }
         turn.setActiveProfileId(resolvedActiveId);
-        // tunnel_mode follows the active profile so the coarse backend resolves to
-        // AmneziaWG when it is AWG-backed; the per-profile transport still lives in
-        // each merged TurnProfile.transport_kind.
+        // tunnel_mode follows the active profile, so the coarse backend resolves to
+        // AmneziaWG when that one is AWG-backed; per-profile transport still lives
+        // in each merged TurnProfile.transport_kind
         turn.setTunnelMode(
             activeProfile.usesAmneziaTransport()
                 ? WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG
                 : WingsvProto.TunnelMode.TUNNEL_MODE_WIREGUARD
         );
-        // No VK account links here: this is a multi-select profile share, and the
-        // global links must not ride along (they belong to the exporter's account).
+        // No VK account links here: the global links belong to the exporter's own
+        // account and must not ride along with a profile share
 
         LinkedHashMap<String, WireGuardProfile> wgTransports = new LinkedHashMap<>();
         LinkedHashMap<String, AmneziaProfile> awgTransports = new LinkedHashMap<>();
@@ -553,8 +540,8 @@ public final class WingsImportParser {
         return encodeConfig(config.build());
     }
 
-    // Multi-select share for plain WireGuard profiles: one wingsv:// link carrying
-    // all selected profiles as wg.profiles. Merged on import, no flat apply.
+    // Multi-select share: selected profiles go into wg.profiles, merged on import,
+    // no flat apply
     public static String buildWireGuardProfilesLink(List<WireGuardProfile> profiles, String activeProfileId)
         throws Exception {
         LinkedHashMap<String, WireGuardProfile> deduped = new LinkedHashMap<>();
@@ -593,8 +580,8 @@ public final class WingsImportParser {
         return encodeConfig(config);
     }
 
-    // Multi-select share for plain AmneziaWG profiles: one wingsv:// link carrying
-    // all selected profiles as awg.profiles. Merged on import, no flat apply.
+    // Multi-select share: selected profiles go into awg.profiles, merged on import,
+    // no flat apply
     public static String buildAmneziaProfilesLink(List<AmneziaProfile> profiles, String activeProfileId)
         throws Exception {
         LinkedHashMap<String, AmneziaProfile> deduped = new LinkedHashMap<>();
@@ -672,9 +659,8 @@ public final class WingsImportParser {
         return settings;
     }
 
-    // Copies the globally-stored VK account links onto the settings so buildTurn
-    // emits them. VkTurnProfile has no link fields (the links are shared across
-    // profiles in AppPrefs), so a profile export would otherwise ship none.
+    // VkTurnProfile has no link fields - the links are shared across profiles in
+    // AppPrefs - so a profile export ships none unless they are copied in here
     private static void applyVkLinks(Context context, ProxySettings settings) {
         java.util.List<String> links = AppPrefs.getVkLinks(context);
         settings.vkLinks = links;
@@ -746,10 +732,10 @@ public final class WingsImportParser {
     private static final String[] LINK_URI_SCHEMES = { "vless://", "vmess://", "trojan://", "ss://", "wingsv://" };
 
     /**
-     * Splits pasted text into separate importable configs. Returns more than one entry
-     * ONLY when every non-blank line is a proxy link URI (vless://, trojan://, wingsv://,
-     * ...), so a single multi-line config - an AmneziaWG quick-config, say - is never
-     * chopped into pieces. Callers that get one entry import it the usual way. See issue #77.
+     * Splits pasted text into separate importable configs. Splits ONLY when every
+     * non-blank line is a proxy link URI (vless://, trojan://, wingsv://, ...), so a
+     * multi-line config - an AmneziaWG quick-config, say - stays in one piece
+     * (issue #77)
      */
     public static List<String> splitConfigCandidates(String rawText) {
         List<String> candidates = new ArrayList<>();
@@ -860,16 +846,14 @@ public final class WingsImportParser {
     }
 
     /**
-     * Scans a subscription body for wingsv:// single-profile links and decodes
-     * each into a concrete backend profile object (or objects, for a VK TURN
-     * profile which carries an embedded WG / AWG transport), WITHOUT writing to any
-     * store and WITHOUT touching global settings or the active profile. The body
-     * may be plain text holding the links or a single base64 blob of the whole
-     * list (common for 3x-ui), decoded the same way XraySubscriptionParser does
-     * before scanning. Full-settings bundles (CONFIG_TYPE_ALL) are skipped: only
-     * single-profile links are dispatched from subscriptions. A decode failure for
-     * one link is swallowed so it does not break the others; the caller tags the
-     * returned profiles with the source subscription and routes them to the stores.
+     * Decodes the wingsv:// single-profile links out of a subscription body.
+     * Touches no store, no global setting and no active profile - the caller tags
+     * the profiles with their subscription and routes them.
+     *
+     * <p>The body is either plain text or one base64 blob of the whole list (how
+     * 3x-ui serves it), decoded the same way XraySubscriptionParser does.
+     * CONFIG_TYPE_ALL bundles are skipped: a subscription only hands out single
+     * profiles
      */
     public static List<ImportedBackendProfile> extractBackendProfilesFromSubscriptionBody(
         Context context,
@@ -882,10 +866,10 @@ public final class WingsImportParser {
         for (String link : collectWingsvLinks(body)) {
             try {
                 ImportedConfig config = parseFromText(link);
-                // A link carrying profile lists is the managed shape: the panel and
-                // the federation head both issue one entry per profile with its
-                // transport alongside. toBackendProfile only understands the flat
-                // single-profile form and would drop the whole thing.
+                // Profile lists are the managed shape: panel and federation head
+                // both issue one entry per profile with its transport alongside.
+                // toBackendProfile only reads the flat single-profile form and
+                // drops the whole thing
                 List<ImportedBackendProfile> expanded = expandProfileLists(config);
                 if (!expanded.isEmpty()) {
                     result.addAll(expanded);
@@ -896,7 +880,7 @@ public final class WingsImportParser {
                     result.add(entry);
                 }
             } catch (Exception ignored) {
-                // A single malformed wingsv:// link must not break the rest.
+                // One malformed wingsv:// link must not break the rest
             }
         }
         return result;
@@ -944,7 +928,7 @@ public final class WingsImportParser {
     /**
      * Достаёт Xray-профили из тела подписки, отданного нашим кадром. Обычный
      * разбор ищет в теле vless-ссылки, а федерация присылает их внутри
-     * wingsv-конфига, где голова уже проставила имена.
+     * wingsv-конфига, где голова уже проставила имена
      */
     public static List<XrayProfile> extractXrayProfilesFromSubscriptionBody(
         String body,
@@ -984,12 +968,9 @@ public final class WingsImportParser {
         return result;
     }
 
-    // Turns the profile lists of one decoded config into subscription entries.
-    //
-    // A VK TURN profile references its transport by id rather than embedding it,
-    // so the referenced WireGuard / AmneziaWG profile is pulled from the same
-    // config and carried along. A transport nothing references is a profile in its
-    // own right and travels on its own.
+    // A VK TURN profile points at its transport by id instead of embedding it, so
+    // the referenced WG / AWG profile is pulled out of the same config and carried
+    // along. A transport nothing references is a profile in its own right
     private static List<ImportedBackendProfile> expandProfileLists(ImportedConfig config) {
         ArrayList<ImportedBackendProfile> out = new ArrayList<>();
         if (config == null || config.hasAllSettings) {
@@ -1020,9 +1001,9 @@ public final class WingsImportParser {
             String transportId = value(profile.transportProfileId);
             if (profile.usesAmneziaTransport()) {
                 AmneziaProfile transport = awgById.get(transportId);
-                // A provisioned profile has no transport yet - it is handed one on
-                // connect - so a missing reference is expected there and only a
-                // problem for a profile that was supposed to bring its own.
+                // A provisioned profile gets its transport on connect, so a missing
+                // reference is normal there and only a problem for a profile that
+                // was supposed to bring its own
                 if (transport == null && !profile.wgProvisioned) {
                     continue;
                 }
@@ -1081,11 +1062,10 @@ public final class WingsImportParser {
         } catch (Exception ignored) {}
     }
 
-    // Maps a decoded single-profile ImportedConfig to a concrete backend profile,
-    // mirroring the dispatch in AppPrefs.applyImportedBackendProfile but building
-    // the model objects directly from the decoded fields instead of round-tripping
-    // through the flat keys (so nothing global / active is mutated). Returns null
-    // for full bundles or unsupported / empty payloads.
+    // Same dispatch as AppPrefs.applyImportedBackendProfile, but builds the model
+    // objects straight from the decoded fields instead of going through the flat
+    // keys - that way nothing global or active gets touched. Null for full bundles
+    // and for payloads we cannot use
     private static ImportedBackendProfile toBackendProfile(Context context, ImportedConfig config) {
         if (config == null || config.hasAllSettings || config.backendType == null) {
             return null;
@@ -1161,9 +1141,9 @@ public final class WingsImportParser {
 
     private static VkTurnProfile buildVkTurnProfile(Context context, ImportedConfig config, boolean awg) {
         String transportKind = awg ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
-        // Threads and the VK-ID auth mode are device-local preferences the user tunes,
-        // not part of a shared/managed config - inherit the current values so importing
-        // a profile that omits them (e.g. a panel managed VK TURN link) never resets them.
+        // Threads and the VK-ID auth mode are device-local knobs, not part of a
+        // shared config - inherit the current values, otherwise a profile that
+        // omits them (a panel-managed VK TURN link, say) resets them on import
         ProxySettings currentSettings = AppPrefs.getSettings(context);
         int threads = config.threads != null && config.threads > 0 ? config.threads : currentSettings.threads;
         int creds = config.credsGroupSize != null && config.credsGroupSize > 0 ? config.credsGroupSize : 12;
@@ -1474,12 +1454,11 @@ public final class WingsImportParser {
             ) {
                 builder.setTurn(turn);
             }
-            // VK TURN composes its WG/AWG transport by reference, so this flat scope
-            // is only the fallback for a config with no resolvable transport profile
-            // (buildTurnProfileLink handles the by-reference case). Include the WG
-            // block here too: the flat KEY_WG_* keys shown at the bottom of the VK
-            // TURN screen ARE the transport in that case, and dropping them shipped a
-            // VK TURN link with no WireGuard (issue #71).
+            // Fallback for a config with no resolvable transport profile; the
+            // by-reference case goes through buildTurnProfileLink. The WG block
+            // belongs here too, because the flat KEY_WG_* keys at the bottom of the
+            // VK TURN screen ARE the transport then - drop them and the link ships
+            // without any WireGuard (issue #71)
             WingsvProto.WireGuard wg = buildWireGuard(settings, scope != ExportScope.ACTIVE);
             if (scope == ExportScope.WIREGUARD || !wg.equals(WingsvProto.WireGuard.getDefaultInstance())) {
                 builder.setWg(wg);
@@ -1672,8 +1651,8 @@ public final class WingsImportParser {
         if (xposed.hasNativeHookEnabled()) {
             importedConfig.xposedNativeHookEnabled = xposed.getNativeHookEnabled();
         }
-        // inline_hooks_enabled (proto field 4) is now reserved: shadowhook
-        // backend was removed and the toggle no longer maps to runtime state.
+        // inline_hooks_enabled (proto field 4) is reserved: there is no shadowhook
+        // backend for the toggle to map onto
         if (xposed.hasHideVpnApps()) {
             importedConfig.xposedHideVpnApps = xposed.getHideVpnApps();
         }
@@ -1710,8 +1689,8 @@ public final class WingsImportParser {
         if (includeDefaults || rootMode) {
             builder.setEnabled(rootMode);
         }
-        // Kernel WG default mirrors KEY_ROOT_MODE when not explicitly set; only emit
-        // when the user has overridden it.
+        // Unset kernel WG follows KEY_ROOT_MODE, so emit it only when the user
+        // overrode it
         if (prefs.contains(AppPrefs.KEY_KERNEL_WIREGUARD)) {
             boolean kernelWg = AppPrefs.isKernelWireGuardEnabled(context);
             if (includeDefaults || kernelWg != rootMode) {
@@ -1743,8 +1722,7 @@ public final class WingsImportParser {
         if (root.hasXrayTproxyMode()) {
             importedConfig.xrayTproxyModeEnabled = root.getXrayTproxyMode();
         }
-        // split_tunnel_lockdown (proto field) is ignored: lockdown is now
-        // unconditionally on whenever root mode is in effect.
+        // split_tunnel_lockdown is ignored: lockdown is always on under root mode
         String iface = value(root.getWgInterfaceName());
         if (!TextUtils.isEmpty(iface)) {
             importedConfig.rootWireguardInterfaceName = iface;
@@ -2312,7 +2290,7 @@ public final class WingsImportParser {
         AppRoutingMode mode = AppPrefs.getAppRoutingMode(context);
         WingsvProto.AppRouting.Builder builder = WingsvProto.AppRouting.newBuilder()
             .setMode(toProtoAppRoutingMode(mode))
-            // legacy bypass field for backward-compatible import on older clients
+            // legacy bypass field, so older clients can still import this
             .setBypass(!mode.isWhitelistFamily());
         Set<String> bypassPackages = AppPrefs.getAppRoutingPackages(context, AppRoutingMode.BYPASS);
         for (String packageName : bypassPackages) {
@@ -2625,7 +2603,7 @@ public final class WingsImportParser {
         if (wrapKey.length > 0) {
             builder.setWrapKey(com.google.protobuf.ByteString.copyFrom(wrapKey));
         }
-        // Only serialize when it differs from default (in-band ON).
+        // Default is in-band ON, so only a deviation goes on the wire
         if (includeDefaults || !settings.vkTurnWrapSendKey) {
             builder.setWrapKeyDelivery(
                 settings.vkTurnWrapSendKey
@@ -2637,7 +2615,7 @@ public final class WingsImportParser {
     }
 
     /** Раскладывает многострочный/CSV ввод user-dns на отдельные записи -
-     *  тот же формат, что принимает vk-turn-proxy через -user-dns. */
+     *  тот же формат, что принимает vk-turn-proxy через -user-dns */
     private static java.util.List<String> splitUserDnsEntries(String raw) {
         java.util.List<String> out = new java.util.ArrayList<>();
         if (TextUtils.isEmpty(raw)) {
@@ -2747,9 +2725,9 @@ public final class WingsImportParser {
         ImportedConfig importedConfig = new ImportedConfig();
         if (config.getBackend() != WingsvProto.BackendType.BACKEND_TYPE_UNSPECIFIED) {
             BackendType resolvedBackend = BackendType.fromProto(config.getBackend());
-            // New proto encodes VK TURN as BACKEND_TYPE_VK_TURN with the WG/AWG choice
-            // carried by Turn.tunnel_mode; recover the AWG variant so it is not lost.
-            // Legacy BACKEND_TYPE_AMNEZIAWG already resolves to AMNEZIAWG directly.
+            // VK TURN rides as BACKEND_TYPE_VK_TURN with the WG/AWG choice sitting in
+            // Turn.tunnel_mode, so dig the AWG variant back out. Legacy links send
+            // BACKEND_TYPE_AMNEZIAWG and resolve to AMNEZIAWG on their own
             if (
                 resolvedBackend == BackendType.VK_TURN_WIREGUARD &&
                 config.hasTurn() &&
@@ -2786,18 +2764,17 @@ public final class WingsImportParser {
             return importedConfig;
         }
 
-        // Single VK TURN profile share link: Turn (with title + tunnel_mode) plus
-        // the embedded transport (wg OR awg). The transport choice follows
-        // tunnel_mode so importTransportProfileId picks the matching store.
+        // Single VK TURN profile share link: Turn (title + tunnel_mode) plus the
+        // embedded transport, wg or awg. tunnel_mode decides which, so
+        // importTransportProfileId hits the matching store
         if (config.getType() == WingsvProto.ConfigType.CONFIG_TYPE_VK_TURN_PROFILE) {
             boolean awgTransport =
                 config.hasTurn() && config.getTurn().getTunnelMode() == WingsvProto.TunnelMode.TUNNEL_MODE_AMNEZIAWG;
             importedConfig.backendType = awgTransport ? BackendType.AMNEZIAWG : BackendType.VK_TURN_WIREGUARD;
-            // Skip the flat VK-TURN path for a targeted import that carries
-            // profiles (e.g. a panel-managed profile): those must be merged into
-            // the profile list, not written over the shared flat keys / VK-links
-            // pool. A full backup (allSettings) or a plain link without profiles
-            // still takes the flat path.
+            // A targeted import that carries profiles (a panel-managed one, say)
+            // skips the flat VK-TURN path: those profiles belong in the profile
+            // list, not over the shared flat keys and the VK-links pool. A full
+            // backup, or a plain link without profiles, still goes flat
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
@@ -2824,11 +2801,10 @@ public final class WingsImportParser {
                 importedConfig.backendType = BackendType.XRAY;
             }
             parseXray(config, importedConfig);
-            // Skip the flat VK-TURN path for a targeted import that carries
-            // profiles (e.g. a panel-managed profile): those must be merged into
-            // the profile list, not written over the shared flat keys / VK-links
-            // pool. A full backup (allSettings) or a plain link without profiles
-            // still takes the flat path.
+            // A targeted import that carries profiles (a panel-managed one, say)
+            // skips the flat VK-TURN path: those profiles belong in the profile
+            // list, not over the shared flat keys and the VK-links pool. A full
+            // backup, or a plain link without profiles, still goes flat
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
@@ -2876,11 +2852,10 @@ public final class WingsImportParser {
                         ? BackendType.WB_STREAM_AMNEZIAWG
                         : BackendType.WB_STREAM;
             }
-            // Skip the flat VK-TURN path for a targeted import that carries
-            // profiles (e.g. a panel-managed profile): those must be merged into
-            // the profile list, not written over the shared flat keys / VK-links
-            // pool. A full backup (allSettings) or a plain link without profiles
-            // still takes the flat path.
+            // A targeted import that carries profiles (a panel-managed one, say)
+            // skips the flat VK-TURN path: those profiles belong in the profile
+            // list, not over the shared flat keys and the VK-links pool. A full
+            // backup, or a plain link without profiles, still goes flat
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
@@ -2899,11 +2874,10 @@ public final class WingsImportParser {
             config.hasTurn() ||
             config.hasWg()
         ) {
-            // Skip the flat VK-TURN path for a targeted import that carries
-            // profiles (e.g. a panel-managed profile): those must be merged into
-            // the profile list, not written over the shared flat keys / VK-links
-            // pool. A full backup (allSettings) or a plain link without profiles
-            // still takes the flat path.
+            // A targeted import that carries profiles (a panel-managed one, say)
+            // skips the flat VK-TURN path: those profiles belong in the profile
+            // list, not over the shared flat keys and the VK-links pool. A full
+            // backup, or a plain link without profiles, still goes flat
             if (config.hasTurn() && (allSettings || config.getTurn().getProfilesCount() == 0)) {
                 parseTurn(config.getTurn(), importedConfig);
             }
@@ -3287,7 +3261,7 @@ public final class WingsImportParser {
             return;
         }
 
-        // Legacy single-list payload: route packages into the inferred mode's bucket.
+        // Legacy single-list payload: packages go into the inferred mode's bucket
         List<String> legacyPackages = new ArrayList<>();
         for (String packageName : appRouting.getPackagesList()) {
             if (!TextUtils.isEmpty(value(packageName))) {
@@ -3386,7 +3360,7 @@ public final class WingsImportParser {
      *
      * Завершающую точку автолинковка обрезает как знак конца предложения, поэтому
      * такой хвост закрывается знаком равенства - его декодер снимает вместе с
-     * обычным padding.
+     * обычным padding
      */
     private static String encodeLinkPayload(byte[] framed) {
         String encoded = Base64.encodeToString(framed, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING).replace(
@@ -3398,7 +3372,7 @@ public final class WingsImportParser {
 
     /**
      * Распаковывает кадр: за байтом формата идёт сжатый protobuf. Оба формата
-     * читаются, потому что ссылки, выданные раньше, никуда не делись.
+     * читаются, потому что ссылки, выданные раньше, никуда не делись
      */
     static byte[] decompressFrame(byte[] framed) throws Exception {
         if (framed == null || framed.length < 2) {
@@ -3552,10 +3526,10 @@ public final class WingsImportParser {
         );
     }
 
-    // ---- Per-backend profile libraries (WG / AWG / VK TURN), mirroring Xray. The
-    // full-settings export attaches the whole library so the panel sees every
-    // profile the device knows about; the active profile is also projected onto
-    // the flat fields of the same message for legacy clients. ----
+    // ---- Per-backend profile libraries (WG / AWG / VK TURN). A full-settings
+    // export attaches the whole library, so the panel sees every profile the
+    // device knows; the active one is also projected onto the flat fields of the
+    // same message, for legacy clients ----
 
     private static WingsvProto.WireGuardProfile toProtoWgProfile(WireGuardProfile profile) throws Exception {
         WingsvProto.WireGuard wgConfig = buildWireGuard(wireGuardProfileToSettings(profile), false);
@@ -3598,7 +3572,7 @@ public final class WingsImportParser {
         return builder.build();
     }
 
-    // Package-private for round-trip unit tests (BackendProfileRoundTripTest).
+    // Package-private for round-trip unit tests (BackendProfileRoundTripTest)
     static WingsvProto.TurnProfile toProtoTurnProfile(VkTurnProfile profile) throws Exception {
         WingsvProto.TurnProfile.Builder builder = WingsvProto.TurnProfile.newBuilder();
         builder.setId(value(profile.id));
@@ -3614,9 +3588,9 @@ public final class WingsImportParser {
         if (!TextUtils.isEmpty(value(profile.vkTurnEndpoint))) {
             builder.setVkTurnEndpoint(value(profile.vkTurnEndpoint));
         }
-        // The inner Turn captures the per-profile proxy settings; it is never
-        // populated with its own profiles. The referenced transport (WG/AWG) is
-        // carried in the same Config's wg.profiles / awg.profiles.
+        // The inner Turn holds the per-profile proxy settings only - never its own
+        // profiles. The referenced transport sits in the same Config's wg.profiles
+        // or awg.profiles
         builder.setConfig(buildTurn(vkTurnProfileToSettings(profile), true));
         if (!TextUtils.isEmpty(value(profile.subscriptionId))) {
             builder.setSubscriptionId(value(profile.subscriptionId));
@@ -3745,8 +3719,8 @@ public final class WingsImportParser {
     }
 
     private static WireGuardProfile fromProtoWgProfile(WingsvProto.WireGuardProfile profile) throws Exception {
-        // Reuse parseWireGuard's iface/peer/endpoint extraction by wrapping the
-        // profile's sub-messages into a throwaway WireGuard message.
+        // Wrap the profile's sub-messages into a throwaway WireGuard message to
+        // reuse parseWireGuard's iface/peer/endpoint extraction
         WingsvProto.WireGuard.Builder wg = WingsvProto.WireGuard.newBuilder();
         if (profile.hasIface()) {
             wg.setIface(profile.getIface());
@@ -3785,21 +3759,21 @@ public final class WingsImportParser {
         );
     }
 
-    // Package-private for round-trip unit tests (BackendProfileRoundTripTest).
+    // Package-private for round-trip unit tests (BackendProfileRoundTripTest)
     static VkTurnProfile fromProtoTurnProfile(WingsvProto.TurnProfile profile) {
-        // Reuse parseTurn to decode the embedded proxy settings, then layer the
-        // VK identity (transport reference + endpoint) on top. vkAuthMode and
-        // dnsMode are not carried by the Turn proto, so they default to empty.
+        // parseTurn decodes the embedded proxy settings, then the VK identity
+        // (transport reference + endpoint) goes on top. The Turn proto carries no
+        // vkAuthMode and no dnsMode, so those stay empty
         ImportedConfig temp = new ImportedConfig();
         parseTurn(profile.getConfig(), temp);
         String endpoint = !TextUtils.isEmpty(value(profile.getVkTurnEndpoint()))
             ? value(profile.getVkTurnEndpoint())
             : value(temp.endpoint);
         // An absent field in the embedded Turn means "use the app default", NOT
-        // zero/off. A panel-managed profile ships an empty inner Turn (its wg
-        // transport is provisioned on connect), so falling back to zeros here
-        // wiped every VK TURN default when the profile was applied. Mirror the
-        // defaults readFlatProfile uses so an absent field lands on a sane value.
+        // zero/off. A panel-managed profile ships an empty inner Turn - its wg
+        // transport is provisioned on connect - so falling back to zeros here
+        // wipes every VK TURN default the moment that profile is applied. Mirror
+        // the defaults readFlatProfile uses
         return new VkTurnProfile(
             value(profile.getId()),
             value(profile.getTitle()),
@@ -4111,12 +4085,11 @@ public final class WingsImportParser {
     }
 
     /**
-     * One backend profile decoded from a subscription wingsv:// link. For
-     * WIREGUARD / AMNEZIAWG it carries the standalone transport profile. For
-     * VK_TURN it carries the VkTurnProfile plus its embedded transport (exactly
-     * one of wireGuardProfile / amneziaProfile is non-null); the VkTurnProfile's
-     * transportProfileId is empty and must be resolved by the caller after the
-     * transport has been synced into its own store.
+     * One backend profile decoded from a subscription wingsv:// link. WIREGUARD /
+     * AMNEZIAWG carry the standalone transport profile; VK_TURN carries the
+     * VkTurnProfile plus its embedded transport, exactly one of wireGuardProfile /
+     * amneziaProfile. Its transportProfileId arrives empty - the caller fills it in
+     * once the transport has landed in its own store
      */
     public static final class ImportedBackendProfile {
 
@@ -4218,9 +4191,9 @@ public final class WingsImportParser {
         public String wgPresharedKey;
         public String wgAllowedIps;
         public String awgQuickConfig;
-        // Per-backend profile libraries carried by a full config (panel desired_config).
-        // When present the importer REPLACES the matching store's profile list, mirroring
-        // how applyImportedXraySettings replaces the Xray profile list.
+        // Per-backend profile libraries carried by a full config (panel
+        // desired_config). Present means the importer REPLACES the matching store's
+        // list, the same way applyImportedXraySettings replaces the Xray one
         public boolean hasWgProfiles;
         public final List<WireGuardProfile> wgProfiles = new ArrayList<>();
         public String activeWgProfileId;
@@ -4230,9 +4203,8 @@ public final class WingsImportParser {
         public boolean hasTurnProfiles;
         public final List<VkTurnProfile> turnProfiles = new ArrayList<>();
         public String activeTurnProfileId;
-        // Profile titles carried by single-profile share links (empty otherwise).
-        // applyImportedConfig prefers these over a synthesized title when adding
-        // the imported config as a backend profile.
+        // Titles from single-profile share links, empty otherwise.
+        // applyImportedConfig prefers these over a synthesized title
         public String importedWireGuardTitle;
         public String importedAmneziaTitle;
         public String importedVkTurnTitle;
@@ -4242,9 +4214,9 @@ public final class WingsImportParser {
         public XraySettings xraySettings = defaultXraySettings();
         public String xraySubscriptionJson;
         public boolean xrayMergeOnly;
-        // Turn.merge_only: import merges only the VK links into the shared pool and
-        // leaves every other VK TURN setting (endpoint, wrap, backend, profiles)
-        // untouched. Set by a links-only wingsv:// share link.
+        // Turn.merge_only: merge the VK links into the shared pool and leave every
+        // other VK TURN setting (endpoint, wrap, backend, profiles) alone. Set by a
+        // links-only wingsv:// share link
         public boolean turnMergeOnly;
         public final List<XrayRoutingRule> xrayRoutingRules = new ArrayList<>();
         public String xrayRoutingGeoipUrl;
@@ -4282,7 +4254,7 @@ public final class WingsImportParser {
         public long guardianAdminId;
         public long guardianAdminAvatarVersion;
         // SPKI pins (SHA-512/256) the panel's TLS chain must contain. Empty means
-        // the panel has a publicly trusted certificate and the system store decides.
+        // the panel has a publicly trusted cert and the system store decides
         public List<byte[]> guardianCaPins = new ArrayList<>();
         public boolean hasSubscriptionHwid;
         public Boolean subscriptionHwidEnabled;

@@ -14,21 +14,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-// A SharedPreferences implementation backed by MMKV. It replaces the main
-// settings file, which used the deprecated MODE_MULTI_PROCESS and could be
-// wiped when the main and :tunnel processes wrote it concurrently and one was
-// force-killed mid-write. MMKV (multi-process mode) is crash-safe (mmap + CRC,
-// no truncate window) and coherent across processes, so concurrent writes can
-// no longer corrupt the file.
+// SharedPreferences on top of MMKV in multi-process mode: mmap + CRC, no truncate
+// window, so the main and :tunnel processes can write the main settings file at the
+// same time without corrupting it.
 //
-// MMKV itself implements SharedPreferences but does NOT support change
-// listeners; this wrapper adds in-process OnSharedPreferenceChangeListener
-// support. Listeners are always dispatched on the main thread (matching the
-// SharedPreferences contract), so a write from a background thread does not run
-// the UI listeners off-main - doing so raced the Fragment lifecycle and crashed
-// with "Fragment not attached to a context". Cross-process change callbacks are
-// not delivered - that matched the old MODE_MULTI_PROCESS behaviour, which never
-// fired listeners across processes either.
+// MMKV implements SharedPreferences itself but has NO change listeners, so
+// in-process OnSharedPreferenceChangeListener support is added here. Dispatch is
+// always on the main thread, as the SharedPreferences contract promises: a listener
+// fired on a worker thread races the Fragment lifecycle and crashes with "Fragment
+// not attached to a context". Cross-process change callbacks are not delivered
 @SuppressWarnings({ "PMD.CommentRequired", "PMD.AvoidSynchronizedAtMethodLevel", "PMD.GodClass" })
 public final class MmkvSharedPreferences implements SharedPreferences {
 
@@ -80,8 +74,9 @@ public final class MmkvSharedPreferences implements SharedPreferences {
 
     @Override
     public Map<String, ?> getAll() {
-        // MMKV does not retain value types, so it cannot rebuild a generic map.
-        // No code reads the main prefs via getAll(); fail loudly if that changes.
+        // MMKV keeps no value types, so a generic map cannot be rebuilt. Nothing
+        // reads the main prefs through getAll(), and if that changes it should blow
+        // up loudly rather than hand back half the data
         throw new UnsupportedOperationException("getAll() is not supported on MMKV-backed preferences");
     }
 
@@ -127,9 +122,9 @@ public final class MmkvSharedPreferences implements SharedPreferences {
                 if (onMain) {
                     listener.onSharedPreferenceChanged(this, key);
                 } else {
-                    // SharedPreferences guarantees listeners run on the main thread.
-                    // A write off the main thread (e.g. the root su probe) must not
-                    // run UI listeners on the worker thread.
+                    // SharedPreferences promises listeners on the main thread, and a
+                    // write from a worker (the root su probe, say) must not drag UI
+                    // listeners onto it
                     mainHandler.post(() -> listener.onSharedPreferenceChanged(this, key));
                 }
             }
@@ -143,7 +138,7 @@ public final class MmkvSharedPreferences implements SharedPreferences {
         private boolean clear;
 
         private Editor stage(String key, @Nullable Object value) {
-            // SharedPreferences treats putString/putStringSet(key, null) as a removal.
+            // SharedPreferences treats putString/putStringSet(key, null) as a removal
             if (value == null) {
                 return remove(key);
             }

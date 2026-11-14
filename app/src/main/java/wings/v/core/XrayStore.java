@@ -117,7 +117,7 @@ public final class XrayStore {
             !prefs.contains(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_ROUTER) &&
             prefs.contains(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS)
         ) {
-            // One-time migration of the legacy bypass boolean: direct=true, drop=false.
+            // One-time migration of the legacy bypass boolean: direct=true, drop=false
             boolean legacyDirect = prefs.getBoolean(AppPrefs.KEY_XRAY_TUN_UNKNOWN_UID_BYPASS, true);
             prefs
                 .edit()
@@ -550,11 +550,10 @@ public final class XrayStore {
                 return profile;
             }
         }
-        // Subscription refresh can mint a fresh UUID for the same upstream
-        // profile (e.g., when the server rotated something in the share link
-        // and the parser couldn't dedup-key match). Recover the user's
-        // selection by matching on the rawLink we persisted alongside the id;
-        // only if that fails fall back to the first profile.
+        // A subscription refresh can mint a fresh UUID for the same upstream profile -
+        // the server rotated something in the share link and the dedup key no longer
+        // matches. The rawLink persisted next to the id recovers the user's choice;
+        // only when that misses too does the first profile win
         String activeRawLink = trim(prefs(context).getString(AppPrefs.KEY_XRAY_ACTIVE_PROFILE_RAW_LINK, ""));
         if (!TextUtils.isEmpty(activeRawLink)) {
             // Ключ считается той же нормализацией, что и у профиля: сырая ссылка
@@ -883,14 +882,14 @@ public final class XrayStore {
      *
      * <p>Держится в настройках, а не выбирается каждый раз заново: конфиг ядра и
      * отправитель расписок обязаны сойтись на одном числе, иначе труба есть, а
-     * ходить по ней некому.
+     * ходить по ней некому
      */
     /**
      * Пароль к служебному socks, 256 бит из системного генератора.
      *
      * <p>Порт слушает только петлю, но петля на телефоне общая: без пароля любое
-     * установленное приложение ходило бы наружу через профиль человека, а
-     * отвечать за этот трафик пришлось бы ему.
+     * установленное приложение уйдёт наружу через профиль человека, а отвечать за
+     * этот трафик придётся ему
      */
     private static String resolveControlProxySecret(android.content.SharedPreferences prefs) {
         String stored = trim(prefs.getString(AppPrefs.KEY_FEDERATION_CONTROL_SECRET, ""));

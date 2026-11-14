@@ -101,16 +101,16 @@ public final class AppPrefs {
     public static final int MAX_WB_STREAM_ROOM_COUNT = 16;
     public static final String KEY_OPEN_WB_STREAM_SETTINGS = "pref_open_wb_stream_settings";
     public static final String KEY_BACKEND_TYPE = "pref_backend_type";
-    /** UI-only top-level выбор backend'а; pref_backend_type вычисляется из него + sub-backend. */
+    /** Выбор backend'а в UI: pref_backend_type считается из него плюс под-backend */
     public static final String KEY_BACKEND_TOP = "pref_backend_top";
-    /** Под-backend для top-level VK TURN: "wireguard" | "amneziawg". */
+    /** Под-backend для VK TURN: "wireguard" либо "amneziawg" */
     public static final String KEY_VK_TURN_TUNNEL_MODE = "pref_vk_turn_tunnel_mode";
-    /** Под-backend для top-level WB Stream: "wireguard" | "amneziawg". */
+    /** Под-backend для WB Stream: "wireguard" либо "amneziawg" */
     public static final String KEY_WB_STREAM_TUNNEL_MODE = "pref_wb_stream_tunnel_mode";
     public static final String KEY_PREFS_SCHEMA_VERSION = "pref_prefs_schema_version";
     public static final int CURRENT_PREFS_SCHEMA_VERSION = 1;
-    /** Версия последнего применённого guardian-конфига; отправляется в ClientHello и
-     *  переписывается на каждом успешном applyConfigPush. */
+    /** Версия последнего применённого guardian-конфига: уезжает в ClientHello и
+     *  переписывается на каждом удачном applyConfigPush */
     public static final String KEY_GUARDIAN_LAST_APPLIED_CONFIG_VERSION = "pref_guardian_last_applied_config_version";
     public static final String KEY_OPEN_VK_TURN_SETTINGS = "pref_open_vk_turn_settings";
     public static final String KEY_OPEN_ROOT_INTERFACE_SETTINGS = "pref_open_root_interface_settings";
@@ -134,7 +134,7 @@ public final class AppPrefs {
     public static final String KEY_XRAY_IPV6_ENABLED = "pref_xray_ipv6_enabled";
     public static final String KEY_XRAY_SNIFFING_ENABLED = "pref_xray_sniffing_enabled";
     public static final String KEY_XRAY_TUN_UID_LOOKUP_TIMEOUT_MS = "pref_xray_tun_uid_lookup_timeout_ms";
-    // Legacy boolean (direct=true / drop=false); migrated into the router+policy pair below.
+    // Legacy boolean, direct=true / drop=false, migrated into the router+policy pair
     public static final String KEY_XRAY_TUN_UNKNOWN_UID_BYPASS = "pref_xray_tun_unknown_uid_bypass";
     public static final String KEY_XRAY_TUN_UNKNOWN_UID_ROUTER = "pref_xray_tun_unknown_uid_router";
     public static final String KEY_XRAY_TUN_UNKNOWN_UID_POLICY = "pref_xray_tun_unknown_uid_policy";
@@ -156,10 +156,9 @@ public final class AppPrefs {
     public static final String KEY_XRAY_PROFILE_TCPING_JSON = "pref_xray_profile_tcping_json";
     public static final String KEY_XRAY_ACTIVE_PROFILE_ID = "pref_xray_active_profile_id";
     public static final String KEY_XRAY_ACTIVE_PROFILE_RAW_LINK = "pref_xray_active_profile_raw_link";
-    // Multi-profile foundation for the WireGuard / AmneziaWG / VK TURN backends.
-    // These mirror the Xray profile keys above; phase 1 only persists the data
-    // model plus a one-time migration. The flat KEY_WG_* / KEY_AWG_QUICK_CONFIG /
-    // KEY_ENDPOINT keys remain the source of truth for the running tunnel.
+    // Profile keys for the WireGuard / AmneziaWG / VK TURN backends, shaped like the
+    // Xray ones above. The flat KEY_WG_* / KEY_AWG_QUICK_CONFIG / KEY_ENDPOINT keys
+    // are still what the running tunnel reads
     public static final String KEY_WG_PROFILES_JSON = "pref_wg_profiles_json";
     public static final String KEY_WG_ACTIVE_PROFILE_ID = "pref_wg_active_profile_id";
     public static final String KEY_WG_FAVORITE_PROFILE_IDS = "pref_wg_favorite_profile_ids";
@@ -202,12 +201,12 @@ public final class AppPrefs {
     public static final String KEY_APP_ROUTING_MODE = "pref_app_routing_mode";
     public static final String KEY_APP_ROUTING_BYPASS_PACKAGES = "pref_app_routing_bypass_packages";
     public static final String KEY_APP_ROUTING_WHITELIST_PACKAGES = "pref_app_routing_whitelist_packages";
-    // One-time migration: the former single "bypass" mode becomes XBYPASS (TUN-
-    // direct), preserving its leak-closed behavior; plain BYPASS (disallow) is new.
+    // One-time migration: the single old "bypass" mode lands on XBYPASS (TUN-direct),
+    // which keeps its leak-closed behaviour; plain BYPASS (disallow) is the new one
     private static final String KEY_APP_ROUTING_XBYPASS_MIGRATED = "pref_app_routing_xbypass_migrated";
     public static final String KEY_APP_ROUTING_RECOMMENDED_DISMISSED = "pref_app_routing_recommended_dismissed";
-    // Apps whose traffic is diverted through the standalone ByeDPI SOCKS
-    // outbound (DPI bypass), independent of the app-routing mode above.
+    // Apps diverted through the standalone ByeDPI SOCKS outbound, independent of the
+    // app-routing mode above
     public static final String KEY_BYEDPI_PACKAGES = "pref_byedpi_packages";
     public static final String KEY_ROOT_MODE = "pref_root_mode";
     public static final String KEY_KERNEL_WIREGUARD = "pref_kernel_wireguard";
@@ -262,8 +261,8 @@ public final class AppPrefs {
     public static final String DNS_MODE_DOH = "doh";
     public static final String KEY_DNS_MODE = "pref_dns_mode";
 
-    // VK TURN browser fingerprint family for HTTP+TLS impersonation. "auto" =
-    // the relay picks a random profile per session; the rest pin one family.
+    // Browser fingerprint family for the VK TURN HTTP+TLS impersonation. With "auto"
+    // the relay rolls a profile per session; the rest pin one family
     public static final String VK_TURN_BROWSER_FP_AUTO = "auto";
     public static final String VK_TURN_BROWSER_FP_CHROME = "chrome";
     public static final String VK_TURN_BROWSER_FP_EDGE = "edge";
@@ -291,8 +290,8 @@ public final class AppPrefs {
     public static final String KEY_FEDERATION_PANEL_ACCESS = "pref_federation_panel_access";
 
     /**
-     * Последний ответ панели о доступе. Экран открывается с ним сразу, а не
-     * пустыми карточками, пока идёт запрос по сети.
+     * Последний ответ панели о доступе: экран открывается с ним сразу, а не пустыми
+     * карточками на время запроса
      */
     public static final String KEY_FEDERATION_ACCESS_CACHE = "pref_federation_access_cache";
 
@@ -307,10 +306,9 @@ public final class AppPrefs {
     public static final String KEY_FEDERATION_RECEIPT_MARK = "pref_federation_receipt_mark";
 
     /**
-     * Подписанные расписки, которые ещё не доехали. Окно закрывается по
-     * счётчикам, а не по факту отправки, поэтому потерянная в сети расписка
-     * означала бы трафик, который не подпишет уже никто, и ноду накажут за наш
-     * обосранный интернет
+     * Подписанные расписки, которые ещё не доехали. Окно закрывается по счётчикам,
+     * а не по факту отправки, так что потерянная в сети расписка - это трафик,
+     * который не подпишет уже никто, и ноду накажут за наш обосранный интернет
      */
     public static final String KEY_FEDERATION_RECEIPT_QUEUE = "pref_federation_receipt_queue";
     public static final String KEY_FEDERATION_RECEIPTS_OFF = "pref_federation_receipts_off";
@@ -385,10 +383,9 @@ public final class AppPrefs {
         migrateCaptchaAutoSolverBypass(context);
     }
 
-    // One-time move of the captcha auto-solver to the new "bypass" (via vk.me)
-    // default. Idempotent, gated by its own flag. Carries every existing install
-    // forward regardless of the prior "v2" or "v1 / legacy" value; new installs
-    // get "bypass" through CAPTCHA_AUTO_SOLVER_DEFAULT.
+    // One-time move of the captcha auto-solver onto the "bypass" (via vk.me) default,
+    // gated by its own flag. Every install comes along whatever it held before, "v2"
+    // or "v1 / legacy"; a fresh one gets "bypass" from CAPTCHA_AUTO_SOLVER_DEFAULT
     private static void migrateCaptchaAutoSolverBypass(Context context) {
         SharedPreferences preferences = prefs(context);
         if (preferences.getBoolean(KEY_CAPTCHA_SOLVER_BYPASS_MIGRATED, false)) {
@@ -401,11 +398,10 @@ public final class AppPrefs {
             .apply();
     }
 
-    // One-time move of the global VK TURN session mode to mu/v1 and the browser
-    // fingerprint to Safari (the new defaults). Idempotent, gated by its own flag.
-    // These are device-global VK TURN keys, so setting them once carries every
-    // profile forward; new installs get the same values through the getSettings /
-    // getVkTurnBrowserFingerprint defaults above.
+    // One-time move of the global VK TURN session mode onto mu/v1 and the browser
+    // fingerprint onto Safari, gated by its own flag. Both keys are device-global, so
+    // writing them once covers every profile; a fresh install picks the same values
+    // out of the getSettings / getVkTurnBrowserFingerprint defaults above
     private static void migrateVkTurnSessionAndFingerprint(Context context) {
         SharedPreferences preferences = prefs(context);
         if (preferences.getBoolean(KEY_VK_TURN_MU_SAFARI_MIGRATED, false)) {
@@ -419,10 +415,10 @@ public final class AppPrefs {
             .apply();
     }
 
-    // One-time seeding of the WireGuard / AmneziaWG / VK TURN multi-profile
-    // stores from the legacy flat keys. WG and AWG run first so that VK TURN can
-    // reference the same transport profile they seed rather than duplicating it.
-    // Each step is idempotent and gated by its own _PROFILES_MIGRATED flag.
+    // One-time seeding of the WireGuard / AmneziaWG / VK TURN profile stores from the
+    // legacy flat keys, each step behind its own _PROFILES_MIGRATED flag. WG and AWG
+    // go first, so VK TURN can reference the transport they seeded instead of
+    // duplicating it
     private static void migrateBackendProfiles(Context context) {
         WireGuardProfileStore.migrateFromFlatPrefs(context);
         AmneziaProfileStore.migrateFromFlatPrefs(context);
@@ -488,10 +484,9 @@ public final class AppPrefs {
         return filterId;
     }
 
-    // Managed-client traffic-limit usage, written by the :tunnel process from the
-    // relay heartbeat and read by the profiles UI in the main process (MMKV is
-    // multi-process safe). One compact "limit|used|remaining|disabled" value per
-    // panel client id.
+    // Managed-client traffic-limit usage: the :tunnel process writes it off the relay
+    // heartbeat, the profiles UI in the main process reads it, and MMKV is what makes
+    // that safe. One compact "limit|used|remaining|disabled" value per panel client id
     private static final String KEY_CLIENT_TRAFFIC_USAGE_PREFIX = "client_traffic_usage_";
 
     public static final class ClientTrafficUsage {
@@ -556,7 +551,7 @@ public final class AppPrefs {
         prefs(context).edit().putString(KEY_UPDATES_LAST_NOTIFIED_TAG, trim(tagName)).apply();
     }
 
-    /** Version pair the root-helper mismatch was last announced for; keeps it to one notice. */
+    /** Version pair the root-helper mismatch was announced for, so it is said once */
     public static String getLastRootdMismatchNotifiedTag(Context context) {
         return trim(prefs(context).getString(KEY_ROOTD_MISMATCH_NOTIFIED_TAG, ""));
     }
@@ -622,10 +617,10 @@ public final class AppPrefs {
         prefs(context).edit().putString(KEY_DNS_MODE, normalizeDnsMode(value)).apply();
     }
 
-    // VK web session mirror in cross-process MMKV: written when the auth browser
-    // delivers cookies and when the relay pushes rotated cookies, so the :tunnel
-    // process can hand the live session straight to the relay without a browser or
-    // a WebView CookieManager (which is unreliable outside an Activity).
+    // VK web session mirrored into cross-process MMKV, written when the auth browser
+    // delivers cookies and when the relay pushes rotated ones. That way :tunnel hands
+    // the live session straight to the relay, with no browser and no WebView
+    // CookieManager - which is unreliable outside an Activity anyway
     public static String getVkSessionCookies(Context context) {
         return trim(prefs(context).getString(KEY_VK_SESSION_COOKIES, ""));
     }
@@ -767,8 +762,8 @@ public final class AppPrefs {
     }
 
     /**
-     * Stores the panel CA pins from an enrollment link as newline-separated base64.
-     * An empty list clears them, which puts the panel back on the system trust store.
+     * Panel CA pins from an enrollment link, newline-separated base64. An empty list
+     * clears them and puts the panel back on the system trust store
      */
     public static void setGuardianCaPins(Context context, java.util.List<byte[]> pins) {
         StringBuilder encoded = new StringBuilder();
@@ -800,7 +795,7 @@ public final class AppPrefs {
             try {
                 pins.add(android.util.Base64.decode(trimmed, android.util.Base64.NO_WRAP));
             } catch (IllegalArgumentException ignored) {
-                // A corrupt entry must not silently widen trust; skip just this pin.
+                // A corrupt entry must not quietly widen trust, so skip this pin alone
             }
         }
         return pins;
@@ -1106,15 +1101,9 @@ public final class AppPrefs {
         prefs(context).edit().putStringSet(KEY_SHARING_LAST_ACTIVE_TYPES, values).apply();
     }
 
-    // The user's sharing-toggle intent (which tether types the user enabled in
-    // the sharing screen). Kept separate from the routing's last-active-types so
-    // the UI toggles do not follow a system hotspot toggled outside the app. When
-    // never set yet (null), falls back to the last-active-types so the toggles
-    // are accurate on first show after upgrade.
-    // Whether the app itself started the system AP for this tether type (the toggle
-    // brought up a fresh hotspot), as opposed to a hotspot the user started from
-    // system settings. The toggle only tears the AP down when the app started it;
-    // a system-started AP is left running when sharing is toggled off.
+    // True when the app itself brought this tether type's AP up, rather than the
+    // user starting a hotspot from system settings. The toggle only tears an AP down
+    // when the app started it; a system-started one keeps running
     public static boolean isSharingStartedByApp(Context context, TetherType type) {
         Set<String> stored = prefs(context).getStringSet(KEY_SHARING_STARTED_BY_APP_TYPES, null);
         return stored != null && stored.contains(type.commandName);
@@ -1131,11 +1120,10 @@ public final class AppPrefs {
         prefs(context).edit().putStringSet(KEY_SHARING_STARTED_BY_APP_TYPES, next).apply();
     }
 
-    // Whether the user turned VPN sharing on from inside the app (a real toggle),
-    // as opposed to a hotspot started purely through the system. Unlike
-    // getSharingUserToggleTypes this does NOT fall back to the routing's
+    // True only for a real in-app toggle, not for a hotspot started through the
+    // system. Unlike getSharingUserToggleTypes this does NOT fall back to the
     // last-active types, so a system-only hotspot reads as "not app-initiated" and
-    // the VPN sharing routing stays off.
+    // the VPN sharing routing stays off
     public static boolean isAppSharingIntended(Context context) {
         Set<String> stored = prefs(context).getStringSet(KEY_SHARING_USER_TOGGLE_TYPES, null);
         if (stored == null) {
@@ -1149,6 +1137,10 @@ public final class AppPrefs {
         return false;
     }
 
+    // What the user switched on in the sharing screen. Kept apart from the routing's
+    // last-active types, so the UI toggles do not follow a hotspot toggled outside
+    // the app. Never set yet (null) falls back to the last-active types, so the
+    // toggles are honest on the first show after an upgrade
     public static Set<TetherType> getSharingUserToggleTypes(Context context) {
         Set<String> stored = prefs(context).getStringSet(KEY_SHARING_USER_TOGGLE_TYPES, null);
         if (stored == null) {
@@ -1289,8 +1281,8 @@ public final class AppPrefs {
         prefs(context).edit().putBoolean(KEY_FIRST_LAUNCH_EXPERIENCE_SEEN, true).apply();
     }
 
-    // The bypass family (bypass/xbypass) shares one selected-app list; the
-    // whitelist family (whitelist/xwhitelist) shares its own.
+    // The bypass family (bypass/xbypass) shares one selected-app list, the whitelist
+    // family (whitelist/xwhitelist) its own
     static String appRoutingPackagesKey(AppRoutingMode mode) {
         return mode.isWhitelistFamily() ? KEY_APP_ROUTING_WHITELIST_PACKAGES : KEY_APP_ROUTING_BYPASS_PACKAGES;
     }
@@ -1300,8 +1292,8 @@ public final class AppPrefs {
         String stored = prefs.getString(KEY_APP_ROUTING_MODE, null);
         AppRoutingMode mode = stored != null ? AppRoutingMode.fromPrefValue(stored) : migrateLegacyAppRouting(prefs);
         if (!prefs.getBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, false)) {
-            // First run after the split: move existing "bypass" users to XBYPASS so
-            // their TUN-direct behavior is preserved. Other modes are untouched.
+            // First run after the split: "bypass" moves to XBYPASS to keep its
+            // TUN-direct behaviour. Other modes are left alone
             if (mode == AppRoutingMode.BYPASS) {
                 mode = AppRoutingMode.XBYPASS;
                 prefs
@@ -1313,12 +1305,11 @@ public final class AppPrefs {
                 prefs.edit().putBoolean(KEY_APP_ROUTING_XBYPASS_MIGRATED, true).commit();
             }
         }
-        // On root the per-UID routing is enforced in-kernel by ip-rules / iptables
-        // (RootMultiUserRouter), which already closes the SO_BINDTODEVICE leak the
-        // TUN X (divert) modes exist to handle for non-root. Collapse X to its
-        // plain family so we never run the redundant (and non-root-shaped) TUN
-        // divert on root. The stored value is left untouched, so turning root off
-        // restores the X selection.
+        // Under root the per-UID routing lives in the kernel, in ip-rules / iptables
+        // (RootMultiUserRouter), and that already closes the SO_BINDTODEVICE leak the
+        // TUN X (divert) modes exist for on non-root. So X collapses to its plain
+        // family and the redundant TUN divert never runs. The stored value is not
+        // touched, so turning root off brings the X selection back
         if (mode.isTunDivert() && isRootModeEnabled(context)) {
             mode = mode.plainFamily();
         }
@@ -1348,10 +1339,7 @@ public final class AppPrefs {
         return mode;
     }
 
-    /**
-     * Returns the package set stored for a specific mode. For OFF returns an
-     * empty set since OFF intentionally routes everything through VPN.
-     */
+    /** The package set stored for one mode. OFF is empty: it tunnels everything */
     public static Set<String> getAppRoutingPackages(Context context, AppRoutingMode mode) {
         if (mode == null || mode == AppRoutingMode.OFF) {
             return new LinkedHashSet<>();
@@ -1371,17 +1359,15 @@ public final class AppPrefs {
     }
 
     /**
-     * Returns the package set every routing backend should actually enforce
-     * for the active mode: the user's explicit per-app selection for that mode
-     * (minus our own package). Whether an app is tunneled is decided solely by
-     * the whitelist / bypass selection - nothing else.
+     * What every routing backend enforces for the active mode: the user's explicit
+     * per-app selection, minus our own package. The whitelist / bypass selection is
+     * the ONLY thing that decides whether an app is tunneled.
      *
-     * The Xposed "hide VPN status" feature is intentionally NOT mixed in here.
-     * It only lies to detector apps that no VPN is present; it must not move an
-     * app's traffic. Forcing the hidden-VPN apps out of the tunnel broke the
-     * common "Tor / proxy over WINGS V" case - in RF Tor cannot reach its
-     * relays directly, so it has to be tunneled, not bypassed. The hide hook
-     * stays; routing follows the user.
+     * <p>The Xposed "hide VPN status" list is deliberately NOT folded in. It lies to
+     * detector apps about a VPN being present and must not move anyone's traffic:
+     * push those apps out of the tunnel and the common "Tor over WINGS V" case dies,
+     * because in RF Tor cannot reach its relays directly and has to be tunneled. The
+     * hook stays, routing follows the user
      */
     public static Set<String> getEffectiveAppRoutingPackages(Context context) {
         AppRoutingMode mode = getAppRoutingMode(context);
@@ -1433,10 +1419,9 @@ public final class AppPrefs {
     }
 
     /**
-     * Packages the user routed through the standalone ByeDPI SOCKS outbound.
-     * Independent of the app-routing mode: a listed app egresses through
-     * ByeDPI (DPI bypass, direct to the origin) regardless of Bypass /
-     * Whitelist / XBypass selection. Own package is never included.
+     * Packages the user sent through the standalone ByeDPI SOCKS outbound. Orthogonal
+     * to the app-routing mode: a listed app egresses through ByeDPI straight to the
+     * origin whatever Bypass / Whitelist / XBypass says. Never our own package
      */
     public static Set<String> getByeDpiAppPackages(Context context) {
         Set<String> stored = prefs(context).getStringSet(KEY_BYEDPI_PACKAGES, null);
@@ -1513,9 +1498,9 @@ public final class AppPrefs {
         }
         AppRoutingMode mode = getAppRoutingMode(context);
         if (mode != AppRoutingMode.BYPASS) {
-            // OFF: list is hidden / no auto-add. WHITELIST: recommended apps
-            // should stay OUTSIDE the tunnel, i.e. NOT be added to whitelist
-            // (recommendations are effectively inverted).
+            // OFF hides the list and auto-adds nothing. Under WHITELIST the
+            // recommendations invert: a recommended app belongs OUTSIDE the tunnel,
+            // so it must NOT land in the whitelist
             return false;
         }
         if (!RuStoreRecommendedAppsAsset.getApps(context).containsKey(normalizedPackageName)) {
@@ -1653,9 +1638,9 @@ public final class AppPrefs {
             }
             return;
         }
-        // Turn merge-only import (a wingsv:// link that carries only VK links):
-        // merge the links into the shared pool and touch nothing else - no endpoint,
-        // wrap, backend switch or profile creation. Mirrors the Xray merge-only path.
+        // A wingsv:// link that carries only VK links: merge them into the shared pool
+        // and touch nothing else - no endpoint, no wrap, no backend switch, no new
+        // profile
         if (importedConfig.hasTurnSettings && importedConfig.turnMergeOnly) {
             mergeImportedVkLinks(context, importedConfig);
             return;
@@ -1698,9 +1683,9 @@ public final class AppPrefs {
             } catch (Exception ignored) {}
         }
 
-        // Import-as-profile: the flat keys above hold the imported config; ADD it
-        // to the matching backend's profile list (deduped), make it active and
-        // re-project it onto the flat keys, mirroring Xray's add-don't-replace.
+        // The flat keys above hold the imported config, so it gets ADDED to the
+        // matching backend's list (deduped), made active and projected back onto the
+        // flat keys - added, never replacing what the user has
         applyImportedBackendProfile(context, importedConfig, backendType);
         applyImportedBackendProfileLists(context, importedConfig);
 
@@ -1735,10 +1720,10 @@ public final class AppPrefs {
                 );
             }
         }
-        // Root/xposed/sharing/kernel-wg/xray-tproxy фичи доступны только когда у
-        // нас реально есть рут. Раньше эти блоки писались в prefs безусловно,
-        // и импорт с рутованного устройства на не-рутованное оживлял Sharing
-        // и пытался поднять root-туннели, что вешало сервис.
+        // Root/xposed/sharing/kernel-wg/xray-tproxy доступны только когда рут реально
+        // есть. Записать эти блоки без проверки - значит на не-рутованном
+        // устройстве оживить Sharing и полезть поднимать root-туннели, а это вешает
+        // сервис
         boolean rootAvailable = RootUtils.isRootAccessGranted(context);
         if (importedConfig.hasXposedSettings && rootAvailable) {
             applyImportedXposedSettings(context, importedConfig);
@@ -1759,9 +1744,8 @@ public final class AppPrefs {
             applyImportedSharingSettings(context, importedConfig);
         }
         if (!rootAvailable) {
-            // Если в импорте root-флаги были True но рута нет, форсируем их в
-            // False, иначе UI продолжает показывать Sharing-таб и Settings
-            // открывает root-секцию для несуществующего рута.
+            // Прилетевшие в импорте root-флаги давим в False: иначе UI покажет
+            // Sharing-таб, а Settings откроет root-секцию для несуществующего рута
             forceDisableRootDependentFlags(context);
         }
         if (importedConfig.hasByeDpiSettings) {
@@ -1774,12 +1758,11 @@ public final class AppPrefs {
         }
     }
 
-    // Routes an imported WG / AmneziaWG / VK TURN config into the matching
-    // backend's profile list as a NEW active profile (deduped), instead of only
-    // overwriting the flat keys. The importer already wrote the flat keys above;
-    // each store's importActiveFromFlatPrefs reads them into a profile, dedups,
-    // sets it active and re-projects it back onto the flat keys (runtime path
-    // unchanged). WB stream backends and the anonymous/Xray flows are untouched.
+    // An imported WG / AmneziaWG / VK TURN config becomes a NEW active profile in the
+    // matching backend's list (deduped) instead of just overwriting the flat keys.
+    // Each store's importActiveFromFlatPrefs picks up the flat keys the importer
+    // wrote, dedups, activates and projects back, so the runtime path is unchanged.
+    // WB stream backends and the anonymous/Xray flows do not come through here
     private static void applyImportedBackendProfile(
         Context context,
         WingsImportParser.ImportedConfig importedConfig,
@@ -1789,10 +1772,10 @@ public final class AppPrefs {
             return;
         }
         if (importedConfig.hasTurnSettings && backendType.usesTurnProxy()) {
-            // VK TURN: the transport (WG/AWG) sub-config is imported as its own
-            // profile inside importActiveFromFlatPrefs, then referenced by id.
-            // A single-profile share link carries the VK TURN and transport
-            // titles; prefer them over a synthesized one when present.
+            // VK TURN: importActiveFromFlatPrefs turns the WG/AWG sub-config into a
+            // profile of its own and then references it by id. A single-profile share
+            // link brings the VK TURN and transport titles along, and those beat a
+            // synthesized one
             VkTurnProfileStore.importActiveFromFlatPrefs(
                 context,
                 trim(importedConfig.importedVkTurnTitle),
@@ -1838,16 +1821,15 @@ public final class AppPrefs {
         return "AmneziaWG #" + (AmneziaProfileStore.getProfiles(context).size() + 1);
     }
 
-    // Merge-only VK links import: append the imported links to the shared pool
-    // (deduped, order preserved) and write nothing else. The primary link is seeded
-    // from the pool only if it was empty. Every other VK TURN setting stays as-is.
     /**
-     * Merges VK links the relay handed back on a DTLS provision into the shared pool.
+     * Merges the VK links the relay hands back on a DTLS provision into the shared
+     * pool, deduped and in order. Nothing else is written: the primary link is seeded
+     * from the pool only when it was empty.
      *
-     * The enrollment QR carries one link so it stays scannable; the rest arrives
-     * here, on the same enrolment. Append-only, like every other path that touches
-     * this pool: a link the user added themselves is never dropped, and the one the
-     * QR already delivered is simply a duplicate that is skipped.
+     * <p>The enrollment QR carries a single link so it stays scannable, and the rest
+     * shows up here on the same enrolment. Append-only, like every path into this
+     * pool: a link the user added by hand never disappears, and the one the QR
+     * already delivered is just a duplicate that gets skipped
      */
     public static void mergeProvisionedVkLinks(Context context, List<String> links) {
         mergeVkLinkPool(context, links);
@@ -1906,9 +1888,9 @@ public final class AppPrefs {
         if (importedLinks.isEmpty() && !TextUtils.isEmpty(importedLink)) {
             importedLinks.add(importedLink);
         }
-        // The VK-links pool is shared across every profile. Importing any profile only
-        // APPENDS its links to what the user already has - it never wipes the pool. A
-        // profile that carries no links leaves both the pool and the primary link as-is.
+        // One VK-links pool for every profile, so importing a profile only APPENDS to
+        // what the user already has. A profile with no links leaves the pool and the
+        // primary link exactly as they were
         List<String> vkLinkPool = new ArrayList<>(readVkLinks(prefs, trim(prefs.getString(KEY_VK_LINK, ""))));
         for (String entry : importedLinks) {
             if (!vkLinkPool.contains(entry)) {
@@ -1932,8 +1914,8 @@ public final class AppPrefs {
                     : 12
             )
         );
-        // Threads is a device-local tuning preference; a profile import that omits it
-        // (e.g. a panel managed VK TURN link) keeps the user's current value.
+        // Threads is a device-local knob, so a profile import that omits it (a
+        // panel-managed VK TURN link, say) keeps whatever the user set
         if (importedConfig.threads != null && importedConfig.threads > 0) {
             editor.putString(KEY_THREADS, String.valueOf(importedConfig.threads));
         }
@@ -2035,9 +2017,9 @@ public final class AppPrefs {
     }
 
     // Replaces a backend's profile library from a full config (panel desired_config),
-    // mirroring how applyImportedXraySettings replaces the Xray list. The pushed ids
-    // are kept verbatim, so VK TURN transport references stay valid; the active
-    // profile is then re-projected onto the flat keys the runtime reads.
+    // the way applyImportedXraySettings replaces the Xray list. The pushed ids are
+    // kept verbatim, otherwise every VK TURN transport reference breaks; the active
+    // profile is then projected onto the flat keys the runtime reads
     private static void applyImportedBackendProfileLists(
         Context context,
         WingsImportParser.ImportedConfig importedConfig
@@ -2067,15 +2049,15 @@ public final class AppPrefs {
         if (importedConfig.hasTurnProfiles) {
             String active = trim(importedConfig.activeTurnProfileId);
             if (importedConfig.hasAllSettings) {
-                // Full backup restore replaces the whole list.
+                // A full backup restore replaces the whole list
                 VkTurnProfileStore.setProfiles(context, importedConfig.turnProfiles);
                 if (TextUtils.isEmpty(active) && !importedConfig.turnProfiles.isEmpty()) {
                     active = importedConfig.turnProfiles.get(0).id;
                 }
             } else {
-                // Targeted import (e.g. a panel-managed profile): add without
-                // discarding the user's existing profiles or the shared VK-links
-                // pool. Make the imported profile active so it is ready to use.
+                // Targeted import, a panel-managed profile for instance: add it
+                // without throwing away the user's profiles or the shared VK-links
+                // pool, and make it active so it is ready to use
                 String addedId = null;
                 for (VkTurnProfile profile : importedConfig.turnProfiles) {
                     VkTurnProfile stored = VkTurnProfileStore.addImportedProfile(context, profile);
@@ -2622,8 +2604,8 @@ public final class AppPrefs {
      * вызовы no-op. Текущие миграции:
      * <ul>
      *   <li>v1: вывести {@link #KEY_VK_TURN_TUNNEL_MODE} и {@link #KEY_WB_STREAM_TUNNEL_MODE}
-     *       из существующего {@link #KEY_BACKEND_TYPE}, чтобы UI-дропдауны под-backend'а
-     *       показывали актуальное состояние у пользователей с предыдущей версии.</li>
+     *       из существующего {@link #KEY_BACKEND_TYPE}, иначе у пришедших с прошлой
+     *       версии дропдауны под-backend'а показывают не то состояние</li>
      * </ul>
      */
     public static void runMigrationsIfNeeded(Context context) {
@@ -2646,7 +2628,7 @@ public final class AppPrefs {
             editor.putString(KEY_VK_TURN_TUNNEL_MODE, vkTurnMode.prefValue);
         }
         if (!sharedPreferences.contains(KEY_WB_STREAM_TUNNEL_MODE)) {
-            // До v1 у WB Stream был только WireGuard-туннель - сохраняем поведение.
+            // До v1 у WB Stream был только WireGuard-туннель - сохраняем поведение
             editor.putString(KEY_WB_STREAM_TUNNEL_MODE, TunnelMode.WIREGUARD.prefValue);
         }
     }
@@ -2660,11 +2642,10 @@ public final class AppPrefs {
         prefs(context).edit().putString(KEY_VK_LINKS_JSON, encodeVkLinks(links)).apply();
     }
 
-    // Persistent set of relay field keys whose live patch could not be applied and
-    // needs a restart. Written by the service (multi-process MMKV), read by the VK
-    // TURN settings UI so the warning survives leaving and returning to the screen.
-    // Cleared per field when it is successfully re-applied, and wholesale on relay
-    // restart.
+    // Relay field keys whose live patch did not take and that need a restart. The
+    // service writes them, the VK TURN settings UI reads them, so the warning survives
+    // leaving the screen and coming back. Cleared per field once it re-applies, and
+    // wholesale on a relay restart
     public static final String KEY_LIVE_PATCH_FAILED_FIELDS = "pref_live_patch_failed_fields";
 
     public static java.util.Set<String> getLivePatchFailedFields(Context context) {
@@ -2815,9 +2796,9 @@ public final class AppPrefs {
         return MmkvPrefs.mainPrefs(context);
     }
 
-    // PreferenceDataStore that PreferenceFragmentCompat screens install so their
-    // widgets read and write the MMKV-backed main store instead of the legacy
-    // XML SharedPreferences. Must be set before setPreferencesFromResource.
+    // PreferenceDataStore for PreferenceFragmentCompat screens, so their widgets read
+    // and write the MMKV-backed main store instead of the XML SharedPreferences. Has
+    // to be set before setPreferencesFromResource
     public static androidx.preference.PreferenceDataStore mainPreferenceDataStore(Context context) {
         return MmkvPrefs.mainDataStore(context);
     }

@@ -11,13 +11,12 @@ import java.util.Set;
 import org.json.JSONArray;
 
 /**
- * Per-profile store for the AmneziaWG backend, mirroring XrayStore's profile
- * API. Phase 1 of multi-profile support: persists the profile list, active id,
- * favorites and traffic stats, plus a one-time migration that seeds a single
- * profile from the legacy KEY_AWG_QUICK_CONFIG / structured prefs. The flat
- * config keys remain the source of truth for the running tunnel until later
- * phases wire the UI; applyActiveToPrefs writes the active profile back via
- * AmneziaStore.applyRawConfig.
+ * Profile store for the AmneziaWG backend: profile list, active id, favorites,
+ * traffic stats, plus a one-time seed from the legacy KEY_AWG_QUICK_CONFIG /
+ * structured prefs.
+ *
+ * <p>The flat config keys are what the running tunnel reads, so applyActiveToPrefs
+ * pushes the active profile back through AmneziaStore.applyRawConfig
  */
 @SuppressWarnings(
     {
@@ -85,12 +84,8 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Adds an imported profile to the list, deduped by stableDedupKey: when an
-     * identical profile already exists it is reused (and returned) instead of
-     * duplicating; otherwise the supplied profile is appended. Returns the
-     * stored profile (existing or newly added), or null when the candidate is
-     * empty. Mirrors Xray's add-don't-replace import; does not change the active
-     * id.
+     * Deduped by stableDedupKey: an identical profile is reused rather than stored
+     * twice. The active id stays where it was
      */
     public static AmneziaProfile addImportedProfile(Context context, AmneziaProfile profile) {
         if (profile == null || profile.isEmpty()) {
@@ -148,13 +143,10 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Explicit opt-in cascade delete for a transport that VK TURN profiles
-     * reference. Plain deleteProfile refuses to remove a referenced transport
-     * (the safe default); this variant first deletes every VkTurnProfile that
-     * points at this AmneziaProfile, then deletes the transport itself. Used by
-     * the UI after the user confirms a delete-with-warning modal. If a deleted
-     * VK TURN profile or this transport was the active one, a new active is
-     * chosen and the flat keys are re-projected via applyActiveToPrefs.
+     * Opt-in cascade delete, called once the user confirms the warning modal:
+     * plain deleteProfile refuses to drop a transport a VkTurnProfile points at,
+     * this one takes the dependents down with it. If the active profile is among
+     * them, a new active is picked and applyActiveToPrefs re-projects the flat keys
      */
     public static boolean deleteProfileCascade(Context context, String awgProfileId) {
         String trimmedId = ProfileStoreSupport.trim(awgProfileId);
@@ -175,7 +167,7 @@ public final class AmneziaProfileStore {
             VkTurnProfileStore.ensureActivePresent(context);
             VkTurnProfileStore.applyActiveToPrefs(context);
         }
-        // The transport is no longer referenced, so plain deleteProfile succeeds.
+        // Nothing references the transport now, so plain deleteProfile goes through
         return deleteProfile(context, trimmedId);
     }
 
@@ -240,9 +232,8 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Writes the active profile's raw awg-quick config back into the legacy flat
-     * config keys via AmneziaStore.applyRawConfig so the existing single-config
-     * tunnel keeps reading them. No-op when there is no active profile.
+     * Pushes the active profile's raw awg-quick config into the flat config keys
+     * through AmneziaStore.applyRawConfig, which is where the tunnel reads it
      */
     public static void applyActiveToPrefs(Context context) {
         AmneziaProfile profile = getActiveProfile(context);
@@ -262,11 +253,8 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Import-as-profile entry point: reads the effective awg-quick config (just
-     * written by the importer) into a new profile, adds it deduped, makes it
-     * active and re-projects it back onto the flat config. Returns the active
-     * profile, or null when the config is empty. Mirrors Xray's add-as-active
-     * import.
+     * Import entry point: the importer has already written the effective awg-quick
+     * config, so this picks it up as a new profile and makes it active
      */
     public static AmneziaProfile importActiveFromFlatPrefs(Context context, String title) {
         AmneziaProfile flat = new AmneziaProfile(null, title, AmneziaStore.getEffectiveQuickConfig(context));
@@ -280,12 +268,9 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Updates the active profile in place from the effective awg-quick config in
-     * the flat keys, keeping its id and title (and therefore its stats and
-     * favorite flag). Used by the UI editor: the settings screen edits the flat
-     * structured / raw keys for the active profile, and on return this folds
-     * those edits back into the stored profile. Returns the updated profile, or
-     * null when there is no active profile or the config is empty.
+     * The settings screen edits the flat structured and raw keys, so on the way
+     * back those edits get folded into the active profile - keeping its id and
+     * title, and with them its stats and favorite flag
      */
     public static AmneziaProfile updateActiveFromFlatPrefs(Context context) {
         AmneziaProfile active = getActiveProfile(context);
@@ -304,10 +289,8 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * One-time migration: seeds a single profile from the effective awg-quick
-     * config when it is non-empty. Idempotent and gated by the
-     * KEY_AWG_PROFILES_MIGRATED flag. Returns the seeded (or pre-existing
-     * active) profile, or null when there was nothing to migrate.
+     * One-time seed of a single profile from the effective awg-quick config, gated
+     * by KEY_AWG_PROFILES_MIGRATED so it is idempotent
      */
     public static AmneziaProfile migrateFromFlatPrefs(Context context) {
         android.content.SharedPreferences prefs = ProfileStoreSupport.prefs(context);
@@ -333,12 +316,11 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Replaces the set of stored profiles tagged with subscriptionId by the given
-     * fetched list (already tagged with that same subscriptionId). New profiles
-     * are added, profiles that vanished from the feed are pruned, and profiles
-     * from a different or empty subscription are left untouched. Ids are reused (by
-     * stableDedupKey) from the previous snapshot of THIS subscription so the active
-     * id and traffic stats stay stable. Mirrors XraySubscriptionUpdater's replace.
+     * Swaps in the fetched list for one subscription: new profiles are added, the
+     * vanished ones are pruned, and anything from another subscription (or made by
+     * hand) is left alone. Ids are reused by stableDedupKey from the previous
+     * snapshot of THIS subscription, so the active id and traffic stats survive a
+     * refresh
      */
     public static void syncSubscriptionProfiles(Context context, String subscriptionId, List<AmneziaProfile> fetched) {
         String subId = ProfileStoreSupport.trim(subscriptionId);
@@ -380,8 +362,8 @@ public final class AmneziaProfileStore {
                 fetchedByKey.put(tagged.stableDedupKey(), tagged);
             }
         }
-        // Nothing stored for this subscription and nothing fetched: avoid a needless
-        // rewrite of the whole store on every refresh of an unrelated subscription.
+        // Nothing stored and nothing fetched: skip rewriting the whole store on every
+        // refresh of an unrelated subscription
         if (reuseIds.isEmpty() && fetchedByKey.isEmpty()) {
             return;
         }
@@ -397,7 +379,6 @@ public final class AmneziaProfileStore {
         }
     }
 
-    /** Distinct non-empty source subscription ids present in the stored profiles. */
     public static List<String> subscriptionIdsInUse(Context context) {
         java.util.LinkedHashSet<String> ids = new java.util.LinkedHashSet<>();
         for (AmneziaProfile profile : getProfiles(context)) {
@@ -409,9 +390,8 @@ public final class AmneziaProfileStore {
     }
 
     /**
-     * Id of the stored profile whose stableDedupKey matches, or empty when none.
-     * Used to resolve a VK TURN profile's transport reference to a stable id after
-     * its transport has been synced into this store.
+     * Resolves a VK TURN profile's transport reference to a stable id, once that
+     * transport has been synced into this store
      */
     public static String idForDedupKey(Context context, String dedupKey) {
         AmneziaProfile existing = findByDedupKey(getProfiles(context), dedupKey);

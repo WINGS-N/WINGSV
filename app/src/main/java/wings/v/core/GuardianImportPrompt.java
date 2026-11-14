@@ -75,12 +75,10 @@ public final class GuardianImportPrompt {
         @NonNull ProgressBar loaderView,
         @NonNull ImageView avatarView
     ) {
-        // Always try a fetch when an admin id is present: a missing /
-        // outdated avatar_version (panel build that did not yet wire that
-        // field, or a default placeholder admin) is no reason to hide the
-        // spinner before we even hit the network. The server responds 404
-        // for admins without a custom upload and we then fall back to the
-        // placeholder background.
+        // An admin id is enough to try: a missing or stale avatar_version (a panel
+        // build that does not send the field, or a placeholder admin) is no reason to
+        // kill the spinner before touching the network. An admin with no upload gets
+        // a 404 and the placeholder background takes over
         if (parsed.guardianAdminId <= 0) {
             loaderView.setVisibility(View.GONE);
             return;
@@ -103,8 +101,8 @@ public final class GuardianImportPrompt {
                 if (bitmap != null) {
                     avatarView.setImageBitmap(bitmap);
                 }
-                // On miss (server returned 404 or network failed) keep the
-                // shipped default avatar that the layout already loaded.
+                // On a miss - 404 or no network - the default avatar the layout
+                // already loaded stays
             });
         });
     }
