@@ -803,6 +803,22 @@ public class ProxyTunnelService extends Service {
         return backendType != null && backendType.usesXrayCore();
     }
 
+    /**
+     * Крутится ли ядро прямо сейчас, каким бы ни был бэкенд. isRunning стоит
+     * последним нарочно: флаги при сбоях на старте могли не проставиться, а
+     * живое ядро всё равно надо погасить
+     */
+    private boolean xrayRuntimeEngaged() {
+        return (
+            usesXrayBackend(activeBackendType) ||
+            activeXrayTproxyMode ||
+            activeXrayWgRuntime ||
+            activeXrayUsesTurnProxy ||
+            activeXrayProxyOnly ||
+            XrayBridge.isRunning()
+        );
+    }
+
     private static boolean usesXrayTurnProxy(@Nullable ProxySettings settings) {
         XrayTransportMode transportMode = getXrayTransportMode(settings);
         return (
@@ -3051,7 +3067,11 @@ public class ProxyTunnelService extends Service {
         runFastStopCleanupStep("ByeDPI front proxy stop", BYEDPI_STOP_TIMEOUT_MS + 250L, this::stopByeDpiFrontProxy);
 
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly();
-        if (usesXrayBackend(activeBackendType)) {
+        // Ядро поднимается не только под своим бэкендом: VK TURN и WG гоняют его
+        // рантаймом. Спрашивать тип бэкенда тут нельзя - при отключении VK TURN
+        // ядро оставалось жить, держало redirect-порт, и следующий коннект падал
+        // с bind: address already in use
+        if (xrayRuntimeEngaged()) {
             if (activeXrayTproxyMode) {
                 runFastStopCleanupStep("Xray TPROXY routing revert", FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, () ->
                     XrayTproxyRouter.revertQuietly(getApplicationContext())
@@ -3066,7 +3086,8 @@ public class ProxyTunnelService extends Service {
             runFastStopCleanupStep("Xray VPN service force stop", FAST_STOP_CLEANUP_TIMEOUT_MS, () ->
                 forceStopXrayVpnServiceAndWait("Xray VPN service force stop")
             );
-        } else {
+        }
+        if (!usesXrayBackend(activeBackendType)) {
             // libwg-go/libamneziawg_go keep global native handles; do not
             // overlap DOWN with a later UP (the "later UP" being the racing
             // concern, not the parallel service stop here). Run the WG-DOWN
