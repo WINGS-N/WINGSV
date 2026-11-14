@@ -127,7 +127,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
      * Раздел открывается своим экраном, а не подменой списка на месте.
      *
      * <p>Иначе у ветки нет ни шапки с заголовком, ни кнопки назад, и человек
-     * проваливается в список, из которого непонятно как выбираться.
+     * проваливается в список, из которого непонятно как выбираться
      */
     @Override
     public void onNavigateToScreen(@Nullable PreferenceScreen screen) {
@@ -180,7 +180,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         lastConfiguredBackendType = configuredBackendType;
-        // Дропдаун теперь хранит top-level группу, а не внутренний enum prefValue.
+        // Дропдаун хранит top-level группу, а не внутренний enum prefValue
         syncListPreference(AppPrefs.KEY_BACKEND_TOP, configuredBackendType.topLevelGroup());
         configureSubBackendDropdowns(configuredBackendType);
         configureRootPreferences(configuredBackendType);
@@ -465,9 +465,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     /**
-     * Shows whether the optional root helper module is doing anything. Worth a row of
-     * its own: when the module is absent or mismatched nothing breaks, so without this
-     * the user has no way to tell whether the thing they flashed is actually in use.
+     * Whether the optional root helper module is doing anything. Worth its own row:
+     * an absent or mismatched module breaks nothing, so otherwise there is no way to
+     * tell whether the thing that was flashed is in use at all
      */
     private void configureRootdStatusPreference(Context context, boolean rootModeEnabled) {
         Preference statusPreference = findPreference("pref_rootd_status");
@@ -479,8 +479,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return;
         }
         statusPreference.setSummary(summaryForRootdStatus(context, RootExecutor.lastKnownStatus()));
-        // Probing opens a socket, so it cannot happen on the main thread; refresh the
-        // row once the answer is in.
+        // Probing opens a socket, so it cannot run on the main thread; the row
+        // refreshes once the answer is in
         Context appContext = context.getApplicationContext();
         executor.execute(() -> {
             RootExecutor.acquire(appContext);
@@ -512,8 +512,8 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (context == null) {
             return;
         }
-        // DNS resolver setting moved into VK TURN / WB Stream settings - see
-        // their respective fragments. Nothing to gate here anymore.
+        // The DNS resolver setting lives in the VK TURN / WB Stream fragments, so
+        // there is nothing to gate for it here.
         // Раздел целиком: без рута ему на оглавлении делать нечего, а
         // задизейбленная строка только дразнит
         Preference rootSection = findPreference("pref_section_root");
@@ -588,11 +588,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             Context preferenceContext = preference.getContext();
             Context appContext = preferenceContext.getApplicationContext();
             SwitchPreferenceCompat switchPref = (SwitchPreferenceCompat) preference;
-            // Allow the toggle to commit immediately (cache may be stale or
-            // never populated on first run); kick off the actual su probe in
-            // the background and revert if it fails. Without this the toggle
-            // would never flip to ON when cache is false, which is the path
-            // Sharing UI relies on for "root granted" gating.
+            // The toggle commits right away - the cache can be stale or empty on
+            // first run - and the su probe runs in the background, reverting it on
+            // failure. Gate on the cache instead and the toggle never flips to ON
+            // while it says false, which is exactly the path the Sharing UI reads
+            // for its root gating
             executor.execute(() -> {
                 boolean granted = RootUtils.refreshRootAccessState(appContext);
                 if (granted) {
@@ -652,9 +652,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
-    // Xray-core is the engine for plain Xray and also for the userspace xray-WG
-    // path (VK TURN / WireGuard with root off), so the Xray settings (DNS, routing,
-    // sniffing) are reachable in both cases.
+    // Xray-core drives plain Xray and the userspace xray-WG path too (VK TURN /
+    // WireGuard with root off), so the Xray settings - DNS, routing, sniffing - stay
+    // reachable in both cases
     private boolean usesXrayEngine(@Nullable BackendType backendType) {
         if (backendType == null) {
             return false;
@@ -829,19 +829,19 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             }
             syncPreferenceValuesFromPrefs();
             refreshRuntimeBackedPreferences(true);
-            // Hide/show root sub-options live when the master toggle flips.
+            // Root sub-options follow the master toggle live
             if (AppPrefs.KEY_ROOT_MODE.equals(key)) {
                 configureRootPreferences();
                 if (!AppPrefs.isRootModeEnabled(requireContext())) {
-                    // Root turned off: immediately drop any root ip-rules / UID filter
-                    // left from the root session so they do not linger and keep
-                    // steering app traffic. No-op when a tunnel is active - the
-                    // reconnect triggered by this toggle tears those down itself.
+                    // Root off: drop the ip-rules / UID filter left from the root
+                    // session right away, or they keep steering app traffic. No-op
+                    // with a tunnel up - the reconnect this toggle triggers tears
+                    // them down itself
                     wings.v.service.ProxyTunnelService.cleanStaleRootRoutingOnLaunch(requireContext());
                 }
             }
-            // Sync the master Guardian switch in the parent settings list with
-            // toggles done from inside GuardianActivity.
+            // GuardianActivity can flip Guardian from inside, so the master switch
+            // in this list has to follow
             if (
                 AppPrefs.KEY_GUARDIAN_ENABLED.equals(key) ||
                 AppPrefs.KEY_GUARDIAN_WS_URL.equals(key) ||
@@ -963,7 +963,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     ).show();
                     return false;
                 }
-                // Под-backend читаем из соответствующего отдельного prefа.
+                // Под-backend читаем из своего отдельного prefа
                 TunnelMode subMode = TunnelMode.WIREGUARD;
                 if ("vk_turn".equals(topLevel)) {
                     subMode = AppPrefs.getVkTurnTunnelMode(preferenceContext);

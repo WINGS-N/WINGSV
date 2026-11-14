@@ -233,11 +233,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         }
     }
 
-    // The subset of runtime-affecting VK TURN keys the relay can live-apply over
-    // AppControl gRPC (no restart): DNS mode, endpoint (manual-wg only; managed
-    // profiles lock it), TURN host/port, VK auth mode, and the WRAP group.
-    // Everything else - WG transport, threads, VK links, session mode - still
-    // reconnects.
+    // Keys the relay can live-apply over AppControl gRPC without a restart. The
+    // endpoint counts only for manual wg; managed profiles lock it anyway.
+    // Everything else - WG transport, VK links, session mode - still reconnects
     private static final Set<String> LIVE_PATCHABLE_KEYS = new LinkedHashSet<>();
 
     static {
@@ -269,8 +267,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     @Nullable
     private String pendingReconnectReason;
 
-    // Coalesces rapid live-patchable edits into one PatchConfig over the debounce
-    // window (mirrors the reconnect debounce).
+    // Rapid edits coalesce into one PatchConfig over the debounce window, same as
+    // the reconnect debounce
     private final Set<String> pendingPatchKeys = new LinkedHashSet<>();
 
     @Nullable
@@ -279,8 +277,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     @Nullable
     private android.content.BroadcastReceiver patchStatusReceiver;
 
-    // The real widget layout of each live-patchable row, captured before the loader
-    // replaces it, so it can be restored once the field is applied.
+    // The row's real widget layout, captured before the loader takes its place, to
+    // put back once the field is applied
     private final java.util.Map<String, Integer> originalWidgetLayouts = new java.util.HashMap<>();
 
     @Override
@@ -398,7 +396,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
      * ломает связь, и человек идёт не сюда разбираться, а писать, что у нас не
      * работает. Значения приезжают с сервера и меняются там же, поэтому когда в
      * инфраструктуре звонков что-то ломается, чинится это одной правкой, а не
-     * выкаткой версии и ожиданием, пока все обновятся.
+     * выкаткой версии и ожиданием, пока все обновятся
      */
     private void lockManagedProfileSettings() {
         VkTurnProfile active = VkTurnProfileStore.getActiveProfile(requireContext());
@@ -447,10 +445,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         super.onPause();
     }
 
-    // Receives per-field live-patch status from the :tunnel process and reflects it
-    // on the matching preference rows: disabled + a spinner while applying, cleared
-    // when applied, a warning icon + a toast when a live apply could not be done and
-    // will only take effect on the next relay restart.
+    // Per-field live-patch status from the :tunnel process lands on the matching
+    // rows: spinner while applying, clean row once applied, warning icon plus a toast
+    // when the value only takes effect on the next relay restart
     private void registerPatchStatusReceiver() {
         if (patchStatusReceiver != null) {
             return;
@@ -484,13 +481,13 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         try {
             requireContext().getApplicationContext().unregisterReceiver(patchStatusReceiver);
         } catch (IllegalArgumentException ignored) {
-            // Not registered; nothing to do.
+            // Not registered, nothing to do
         }
         patchStatusReceiver = null;
     }
 
-    // Maps a relay field key (as sent in PatchStatusEvent) to the preference keys it
-    // affects. WRAP covers the whole WRAP group.
+    // Relay field key, as sent in PatchStatusEvent, to the preference keys it
+    // touches. WRAP covers the whole WRAP group
     private static java.util.List<String> patchFieldToKeys(String field) {
         if (field == null) {
             return java.util.Collections.emptyList();
@@ -537,8 +534,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
             if (preference == null) {
                 continue;
             }
-            // Remember the row's real widget (a switch, a dropdown arrow, or none) so
-            // the SESL loader can replace it while applying and be restored after.
+            // Keep the row's real widget - a switch, a dropdown arrow or none - so the
+            // SESL loader can stand in while applying and hand it back after
             if (!originalWidgetLayouts.containsKey(key)) {
                 originalWidgetLayouts.put(key, preference.getWidgetLayoutResource());
             }
@@ -573,8 +570,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         return original != null ? original : 0;
     }
 
-    // Restores every live-patchable row to its normal widget (drops loaders and
-    // warnings). Used on a relay restart, when nothing is left pending.
+    // Drops loaders and warnings on a relay restart, when nothing is left pending
     private void clearAllPatchStatus() {
         for (java.util.Map.Entry<String, Integer> entry : originalWidgetLayouts.entrySet()) {
             Preference preference = findPreference(entry.getKey());
@@ -586,8 +582,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         originalWidgetLayouts.clear();
     }
 
-    // Re-shows warnings for fields whose live patch is still pending a restart, so
-    // the indicator survives leaving and returning to this screen.
+    // A patch still pending a restart keeps its warning across leaving and
+    // re-entering the screen
     private void restorePersistedPatchWarnings() {
         Context context = getContext();
         if (context == null) {
@@ -632,9 +628,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
-    // The captcha solver only applies in anonymous mode. VK Auth sign-in mints
-    // account-bound TURN tokens through a path with no captcha gate, so the
-    // selector (including the vk.me bypass) is inert while account mode is on.
+    // The solver only applies in anonymous mode: VK Auth sign-in mints
+    // account-bound TURN tokens through a path with no captcha gate, so the selector
+    // and its vk.me bypass are inert while account mode is on
     private void setCaptchaSolverEnabled(boolean enabled) {
         Preference preference = findPreference(AppPrefs.KEY_CAPTCHA_AUTO_SOLVER);
         if (preference != null) {
@@ -657,8 +653,8 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
-    // The clear-cookies button only makes sense inside a VK TURN relay section with
-    // VK ID auth enabled, so its visibility tracks both.
+    // Clearing cookies only means something in a VK TURN relay section with VK ID
+    // auth on, so visibility tracks both
     private void setClearVkCookiesVisible(boolean authModeEnabled) {
         Preference button = findPreference(KEY_VK_CLEAR_COOKIES);
         if (button != null) {
@@ -690,21 +686,20 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 sessionFile.deleteOnExit();
             }
         } catch (RuntimeException ignored) {
-            // Best effort: the relay re-requests cookies when the file is gone.
+            // Best effort: the relay re-requests cookies once the file is gone
         }
     }
 
-    // The MMKV and file caches are only mirrors of the real VK login, which lives
-    // in the WebView CookieManager. Without wiping it the next relay start reopens
-    // vk.com already signed in, silently reharvests the session, and re-populates
-    // the caches - so clearing must reach the CookieManager too.
+    // The MMKV and file caches only mirror the real VK login, which lives in the
+    // WebView CookieManager. Leave it alone and the next relay start opens vk.com
+    // already signed in, reharvests the session and refills the caches
     private void clearVkWebViewCookies() {
         try {
             CookieManager cookieManager = CookieManager.getInstance();
             cookieManager.removeAllCookies(null);
             cookieManager.flush();
         } catch (RuntimeException ignored) {
-            // WebView may be unavailable; the cache clears above still apply.
+            // WebView may be unavailable; the cache clears above still hold
         }
     }
 
@@ -720,7 +715,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
     }
 
     // Как bindSummaryPreference, но маскирует IP в summary при включённом тоггле
-    // "Скрывать IP адрес". Поле ввода в диалоге показывает реальное значение.
+    // скрытия адреса. Поле ввода в диалоге показывает реальное значение
     private void bindIpSummaryPreference(String key) {
         EditTextPreference preference = findPreference(key);
         if (preference == null) {
@@ -767,7 +762,7 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
      * Пол для числа на выданном профиле.
      *
      * <p>Опустить ниже дефолта значит выжечь кредлы капчей и остаться без связи,
-     * а сервер потом отвечает за чужую правку
+     * а отвечать за чужую правку потом серверу
      */
     private void bindManagedFloor(String key, int floor) {
         EditTextPreference preference = findPreference(key);
@@ -1100,11 +1095,11 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
         applyManagedLock();
     }
 
-    // A panel-managed VK TURN profile provisions its wg/awg transport (keys,
-    // address, obfuscation params, peer endpoint) on connect over the DTLS
-    // exchange, so the server owns that config. Disable the transport inputs so
-    // an edit here cannot silently diverge from the provisioned config; the VK
-    // TURN endpoint itself is locked in the profile editor.
+    // A panel-managed profile gets its wg/awg transport - keys, address,
+    // obfuscation params, peer endpoint - over the DTLS exchange on connect, so the
+    // server owns that config. The inputs stay disabled, otherwise an edit here
+    // quietly diverges from what was provisioned. The VK TURN endpoint itself is
+    // locked in the profile editor
     private void applyManagedLock() {
         VkTurnProfile active = VkTurnProfileStore.getActiveProfile(requireContext());
         boolean unlocked = active == null || !active.isManaged();
@@ -1160,9 +1155,9 @@ public class VkTurnSettingsFragment extends PreferenceFragmentCompat {
                 }
             }
             if (!structuredPreference && isLivePatchableKey(key)) {
-                // Live-apply over gRPC instead of restarting the relay. These keys
-                // never change the WG transport, so a single-field edit on the active
-                // profile is always WG-safe.
+                // Live-apply over gRPC instead of restarting the relay: none of these
+                // keys touch the WG transport, so a single-field edit on the active
+                // profile is WG-safe
                 requestLivePatchIfActive(key);
             } else if (isRuntimeAffectingKey(key)) {
                 requestRuntimeReconnectIfActive(

@@ -20,12 +20,11 @@ import wings.v.core.TunnelMode;
 import wings.v.core.XrayStore;
 
 /**
- * Shared settings-style backend dropdown (top-level + VK TURN sub-backend) bound
- * to a CardItemView row + hidden AppCompatSpinner pair, mirroring the settings
- * screen's DropDownPreference (OneUI spinner with a checkmark on the active
- * entry). Used by both profile screens so the selector is identical wherever it
- * appears: BackendProfilesFragment for WG/AWG/VK TURN, and the embedded Xray
- * ProfilesFragment (where it sits as the first row of the Actions card).
+ * The settings-style backend dropdown (top-level plus VK TURN sub-backend) on a
+ * CardItemView row driving a hidden AppCompatSpinner, which is how the settings
+ * screen's DropDownPreference looks: a OneUI spinner with a checkmark on the active
+ * entry. Both profile screens bind it here so the selector is the same thing in
+ * BackendProfilesFragment and in the embedded Xray ProfilesFragment
  */
 final class BackendSelectorBinder {
 

@@ -118,7 +118,7 @@ public class ProfilesFragment extends Fragment {
     private final ExecutorService connectionTestExecutor = Executors.newFixedThreadPool(CONNECTION_TEST_PARALLELISM);
     private final LinkedHashMap<String, FilterSpec> filterSpecs = new LinkedHashMap<>();
     // Строки держим списком, а НЕ картой по id: два профиля с одним id вполне
-    // могут доехать из подписки, и в карте вторая строка вышибала бы первую.
+    // могут доехать из подписки, и в карте вторая строка вышибала бы первую
     // Вышибленная остаётся на экране и живёт своей жизнью - без галочки, зато со
     // стрелками трафика, потому что прячет их ровно тот код, который до неё уже
     // не доходит
@@ -498,10 +498,10 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    // When this fragment is embedded as the Xray backend view inside
-    // BackendProfilesFragment, show the active-backend selector as the first row
-    // of the Actions card (so it scrolls together with the subscription actions)
-    // and switch backends via the shared binder, asking the host to re-render.
+    // Embedded as the Xray backend view inside BackendProfilesFragment, this
+    // fragment puts the backend selector into the first row of the Actions card so
+    // it scrolls with the subscription actions, and switches through the shared
+    // binder, asking the host to re-render
     private void setupEmbeddedBackendSelector() {
         Fragment parent = getParentFragment();
         if (!(parent instanceof BackendProfilesFragment)) {
@@ -545,9 +545,9 @@ public class ProfilesFragment extends Fragment {
         }
     }
 
-    // When the selected subscription has no VLESS profiles but does carry VK TURN
-    // ones, point the user at the backend switch instead of the generic "no
-    // profiles" copy - the subscription simply targets a different backend.
+    // A subscription with no VLESS profiles but with VK TURN ones is not empty, it
+    // just targets another backend, so point at the backend switch instead of the
+    // generic empty copy
     private int emptyStateMessage() {
         if (
             activeFilterId != null &&
@@ -729,9 +729,9 @@ public class ProfilesFragment extends Fragment {
         XrayStore.setProfileFavorite(requireContext(), profile.id, !wasFavorite);
         Haptics.softSelection(source);
         applyFavoriteState(rowBinding, profile);
-        // Если активный фильтр - "Избранное" и мы убрали последний фаворит, или
-        // фильтра "Избранное" ещё нет в списке после добавления - надо пересобрать
-        // чипы фильтра. Полный refreshUi проще, чем точечная инвалидация.
+        // Сняли последний фаворит при активном фильтре избранного, или наоборот
+        // добавили первый - чипы надо пересобрать. Полный refreshUi тут проще
+        // точечной инвалидации
         refreshUi();
     }
 

@@ -265,9 +265,8 @@ public class XposedSettingsFragment extends PreferenceFragmentCompat {
             updatePreferenceEnabledState();
             scheduleOverviewRefresh();
             XposedModulePrefs.export(requireContext());
-            // The effective bypass set (see AppPrefs.getEffectiveAppRoutingPackages)
-            // depends on these toggles, so a live VPN session needs a reconnect
-            // to pick up the changes.
+            // These toggles feed AppPrefs.getEffectiveAppRoutingPackages, so a live
+            // session only picks the change up after a reconnect
             if (
                 XposedModulePrefs.KEY_ENABLED.equals(key) ||
                 XposedModulePrefs.KEY_HIDE_VPN_APPS.equals(key) ||

@@ -176,8 +176,8 @@ public final class WbStreamSettingsFragment extends PreferenceFragmentCompat {
         AppPrefs.defaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(listener);
     }
 
-    // Маскирует IP в summary endpoint/адресных полей при включённом тоггле
-    // "Скрывать IP адрес". DNS-поля не трогаем. Поле ввода показывает реальное.
+    // Маскирует IP в summary адресных полей при включённом скрытии адреса.
+    // DNS-поля не трогаем, поле ввода показывает реальное значение
     private void installIpMaskSummaries() {
         String[] ipKeys = {
             AppPrefs.KEY_ENDPOINT,

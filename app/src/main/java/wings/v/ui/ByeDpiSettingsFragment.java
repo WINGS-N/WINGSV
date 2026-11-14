@@ -580,8 +580,8 @@ public class ByeDpiSettingsFragment extends PreferenceFragmentCompat {
             return false;
         }
         String candidatePassword = newValue == null ? "" : String.valueOf(newValue);
-        // Empty value triggers auto-regeneration on the next read; don't gate it
-        // behind a "too simple" warning.
+        // An empty value means auto-regeneration on the next read, so no "too
+        // simple" warning for it
         if (TextUtils.isEmpty(candidatePassword)) {
             return false;
         }

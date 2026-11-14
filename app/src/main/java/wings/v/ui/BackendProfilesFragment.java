@@ -57,16 +57,12 @@ import wings.v.databinding.ItemBackendProfileEntryBinding;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Backend-aware profiles screen. The first element is a backend-selector dropdown
- * (same top-level + sub-backend values as the settings dropdown). Selecting a
- * backend switches the active backend through ExternalActions.setBackend (the
- * same persistence the settings dropdown uses) and swaps the shown profile list.
+ * Profiles screen with a backend selector. The dropdown reuses the settings
+ * screen's entries/values and switches through ExternalActions.setBackend, so the
+ * two screens never disagree about the active backend.
  *
- * For Xray the existing ProfilesFragment is embedded unchanged. For WireGuard,
- * AmneziaWG and VK TURN a simple list backed by the matching per-profile store is
- * rendered with select/favorite/stats/delete-with-cascade-modal, sharing
- * (wingsv:// link, plus raw wg-quick / awg-quick text for WG / AWG), editing and
- * an import entry.
+ * Xray has no list of its own here: ProfilesFragment is embedded as is. WireGuard,
+ * AmneziaWG and VK TURN get a simple list over their own profile store
  */
 @SuppressWarnings(
     {
@@ -88,8 +84,8 @@ import wings.v.service.ProxyTunnelService;
         "PMD.AvoidLiteralsInIfCondition",
         "PMD.AvoidDuplicateLiterals",
         "PMD.ConfusingTernary",
-        // Some per-backend helpers keep a backendType / profile param for symmetry
-        // across the WG / AWG / VK TURN dispatch even when one branch ignores it.
+        // Per-backend helpers keep backendType / profile for symmetry across the
+        // WG / AWG / VK TURN dispatch even where a branch ignores it
         "PMD.UnusedFormalParameter",
     }
 )
@@ -104,26 +100,24 @@ public class BackendProfilesFragment extends Fragment {
 
     private FragmentBackendProfilesBinding binding;
 
-    // Set when we open the per-backend settings screen as a UI editor for a
-    // specific profile; on return we fold the flat-key edits back into that
-    // active profile so the profile stays in sync with what the user changed.
+    // The per-backend settings screen doubles as a profile editor, so on return the
+    // flat-key edits have to be folded back into the active profile
     @Nullable
     private BackendType pendingUiEditBackend;
 
     private String activeBackendFilterId = FILTER_ALL;
 
-    // Subscription refresh runs off the UI thread; the result is posted back via the
-    // main-looper handler, guarded by binding / isAdded.
+    // Subscription refresh runs off the UI thread and posts back through the
+    // main-looper handler, guarded by binding / isAdded
     private final java.util.concurrent.ExecutorService subscriptionExecutor =
         java.util.concurrent.Executors.newSingleThreadExecutor();
     private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private boolean refreshingSubscriptions;
 
-    // Multi-select state for the simple (WG / AWG / VK TURN) list, mirroring the
-    // Xray profile list: long-press -> Select enters selection mode, tap toggles,
-    // back exits. rowBindingsById tracks the live row views so checkboxes refresh
-    // without a full re-render; currentSelection* snapshot the rendered list +
-    // backend for select-all / share / reset / delete.
+    // Multi-select for the simple list, same gestures as the Xray one: long-press
+    // -> Select, tap toggles, back exits. rowBindingsById holds the live row views
+    // so checkboxes repaint without a full re-render, otherwise every tap rebuilds
+    // the whole list. currentSelection* is the snapshot the action bar works on
     private final java.util.LinkedHashSet<String> selectedBackendProfileIds = new java.util.LinkedHashSet<>();
     private boolean backendSelectionMode;
     private final java.util.Map<String, ItemBackendProfileEntryBinding> rowBindingsById =
@@ -217,8 +211,8 @@ public class BackendProfilesFragment extends Fragment {
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), selectionBackCallback);
     }
 
-    // Refreshes the per-profile quota bars when the relay reports fresh managed
-    // traffic-limit usage while this screen is open.
+    // The relay reports fresh traffic usage; repaint the quota bars while this
+    // screen is up
     private final android.content.BroadcastReceiver trafficUsageReceiver = new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(Context ctx, android.content.Intent intent) {
@@ -247,7 +241,7 @@ public class BackendProfilesFragment extends Fragment {
         try {
             requireContext().unregisterReceiver(trafficUsageReceiver);
         } catch (IllegalArgumentException ignored) {
-            // Was not registered - safe to ignore.
+            // Was not registered, nothing to do
         }
         super.onPause();
     }
@@ -264,9 +258,8 @@ public class BackendProfilesFragment extends Fragment {
         super.onDestroy();
     }
 
-    // Called by the embedded Xray ProfilesFragment when the user switches the
-    // active backend from its in-card selector, so the host swaps to the new
-    // backend's view.
+    // The embedded ProfilesFragment calls this from its own selector so the host
+    // swaps the backend view
     public void onEmbeddedBackendSwitched() {
         refreshUi();
     }
@@ -299,7 +292,7 @@ public class BackendProfilesFragment extends Fragment {
         renderSubscriptionQuota(context);
     }
 
-    // Plain last-refresh / running / error summary, exactly like the Xray list.
+    // Same summary the Xray list shows
     private String refreshSubscriptionsSummary(Context context) {
         if (refreshingSubscriptions) {
             return getString(R.string.xray_profiles_refresh_subscriptions_running);
@@ -318,10 +311,9 @@ public class BackendProfilesFragment extends Fragment {
         return getString(R.string.xray_profiles_refresh_subscriptions_summary);
     }
 
-    // Subscription traffic quota bar for the selected subscription pill, identical
-    // in logic and look to the Xray profile group header: a horizontal progress bar
-    // tinted by remaining ratio (error <=10%, warning <=40%, else success) with
-    // used/total text and an optional expiry summary.
+    // Quota bar for the selected subscription pill, same logic and look as the Xray
+    // group header: tinted by remaining ratio (error <=10%, warning <=40%, else
+    // success)
     private void renderSubscriptionQuota(Context context) {
         if (binding == null) {
             return;
@@ -491,13 +483,11 @@ public class BackendProfilesFragment extends Fragment {
         });
     }
 
-    // Backend selector, mirroring the settings screen's backend dropdown exactly.
-    // Settings uses a oneui DropDownPreference (pref_backend_top plus a sub-backend
-    // DropDownPreference for VK TURN). A plain Fragment cannot host a Preference, so
-    // we reproduce the SAME OneUI spinner dropdown (with a checkmark on the active
-    // entry) via a CardItemView row backed by a hidden AppCompatSpinner +
-    // SeslArrayAdapter, driven by the SAME arrays/values. The sub-backend row is
-    // shown only for VK TURN, exactly like the settings sub-backend dropdown.
+    // Settings does this with a DropDownPreference (pref_backend_top plus a
+    // sub-backend one for VK TURN), but a plain Fragment cannot host a Preference.
+    // So the same OneUI dropdown is assembled by hand: a CardItemView row driving a
+    // hidden AppCompatSpinner with a SeslArrayAdapter over the same arrays/values.
+    // The sub-backend row shows up only for VK TURN
 
     private void bindBackendDropdown(
         CardItemView row,
@@ -551,7 +541,7 @@ public class BackendProfilesFragment extends Fragment {
     private void onTopLevelChosen(String topLevel) {
         Context context = requireContext();
         if ("wb_stream".equals(topLevel)) {
-            // Match the settings dropdown: WB Stream is listed but unavailable.
+            // WB Stream is in the list but has no backend, same as in settings
             Toast.makeText(context, R.string.backend_top_wb_stream_unavailable_toast, Toast.LENGTH_SHORT).show();
             refreshUi();
             return;
@@ -604,14 +594,12 @@ public class BackendProfilesFragment extends Fragment {
             : getString(R.string.backend_profiles_vk_turn_transport_wg);
     }
 
-    // Xray: embed the existing ProfilesFragment unchanged.
+    // Xray: the existing ProfilesFragment goes in as is
 
     private void showXrayList() {
-        // The Xray backend view is the embedded ProfilesFragment, which carries
-        // its own Actions card (with the backend selector as the first row) and
-        // its own scrolling profile list. The shared simple-profiles scroll
-        // (selector + add + list) is hidden entirely so there is no duplicate
-        // selector pinned above the embedded fragment.
+        // The embedded ProfilesFragment brings its own Actions card with a backend
+        // selector and its own scroll, so the shared simple-profiles scroll is
+        // hidden completely - otherwise a second selector hangs above it
         binding.scrollSimpleProfiles.setVisibility(View.GONE);
         binding.containerXrayProfiles.setVisibility(View.VISIBLE);
         if (getChildFragmentManager().findFragmentByTag(XRAY_CHILD_TAG) == null) {
@@ -622,10 +610,9 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Toggles whether the simple-profiles scroll fills the remaining space (the
-    // WireGuard / AmneziaWG / VK TURN list case) or wraps its content so the
-    // embedded Xray fragment below can take the rest (the Xray case). The bottom
-    // padding clears the bottom navigation only when the list scrolls here.
+    // The simple-profiles scroll either takes the remaining space (WG / AWG /
+    // VK TURN) or wraps its content so the embedded Xray fragment gets the rest.
+    // Bottom padding clears the navigation bar only in the first case
     private void setSimpleScrollFills(boolean fills) {
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) binding.scrollSimpleProfiles.getLayoutParams();
         params.height = fills ? 0 : ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -651,7 +638,7 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Simple list for WireGuard / AmneziaWG / VK TURN.
+    // Simple list for WireGuard / AmneziaWG / VK TURN
 
     private void showSimpleList(BackendType backendType) {
         removeXrayChildIfPresent();
@@ -681,7 +668,7 @@ public class BackendProfilesFragment extends Fragment {
         for (SimpleProfile candidate : profiles) {
             visibleIds.add(candidate.id);
         }
-        // Drop any selection for rows that left the rendered list (filter / delete).
+        // Rows can leave the list through a filter or a delete; drop their selection
         selectedBackendProfileIds.retainAll(visibleIds);
         if (backendSelectionMode && selectedBackendProfileIds.isEmpty()) {
             clearBackendSelectionMode();
@@ -739,8 +726,8 @@ public class BackendProfilesFragment extends Fragment {
                 onProfileSelected(backendType, profile.id);
             }
         });
-        // Mirror the Xray profile list: tap selects, long-press opens the action
-        // menu (PopupMenu anchored on the row). No per-row overflow button.
+        // Same as the Xray list: tap selects, long-press opens a PopupMenu on the
+        // row. No per-row overflow button
         rowBinding.rowBackendProfileEntry.setOnLongClickListener(v -> {
             Haptics.softSelection(v);
             showProfileMenu(v, backendType, profile);
@@ -753,11 +740,9 @@ public class BackendProfilesFragment extends Fragment {
         });
     }
 
-    // Shows the traffic-limit quota bar for a self-contained managed VK TURN
-    // profile (one with a panel client id and no parent subscription). A
-    // subscription's profiles show whole-subscription traffic elsewhere, so they
-    // get no per-profile bar. Reuses the subscription quota bar's drawable and
-    // remaining-ratio colour scale.
+    // Quota bar only for a standalone managed VK TURN profile (has a panel client
+    // id, no parent subscription). Profiles under a subscription show their traffic
+    // on the subscription itself, so a second bar on the row is noise
     private void bindProfileQuota(ItemBackendProfileEntryBinding rowBinding, SimpleProfile profile) {
         Context context = requireContext();
         if (!TextUtils.isEmpty(profile.subscriptionId) || TextUtils.isEmpty(profile.provisionClientId)) {
@@ -818,10 +803,9 @@ public class BackendProfilesFragment extends Fragment {
     private void onProfileSelected(BackendType backendType, String profileId) {
         Context context = requireContext();
         if (TextUtils.equals(activeProfileId(context, backendType), profileId)) {
-            // Re-tapping the already-active profile: still re-project it onto the
-            // flat keys so KEY_ENDPOINT (and the rest) reflect this profile even
-            // when it was made active by migration/startup and never applied. This
-            // is idempotent and changes no markers, so nothing to re-render.
+            // Re-project even on a re-tap: the profile can have become active
+            // through migration or startup, and then KEY_ENDPOINT is not its own.
+            // Idempotent and touches no markers, so nothing to re-render
             applyActiveToPrefs(context, backendType);
             return;
         }
@@ -829,25 +813,24 @@ public class BackendProfilesFragment extends Fragment {
         applyActiveToPrefs(context, backendType);
         wings.v.service.ProxyTunnelService.requestReconnect(context, "Backend profile changed");
         Haptics.softSelection(binding.getRoot());
-        // Move the active checkmark on the already-inflated rows instead of calling
-        // refreshUi(), which removes and re-inflates every row view. That full
-        // rebuild on each tap is what froze the UI on large VK TURN profile lists.
+        // Move the checkmark on the already-inflated rows instead of calling
+        // refreshUi(), which drops and re-inflates every row; on a large VK TURN
+        // list that freezes the UI
         updateActiveMarkers(profileId);
         Toast.makeText(context, R.string.backend_profiles_selected, Toast.LENGTH_SHORT).show();
     }
 
-    // Repaints just the active/selection state on the live row views (no inflation).
+    // Repaints active / selection state on the live rows, no inflation
     private void updateActiveMarkers(String activeId) {
         for (Map.Entry<String, ItemBackendProfileEntryBinding> entry : rowBindingsById.entrySet()) {
             applyBackendRowState(entry.getValue(), entry.getKey(), activeId);
         }
     }
 
-    // Long-press action menu, mirroring the Xray profile list: Select (enters
-    // multi-select), then the edit entry points. WireGuard / AmneziaWG expose the
-    // wg-quick / awg-quick text editor and the structured UI editor as separate
-    // items; VK TURN opens its form editor. Share / reset-stats / delete live in
-    // the multi-select action bar now, like Xray.
+    // Long-press menu, same as the Xray list: Select plus the editor entry points.
+    // WireGuard / AmneziaWG get the wg-quick / awg-quick text editor and the UI
+    // editor as separate items, VK TURN has one form. Share / reset / delete live in
+    // the multi-select bar
     private void showProfileMenu(View anchor, BackendType backendType, SimpleProfile profile) {
         if (backendSelectionMode) {
             beginBackendSelection(profile.id);
@@ -1039,10 +1022,9 @@ public class BackendProfilesFragment extends Fragment {
         clearBackendSelectionMode();
     }
 
-    // Multi-select share: one self-contained wingsv:// link carrying every selected
-    // profile (and, for VK TURN, the transports they reference), so it round-trips
-    // through a single paste. A newline-joined list of single links would not: the
-    // importer only decodes the first wingsv:// it finds in pasted text.
+    // One wingsv:// for the whole selection (for VK TURN plus the transports it
+    // references): the importer only decodes the first wingsv:// it finds in pasted
+    // text, so a newline-joined list would arrive truncated
     @Nullable
     private String buildBundleShareLink(Context context, BackendType backendType, List<SimpleProfile> selected) {
         try {
@@ -1271,12 +1253,11 @@ public class BackendProfilesFragment extends Fragment {
         ).show();
     }
 
-    // Per-backend sharing, mirroring the Xray share flow (proto+deflate+base64
-    // wingsv:// link via the ACTION_SEND share sheet). WG / AWG additionally offer
-    // sharing the raw wg-quick / awg-quick TEXT, which is portable to other
-    // clients. VK TURN offers only the wingsv:// link (the layered endpoint is not
-    // meaningful as raw text), and the link embeds the referenced transport so it
-    // reconstructs on a device where the transport id does not exist.
+    // Sharing as in Xray: proto+deflate+base64 wingsv:// through ACTION_SEND.
+    // WG / AWG also offer the raw wg-quick / awg-quick text, which other clients
+    // can read. VK TURN offers only the link (a layered endpoint is meaningless as
+    // text), and that link embeds the referenced transport, since its id does not
+    // exist on another device
     private void shareProfile(BackendType backendType, SimpleProfile profile) {
         Context context = requireContext();
         if (!isVkTurn(backendType)) {
@@ -1297,7 +1278,7 @@ public class BackendProfilesFragment extends Fragment {
                 .show();
             return;
         }
-        // VK TURN: link only.
+        // VK TURN: link only
         VkTurnProfile vkTurn = VkTurnProfileStore.getProfileById(context, profile.id);
         if (vkTurn == null) {
             Toast.makeText(context, R.string.backend_profiles_share_failed, Toast.LENGTH_SHORT).show();
@@ -1363,11 +1344,9 @@ public class BackendProfilesFragment extends Fragment {
         startActivity(chooserIntent);
     }
 
-    // UI editor entry point for WG / AWG: make the profile active, project it onto
-    // the flat keys and open the per-backend settings screen. Folding the flat
-    // edits back into the active profile happens in the settings screen path on
-    // its next select/apply; here we only ensure the settings open scoped to this
-    // profile's values.
+    // UI editor for WG / AWG: make the profile active, project it onto the flat
+    // keys and open the backend settings. The edits fold back on the next
+    // select/apply; here we only scope the settings to this profile's values
     private void openUiSettingsForProfile(BackendType backendType, SimpleProfile profile) {
         Context context = requireContext();
         setActiveProfileId(context, backendType, profile.id);
@@ -1386,8 +1365,8 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Import path: route a clipboard config through the existing importer which
-    // adds it as a new profile to the matching backend (AppPrefs.applyImportedConfig).
+    // A clipboard config goes through AppPrefs.applyImportedConfig, which adds it as
+    // a new profile on the matching backend
 
     private void importFromClipboard() {
         Context context = requireContext();
@@ -1419,9 +1398,9 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Batch paste: every candidate is a proxy link URI (splitConfigCandidates guarantees
-    // it), so add each as its own profile and report one summary rather than reconnecting
-    // and toasting per item. See issue #77.
+    // Batch paste: splitConfigCandidates guarantees every candidate is a link, so add
+    // one profile each and report a single summary instead of a reconnect and a toast
+    // per item. See issue #77
     private void importManyFromClipboard(Context context, List<String> candidates) {
         int imported = 0;
         int skipped = 0;
@@ -1441,16 +1420,13 @@ public class BackendProfilesFragment extends Fragment {
         ).show();
     }
 
-    // Store dispatch helpers. Each maps a non-Xray BackendType to its store.
-    //
-    // The simple list serves four BackendType values: plain WireGuard
-    // (WIREGUARD), plain AmneziaWG (AMNEZIAWG_PLAIN), and the two VK TURN
-    // variants VK_TURN_WIREGUARD (WG transport) and AMNEZIAWG (AWG transport).
-    // Both VK TURN variants share topLevelGroup() == "vk_turn" and must route to
-    // VkTurnProfileStore; only the two plain backends route to the transport
-    // stores. Keying on usesAmneziaSettings() would mis-route AMNEZIAWG (a VK TURN
-    // backend) to AmneziaProfileStore, which never projects the VK TURN endpoint
-    // onto KEY_ENDPOINT and would show the wrong list.
+    // BackendType to store dispatch. The simple list serves four values: WIREGUARD,
+    // AMNEZIAWG_PLAIN and the two VK TURN variants VK_TURN_WIREGUARD (WG transport)
+    // and AMNEZIAWG (AWG transport). Both VK TURN variants have topLevelGroup() ==
+    // "vk_turn" and route to VkTurnProfileStore; only the two plain backends go to
+    // the transport stores. Keying on usesAmneziaSettings() would send AMNEZIAWG, a
+    // VK TURN backend, to AmneziaProfileStore, which never projects the VK TURN
+    // endpoint onto KEY_ENDPOINT, and the list would show the wrong profiles
 
     private static boolean isVkTurn(BackendType backendType) {
         return "vk_turn".equals(backendType.topLevelGroup());
@@ -1555,11 +1531,10 @@ public class BackendProfilesFragment extends Fragment {
         return WireGuardProfileStore.getFavoriteProfileIds(context);
     }
 
-    // Mirror the Xray profile list filters: an "All" text chip, a bookmark icon
-    // chip for favorites (when any), one text chip per source subscription present
-    // in this backend's profiles, and a "No subscription" chip for manually added /
-    // imported profiles. Subscription titles prefer the live XraySubscription name
-    // (XrayStore.getSubscriptions) and fall back to the tag carried on the profile.
+    // Filters as in the Xray list: All, a bookmark chip for favorites when any
+    // exist, one chip per subscription present in the profiles, and one for the
+    // manually added ones. Subscription titles come from the live
+    // XrayStore.getSubscriptions and fall back to the tag carried on the profile
     private void renderBackendFilterChips(Context context, List<SimpleProfile> profiles, Set<String> favorites) {
         binding.groupBackendProfileFilters.removeAllViews();
         Map<String, String> subscriptionTitles = new LinkedHashMap<>();
@@ -1589,8 +1564,8 @@ public class BackendProfilesFragment extends Fragment {
                 subscriptionFilters.put(profile.subscriptionId, title);
             }
         }
-        // Reset a stale selection that no longer has a matching pill so the list
-        // does not render empty after a refresh dropped its subscription.
+        // A subscription dropped by a refresh leaves a filter that renders an empty
+        // list, so reset it
         if (FILTER_FAVORITES.equals(activeBackendFilterId) && !hasFavoriteProfile) {
             activeBackendFilterId = FILTER_ALL;
         } else if (FILTER_NO_SUBSCRIPTION.equals(activeBackendFilterId) && !hasManualProfile) {
@@ -1618,8 +1593,8 @@ public class BackendProfilesFragment extends Fragment {
         }
     }
 
-    // Narrows the loaded backend profiles by the active pill: All, Favorites, a
-    // specific source subscription (sub:<id>), or manually added (no subscription).
+    // Narrows by the active chip: All, Favorites, one source subscription (sub:id)
+    // or the manually added ones
     private List<SimpleProfile> filterBackendProfiles(List<SimpleProfile> profiles, Set<String> favorites) {
         if (FILTER_ALL.equals(activeBackendFilterId)) {
             return profiles;
@@ -1776,7 +1751,7 @@ public class BackendProfilesFragment extends Fragment {
         );
     }
 
-    // Lightweight view model that flattens the three profile types for the row.
+    // Flattens the three profile types into one row model
     private static final class SimpleProfile {
 
         final String id;
@@ -1784,8 +1759,8 @@ public class BackendProfilesFragment extends Fragment {
         final String summary;
         final String subscriptionId;
         final String subscriptionTitle;
-        // Panel client id of a managed VK TURN profile; empty for non-managed or
-        // non-VK-TURN profiles. Keys the per-profile traffic-limit usage.
+        // Panel client id of a managed VK TURN profile, empty otherwise. Keys the
+        // per-profile traffic-limit usage
         final String provisionClientId;
 
         private SimpleProfile(

@@ -222,8 +222,8 @@ public class AmneziaSettingsFragment extends PreferenceFragmentCompat {
         });
     }
 
-    // Как bindSummary, но маскирует IP в summary при включённом тоггле
-    // "Скрывать IP адрес". Поле ввода в диалоге показывает реальное значение.
+    // Как bindSummary, но маскирует IP в summary при включённом скрытии адреса.
+    // Поле ввода в диалоге показывает реальное значение
     private void bindIpSummary(String key, boolean multiline) {
         EditTextPreference preference = findPreference(key);
         if (preference == null) {

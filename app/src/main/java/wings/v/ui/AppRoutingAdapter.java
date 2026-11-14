@@ -58,9 +58,9 @@ final class AppRoutingAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         notifyItemChanged(0);
     }
 
-    // When the xray TUN divert is not available for the current backend the
-    // XBypass/XWhitelist options are hidden and a selected X-mode is shown as its
-    // plain equivalent (it degrades to that at runtime).
+    // Without the xray TUN divert on the current backend the XBypass/XWhitelist
+    // options are hidden, and a selected X-mode shows as its plain equivalent, which
+    // is what it degrades to at runtime
     private AppRoutingMode displayMode() {
         if (!xbypassAvailable) {
             if (mode == AppRoutingMode.XBYPASS) {

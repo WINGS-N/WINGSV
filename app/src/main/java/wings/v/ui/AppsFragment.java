@@ -274,20 +274,19 @@ public class AppsFragment extends Fragment {
         loadApplications();
     }
 
-    // XBypass (TUN-direct) is only reachable on the xray-core TUN path: plain
-    // Xray (not TPROXY, not proxy-only) or VK TURN / WireGuard running over xray-WG
-    // with root off. On kernel WG, TPROXY and the native WG/Amnezia backends it is
-    // hidden and a stored XBYPASS selection degrades to plain Bypass.
+    // XBypass (TUN-direct) only exists on the xray-core TUN path: plain Xray (not
+    // TPROXY, not proxy-only) or VK TURN / WireGuard over xray-WG with root off. On
+    // kernel WG, TPROXY and the native WG/Amnezia backends it is hidden, and a
+    // stored XBYPASS selection degrades to plain Bypass
     private boolean isXBypassAvailable(Context context) {
         BackendType backend = XrayStore.getBackendType(context);
         if (backend == null) {
             return false;
         }
-        // X (TUN divert) modes are a non-root mechanism: on root, per-UID routing
-        // is enforced in-kernel by ip-rules / iptables (RootMultiUserRouter), which
-        // also closes the leak X handles, so X is redundant and hidden here.
-        // getAppRoutingMode() collapses any stored X selection to its plain family on
-        // root, so the effective behaviour stays correct.
+        // X (TUN divert) is a non-root mechanism: on root, ip-rules / iptables in
+        // RootMultiUserRouter route per UID in-kernel and close the same leak, so X
+        // is redundant and hidden. getAppRoutingMode() collapses a stored X selection
+        // to its plain family on root, so the behaviour stays right
         if (AppPrefs.isRootModeEnabled(context)) {
             return false;
         }
@@ -554,10 +553,8 @@ public class AppsFragment extends Fragment {
             return true;
         }
         if (TextUtils.equals(activeAppTypeFilter, FILTER_RECOMMENDED)) {
-            // In whitelist mode the recommendation set is inverted: the original
-            // RuStore recommendations are meant for BYPASS, so the equivalent for
-            // whitelist is "everything except those" - i.e. apps that should be
-            // routed through VPN are the ones NOT in the recommended-bypass list.
+            // The RuStore recommendations are a bypass list, so whitelist mode flips
+            // the set: route everything that is NOT recommended for bypass
             boolean whitelist = AppPrefs.getAppRoutingMode(requireContext()).isWhitelistFamily();
             return whitelist != entry.recommendedApp;
         }

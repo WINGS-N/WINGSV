@@ -223,13 +223,13 @@ public class HomeFragment extends Fragment {
         } else {
             String stateText;
             if (running) {
-                // VK TURN brings the tunnel up after the first stream and keeps
-                // establishing the rest in the background. Keep showing the
-                // counter while streams are still filling (or one drops), so the
-                // progress is visible instead of jumping straight to "connected".
+                // VK TURN raises the tunnel on the first stream and keeps
+                // establishing the rest in the background, so the counter stays up
+                // while streams are still filling or one drops - otherwise the
+                // screen jumps straight to connected and hides the progress
                 int connectedStreams = vkTurnFillingStreams(settings, visibleBackendType);
-                // Always render the counter once a ceiling is known. Hiding it at
-                // connected == ceiling was what made a drained fleet invisible.
+                // The counter shows whenever a ceiling is known: hide it at
+                // connected == ceiling and a drained fleet becomes invisible
                 stateText =
                     connectedStreams >= 0
                         ? getString(R.string.service_on_streams, connectedStreams, vkTurnStreamCeiling(settings))
@@ -383,8 +383,8 @@ public class HomeFragment extends Fragment {
         lastPowerGlowBytesPerSecond = Long.MIN_VALUE;
     }
 
-    // Maps a connecting sub-stage token from the service to its label resource,
-    // or null when streams are already establishing (show the count instead).
+    // Connecting sub-stage token from the service to its label, null once streams
+    // are establishing - from there the count says more
     private Integer connectStageLabelRes(String stage) {
         if ("captcha".equals(stage)) {
             return R.string.connect_stage_captcha;
@@ -398,8 +398,8 @@ public class HomeFragment extends Fragment {
         return null;
     }
 
-    // Returns the clamped count of connected VK TURN streams to show next to the
-    // status, or -1 when the active backend is not a VK TURN stream backend.
+    // Clamped count of connected VK TURN streams for the status line, -1 when the
+    // active backend has no streams
     private int vkTurnFillingStreams(ProxySettings settings, BackendType backend) {
         if (
             settings == null ||
@@ -413,9 +413,9 @@ public class HomeFragment extends Fragment {
         return Math.min(ProxyTunnelService.getProxyConnectedStreams(), vkTurnStreamCeiling(settings));
     }
 
-    // The ceiling the connected count is shown against: the relay's live worker fleet
-    // when it has reported one, else the configured thread count. The configured value
-    // goes stale the moment a threads live-patch or a drained worker resizes the fleet.
+    // Ceiling for the connected count: the relay's live worker fleet once it has
+    // reported one, else the configured thread count - which goes stale the moment a
+    // threads live-patch or a drained worker resizes the fleet
     private int vkTurnStreamCeiling(ProxySettings settings) {
         int fleet = ProxyTunnelService.getProxyWorkerStreams();
         return fleet > 0 ? fleet : settings.threads;
@@ -646,9 +646,9 @@ public class HomeFragment extends Fragment {
         }
     }
 
-    // Batch paste: every candidate is a proxy link URI (splitConfigCandidates guarantees
-    // it), so add each as its own profile without the per-item reconnect/toast the single
-    // path does, then report one summary. See issue #77.
+    // Batch paste: splitConfigCandidates guarantees every candidate is a link, so add
+    // one profile each, skip the per-item reconnect and toast the single path does, and
+    // report one summary. See issue #77
     private void importManyFromClipboard(Context context, java.util.List<String> candidates) {
         int imported = 0;
         int skipped = 0;

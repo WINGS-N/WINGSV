@@ -221,11 +221,10 @@ public class SharingFragment extends Fragment {
     }
 
     /**
-     * Heals the case where {@code KEY_ROOT_MODE} stays {@code true} but
-     * {@code KEY_ROOT_ACCESS_GRANTED} ends up {@code false} (e.g., a transient
-     * su-probe failure during a previous tunnel start). Sharing UI gates on
-     * the cached {@code isRootAccessGranted} flag, so without re-probing it
-     * keeps showing "no root" forever even after root is functionally back.
+     * {@code KEY_ROOT_MODE} can stay {@code true} while
+     * {@code KEY_ROOT_ACCESS_GRANTED} ends up {@code false} - one su probe that
+     * failed during a tunnel start is enough. The sharing UI gates on that cached
+     * flag, so without a re-probe it claims there is no root while root works fine
      */
     private void maybeReverifyRootAccess() {
         if (!isAdded()) {
@@ -378,10 +377,9 @@ public class SharingFragment extends Fragment {
         Haptics.softSliderStep(sourceView);
         setToggleIntent(type, enabled);
         Context ctx = requireContext();
-        // The toggle owns VPN sharing (masquerade). It only starts/stops the AP
-        // itself when the app owns it: bring up a fresh AP on enable, and stop only
-        // an AP the app started -- never tear down a hotspot the user started from
-        // system settings.
+        // The toggle owns VPN sharing (masquerade) and touches the AP only when the
+        // app owns it: a fresh AP on enable, and a stop only for an AP the app
+        // started - never a hotspot started from system settings
         refreshStickyState();
         boolean controlAp;
         if (enabled) {
@@ -392,8 +390,8 @@ public class SharingFragment extends Fragment {
             AppPrefs.setSharingStartedByApp(ctx, type, false);
         }
         if (!controlAp) {
-            // Leave the AP as-is; just re-apply the masquerade so the upstream
-            // (VPN vs direct) follows the toggle without touching the hotspot.
+            // Leave the AP alone and just re-apply the masquerade, so the upstream
+            // (VPN or direct) follows the toggle without touching the hotspot
             if (ProxyTunnelService.isActive()) {
                 ctx.startService(ProxyTunnelService.createReapplySharingIntent(ctx));
             }
@@ -420,9 +418,9 @@ public class SharingFragment extends Fragment {
         });
     }
 
-    // The user's sharing toggle intent: which tether types the user enabled via
-    // this screen. Persisted separately from the routing's last-active-types so
-    // the toggles do not follow a system hotspot toggled outside the app.
+    // Which tether types were enabled from this screen. Stored apart from the
+    // routing's last-active-types so the toggles do not follow a system hotspot
+    // flipped outside the app
     private void setToggleIntent(TetherType type, boolean enabled) {
         Context context = requireContext();
         Set<TetherType> stored = AppPrefs.getSharingUserToggleTypes(context);
@@ -475,8 +473,8 @@ public class SharingFragment extends Fragment {
                 if (System.currentTimeMillis() - startedAt >= VERIFY_TIMEOUT_MS) {
                     operationInFlight = false;
                     verificationRunnable = null;
-                    // Requested change did not take effect; revert the toggle
-                    // intent to the actual tether state.
+                    // The change did not take, so the toggle intent goes back to
+                    // the actual tether state
                     setToggleIntent(type, enabledTypes.contains(type));
                     refreshUi();
                     String message = helperError;
@@ -550,9 +548,8 @@ public class SharingFragment extends Fragment {
     }
 
     private void updateTetherToggle(SwitchItemView itemView, TetherType type, boolean rootModeReady) {
-        // Reflect the user's own toggle intent, not the live system tether, so a
-        // system hotspot toggled outside the app does not move this switch. The
-        // intent is a pref separate from the routing's last-active-types.
+        // Show the stored toggle intent, not the live system tether, or a hotspot
+        // flipped outside the app moves this switch
         boolean enabled = AppPrefs.getSharingUserToggleTypes(requireContext()).contains(type);
         boolean interactive = rootModeReady && !operationInFlight;
         itemView.setChecked(enabled);

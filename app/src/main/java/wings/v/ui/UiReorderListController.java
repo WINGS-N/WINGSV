@@ -19,9 +19,8 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ItemUiReorderEntryBinding;
 
 /**
- * Шаренная логика drag-reorder списка с per-item switch и заблокированными
- * (forced-visible) пунктами. Используется UI settings экранами навбара и
- * уведомления.
+ * Drag-reorder списка с переключателем на пункт и заблокированными
+ * (forced-visible) пунктами. Общая для экранов навбара и уведомления
  */
 @SuppressWarnings(
     {
