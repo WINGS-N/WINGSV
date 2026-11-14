@@ -109,9 +109,8 @@ public class FirstLaunchActivity
     }
 
     /**
-     * Variant that plays the intro music ({@code samsung_tv_over_the_horizon}).
-     * Used only by the easter-egg 5x-tap on the About screen - regular onboarding
-     * launches stay silent.
+     * Variant with the intro music ({@code samsung_tv_over_the_horizon}). Only the
+     * easter-egg 5x-tap on the About screen uses it; regular onboarding stays silent
      */
     public static Intent createIntentWithMusic(Context context) {
         return new Intent(context, FirstLaunchActivity.class).putExtra(EXTRA_PLAY_INTRO_MUSIC, true);
@@ -221,8 +220,8 @@ public class FirstLaunchActivity
         if (exitTransitionRunning) {
             return;
         }
-        // Imported a wingsv:// / vless:// / subscription / awg-quick - config is
-        // already in prefs, no further setup needed. Finish onboarding.
+        // An imported wingsv:// / vless:// / subscription / awg-quick config is
+        // already in prefs, so there is nothing left to set up
         completeFirstLaunch();
     }
 
@@ -527,8 +526,8 @@ public class FirstLaunchActivity
 
     private void resumeIntroMusic() {
         if (!playIntroMusic) {
-            // По умолчанию музыки нет - она включается только при запуске
-            // через AboutAppActivity (5× тап на иконке приложения).
+            // По умолчанию музыки нет: она включается только при запуске через
+            // AboutAppActivity, 5 тапов по иконке приложения
             return;
         }
         if (!requestIntroAudioFocus()) {

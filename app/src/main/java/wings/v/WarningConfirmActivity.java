@@ -16,7 +16,7 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ActivityWarningConfirmBinding;
 
 @SuppressWarnings("PMD.CommentRequired")
-/** Shows a timed warning before applying a risky setting change. */
+/** Timed warning shown before a risky setting change goes through */
 public class WarningConfirmActivity extends AppCompatActivity {
 
     private static final String EXTRA_WARN = "wings.v.extra.WARNING_TEXT";
@@ -49,12 +49,10 @@ public class WarningConfirmActivity extends AppCompatActivity {
         }
     };
 
-    /** Required empty constructor. */
     public WarningConfirmActivity() {
         super();
     }
 
-    /** Creates an intent for the warning confirmation screen. */
     public static Intent createIntent(final Context context, final String warningText, final int confirmDelaySec) {
         return new Intent(context, WarningConfirmActivity.class)
             .putExtra(EXTRA_WARN, warningText)

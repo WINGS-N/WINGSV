@@ -9,15 +9,13 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivityActiveProbingSettingsBinding;
 import wings.v.ui.ActiveProbingSettingsFragment;
 
-/** Hosts the active probing settings screen. */
+/** Hosts the active probing settings screen */
 public class ActiveProbingSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public ActiveProbingSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the active probing settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, ActiveProbingSettingsActivity.class);
     }

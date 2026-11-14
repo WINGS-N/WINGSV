@@ -78,10 +78,11 @@ public class AboutAppActivity extends AppCompatActivity {
     private ConnectivityManager.NetworkCallback networkCallback;
     private AppUpdateManager appUpdateManager;
     private String pendingInstallFilePath = "";
-    /** Путь к APK, для которого мы уже автоматом дёрнули install после
-     *  завершения download/patch. На повторных render'ах не перезапускаем,
-     *  чтобы юзер мог свернуть системный installer-диалог без повторного pop'а.
-     *  Кнопка-стрелка остаётся ручным fallback'ом и работает всегда. */
+    /**
+     * APK, для которого install уже дёрнули сами после download/patch. На повторных
+     * render'ах не перезапускаем, иначе свёрнутый системный диалог установки
+     * выскакивает снова. Кнопка-стрелка остаётся ручным запуском и работает всегда
+     */
     private String autoInstallTriggeredForFile = "";
     private int firstLaunchTriggerTapCount;
     private long firstLaunchTriggerStartedAtMs;
@@ -194,7 +195,7 @@ public class AboutAppActivity extends AppCompatActivity {
                 return packageInfo.versionName;
             }
         } catch (PackageManager.NameNotFoundException ignored) {
-            // No-op.
+            // No-op
         }
         return "1.0";
     }
@@ -624,7 +625,7 @@ public class AboutAppActivity extends AppCompatActivity {
         try {
             connectivityManager.unregisterNetworkCallback(networkCallback);
         } catch (IllegalArgumentException ignored) {
-            // No-op.
+            // No-op
         }
         networkCallback = null;
     }
@@ -639,10 +640,9 @@ public class AboutAppActivity extends AppCompatActivity {
     private void configureProgressActionButton(ImageButton button, int iconResId, int contentDescriptionResId) {
         button.setImageResource(iconResId);
         button.setContentDescription(getString(contentDescriptionResId));
-        // ic_close_circle - двухцветный вектор (красный фон + белый крест), tint
-        // схлопывает оба пути в один цвет и иконка сливается с фоном. У
-        // ic_arrow_down один чёрный path, ему нужен tint под тему чтобы он
-        // читался и на dark/light.
+        // ic_close_circle двухцветный (красный фон, белый крест), и tint схлопнул бы
+        // оба пути в один цвет - иконка слилась бы с фоном. У ic_arrow_down один
+        // чёрный path, и без tint под тему он не читается то на светлой, то на тёмной
         if (iconResId == R.drawable.ic_close_circle) {
             androidx.core.widget.ImageViewCompat.setImageTintList(button, null);
         } else {

@@ -9,15 +9,13 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivityXraySettingsBinding;
 import wings.v.ui.XraySettingsFragment;
 
-/** Hosts the Xray settings screen. */
+/** Hosts the Xray settings screen */
 public class XraySettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public XraySettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the Xray settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, XraySettingsActivity.class);
     }

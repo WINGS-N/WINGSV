@@ -21,12 +21,11 @@ import wings.v.core.Haptics;
 import wings.v.databinding.ActivityVkOauthBinding;
 import wings.v.vk.VkOAuthAuth;
 
-// WebView host for the VK OAuth implicit flow. Mirrors CaptchaBrowserActivity
-// structure (ToolbarLayout + RoundedLinearLayout status card + WebView in a
-// rounded surface) so the autolink flow visually slots in with every other
-// browser-style screen in the app. We do not piggyback on CaptchaBrowserActivity
-// directly because its lifecycle (cancel-by-HTTP to local proxy, captcha-source
-// state, transient-external-flow handling) does not fit OAuth.
+// WebView host for the VK OAuth implicit flow. Built like CaptchaBrowserActivity -
+// ToolbarLayout, a RoundedLinearLayout status card, a WebView in a rounded surface -
+// so the autolink flow looks like every other browser screen here. Reusing that
+// activity itself does not work: its lifecycle (cancel-by-HTTP to the local proxy,
+// captcha-source state, transient external flows) is not OAuth's
 @SuppressWarnings(
     {
         "PMD.NullAssignment",
@@ -177,9 +176,9 @@ public class VkOAuthActivity extends AppCompatActivity {
                 public void onPageFinished(WebView view, String url) {
                     super.onPageFinished(view, url);
                     setLoadingState(false);
-                    // VK redirects implicit-flow callbacks via JS sometimes; the
-                    // shouldOverrideUrlLoading callback misses those, so we
-                    // double-check the final URL once the page has settled.
+                    // VK sometimes redirects the implicit-flow callback from JS,
+                    // which shouldOverrideUrlLoading never sees, so the final URL
+                    // gets a second look once the page settles
                     if (!TextUtils.isEmpty(url) && VkOAuthAuth.isRedirectUri(url)) {
                         interceptRedirect(Uri.parse(url));
                     }

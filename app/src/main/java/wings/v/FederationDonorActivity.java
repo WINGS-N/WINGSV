@@ -26,7 +26,7 @@ import wings.v.core.UiFormatter;
  * Свои серверы, отданные в федерацию: сколько с них прошло и какой потолок стоит.
  *
  * <p>Это донорская сторона админа, а не общий флот: чужих машин тут не видно и
- * видно быть не должно.
+ * видно быть не должно
  */
 public final class FederationDonorActivity extends AppCompatActivity {
 

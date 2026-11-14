@@ -544,11 +544,11 @@ public class SubscriptionsActivity extends AppCompatActivity {
         }
     }
 
-    // Drag-to-reorder for the subscriptions list. The list lives inside a
-    // NestedScrollView, so instead of a RecyclerView/ItemTouchHelper (which fights
-    // the nested scroll) the dragged row floats under the finger and snaps to the
-    // dropped position on release. The new order is persisted to XrayStore; the
-    // profiles screen groups by subscription order, so it reorders to match.
+    // Drag-to-reorder for the subscriptions list. The list sits inside a
+    // NestedScrollView, where a RecyclerView with an ItemTouchHelper fights the
+    // nested scroll, so the dragged row just floats under the finger and snaps into
+    // place on release. The order goes to XrayStore, and the profiles screen groups
+    // by it, so that list follows
     private boolean handleSubscriptionDragTouch(String id, View itemRoot, View handle, MotionEvent event) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
@@ -591,9 +591,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
         applyDragTranslation();
     }
 
-    // Keeps the floating row under the finger even while the scroll view auto-scrolls:
-    // as the content scrolls, the row's layout slot stays put, so we add the scroll
-    // delta to its translation to track the finger in screen space.
+    // The row's layout slot stays put while the scroll view auto-scrolls, so the
+    // scroll delta goes into its translation - otherwise the floating row drifts away
+    // from the finger
     private void applyDragTranslation() {
         if (draggingRow == null || binding == null) {
             return;
@@ -602,9 +602,9 @@ public class SubscriptionsActivity extends AppCompatActivity {
         draggingRow.setTranslationY((lastDragRawY - dragStartRawY) + scrollDelta);
     }
 
-    // Scroll speed when the finger is held within an edge band of the viewport, so a
-    // row can be dragged past the visible area of a long list. Returns px per frame
-    // (negative = up), 0 when the finger is away from the edges.
+    // Scroll speed while the finger is held in an edge band of the viewport, which is
+    // how a row gets dragged past the visible part of a long list. Px per frame,
+    // negative for up, 0 away from the edges
     private int computeAutoScrollDelta(float rawY) {
         if (binding == null) {
             return 0;
@@ -755,11 +755,10 @@ public class SubscriptionsActivity extends AppCompatActivity {
             removed++;
         }
         XrayStore.setSubscriptions(this, subscriptions);
-        // Backend profiles (WG / AWG / VK TURN) imported from a deleted subscription
-        // are only ever touched by that subscription's own refresh, which will never
-        // run again - so prune them here explicitly. Xray profiles are dropped by the
-        // next full refresh rebuild, but the per-subscription backend stores need an
-        // explicit empty sync to release the deleted subscription's slice.
+        // Backend profiles (WG / AWG / VK TURN) are only ever touched by their own
+        // subscription's refresh, which for a deleted one never runs again, so prune
+        // them here. Xray profiles go away with the next full refresh rebuild, but the
+        // backend stores need an explicit empty sync to release the slice
         for (String deletedId : selectedSubscriptionIds) {
             if (android.text.TextUtils.isEmpty(deletedId) || wings.v.core.FederationSubscription.ID.equals(deletedId)) {
                 continue;

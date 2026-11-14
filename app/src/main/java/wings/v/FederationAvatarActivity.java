@@ -27,8 +27,8 @@ import wings.v.core.FederationAccount;
 /**
  * Аватар: превью, источник картинки и подтверждение.
  *
- * <p>Выбранное не уходит на сервер сразу - сначала его видно, и только "Сохранить"
- * его отправляет.
+ * <p>Выбранное не уходит на сервер сразу: сначала его видно, и отправляет его
+ * только кнопка сохранения
  */
 public final class FederationAvatarActivity extends AppCompatActivity {
 
@@ -216,7 +216,7 @@ public final class FederationAvatarActivity extends AppCompatActivity {
      *
      * <p>Он отдаёт её то адресом, то самой картинкой в довесках, поэтому
      * проверяются оба варианта, а молчаливый возврат ни с чем - это отказ, и о
-     * нём надо сказать.
+     * нём надо сказать
      */
     private void takeGalaxyAvatar(@Nullable Intent data) {
         if (data == null) {

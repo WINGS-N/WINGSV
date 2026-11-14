@@ -9,15 +9,13 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivityAmneziaSettingsBinding;
 import wings.v.ui.AmneziaSettingsFragment;
 
-/** Hosts the AmneziaWG settings screen. */
+/** Hosts the AmneziaWG settings screen */
 public class AmneziaSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public AmneziaSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the AmneziaWG settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, AmneziaSettingsActivity.class);
     }

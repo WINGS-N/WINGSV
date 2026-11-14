@@ -9,15 +9,13 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivitySubscriptionHwidSettingsBinding;
 import wings.v.ui.SubscriptionHwidSettingsFragment;
 
-/** Hosts the subscription HWID settings screen. */
+/** Hosts the subscription HWID settings screen */
 public class SubscriptionHwidSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public SubscriptionHwidSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the subscription HWID settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, SubscriptionHwidSettingsActivity.class);
     }

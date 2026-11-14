@@ -32,14 +32,12 @@ import wings.v.databinding.ActivityBackendProfileEditorBinding;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * wg-quick / awg-quick TEXT editor for a WireGuard or AmneziaWG profile,
- * mirroring XrayProfileEditorActivity. Loads the profile's raw quick-config,
- * lets the user edit it with INI highlighting, validates on save via the
- * matching codec (WireGuardProfileEditorCodec / AmneziaProfileEditorCodec) and
- * writes back through the store's replaceProfile keeping the id (and therefore
- * stats and favorite). An "open UI editor" button makes the profile active,
- * projects it onto the flat keys, opens the per-backend settings screen and on
- * return folds the flat-key edits back into the active profile.
+ * wg-quick / awg-quick text editor for a WireGuard or AmneziaWG profile, built like
+ * XrayProfileEditorActivity. Saving validates through the matching codec
+ * (WireGuardProfileEditorCodec / AmneziaProfileEditorCodec) and writes back with
+ * replaceProfile, keeping the id so stats and the favorite flag survive. The UI
+ * editor button makes the profile active, projects it onto the flat keys, opens the
+ * backend settings and folds those edits back on return
  */
 @SuppressWarnings(
     { "PMD.CognitiveComplexity", "PMD.AvoidCatchingGenericException", "PMD.GodClass", "PMD.TooManyMethods" }
@@ -141,10 +139,9 @@ public class BackendProfileEditorActivity extends AppCompatActivity {
             return;
         }
         returningFromUiEditor = false;
-        // Returning from the UI editor: fold the active profile's flat-key edits
-        // back into the stored profile, then reload the text so the editor
-        // reflects those edits. The UI editor made this profile active before
-        // opening, so this profile is the active one of its backend.
+        // Back from the UI editor: fold its flat-key edits into the stored profile
+        // and reload the text. The UI editor made this profile active before
+        // opening, so the active profile of that backend is this one
         if (KIND_AWG.equals(kind)) {
             if (TextUtils.equals(AmneziaProfileStore.getActiveProfileId(this), profileId)) {
                 AmneziaProfileStore.updateActiveFromFlatPrefs(this);
@@ -208,10 +205,9 @@ public class BackendProfileEditorActivity extends AppCompatActivity {
         }
     }
 
-    // Folds the live text into the profile (best effort, ignoring parse errors),
-    // makes it active and opens the per-backend settings screen so the user can
-    // edit the flat fields. The settings screen edits the flat keys; onResume
-    // reloads this editor from the (folded back) profile.
+    // Folds the live text into the profile, best effort and ignoring parse errors,
+    // makes it active and opens the backend settings. Those edit the flat keys, and
+    // onResume reloads this editor from the folded-back profile
     private void openUiEditor() {
         String text = textValue();
         try {
@@ -231,8 +227,8 @@ public class BackendProfileEditorActivity extends AppCompatActivity {
                 WireGuardProfileStore.applyActiveToPrefs(this);
             }
         } catch (Exception ignored) {
-            // Open the UI editor on the stored profile when the live text is not
-            // yet valid; the user can fix it through the structured fields.
+            // Text that does not parse yet still opens the UI editor on the stored
+            // profile - the structured fields are a way out
             if (KIND_AWG.equals(kind)) {
                 AmneziaProfileStore.setActiveProfileId(this, profileId);
                 XrayStore.setBackendType(this, BackendType.AMNEZIAWG_PLAIN);

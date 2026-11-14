@@ -11,15 +11,13 @@ import wings.v.core.XrayStore;
 import wings.v.databinding.ActivityVkTurnSettingsBinding;
 import wings.v.ui.VkTurnSettingsFragment;
 
-/** Hosts backend-specific WireGuard and VK TURN settings. */
+/** Hosts backend-specific WireGuard and VK TURN settings */
 public class VkTurnSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public VkTurnSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the backend-specific settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, VkTurnSettingsActivity.class);
     }

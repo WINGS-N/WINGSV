@@ -51,7 +51,7 @@ public class FederationAccountActivity extends AppCompatActivity {
      * Сканер подтверждения входа: телефон впускает компьютер.
      *
      * <p>Код показывает тот, кто хочет войти, а решает тот, кто уже вошёл. Поэтому
-     * сканируем здесь, а вход происходит там - на компьютере.
+     * сканируем здесь, а вход происходит там - на компьютере
      */
     private final ActivityResultLauncher<Intent> approveScan = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
@@ -287,7 +287,7 @@ public class FederationAccountActivity extends AppCompatActivity {
      *
      * <p>Порядок именно такой, потому что панель переезжает на общий вход: у
      * переехавшего свой пароль больше не работает, и спрашивать человека, какую
-     * дверь он хочет, это перекладывать нашу кухню на него.
+     * дверь он хочет, это перекладывать нашу кухню на него
      */
     private FederationAccount.Session signInEitherDoor(String user, String pass, String secondFactor) throws Exception {
         if (!TextUtils.isEmpty(accountTicket)) {

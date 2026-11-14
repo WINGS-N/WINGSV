@@ -9,15 +9,13 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivityRootInterfaceSettingsBinding;
 import wings.v.ui.RootInterfaceSettingsFragment;
 
-/** Hosts root interface naming settings. */
+/** Hosts root interface naming settings */
 public class RootInterfaceSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public RootInterfaceSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the root interface settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, RootInterfaceSettingsActivity.class);
     }

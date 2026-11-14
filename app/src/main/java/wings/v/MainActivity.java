@@ -75,17 +75,17 @@ public class MainActivity extends AppCompatActivity {
     public static final String EXTRA_FORCE_CURRENT_TAB_ID = "wings.v.extra.FORCE_CURRENT_TAB_ID";
     private static final long BACK_EXIT_WINDOW_MS = 2_000L;
     private static final long NAVIGATION_REFRESH_INTERVAL_MS = 500L;
-    // Re-probe актуального состояния su периодически - Magisk/Kitsune может
-    // отозвать grant между resume/pause, и UI должен это поймать. 30 секунд
-    // - компромисс между ленью пользователя и стоимостью ProcessBuilder("su").
+    // Magisk/Kitsune может отозвать grant между resume/pause, и UI обязан это
+    // поймать, поэтому su перепроверяется периодически. 30 секунд - компромисс
+    // между ленью пользователя и ценой ProcessBuilder("su")
     private static final long ROOT_STATE_REPROBE_INTERVAL_MS = 30_000L;
 
     private ActivityMainBinding binding;
-    // Last known UI night-mode bit. MainActivity declares uiMode in configChanges
-    // (Samsung DeX: handle the mobile <-> desktop transition without a restart), so
-    // the framework no longer auto-recreates on a dark-mode toggle; we detect the
-    // night-bit flip in onConfigurationChanged and recreate manually so the
-    // values-night resources reload.
+    // Last known night-mode bit. uiMode sits in this activity's configChanges so
+    // the Samsung DeX mobile-to-desktop transition does not restart it, and that
+    // also stops the framework from recreating on a dark-mode toggle. So the flip
+    // is caught in onConfigurationChanged and the recreate is done by hand, or the
+    // values-night resources never reload
     private int currentUiNightMode = Configuration.UI_MODE_NIGHT_UNDEFINED;
     private final Handler navigationHandler = new Handler(Looper.getMainLooper());
     private final Runnable navigationRefreshRunnable = new Runnable() {
@@ -156,11 +156,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        // Window resize / density / mobile <-> DeX-desktop transitions are absorbed
-        // here without a restart (declared in configChanges). A dark-mode toggle
-        // rides in on the same uiMode change but needs the values-night resources
-        // reloaded, which only a recreate does - so recreate only when the night
-        // bit actually flips, not on every DeX resize.
+        // Window resize, density and the DeX desktop transition are absorbed here
+        // without a restart. A dark-mode toggle arrives as the same uiMode change
+        // but needs the values-night resources reloaded, and only a recreate does
+        // that - hence the recreate on a night-bit flip and nothing else
         int nightMode = newConfig.uiMode & Configuration.UI_MODE_NIGHT_MASK;
         if (nightMode != currentUiNightMode) {
             currentUiNightMode = nightMode;
@@ -170,15 +169,15 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
-        // Сплэш висит на окне до первого кадра, и если его не снять, лого
-        // так и останется торчать фоном под интерфейсом
+        // Сплэш висит на окне до первого кадра: не снять - и лого останется
+        // торчать фоном под интерфейсом
         setTheme(R.style.Theme_WINGSV);
         super.onCreate(savedInstanceState);
         currentUiNightMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         AppPrefs.ensureDefaults(this);
         appUpdateManager = AppUpdateManager.getInstance(this);
-        // The profiles screen is now backend-aware (its own backend dropdown swaps
-        // the shown list), so the tab is available for every backend.
+        // The profiles screen has its own backend dropdown and swaps the list
+        // itself, so the tab is there for every backend
         hasProfilesTab = true;
         hasSharingTab = AppPrefs.isRootModeEnabled(this) && SharingApiGuard.isSupported();
 
@@ -284,9 +283,9 @@ public class MainActivity extends AppCompatActivity {
         appUpdateManager.registerListener(updateStateListener);
         appUpdateManager.checkForUpdatesIfStale();
         wings.v.guardian.GuardianStateBroadcast.register(guardianStateListener);
-        // Guardian foreground/background is driven app-wide by WingsApplication's
-        // started-activity counter (onAppForeground/onAppBackground), so it stays
-        // connected across all activities instead of only MainActivity.
+        // Guardian foreground/background rides WingsApplication's started-activity
+        // counter, so it stays connected across every activity and not just this
+        // one
     }
 
     @Override
@@ -483,10 +482,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(@NonNull Menu menu) {
-        // ToolbarLayout calls setSupportActionBar() on its inner toolbar, so the
-        // standard options-menu callback is the lifecycle-stable place to add the
-        // QR scan button - direct toolbar.inflateMenu() gets wiped on the first
-        // invalidateOptionsMenu() that AppCompat issues during setup.
+        // ToolbarLayout calls setSupportActionBar() on its inner toolbar, so the QR
+        // button belongs in the options-menu callback: a direct
+        // toolbar.inflateMenu() is wiped by the first invalidateOptionsMenu()
+        // AppCompat issues while setting up
         getMenuInflater().inflate(R.menu.menu_main_toolbar, menu);
         if (!wings.v.core.TvMode.hasCamera(this)) {
             // setVisible перебивает пересоздание меню, так что выносим совсем
@@ -504,8 +503,8 @@ public class MainActivity extends AppCompatActivity {
         }
         MenuItem qrItem = menu.findItem(R.id.menu_qr_scan);
         if (qrItem != null) {
-            // Сканер показываем только на «Главной» и «Профилях» - на вкладках
-            // sharing/settings место в тулбаре отдаём под их собственные элементы.
+            // Сканер только на главной и в профилях: в тулбаре раздач и настроек
+            // место занято их собственными кнопками
             qrItem.setVisible(currentTabId == R.id.menu_home || currentTabId == R.id.menu_profiles);
         }
         return super.onPrepareOptionsMenu(menu);
@@ -514,8 +513,9 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Подставляет в тулбар аватар вошедшего.
      *
-     * <p>Меню пересоздаётся при каждой смене раздела, и пункт приходит новый:
-     * уже загруженная картинка ставится сразу, иначе на её месте моргает силуэт.
+     * <p>Меню пересоздаётся на каждой смене раздела, и пункт приходит новый, так
+     * что уже загруженная картинка ставится сразу - иначе на её месте моргает
+     * силуэт
      */
     private void loadAccountAvatar(@NonNull MenuItem item) {
         String url = wings.v.core.AvatarFetcher.sized(
@@ -553,10 +553,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void launchQrScanner() {
-        // QrScanActivity self-manages camera permission via its own launcher,
-        // so we never request CAMERA on app start - only after the user taps this.
-        // No regex/prefix filter: WingsImportParser.parseFromText accepts wingsv://,
-        // vless://, AmneziaWG quick-config text, and subscription URLs - let it judge.
+        // QrScanActivity asks for the camera through its own launcher, so CAMERA is
+        // never requested on app start, only from this tap. No prefix filter on the
+        // result either: WingsImportParser.parseFromText takes wingsv://, vless://,
+        // AmneziaWG quick-config text and subscription URLs, let it judge
         Intent intent = QrScanActivity.Companion.createIntent(this, getString(R.string.qr_scan_title));
         try {
             qrScanLauncher.launch(intent);
@@ -580,8 +580,8 @@ public class MainActivity extends AppCompatActivity {
             redeemScannedInvite(invite);
             return;
         }
-        // Ссылка входа с панели: её наводят на этот же сканер, а конфигом она
-        // не является - без проверки человек получал предложение импорта
+        // Ссылку входа с панели наводят на этот же сканер, а конфигом она не
+        // является: без проверки человеку предлагается импорт
         if (wings.v.core.FederationAccount.signInCode(this, trimmed) != null) {
             startActivity(FederationAccountActivity.createApprove(this, trimmed));
             return;
@@ -599,8 +599,8 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Применяет отсканированное приглашение.
      *
-     * <p>В дерево встают один раз: у кого уже есть пригласивший, тому этот код
-     * ничего не даст, и вместо запроса на сервер он получит внятный ответ.
+     * <p>В дерево встают один раз: у кого уже есть пригласивший, тому код ничего
+     * не даст, и вместо запроса на сервер он получит внятный ответ
      */
     private void redeemScannedInvite(@NonNull String code) {
         if (!wings.v.core.FederationAccount.isSignedIn(this)) {
@@ -713,12 +713,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshRootStateAsync() {
-        // Раньше тут был ранний выход когда cache=false: «нечего перепроверять,
-        // root и так нет». Это пропускало обратное направление - пользователь
-        // включил Magisk grant в фоне, мы его не видели до следующего onResume.
-        // Теперь probe идёт всегда; refreshRootAccessState внутри сама поймёт
-        // и cache→true (user granted), и cache→false (revoke), и вызовет
-        // handleRootRevoked для UI cleanup.
+        // Probe идёт всегда, без ранних выходов по кэшу: grant могли выдать в
+        // Magisk на ходу, и по cache=false это не видно до следующего onResume.
+        // refreshRootAccessState сама разберёт оба направления и дёрнет
+        // handleRootRevoked, когда доступ отобрали
         rootStateRefreshGeneration++;
         final int generation = rootStateRefreshGeneration;
         rootStateExecutor.execute(() -> {
@@ -918,12 +916,10 @@ public class MainActivity extends AppCompatActivity {
         @NonNull android.widget.ProgressBar loaderView,
         @NonNull android.widget.ImageView avatarView
     ) {
-        // Always try a fetch when an admin id is present: a missing /
-        // outdated avatar_version (panel build that did not yet wire that
-        // field, or a default placeholder admin) is no reason to hide the
-        // spinner before we even hit the network. The server responds 404
-        // for admins without a custom upload and we then fall back to the
-        // placeholder background.
+        // An admin id is enough to try the fetch: a missing or stale
+        // avatar_version (a panel build without that field, or a placeholder
+        // admin) is no reason to drop the spinner before touching the network.
+        // Admins with no upload answer 404 and fall back to the placeholder
         if (parsed.guardianAdminId <= 0) {
             loaderView.setVisibility(View.GONE);
             return;
@@ -950,8 +946,8 @@ public class MainActivity extends AppCompatActivity {
                 if (bitmap != null) {
                     avatarView.setImageBitmap(bitmap);
                 }
-                // On miss (server returned 404 or network failed) keep the
-                // shipped default avatar that the layout already loaded.
+                // On a 404 or a network failure the layout's shipped default
+                // avatar stays
             });
         });
     }
@@ -1043,9 +1039,8 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Уводит ссылки аккаунта на их экран.
      *
-     * <p>Схему ловит только эта активность: когда её ловили две, андроид на
-     * каждый переход из браузера спрашивал, каким из двух WINGS V открыть, и в
-     * списке два раза стояло одно и то же приложение.
+     * <p>Схему ловит только эта активность. Поймай её две - и андроид на каждый
+     * переход из браузера спрашивает, каким из двух WINGS V открыть
      */
     private boolean routeAccountLink(@NonNull Intent intent) {
         Uri data = intent.getData();
@@ -1060,7 +1055,7 @@ public class MainActivity extends AppCompatActivity {
         account.setAction(Intent.ACTION_VIEW);
         account.setData(data);
         startActivity(account);
-        // Данные сожраны: без сброса тот же интент разберётся ещё раз при
+        // Данные сожраны, и без сброса тот же интент разберётся заново при
         // возврате на экран
         setIntent(new Intent(this, MainActivity.class));
         return true;

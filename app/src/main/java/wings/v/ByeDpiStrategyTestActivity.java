@@ -171,8 +171,8 @@ public class ByeDpiStrategyTestActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     results.sort(Comparator.comparingInt((ByeDpiStrategyResult item) -> item.successCount).reversed());
                     adapter.replaceItems(results);
-                    // Persist as we go, so a run that is stopped early (or killed with
-                    // the process) still leaves the strategies it did finish.
+                    // Persist as we go: a run stopped early, or killed with the
+                    // process, still leaves the strategies it finished
                     ByeDpiStore.setStrategyResults(getApplicationContext(), results);
                     binding.textStatus.setText(
                         getString(R.string.byedpi_proxytest_progress, currentIndex, strategies.size())

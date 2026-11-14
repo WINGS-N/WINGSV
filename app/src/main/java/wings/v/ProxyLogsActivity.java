@@ -191,8 +191,8 @@ public class ProxyLogsActivity extends AppCompatActivity {
         applySnapshot(resolveSnapshot(), currentVersion, shouldStickToBottom);
     }
 
-    // Mirror the home screen status pill: colour by state and, for a VK TURN
-    // backend, show the live X/Y streams (threads) counter.
+    // Same status pill as the home screen: colour by state, plus the live streams
+    // counter on a VK TURN backend
     private void updateStatusChip() {
         if (binding == null) {
             return;
@@ -206,8 +206,8 @@ public class ProxyLogsActivity extends AppCompatActivity {
         int backgroundRes;
         int textColor;
         if (running) {
-            // Always render the counter once a ceiling is known. Hiding it at
-            // streams == ceiling was what made a drained fleet invisible.
+            // The counter shows whenever a ceiling is known: hide it at
+            // streams == ceiling and a drained fleet becomes invisible
             text =
                 streams >= 0
                     ? getString(R.string.service_on_streams, streams, vkTurnStreamCeiling(settings))
@@ -244,9 +244,9 @@ public class ProxyLogsActivity extends AppCompatActivity {
         return Math.min(ProxyTunnelService.getProxyConnectedStreams(), vkTurnStreamCeiling(settings));
     }
 
-    // The ceiling the connected count is shown against: the relay's live worker fleet
-    // when it has reported one, else the configured thread count. The configured value
-    // goes stale the moment a threads live-patch or a drained worker resizes the fleet.
+    // Ceiling for the connected count: the relay's live worker fleet once it has
+    // reported one, else the configured thread count - which goes stale the moment a
+    // threads live-patch or a drained worker resizes the fleet
     private int vkTurnStreamCeiling(ProxySettings settings) {
         int fleet = ProxyTunnelService.getProxyWorkerStreams();
         return fleet > 0 ? fleet : settings.threads;
@@ -387,9 +387,9 @@ public class ProxyLogsActivity extends AppCompatActivity {
             Toast.makeText(this, R.string.proxy_logs_clear_failed, Toast.LENGTH_SHORT).show();
             return;
         }
-        // Сброс адаптера и счётчика версии - иначе следующий refresh решит, что
-        // изменений не было (lastRenderedLogVersion остаётся прежним) и не
-        // перерисует пустой стейт.
+        // Адаптер и счётчик версии сбрасываем вместе: иначе следующий refresh
+        // решит по неизменному lastRenderedLogVersion, что ничего не поменялось,
+        // и пустой стейт не нарисует
         displayedLines.clear();
         logsAdapter.notifyDataSetChanged();
         lastRenderedLogVersion = -1L;
@@ -446,10 +446,9 @@ public class ProxyLogsActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.proxy_logs_copy_done, Toast.LENGTH_SHORT).show();
     }
 
-    // Warn only when ACTUAL VK session cookie/token values are present in the log,
-    // not for the relay's request events (e.g. {"type":"vk_cookies_required"} or a
-    // truncated stdin-read line) which carry no secrets. These markers only appear
-    // inside a real cookie string.
+    // Warn only on real VK session cookie/token values. The relay's request events
+    // ({"type":"vk_cookies_required"}, a truncated stdin-read line) carry no secrets,
+    // and these markers only ever show up inside an actual cookie string
     private static boolean logContainsVkCookies(String text) {
         return (
             text.contains("remixsid=") ||
@@ -561,9 +560,9 @@ public class ProxyLogsActivity extends AppCompatActivity {
         if (itemCount <= 0) {
             return;
         }
-        // Capture the RecyclerView locally: the posted runnable runs later and must
-        // not re-read binding, which onDestroy nulls out while a scroll is queued
-        // during a burst of log lines (NPE on binding.recyclerProxyLogs otherwise).
+        // Hold the RecyclerView locally: the posted runnable runs later and must not
+        // re-read binding, which onDestroy nulls out while a scroll sits queued from
+        // a burst of log lines - straight NPE on binding.recyclerProxyLogs
         RecyclerView recycler = binding.recyclerProxyLogs;
         recycler.post(() -> recycler.scrollToPosition(itemCount - 1));
     }

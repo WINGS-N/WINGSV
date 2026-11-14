@@ -9,15 +9,13 @@ import dev.oneuiproject.oneui.layout.ToolbarLayout;
 import wings.v.databinding.ActivityByeDpiSettingsBinding;
 import wings.v.ui.ByeDpiSettingsFragment;
 
-/** Hosts the ByeDPI settings screen. */
+/** Hosts the ByeDPI settings screen */
 public class ByeDpiSettingsActivity extends AppCompatActivity {
 
-    /** Required empty constructor. */
     public ByeDpiSettingsActivity() {
         super();
     }
 
-    /** Creates an intent for the ByeDPI settings screen. */
     public static Intent createIntent(final Context context) {
         return new Intent(context, ByeDpiSettingsActivity.class);
     }

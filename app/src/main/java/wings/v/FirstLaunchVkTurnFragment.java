@@ -337,9 +337,9 @@ public class FirstLaunchVkTurnFragment extends Fragment {
 
     private void loadSettings(ProxySettings settings) {
         applyingValues = true;
-        // Always edit the VK TURN endpoint here. settings.endpoint is resolved per backend,
-        // so in a plain WireGuard/AmneziaWG session it would be the wrong endpoint and saving
-        // this form would wipe the stored VK TURN endpoint.
+        // Always the VK TURN endpoint here: settings.endpoint resolves per backend, so
+        // in a plain WireGuard/AmneziaWG session it points elsewhere and saving this
+        // form would wipe the stored VK TURN one
         setText(AppPrefs.KEY_ENDPOINT, AppPrefs.getTurnEndpoint(requireContext()));
         setText(AppPrefs.KEY_VK_LINK, settings.vkLink);
         setText(AppPrefs.KEY_THREADS, String.valueOf(settings.threads > 0 ? settings.threads : 24));

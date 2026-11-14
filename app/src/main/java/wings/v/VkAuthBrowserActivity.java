@@ -29,28 +29,16 @@ import wings.v.databinding.ActivityVkAuthBrowserBinding;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Browser for the VK account-auth TURN flow. It loads vk.com DIRECTLY in a
- * WebView inside a OneUI ToolbarLayout with a loading status, a progress
- * indicator and onReceivedError handling. Once the VK web session is signed in,
- * it hands the live session cookies + WebView User-Agent to ProxyTunnelService
- * (in process :tunnel) via ACTION_VK_COOKIES; the service forwards them to the
- * relay process stdin as one vk_cookies JSON line, and the relay mints the
- * privileged web token and runs the OK-infra TURN chain itself.
+ * Браузер для входа в VK, с которого начинается цепочка TURN. Куки живой сессии
+ * и User-Agent уезжают в ProxyTunnelService, тот скармливает их релею, а релей
+ * уже сам добывает привилегированный токен.
  *
- * The VK login session is persisted in the WebView CookieManager so the user
- * does not have to re-login across runs. If the user is not signed in, the same
- * WebView shows VK's login page; after login the cookies persist.
+ * На время входа прибиваем ЭТОТ процесс к физической сети: туннель в этот
+ * момент ещё собирается, и через полусобранный VPN WebView не достучится
+ * никуда. Процесс :tunnel это не задевает.
  *
- * Direct connectivity: the relay/tunnel may not be connected yet while auth is
- * pending, so the WebView must not route through the half-built VPN tunnel. We
- * bind THIS process (the main process, where the WebView lives) to the
- * underlying non-VPN network for the duration of the auth; the :tunnel process
- * is unaffected.
- *
- * The relay drives completion and failure over the JSONL PROXY_EVENT channel
- * (vk_account_auth_complete / vk_account_auth_failed); ProxyTunnelService reacts
- * to those by re-launching this activity with a FINISH action so the browser
- * closes across the process boundary.
+ * Закрывается activity не сама: релей шлёт событие, служба пинает её заново с
+ * FINISH - через границу процессов иначе не дотянуться
  */
 @SuppressWarnings(
     {

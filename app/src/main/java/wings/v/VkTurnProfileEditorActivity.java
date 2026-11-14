@@ -26,13 +26,12 @@ import wings.v.databinding.ActivityVkTurnProfileEditorBinding;
 import wings.v.service.ProxyTunnelService;
 
 /**
- * Editor for a VK TURN profile. It edits the VK TURN endpoint (layered on top of
- * the transport) and which transport the profile references: the transport kind
- * (WireGuard / AmneziaWG) plus which WG/AWG profile by id. The transport's own
- * config is edited through that WG/AWG profile's editor, so this screen only
- * keeps the reference stable. An "open UI editor" button makes the profile
- * active and opens the VK TURN settings screen scoped to it, folding the flat
- * key edits back into the active profile on return.
+ * Editor for a VK TURN profile: the endpoint layered on top of the transport, plus
+ * which transport the profile references - kind (WireGuard / AmneziaWG) and WG/AWG
+ * profile id. The transport's own config belongs to that profile's editor, so this
+ * screen only keeps the reference stable. The UI editor button makes the profile
+ * active, opens the VK TURN settings scoped to it and folds the flat-key edits back
+ * on return
  */
 @SuppressWarnings(
     {
@@ -98,10 +97,9 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
         refreshTransportLabels();
     }
 
-    // A panel-managed profile provisions its wg transport (keys, address, server
-    // key) dynamically on connect, so none of the transport config is user-editable:
-    // the transport pickers, the wg UI editor and the endpoint are read-only, with
-    // an explanatory hint.
+    // A panel-managed profile gets its wg transport - keys, address, server key -
+    // on connect, so none of that config is editable here: the transport pickers,
+    // the wg UI editor and the endpoint stay read-only behind a hint
     private void applyManagedReadOnly() {
         if (!managed) {
             return;
@@ -116,8 +114,8 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Returning from the UI editor folds flat edits back into the active
-        // profile; reflect any changed endpoint / transport here.
+        // The UI editor folds its flat edits back into the active profile, so a
+        // changed endpoint or transport has to show up here
         if (binding == null || !returningFromUiEditor) {
             return;
         }
@@ -143,8 +141,8 @@ public class VkTurnProfileEditorActivity extends AppCompatActivity {
                 item.getItemId() == 1 ? VkTurnProfile.TRANSPORT_KIND_AWG : VkTurnProfile.TRANSPORT_KIND_WG;
             if (!TextUtils.equals(nextKind, transportKind)) {
                 transportKind = nextKind;
-                // Reset the referenced profile when the kind changes; the next
-                // chooser picks a profile of the matching transport store.
+                // A changed kind invalidates the reference; the next chooser picks
+                // from the matching transport store
                 transportProfileId = "";
                 refreshTransportLabels();
             }
