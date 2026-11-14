@@ -274,8 +274,8 @@ public final class XrayBridge {
         synchronized (JNI_LOCK) {
             File datDir = ensureDatDir(context);
             LibXray.setAssetDir(datDir.getAbsolutePath());
-            // Ядро само поднимает инстанс и ходит через указанный outbound,
-            // локальный socks для замера больше не нужен
+            // Ядро само поднимает инстанс и ходит через указанный outbound, так что
+            // локальный socks под замер не нужен
             JSONObject item = new JSONObject();
             item.put("xrayJson", configJson);
             item.put("outboundTag", XrayAutoSearchConfigFactory.PROXY_TAG);
@@ -397,10 +397,8 @@ public final class XrayBridge {
     }
 
     /**
-     * Public hook for one-time warmup of the native library, typically
-     * called from ProxyTunnelService.onCreate on a background thread so
-     * the JNI link + Go runtime init happen off the user-perceived start
-     * path. Cheap no-op on repeat calls.
+     * Gets the JNI link and the Go runtime init off the start path - callers do this on a
+     * background thread long before the first real call. No-op once loaded
      */
     public static void warmupRuntimeLoad() {
         ensureLoaded();
@@ -415,10 +413,8 @@ public final class XrayBridge {
     }
 
     /**
-     * Sets the application context used by {@link #UID_LOOKUP_CONTROLLER} to
-     * obtain {@link ConnectivityManager#getConnectionOwnerUid}. The context
-     * is stored as a static reference; pass an Application context to avoid
-     * Activity leaks.
+     * Context for {@link ConnectivityManager#getConnectionOwnerUid}. Held in a static, so
+     * pass an Application context unless you want to leak an Activity
      */
     public static void setUidLookupContext(Context applicationContext) {
         UID_LOOKUP_CONTEXT.set(applicationContext);
@@ -445,7 +441,7 @@ public final class XrayBridge {
 
     /**
      * Один вызов в libXray. Библиотека свела всё к единственной двери, куда едет
-     * имя метода и его данные, поэтому обёртка тут одна на всех.
+     * имя метода и его данные, поэтому обёртка тут одна на всех
      */
     private static JSONObject invoke(String method, JSONObject payload) throws Exception {
         JSONObject request = new JSONObject();
