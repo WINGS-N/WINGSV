@@ -805,8 +805,8 @@ public class ProxyTunnelService extends Service {
 
     /**
      * Крутится ли ядро прямо сейчас, каким бы ни был бэкенд. isRunning стоит
-     * последним нарочно: флаги при сбоях на старте могли не проставиться, а
-     * живое ядро всё равно надо погасить
+     * последним нарочно: при сбое на старте флаги проставиться не успевают, а
+     * живое ядро гасить всё равно надо нахуй
      */
     private boolean xrayRuntimeEngaged() {
         return (
@@ -3067,10 +3067,9 @@ public class ProxyTunnelService extends Service {
         runFastStopCleanupStep("ByeDPI front proxy stop", BYEDPI_STOP_TIMEOUT_MS + 250L, this::stopByeDpiFrontProxy);
 
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly();
-        // Ядро поднимается не только под своим бэкендом: VK TURN и WG гоняют его
-        // рантаймом. Спрашивать тип бэкенда тут нельзя - при отключении VK TURN
-        // ядро оставалось жить, держало redirect-порт, и следующий коннект падал
-        // с bind: address already in use
+        // Спрашиваем живое ядро, а не тип бэкенда: VK TURN и WG гоняют Xray
+        // рантаймом, и незаглушённое ядро держит redirect-порт намертво, а
+        // следующий коннект обсирается с bind: address already in use
         if (xrayRuntimeEngaged()) {
             if (activeXrayTproxyMode) {
                 runFastStopCleanupStep("Xray TPROXY routing revert", FAST_STOP_ROOT_CLEANUP_TIMEOUT_MS, () ->
