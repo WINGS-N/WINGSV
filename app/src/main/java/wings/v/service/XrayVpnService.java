@@ -59,13 +59,11 @@ public class XrayVpnService extends VpnService implements DialerController {
     private static final long SERVICE_WAIT_POLL_MS = 250L;
     private static final int SERVICE_START_ATTEMPTS = 3;
     private static final long SERVICE_RETRY_DELAY_MS = 350L;
-    // Liveness watchdog для ProxyTunnelService: ловит узкий failure mode
-    // (tunnelLock-deadlock в Java-слое). Большинство реальных отказов
-    // отлавливается hasActiveTunnel/isRunning/isServiceAlive инстантно, а
-    // elapsedRealtime() пересекает Doze и даёт false-positive после длинного
-    // idle. Сейчас выключено через HEARTBEAT_LOOP_ENABLED; чтобы вернуть -
-    // поставить true и снять флаг XRAY_HEARTBEAT_CHECK_ENABLED в
-    // ProxyTunnelService.
+    // Watchdog ловит один узкий случай - дедлок на tunnelLock в Java-слое. Остальные
+    // отказы мгновенно видны по hasActiveTunnel/isRunning/isServiceAlive, а
+    // elapsedRealtime() тикает и в Doze, поэтому после долгого простоя watchdog врёт.
+    // Выключен; чтобы вернуть - true тут и флаг XRAY_HEARTBEAT_CHECK_ENABLED в
+    // ProxyTunnelService
     private static final boolean HEARTBEAT_LOOP_ENABLED = false;
     private static final long HEARTBEAT_INTERVAL_MS = 50_000L;
     private static final String VPN_ADDRESS_V4 = "172.19.0.1";
@@ -129,9 +127,8 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     /**
-     * Ищет имя активного tun-интерфейса, на котором подвешен наш VPN_ADDRESS_V4.
-     * Android даёт VpnService.Builder.establish() безымянный fd; реальное
-     * имя tunN восстанавливается перебором NetworkInterface'ов.
+     * Ищет имя активного tun-интерфейса по нашему VPN_ADDRESS_V4: establish() отдаёт
+     * безымянный fd, и настоящее tunN остаётся только искать перебором интерфейсов
      */
     @Nullable
     public static String findActiveTunInterfaceName() {
@@ -389,16 +386,15 @@ public class XrayVpnService extends VpnService implements DialerController {
     private void applyAppRouting(Builder builder) {
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(this);
         AppRoutingMode mode = AppPrefs.getAppRoutingMode(this);
-        // ByeDPI per-app routing diverts these apps at the TUN level, so they
-        // must stay INSIDE the VpnService tunnel regardless of the routing mode:
-        // whitelist them explicitly, and never disallow them under plain Bypass.
+        // ByeDPI diverts these apps at the TUN level, so whatever the routing mode says
+        // they have to stay inside the VpnService tunnel
         Set<String> byeDpiPackages = AppPrefs.getByeDpiAppPackages(this);
         if (packages.isEmpty()) {
             if (mode == AppRoutingMode.WHITELIST) {
-                // An empty whitelist must tunnel NOTHING, not everything. Without an
-                // addAllowedApplication call the VpnService captures every app, so
-                // restrict it to our own package: the proxy's upstream sockets are
-                // protected (they bypass the VPN), so no other app is tunneled.
+                // An empty whitelist must tunnel nothing, and a Builder with no
+                // addAllowedApplication call captures every app instead. Our own package
+                // is the narrowest thing to allow - the proxy's upstream sockets are
+                // protected, so nothing actually rides the tunnel
                 try {
                     builder.addAllowedApplication(getPackageName());
                     addByeDpiAllowedApplications(builder, byeDpiPackages);
@@ -428,10 +424,8 @@ public class XrayVpnService extends VpnService implements DialerController {
                     "App routing: WHITELIST addAllowedApplication x" + packages.size()
                 );
             } else if (mode == AppRoutingMode.BYPASS) {
-                // Plain Bypass: exclude the selected apps at the Android layer.
-                // Simple and native, but a non-excluded app could still escape the
-                // tunnel by binding directly to the underlying interface. A ByeDPI
-                // per-app app stays tunneled so its TUN divert can fire.
+                // Android's own exclusion: cheap, but an app that is not excluded can
+                // still walk out of the tunnel by binding the underlying interface
                 for (String packageName : packages) {
                     if (byeDpiPackages.contains(packageName)) {
                         continue;
@@ -439,23 +433,18 @@ public class XrayVpnService extends VpnService implements DialerController {
                     builder.addDisallowedApplication(packageName);
                 }
             }
-            // XBYPASS / XWHITELIST modes: deliberately do NOT touch the
-            // VpnService app list. Every app's traffic enters the tunnel,
-            // xray-core resolves the owning UID of each connection and a
-            // routing rule sends the relevant ones to the direct/freedom
-            // outbound - the selected apps for xbypass, the non-selected apps
-            // for xwhitelist. This also catches apps that try to bypass by
-            // binding directly to tun (curl --interface tun0), which a plain
-            // disallow cannot.
-            // OFF mode: packages is empty above, so we never reach here.
+            // XBYPASS / XWHITELIST never touch the VpnService app list on purpose:
+            // everything enters the tunnel and xray picks the owning UID per connection,
+            // which also catches an app binding tun directly (curl --interface tun0) -
+            // something addDisallowedApplication cannot do. OFF never gets here, its
+            // package set is empty above
         } catch (Exception error) {
             throw new IllegalStateException(getString(wings.v.R.string.xray_app_routing_failed), error);
         }
     }
 
-    // Whitelist ByeDPI per-app packages into the tunnel so their TUN divert can
-    // fire. A missing package (uninstalled) is skipped rather than failing the
-    // whole build. Own package is never added.
+    // Keeps the ByeDPI apps in the tunnel so their TUN divert can fire. One uninstalled
+    // package must not take the whole Builder down with it
     private void addByeDpiAllowedApplications(Builder builder, Set<String> byeDpiPackages)
         throws PackageManager.NameNotFoundException {
         if (byeDpiPackages == null || byeDpiPackages.isEmpty()) {
@@ -469,7 +458,7 @@ public class XrayVpnService extends VpnService implements DialerController {
             try {
                 builder.addAllowedApplication(packageName);
             } catch (PackageManager.NameNotFoundException ignored) {
-                // Uninstalled ByeDPI app: skip, keep the rest of the whitelist.
+                // Uninstalled: skip it, keep the rest of the whitelist
             }
         }
     }
@@ -485,11 +474,10 @@ public class XrayVpnService extends VpnService implements DialerController {
     }
 
     /**
-     * Advertises the WireGuard [Interface] DNS line on backends that have one, which is also what
-     * XrayConfigFactory feeds to xray's own resolver. Without this the tun advertised 1.1.1.1 no
-     * matter what the user configured: the xray DNS fields it used to read default to a DoH URL,
-     * and a URL cannot be handed to VpnService at all, so both lookups came back empty and fell
-     * through to the hardcoded fallback.
+     * Advertises the WireGuard [Interface] DNS line, the same one XrayConfigFactory feeds to
+     * xray's own resolver. The xray DNS fields default to a DoH URL, and a URL cannot go to
+     * VpnService at all, so reading them instead leaves the tun on the hardcoded fallback no
+     * matter what the user configured
      */
     private boolean addWireGuardDnsServers(Builder builder, ProxySettings settings) {
         if (settings.backendType == null || !usesWireGuardDnsPreference(settings.backendType)) {
@@ -499,7 +487,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         boolean added = false;
         for (String candidate : splitDnsList(settings.wgDns)) {
             String normalized = normalizeDnsServerForVpn(candidate);
-            // An IPv6 resolver is unreachable when the tun carries no IPv6 address or route.
+            // An IPv6 resolver is dead weight on a tun with no IPv6 address or route
             if (TextUtils.isEmpty(normalized) || (!ipv6Enabled && normalized.indexOf(':') >= 0)) {
                 continue;
             }
@@ -515,7 +503,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         return backendType.usesWireGuardSettings() || backendType.usesTurnProxy();
     }
 
-    // Package-visible for XrayVpnDnsTest.
+    // Package-visible for XrayVpnDnsTest
     static List<String> splitDnsList(String value) {
         if (TextUtils.isEmpty(value)) {
             return Collections.emptyList();
@@ -567,9 +555,9 @@ public class XrayVpnService extends VpnService implements DialerController {
             .append(trim(xraySettings != null ? xraySettings.remoteDns : null))
             .append('|')
             .append(trim(xraySettings != null ? xraySettings.directDns : null))
-            // The advertised DNS now also depends on the WireGuard DNS line and on which backend
-            // is active, so both have to be part of the signature or editing the DNS reuses the
-            // existing tun and the new server silently never reaches the system.
+            // The advertised DNS depends on the WireGuard DNS line and on the active backend,
+            // so both belong in the signature: otherwise editing the DNS reuses the existing
+            // tun and the new server never reaches the system
             .append('|')
             .append(trim(settings != null ? settings.wgDns : null))
             .append('|')
@@ -645,7 +633,7 @@ public class XrayVpnService extends VpnService implements DialerController {
         return value == null ? "" : value.trim();
     }
 
-    // Package-visible for XrayVpnDnsTest.
+    // Package-visible for XrayVpnDnsTest
     static String normalizeDnsServerForVpn(String value) {
         if (TextUtils.isEmpty(value)) {
             return "";

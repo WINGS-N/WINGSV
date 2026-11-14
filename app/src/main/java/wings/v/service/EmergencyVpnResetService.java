@@ -22,10 +22,10 @@ public final class EmergencyVpnResetService extends VpnService {
     private static final AtomicBoolean PULSE_IN_FLIGHT = new AtomicBoolean();
 
     /**
-     * Establishes a throwaway VPN for holdMs, which revokes whoever holds the system's single VPN
-     * slot. The reason is written to the runtime log next to the displacement itself: a backend
-     * losing the slot surfaces only as a bare tunnel-DOWN, so without it there is no way to tell a
-     * pulse we fired on purpose from a tunnel that died on its own.
+     * Establishes a throwaway VPN for holdMs, which revokes whoever holds the system's single
+     * VPN slot. The reason goes into the runtime log right next to the displacement, because a
+     * backend losing the slot shows up as a bare tunnel-DOWN - otherwise a pulse we fired on
+     * purpose looks exactly like a tunnel that died on its own
      */
     public static void pulse(@Nullable Context context, long holdMs, String reason) {
         Context appContext = context != null ? context.getApplicationContext() : null;

@@ -28,9 +28,8 @@ public abstract class XrayAutoSearchProbeService extends Service {
     private static final String EXTRA_RECEIVER = "receiver";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    // Per-process cancel flag. Each worker runs in its own process (see manifest:
-    // android:process=":autosearch_probe_N"), so this is naturally scoped to the
-    // currently active probe in this worker.
+    // Cancel flag per process: each worker lives in its own (manifest
+    // android:process=":autosearch_probe_N"), so this covers exactly the probe running here
     private static final AtomicBoolean CANCEL = new AtomicBoolean(false);
 
     public static int workerCount() {

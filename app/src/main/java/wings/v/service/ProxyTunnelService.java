@@ -192,8 +192,8 @@ public class ProxyTunnelService extends Service {
     private static final int CAPTCHA_LOCKOUT_PARTS_MIN = 2;
     private static final int PROC_NET_DEV_MIN_COLUMNS = 9;
     private static final String PROC_NET_DEV_PATH = "/proc/net/dev";
-    // Coalesces the two per-tick readers onto one root read (a su spawn in standalone
-    // mode) when the app process itself is denied /proc/net/dev.
+    // Когда самому процессу /proc/net/dev закрыт, оба читателя за тик схлопываются
+    // в одно root-чтение: иначе каждый тик форкает свой su
     private static final long PROC_NET_DEV_ROOT_CACHE_MS = 750L;
     private static final String DUMPSYS_TETHER_STATE_HEADER = "Tether state:";
     private static final String PROXY_STATUS_AUTH_READY = "auth_ready";
@@ -220,27 +220,23 @@ public class ProxyTunnelService extends Service {
     public static final String ACTION_STOP = "wings.v.action.STOP";
     public static final String ACTION_REFRESH_IP = "wings.v.action.REFRESH_IP";
     public static final String ACTION_RECONNECT = "wings.v.action.RECONNECT";
-    // Live-patch a set of runtime-mutable VK TURN settings over AppControl gRPC
-    // instead of tearing the relay down. EXTRA_PATCH_KEYS carries the changed
-    // preference keys; the service reads their current values and sends the delta.
+    // Докручивает живые настройки VK TURN через AppControl gRPC, без сноса релея.
+    // В EXTRA_PATCH_KEYS едут только ключи, значения сервис дочитывает сам
     public static final String ACTION_LIVE_PATCH = "wings.v.action.LIVE_PATCH";
     private static final String EXTRA_PATCH_KEYS = "wings.v.extra.PATCH_KEYS";
-    // Broadcast from the :tunnel process to the settings UI reporting the live-apply
-    // status of one patched field (relay field key / state / message).
+    // Из :tunnel в настройки: как лёг один пропатченный филд (ключ / состояние / текст)
     public static final String ACTION_PATCH_STATUS = "wings.v.action.PATCH_STATUS";
     public static final String EXTRA_PATCH_FIELD = "wings.v.extra.PATCH_FIELD";
     public static final String EXTRA_PATCH_STATE = "wings.v.extra.PATCH_STATE";
-    // Broadcast when the relay reports a managed client's traffic-limit usage, so
-    // the profiles UI refreshes the per-profile quota bar.
+    // Релей отчитался по расходу managed-клиента - профилям пора перерисовать квоту
     public static final String ACTION_TRAFFIC_USAGE = "wings.v.action.TRAFFIC_USAGE";
     public static final String EXTRA_TRAFFIC_CLIENT_ID = "wings.v.extra.TRAFFIC_CLIENT_ID";
     public static final String EXTRA_PATCH_MESSAGE = "wings.v.extra.PATCH_MESSAGE";
     public static final String ACTION_REAPPLY_SHARING = "wings.v.action.REAPPLY_SHARING";
     public static final String ACTION_SYNC_RUNTIME = "wings.v.action.SYNC_RUNTIME";
     public static final String ACTION_RESTORE_SHARING_ON_BOOT = "wings.v.action.RESTORE_SHARING_ON_BOOT";
-    // Delivers intercepted VK TURN credentials (or a cancel) from
-    // VkAuthBrowserActivity (main process) to this service (:tunnel); the service
-    // writes one vk_account_creds JSON line to the relay process stdin.
+    // Перехваченные креды VK TURN (или отмена) едут из main-процесса в :tunnel:
+    // только отсюда можно дописать vk_account_creds в stdin релея
     public static final String ACTION_VK_ACCOUNT_CREDS = "wings.v.action.VK_ACCOUNT_CREDS";
     public static final String EXTRA_VK_LINK = "wings.v.extra.VK_LINK";
     public static final String EXTRA_VK_USERNAME = "wings.v.extra.VK_USERNAME";
@@ -264,14 +260,13 @@ public class ProxyTunnelService extends Service {
     private static final long PROXY_WARMUP_POLL_MS = 250L;
     private static final long PROXY_RETRY_DELAY_MS = 1_000L;
     private static final long RUNTIME_RECONNECT_DELAY_MS = 1_500L;
-    /** Backoff schedule for auto-retry after a failed runtime start. After the
-     *  last entry we keep using its value (so retries never give up). Streak
-     *  resets to zero once the runtime reaches RUNNING. */
+    /** Лестница ретраев после обосравшегося старта рантайма: на последней ступени
+     *  залипаем навсегда, сдаваться нельзя. Серия обнуляется на RUNNING */
     private static final long[] RUNTIME_START_RETRY_DELAYS_MS = { 5_000L, 10_000L, 20_000L, 40_000L, 60_000L };
     private static final long NETWORK_WAIT_LOG_INTERVAL_MS = 10_000L;
     private static final long RUNTIME_SUPERVISOR_INTERVAL_MS = 5_000L;
-    // Faster supervisor cadence while a downstream is shared through the tproxy
-    // tunnel, so a flushed chain or carve-out is restored within ~3s.
+    // Пока через tproxy раздаём наружу, супервизор бегает чаще: снесённую цепочку
+    // или вырезку надо вернуть за ~3s, иначе клиенты сидят без интернета
     private static final long RUNTIME_SUPERVISOR_SHARING_INTERVAL_MS = 3_000L;
     private static final long STATS_SAMPLE_FAST_INTERVAL_MS = 100L;
     private static final long STATS_SAMPLE_BACKGROUND_INTERVAL_MS = 500L;
@@ -323,20 +318,16 @@ public class ProxyTunnelService extends Service {
     private static final long WB_STREAM_EXCHANGE_RETRY_DELAY_MS = 4_000L;
     private static final int MAX_PROXY_LOG_LINES = 600;
     private static final long ROOT_TETHER_SYNC_INTERVAL_MS = 3_000L;
-    // Android periodically wipes the tether masquerade/routing on its own (network
-    // events), so even when our desired state is unchanged we must re-apply on a
-    // cadence; otherwise the rules stay gone and sharing clients lose internet
-    // until a manual reapply. Force a full re-apply at least this often. This is the
-    // only self-heal for the vendored masquerade, which cannot be probed cheaply the
-    // way the iptables carve-outs can, so it is deliberately short.
+    // Android сам вытирает tether-masquerade на сетевых событиях, так что даже при
+    // неизменном желаемом состоянии правила приходится перекладывать по таймеру.
+    // Для masquerade это единственный self-heal: дёшево проверить его, как вырезки
+    // в iptables, нельзя - отсюда такой короткий интервал
     private static final long ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS = 10_000L;
-    // Between forced reapplies, probe the forwarded REDIRECT carve-out this often and
-    // re-assert immediately if it drifted. The probe is one su round trip, so it runs on
-    // its own throttle rather than every 3s tether sync, which the skip-no-op exists to
-    // avoid.
+    // Между форсированными реапплаями проверяем вырезку REDIRECT для forwarded. Проба -
+    // это целый su round trip, поэтому у неё свой троттл, а не каждый 3s-синк тезера
     private static final long ROOT_TETHER_DRIFT_CHECK_INTERVAL_MS = 5_000L;
-    // Delay before the one-shot tether reconcile after start, so the VPN/relay and
-    // the system tether interface have settled before we clear+reapply.
+    // Разовый reconcile тезера после старта ждёт, пока VPN/релей и системный
+    // tether-интерфейс устоятся: сносить и класть заново по живому бессмысленно
     private static final long TETHER_RECONCILE_ON_START_DELAY_MS = 4_000L;
     private static final int TRANSIENT_ERROR_NOTICE_THRESHOLD = 6;
     private static final long TRANSIENT_ERROR_NOTICE_WINDOW_MS = 20_000L;
@@ -352,16 +343,14 @@ public class ProxyTunnelService extends Service {
     private static final int ROOT_TETHER_RULE_PRIORITY_BLOCK_SYSTEM = 17980;
     private static final int ROOT_APP_TUNNEL_PRIORITY = 12128;
     private static final int ROOT_DHCP_WORKAROUND_PRIORITY = 11000;
-    // Routes the WG DNS server back through the tunnel above the bypass rules
-    // (12000+), so bypassed apps still resolve via wgDns instead of having their
-    // DNS dragged out to the physical network where wgDns is unreachable.
+    // Загоняет wgDns обратно в туннель выше bypass-правил (12000+): иначе DNS
+    // обойдённых приложений утаскивает в физическую сеть, где wgDns недоступен
     private static final int ROOT_BYPASS_DNS_PRIORITY = 11950;
     private static final String ROOT_TETHER_FORWARD_CHAIN = "wingsv_t_fwd";
     private static final String ROOT_TETHER_NAT_CHAIN = "wingsv_t_nat";
     private static final String ROOT_TETHER_DNS_CHAIN = "wingsv_t_dns";
-    // mangle chain that re-marks bypassed apps' packets with the underlying cellular
-    // netId fwmark, so they egress the physical default like the protected tunnel
-    // socket instead of being dropped for carrying the WG netId mark on cellular.
+    // mangle-цепочка перебивает fwmark обойдённых приложений на netId физической
+    // сотовой: с WG-меткой на cellular пакет просто дропается нахуй
     private static final String ROOT_BYPASS_MARK_CHAIN = "wingsv_bypass_mark";
     private static final String ROOT_TETHER_IPV6_CHAIN = "wingsv_t6_fwd";
     private static final String TAG = "WINGSV";
@@ -492,12 +481,11 @@ public class ProxyTunnelService extends Service {
     private volatile ScheduledFuture<?> pendingReconnectTask;
     private final AtomicInteger runtimeGeneration = new AtomicInteger();
     private static final long APP_CONTROL_COOKIE_POLL_INTERVAL_MS = 3000L;
-    // Telemetry rides a blocking server stream (event-driven, no poll). This is only
-    // the backoff before re-subscribing when the stream drops (e.g. relay warmup).
+    // Telemetry rides a blocking server stream, no polling. This is only the pause
+    // before re-subscribing when the stream drops, e.g. while the relay warms up
     private static final long APP_CONTROL_TELEMETRY_RETRY_MS = 500L;
-    // Managed-provisioning retry window: the relay launched under su (root/kernel-WG)
-    // can take a few seconds to listen + chown the AppControl socket, so retry the
-    // provision RPC over this window before giving up.
+    // A relay launched under su (root / kernel-WG) takes a few seconds to bind and
+    // chown the AppControl socket, so the provision RPC retries across this window
     private static final long APP_CONTROL_PROVISION_TIMEOUT_MS = 20_000L;
     private static final long APP_CONTROL_PROVISION_RETRY_MS = 500L;
     private final AtomicBoolean rootTetherSyncQueued = new AtomicBoolean();
@@ -527,29 +515,25 @@ public class ProxyTunnelService extends Service {
     private org.amnezia.awg.config.Config awgConfig;
     private org.amnezia.awg.backend.Tunnel awgTunnel;
     private Process proxyProcess;
-    // Serializes writes to the relay process stdin (vk_account_creds lines).
+    // One writer at a time into the relay stdin: vk_account_creds lines must not interleave
     private final Object proxyStdinLock = new Object();
-    // AppControl local gRPC to the running relay (non-root path only). While set,
-    // VK cookies flow in via SetVKCookies and rotated cookies out via a
-    // GetVKCookies poller, replacing the stdin/stdout cookie lines; the root path
-    // leaves both null and keeps the vk_session.json file channel.
+    // Local AppControl gRPC to the live relay, non-root path only. While it is up,
+    // cookies travel over SetVKCookies / GetVKCookies instead of stdin/stdout lines.
+    // The root path leaves both null and keeps the vk_session.json file channel
     private volatile boolean appControlGrpcActive;
     private volatile wings.v.ipc.AppControlClient appControlClient;
     private Thread appControlCookiePoller;
     private Thread appControlTelemetryPoller;
     private Thread appControlEventPoller;
-    // True while the running relay was launched with VK account-auth mode and
-    // its stdin is writable (non-root ProcessBuilder path only). Used to gate
-    // the VK_ACCOUNT_AUTH_REQUIRED handling and stdin writes.
+    // The live relay runs in VK account-auth mode and its stdin is writable, which
+    // only the non-root ProcessBuilder path gives us. Nothing touches stdin otherwise
     private volatile boolean vkAccountAuthActive;
-    // The local relay URL of an in-flight account-auth request (browser launched
-    // / notification posted, awaiting complete or failed). Non-null means do not
-    // start another activity/notification; the relay re-emits the event.
+    // Relay URL of an account-auth request still in flight. While it is non-null we
+    // skip a second browser and a second notification: the relay re-emits the event
     private volatile String vkAccountAuthInFlightUrl;
     private volatile boolean vkCookiesRequestInFlight;
-    // Silent-delivery escalation: when persisted cookies keep getting rejected (the
-    // relay re-requests within the window this many times in a row), fall back to
-    // the visible login browser instead of looping silently.
+    // When the relay rejects persisted cookies this many times in a row inside the
+    // window, stop looping silently and show the user the login browser
     private static final long SILENT_COOKIE_REJECT_WINDOW_MS = 15_000L;
     private static final int SILENT_COOKIE_REJECT_LIMIT = 3;
     private long lastSilentCookieDeliveryMs;
@@ -561,11 +545,11 @@ public class ProxyTunnelService extends Service {
     private ToolsInstaller toolsInstaller;
     private RootRoutingState rootRoutingState;
 
-    /** The su-forked ByeDPI on the TPROXY path; null when it runs in-process. */
+    /** The su-forked ByeDPI on the TPROXY path; null when it runs in-process */
     @Nullable
     private volatile Process byeDpiRootProcess;
 
-    /** Non-zero when the wingsvd module owns ByeDPI instead of us. */
+    /** Non-zero when the wingsvd module owns ByeDPI instead of us */
     private volatile long byeDpiDaemonChildId;
 
     private volatile XrayStatsClient xrayStatsClient;
@@ -581,19 +565,16 @@ public class ProxyTunnelService extends Service {
     private boolean activeXrayTproxyMode;
     private boolean activeXrayWgRuntime;
     private Process tproxyXrayProcess;
-    // Signalled by the proxy output reader when xray-core logs that its TPROXY
-    // TCP listener bound. We watch the stdout marker instead of probing the
-    // port with a TCP connect: the connect path triggers xray's loopback check
-    // (since conn.LocalAddr() of a transparent socket equals listener ip:port,
-    // and IsLocal returns true for 127.0.0.1) which closes the probe and makes
-    // us time out into process.destroy() and SIGKILL the helper (exit 137).
+    // Readiness comes off the stdout marker, not a TCP connect to the port: on a
+    // transparent socket conn.LocalAddr() equals the listener ip:port and IsLocal
+    // says true for 127.0.0.1, so xray takes the probe for a loop and closes it. Then
+    // we time out, call process.destroy() and SIGKILL the helper (exit 137)
     private final AtomicBoolean tproxyListenerReady = new AtomicBoolean(false);
     private Thread tproxyErrorLogTailer;
     private volatile boolean tproxyErrorLogTailerStop;
-    // The Xray TPROXY listener binds a fresh random free port on each start
-    // (allocated by allocateFreeTproxyPort at connect and reused for the config,
-    // iptables and readiness checks). This constant is only the fallback when the
-    // free-port probe fails.
+    // allocateFreeTproxyPort picks the listener port on every start, and the config,
+    // iptables and readiness checks all reuse it. This value is only what we fall
+    // back to when the free-port probe fails
     private static final int XRAY_TPROXY_PORT_FALLBACK = 55555;
     private volatile int xrayTproxyPort = XRAY_TPROXY_PORT_FALLBACK;
     // Порт transparent-redirect этой сессии: стандартный, пока он свободен
@@ -654,14 +635,13 @@ public class ProxyTunnelService extends Service {
     private int sharingWifiLockMode = -1;
     private long xrayTrafficBaseRx = -1L;
     private long xrayTrafficBaseTx = -1L;
-    // Session totals carried across a change of stats SOURCE. The TPROXY path reads
-    // either Xray's exact counters or the loopback/mark reconstruction, and the two
-    // are not comparable: rebasing without carrying the total forward either freezes
-    // the counters at zero (small reconstruction minus a large Xray baseline clamps
-    // to 0 forever) or makes them jump by a whole Xray counter.
+    // Session totals carried across a change of stats SOURCE: Xray's exact counters
+    // and the loopback/mark reconstruction are not comparable. Rebase without the
+    // carry and the counters either stick at zero forever (a small reconstruction
+    // minus a large Xray baseline clamps to 0) or jump by a whole Xray counter
     private long xrayTrafficCarryRx;
     private long xrayTrafficCarryTx;
-    // Which source produced the last TPROXY sample; null until the first one.
+    // Which source produced the last TPROXY sample; null until the first one
     private Boolean tproxyStatsFromXrayApi;
     private long userspaceTrafficBaseRx = -1L;
     private long userspaceTrafficBaseTx = -1L;
@@ -685,15 +665,13 @@ public class ProxyTunnelService extends Service {
     private long cachedProcNetDevAtElapsedMs;
     private long lastProxyStartedAtElapsedMs;
     private volatile long lastProxyDtlsActivityAtElapsedMs;
-    // Number of VK TURN streams currently connected, reported by vktp telemetry.
-    // Shown on the home screen during connecting (connected/total threads).
+    // VK TURN streams connected right now, straight off vktp telemetry
     private static volatile int sProxyConnectedStreams;
-    // Size of the relay's live worker fleet, reported by the same telemetry. This is
-    // the honest ceiling for the connected count: a threads live-patch or a drained
-    // worker moves it, so the configured thread count goes stale. 0 = not reported.
+    // The relay's live worker fleet, and the honest ceiling for the connected count:
+    // a threads live-patch or a drained worker moves it, so the configured thread
+    // count lies. 0 means telemetry said nothing
     private static volatile int sProxyWorkerStreams;
-    // Current connecting sub-stage shown next to the status (captcha / TURN auth /
-    // TURN before streams start filling). Empty once streams are establishing.
+    // Connecting sub-stage shown next to the status; empties once streams start filling
     private static volatile String sConnectingStage = "";
     static final String CONNECT_STAGE_CAPTCHA = "captcha";
     static final String CONNECT_STAGE_AUTH = "auth";
@@ -925,8 +903,7 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Ask the running service to live-patch the given changed preference keys over
-    // AppControl gRPC (no relay restart). No-op unless the service is active.
+    // Live-patch the changed preference keys over AppControl gRPC, no relay restart
     public static void requestLivePatch(Context context, java.util.ArrayList<String> changedKeys) {
         Context appContext = context != null ? context.getApplicationContext() : null;
         if (appContext == null || !isActive() || changedKeys == null || changedKeys.isEmpty()) {
@@ -938,8 +915,8 @@ public class ProxyTunnelService extends Service {
         try {
             appContext.startService(intent);
         } catch (IllegalStateException | SecurityException ignored) {
-            // The service is already foreground when active; a start failure here just
-            // means the change lands on the next manual reconnect.
+            // The service is already foreground when active, so a failed start just
+            // means the change lands on the next manual reconnect
         }
     }
 
@@ -1008,29 +985,26 @@ public class ProxyTunnelService extends Service {
                 return;
             }
         }
-        // Skip everything during the narrow window after a runtime-affecting pref
-        // toggle (KEY_ROOT_MODE, KEY_KERNEL_WIREGUARD). The toggle triggers
-        // requestReconnect, then this app-start may see the process dead very
-        // briefly before the new instance comes up.
+        // Right after a KEY_ROOT_MODE / KEY_KERNEL_WIREGUARD toggle the reconnect it
+        // fires leaves a sliver where the old process is dead and the new one is not
+        // up yet, and app start would read that as a crash
         if (AppPrefs.wasRuntimeAffectingPrefRecentlyToggled(appContext, 30_000L)) {
             return;
         }
-        // No live runtime and not recovering: any kernel-WG interface WINGS V left
-        // behind is an orphan. Drop it on EVERY launch - an interface can linger
-        // across launches after the persisted state was already cleared, so this
-        // must not be gated behind state != STOPPED.
+        // No live runtime and no recovery in flight: any kernel-WG interface of ours
+        // is an orphan. Drop it on EVERY launch, not only when state != STOPPED - an
+        // interface outlives the persisted state and lingers across launches
         dropAbandonedKernelWgInterfaces(appContext);
         if (!cleanlyStopped) {
-            // A dead process with state != STOPPED means the runtime actually
-            // crashed; clear the stale state so the UI stops showing "connected".
+            // Dead process with state != STOPPED means the runtime crashed; clear it
+            // or the UI keeps showing "connected"
             clearStalePersistedRuntimeState(appContext);
         }
     }
 
     /**
-     * On startup, finds kernel-WireGuard interfaces that WINGS V created and that
-     * no live runtime owns anymore (left over after the tunnel process was killed)
-     * and deletes them. Runs off the main thread; no-op without root.
+     * Deletes our kernel-WireGuard interfaces that no live runtime owns anymore, the
+     * leftovers of a killed tunnel process. Off the main thread, no-op without root
      */
     public static void dropAbandonedKernelWgInterfaces(Context context) {
         if (context == null) {
@@ -1038,7 +1012,7 @@ public class ProxyTunnelService extends Service {
         }
         Context appContext = context.getApplicationContext();
         if (hasLocalService() || isTunnelRuntimeProcessAlive(appContext)) {
-            // A live service/process still owns the interface - not abandoned.
+            // A live service/process still owns the interface - not abandoned
             return;
         }
         if (!RootUtils.isRootAccessGranted(appContext)) {
@@ -1055,7 +1029,7 @@ public class ProxyTunnelService extends Service {
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private static void dropAbandonedKernelWgInterfacesBlocking(Context appContext) {
         try {
-            // Kernel WG (and tun) devices report link type 65534 (ARPHRD_NONE).
+            // Kernel WG (and tun) devices report link type 65534 (ARPHRD_NONE)
             String enumerated = execRootCommandCapturing(
                 "for f in /sys/class/net/*/type; do " +
                     "iface=${f%/type}; iface=${iface##*/}; " +
@@ -1072,8 +1046,7 @@ public class ProxyTunnelService extends Service {
             StringBuilder dropScript = new StringBuilder();
             for (String line : enumerated.split("\\R")) {
                 String name = line == null ? "" : line.trim();
-                // Only delete interfaces WINGS V actually manages (name template /
-                // legacy names), never a system tun or another app's wg device.
+                // Only our own managed names, never a system tun or another app's wg device
                 if (TextUtils.isEmpty(name) || !AppPrefs.matchesManagedRootWireGuardInterfaceName(appContext, name)) {
                     continue;
                 }
@@ -1385,7 +1358,7 @@ public class ProxyTunnelService extends Service {
         return sRuntimeLogVersion;
     }
 
-    /** Returned by {@link #snapshotRuntimeLogLinesSince(long)}. */
+    /** Returned by {@link #snapshotRuntimeLogLinesSince(long)} */
     public static final class RuntimeLogEntry {
 
         public final long seq;
@@ -1398,10 +1371,8 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Returns lines that arrived after {@code sinceVersion}, up to the in-memory
-     * deque cap. Each entry carries the monotonic sequence (== version-counter
-     * value at the moment the line was appended) so the reader can tail without
-     * gaps unless the deque already rotated past it.
+     * Each entry carries the monotonic sequence it got when it was appended, so a
+     * reader tails without gaps unless the deque already rotated past it
      */
     public static java.util.List<RuntimeLogEntry> snapshotRuntimeLogLinesSince(long sinceVersion) {
         long current = sRuntimeLogVersion;
@@ -1546,16 +1517,14 @@ public class ProxyTunnelService extends Service {
         return android.text.format.DateFormat.format("HH:mm:ss", System.currentTimeMillis()).toString() + " " + line;
     }
 
-    // Matches the JSON cookies field the relay emits on the root stdin/stdout
-    // channel (vk_cookies_update). The non-root path carries cookies over the
-    // AppControl gRPC instead, so its log never shows them.
+    // The cookies field of vk_cookies_update on the root stdin/stdout channel. The
+    // non-root path moves cookies over AppControl gRPC, so its log never shows them
     private static final java.util.regex.Pattern PROXY_COOKIE_PATTERN = java.util.regex.Pattern.compile(
         "(\"cookies\"\\s*:\\s*\")([^\"]*)(\")"
     );
 
-    // The root relay writes rotated VK cookies to stdout, which would otherwise be
-    // logged verbatim. Redact the value (keeping the char count) so the root log
-    // matches the non-root path, which never carries the cookie in the clear.
+    // The root relay rotates VK cookies through stdout, and we log stdout verbatim.
+    // Keep the char count, drop the value
     private static String redactProxyLogLine(String line) {
         if (line == null || line.indexOf("\"cookies\"") < 0) {
             return line;
@@ -1587,7 +1556,7 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.appendProxyLog(stamped);
     }
 
-    /** Public hook so other components (Guardian) can write into the runtime log. */
+    /** Public hook so other components (Guardian) can write into the runtime log */
     public static void writeRuntimeLogLine(String line) {
         appendRuntimeLogLine(line);
     }
@@ -1628,11 +1597,9 @@ public class ProxyTunnelService extends Service {
         RuntimeStateStore.initialize(this);
         sServiceRef = new WeakReference<>(this);
         createNotificationChannel();
-        // Hand the application context to XrayBridge so its UID lookup
-        // controller can reach ConnectivityManager.getConnectionOwnerUid().
-        // This is the only non-root API that lets the VPN see UIDs of
-        // connections crossing its tunnel, which is what backs the TUN
-        // TUN inbound's excludedUids/allowedUids enforcement.
+        // XrayBridge needs a context to reach ConnectivityManager.getConnectionOwnerUid(),
+        // the only non-root API that shows a VPN the UIDs behind connections crossing its
+        // tunnel. The TUN inbound's excludedUids/allowedUids rest on it
         XrayBridge.setUidLookupContext(getApplicationContext());
         try {
             File diagFile = new File(getApplicationContext().getFilesDir(), "uid-diag.log");
@@ -1640,9 +1607,8 @@ public class ProxyTunnelService extends Service {
                 out.write(("=== onCreate " + System.currentTimeMillis() + " ===\n").getBytes(StandardCharsets.UTF_8));
             }
         } catch (Exception ignored) {}
-        // Warm up libXray on a background thread so the JNI library and
-        // Go runtime are paged in by the time the user hits Start. Saves
-        // a few hundred ms of cold-start cost on the synchronous run path.
+        // Page in the JNI library and the Go runtime before the user hits Start, or
+        // the synchronous run path eats a few hundred ms of cold start
         Thread warmup = new Thread(
             () -> {
                 try {
@@ -1663,13 +1629,11 @@ public class ProxyTunnelService extends Service {
             action = shouldAttemptRootRuntimeRecovery() ? ACTION_SYNC_RUNTIME : ACTION_START;
         }
         if (ACTION_STOP.equals(action)) {
-            // requestStop falls back to startForegroundService when a plain
-            // startService is blocked (app backgrounded). The system then REQUIRES
-            // startForeground within ~5s or it throws
-            // ForegroundServiceDidNotStartInTimeException. The stop path only ever
-            // calls stopForeground/stopSelf (asynchronously), so promote to
-            // foreground first to satisfy the contract; stopWork/abortConnectingNow
-            // drop it again once the teardown has finished.
+            // With the app backgrounded requestStop arrives via startForegroundService,
+            // and then the system demands startForeground within ~5s or throws
+            // ForegroundServiceDidNotStartInTimeException. The stop path only ever calls
+            // stopForeground/stopSelf, and asynchronously, so promote first and let
+            // stopWork/abortConnectingNow drop it when teardown is done
             ensureStartedForeground();
             if (isConnecting()) {
                 abortConnectingNow(true);
@@ -1755,8 +1719,8 @@ public class ProxyTunnelService extends Service {
                 !AppPrefs.isRootModeEnabled(getApplicationContext()) ||
                 !AppPrefs.hasRootRuntimeHint(getApplicationContext())
             ) {
-                // Launched via startForegroundService (see syncRuntime); promote to
-                // foreground before stopping so the FGS-start contract is honoured.
+                // syncRuntime launched us via startForegroundService, so promote before
+                // stopping or the FGS-start contract blows up
                 ensureStartedForeground();
                 stopSelf();
                 return START_NOT_STICKY;
@@ -1891,12 +1855,10 @@ public class ProxyTunnelService extends Service {
                 rootModeActive = settings.rootModeEnabled && !proxyOnlyRuntime;
                 kernelWireguardActive = false;
                 if (rootModeActive) {
-                    // Trust the cached grant from the onboarding probe. Re-probing
-                    // here triggers a second su-grant prompt on Kitsune Magisk /
-                    // KernelSU and often fails on those forks even though the user
-                    // already granted root on the permissions screen. If the cached
-                    // grant is actually stale, the real `runRootHelper` calls below
-                    // will fail loudly with a clear error.
+                    // Trust the cached grant from the onboarding probe. A re-probe here
+                    // pops a second su prompt on Kitsune Magisk / KernelSU and often
+                    // fails on those forks even though root was already granted. A stale
+                    // grant surfaces loudly on the first real runRootHelper call anyway
                     String rootUnavailableReason = RootUtils.getRootModeUnavailableReason(
                         getApplicationContext(),
                         activeBackendType,
@@ -1952,23 +1914,20 @@ public class ProxyTunnelService extends Service {
             } catch (InterruptedException error) {
                 appendRuntimeLogLine("Runtime start cancelled: " + firstNonEmpty(error.getMessage(), "interrupted"));
             } catch (Exception error) {
-                // A stop/abort that raced in (cancel of an in-flight VK account
-                // auth, STOP button) flips `stopping` and bumps the runtime
-                // generation via invalidateRuntimeOperations(). If that happened
-                // while this start was unwinding, treat it as a user stop: do NOT
-                // fall through to the retry path, which would reset stopping=false
-                // and write CONNECTING back over the abort's STOPPING/STOPPED and
-                // leave the UI stuck in "Starting".
+                // A stop or abort that raced in (STOP button, cancel of an in-flight VK
+                // account auth) flips stopping and bumps the runtime generation. Treat
+                // it as a user stop: the retry path below would reset stopping=false and
+                // write CONNECTING over the abort's STOPPING/STOPPED, leaving the UI
+                // stuck in "Starting"
                 boolean abortRaced = generation != runtimeGeneration.get();
                 boolean userInitiatedStop = stopping || abortRaced;
                 if (!userInitiatedStop) {
                     setLastError(error.getMessage());
                 }
                 if (abortRaced) {
-                    // abortConnectingNow/forceAbortNow already run
-                    // stopWorkInternal()+stopSelf() on their own thread; bail out
-                    // without touching service state so we do not regress it back
-                    // to CONNECTING and leave the UI stuck in "Starting".
+                    // abortConnectingNow/forceAbortNow already run stopWorkInternal()
+                    // and stopSelf() on their own thread. Touching service state here
+                    // drags it back to CONNECTING and the UI sticks on "Starting"
                     return;
                 }
                 if (userInitiatedStop) {
@@ -1993,8 +1952,8 @@ public class ProxyTunnelService extends Service {
                         "s"
                 );
                 stopWorkInternalForReconnect(activeBackendType, false);
-                // Re-check after the teardown: a stop/abort may have landed during
-                // the cleanup window above. If so, do not resurrect CONNECTING.
+                // A stop or abort can land inside the cleanup window above, so re-check
+                // before resurrecting CONNECTING
                 if (sServiceState == ServiceState.STOPPED || stopping || generation != runtimeGeneration.get()) {
                     if (sServiceState == ServiceState.STOPPED) {
                         stopSelf();
@@ -2011,12 +1970,11 @@ public class ProxyTunnelService extends Service {
         });
     }
 
-    // Foreground is dropped only once stopWorkInternal has torn the root rules down.
-    // Dropping it first leaves this process killable for the seconds the su-driven
-    // teardown takes, and nothing else holds the app up when the stop came from the
-    // QS tile rather than a visible activity - the process dies mid-cleanup and the
-    // leftover ip rules take the device's connectivity with them until the next
-    // launch reconciles them.
+    // Foreground goes away only after stopWorkInternal has torn the root rules down.
+    // Drop it first and the process stays killable for the seconds the su teardown
+    // takes - and when the stop came from the QS tile there is no visible activity
+    // holding the app up. It dies mid-cleanup, and the leftover ip rules take the
+    // device's connectivity with them until the next launch reconciles them
     private void stopWork(boolean removeNotification) {
         invalidateRuntimeOperations();
         stopping = true;
@@ -2034,7 +1992,7 @@ public class ProxyTunnelService extends Service {
     }
 
     // Same ordering as stopWork: stay foreground until the teardown is done, or the
-    // process can be killed mid-cleanup and leave the root rules behind.
+    // process gets killed mid-cleanup and leaves the root rules behind
     private void abortConnectingNow(boolean removeNotification) {
         invalidateRuntimeOperations();
         stopping = true;
@@ -2107,18 +2065,16 @@ public class ProxyTunnelService extends Service {
             ensureOwnedVpnBackendStopped("Xray", generation);
         }
 
-        // Pre-build the xray-core config JSON in parallel with VpnService
-        // setup + iptables lockdown + protect bridge wiring. Avoids tacking
-        // 50-150 ms of JSON marshalling + debug artifact write IO onto the
-        // critical path. Skipped for the TCP relay flow because the config
-        // depends on the relay endpoint we only learn after the relay is
-        // up; that path stays sync.
+        // Building the config JSON alongside the VpnService / iptables / protect-bridge
+        // setup keeps 50-150 ms of marshalling and debug-artifact IO off the critical
+        // path. The TCP relay flow stays sync: its config needs the relay endpoint,
+        // which we only learn once the relay is up
         final boolean preBuildRelayFlow = !activeXrayTproxyMode && usesXrayExternalTcpRelay(settings);
         final boolean fProxyOnly = activeXrayProxyOnly;
         final boolean fTproxy = activeXrayTproxyMode;
         if (fTproxy) {
-            // Fresh random free port for this TPROXY session, reused below for the
-            // config, iptables rules and the listener-readiness checks.
+            // Fresh free port for this TPROXY session; the config, the iptables rules
+            // and the readiness checks all reuse it
             xrayTproxyPort = allocateFreeTproxyPort();
         }
         // Порт transparent-redirect держит кто угодно - второй профиль, прошлый
@@ -2216,9 +2172,8 @@ public class ProxyTunnelService extends Service {
         }
 
         ByeDpiSettings byeDpiSettings = settings != null ? settings.byeDpiSettings : null;
-        // Also start the local ByeDPI proxy when the user routed apps through it
-        // per-app (even with the front-proxy toggle off): the standalone
-        // byedpi-app outbound in the xray config dials this same SOCKS server.
+        // Per-app ByeDPI routing needs the local proxy up even with the front-proxy
+        // toggle off: the byedpi-app outbound in the xray config dials this same SOCKS
         boolean launchByeDpiFrontProxy =
             !activeXrayProxyOnly &&
             byeDpiSettings != null &&
@@ -2431,8 +2386,8 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
-            // Provision before warmup so a fresh DTLS worker claims the parked
-            // PROVISION before the workers reach session (see the userspace path).
+            // Provision before warmup: only a fresh DTLS worker claims the parked
+            // PROVISION, and warmup waits until the workers already reached session
             applyManagedProvisioningIfNeeded(settings);
             waitForProxyWarmup(proxyStartedAt, generation);
         } else {
@@ -2482,15 +2437,11 @@ public class ProxyTunnelService extends Service {
             settings.kernelWireguardEnabled &&
             activeBackendType != null &&
             activeBackendType.supportsKernelWireGuard();
-        // Non-root userspace WG/VK TURN VpnService path: Android's
-        // addDisallowedApplication does not stop bypassed apps from binding
-        // to tun directly, and we cannot install iptables to plug the leak
-        // without root. Route the TUN through xray-core's TUN inbound
-        // (same UID lookup the Xray VPN mode uses) into a synthetic WG
-        // outbound. Same protect-bridge fd path as the regular Xray VPN.
-        // Gate by user's master Root functions toggle, not OS-level grant:
-        // when the user explicitly turned root off the app must behave as
-        // no-root even if su is still available.
+        // Non-root userspace WG / VK TURN: addDisallowedApplication does not stop a
+        // bypassed app from binding tun directly, and without root there are no
+        // iptables to plug that leak. So the TUN goes through xray-core's TUN inbound
+        // into a synthetic WG outbound. The gate is the user's Root functions toggle,
+        // not the OS grant: root off means behave as no-root even when su still works
         if (
             !willUseKernelWireGuard &&
             !settings.rootModeEnabled &&
@@ -2515,8 +2466,8 @@ public class ProxyTunnelService extends Service {
         ensureRuntimeStillWanted(generation);
         if (usesTurnProxyBackend(activeBackendType)) {
             long proxyStartedAt = startProxyProcess(settings, generation);
-            // Provision before warmup so a fresh DTLS worker claims the parked
-            // PROVISION before the workers reach session (see the userspace path).
+            // Provision before warmup: only a fresh DTLS worker claims the parked
+            // PROVISION, and warmup waits until the workers already reached session
             applyManagedProvisioningIfNeeded(settings);
             waitForProxyWarmup(proxyStartedAt, generation);
         } else {
@@ -2595,15 +2546,12 @@ public class ProxyTunnelService extends Service {
         ensureUserspaceVpnServicesQuiescedBeforeXrayBackend(generation);
         ensureOwnedVpnBackendStopped("WireGuard userspace (xray-WG)", generation);
 
-        // Active-probing auto-switch from Xray to VK TURN tears down the prior
-        // XrayVpnService with a 650 ms fast-stop window. Android may still be
-        // in the destruction phase when we get here, so XrayVpnService
-        // .ensureServiceStarted would either pick up a half-shutdown service
-        // (isReusable returned true on stale state) or queue the new
-        // startService behind the old destroy, stalling the whole connect for
-        // the full 8 s service-wait. Force a hard teardown up front when any
-        // XrayVpnService trace is still around so the new startup gets a
-        // clean slate.
+        // The active-probing auto-switch from Xray to VK TURN tears the previous
+        // XrayVpnService down on a 650 ms fast-stop window, so Android can still be
+        // destroying it when we get here. ensureServiceStarted would then either reuse
+        // a half-dead service (isReusable says true on stale state) or queue the new
+        // startService behind the old destroy and stall the connect for the full 8 s
+        // service-wait. Any trace left means hard teardown first
         if (XrayVpnService.isServiceAlive() || XrayVpnService.hasActiveTunnel()) {
             forceStopXrayVpnServiceAndWait("Userspace xray-WG runtime entry: stale XrayVpnService teardown");
         }
@@ -2617,14 +2565,12 @@ public class ProxyTunnelService extends Service {
             );
         }
 
-        // Bring up the tunnel and protect bridge BEFORE starting vk-turn-proxy.
-        // The working VK TURN relay path in startXrayRuntime does the same:
-        // protect bridge has to be ready when vktp creates its egress UDP
-        // sockets to the TURN servers, otherwise those sockets get caught
-        // by the per-app VPN routing and reenter our own xray TUN inbound,
-        // looping back into vktp via the WG outbound and never reaching the
-        // real TURN servers. We diagnosed this by spotting source IP =
-        // device LAN IP packets to 193.203.43.x:19302 entering tun-in.
+        // Tunnel and protect bridge come up BEFORE vk-turn-proxy. The bridge has to be
+        // ready when vktp opens its egress UDP sockets to the TURN servers, otherwise
+        // the per-app VPN routing catches them, they re-enter our own xray TUN inbound
+        // and loop back into vktp through the WG outbound: packets carrying the device
+        // LAN IP as source land on tun-in headed for 193.203.43.x:19302, and the real
+        // TURN servers never see a thing
         int tunFd = -1;
         XrayVpnService vpnService = null;
         for (int attempt = 1; attempt <= XRAY_VPN_START_ATTEMPTS; attempt++) {
@@ -2667,12 +2613,12 @@ public class ProxyTunnelService extends Service {
         if (activeXrayUsesTurnProxy) {
             long proxyStartedAt = startProxyProcess(settings, generation);
             wgPeerEndpoint = settings.localEndpoint;
-            // Provision BEFORE warmup. The relay parks the PROVISION for the next
-            // FRESH DTLS worker to run as its first hello (runPendingProvisionOnConn),
-            // which only works while workers are still connecting. Warmup waits for
-            // the workers to reach session, so provisioning after it is parked too
-            // late - no worker claims it and the request hangs. This also folds the
-            // provisioned wg keys into settings before the xray WG outbound is built.
+            // Provision BEFORE warmup. The relay parks the PROVISION for the next FRESH
+            // DTLS worker to run as its first hello (runPendingProvisionOnConn), which
+            // only works while workers are still connecting. Warmup waits for them to
+            // reach session, so provisioning after it parks too late: nobody claims it
+            // and the request hangs. It also folds the provisioned wg keys into settings
+            // before the xray WG outbound is built
             applyManagedProvisioningIfNeeded(settings);
             waitForProxyWarmup(proxyStartedAt, generation);
         }
@@ -2723,7 +2669,7 @@ public class ProxyTunnelService extends Service {
      * <p>Only the in-process runtime is a Future we own. Started under su - by us or by
      * the module - it is not ours to poll, and Process.isAlive() lies about su-forks
      * anyway because the fork reparents the child and Java loses the exit status. So the
-     * listener is the honest signal, exactly as the TPROXY Xray check below decided.
+     * listener is the honest signal, exactly as the TPROXY Xray check below decided
      */
     private boolean isByeDpiFrontProxyAlive() {
         Future<?> task = byeDpiWorkTask;
@@ -2738,7 +2684,7 @@ public class ProxyTunnelService extends Service {
      * the proxy then outlives us, so an app the system kills mid-session no longer
      * takes the front proxy down with it and leaves the tunnel half-alive.
      *
-     * <p>Returns false when there is no usable daemon; the su path below runs instead.
+     * <p>Returns false when there is no usable daemon; the su path below runs instead
      */
     private boolean startByeDpiViaDaemon(List<String> proxyArgs, int generation) throws Exception {
         RootdClient client = RootExecutor.acquire(getApplicationContext());
@@ -2759,7 +2705,7 @@ public class ProxyTunnelService extends Service {
             waitForByeDpiFrontProxy(generation);
             return true;
         } catch (IOException error) {
-            // Never fatal: fall through to su so a broken module cannot stop the tunnel.
+            // Never fatal: fall through to su so a broken module cannot stop the tunnel
             appendRuntimeLogLine("wingsvd could not start byedpi, using su: " + error.getMessage());
             Log.w(TAG, "wingsvd byedpi spawn failed", error);
             RootExecutor.invalidate();
@@ -2771,13 +2717,13 @@ public class ProxyTunnelService extends Service {
     /**
      * Starts ByeDPI under su for the TPROXY path. Readiness is decided by probing the
      * listen port, the same way the in-process proxy is, so the two paths agree on what
-     * "ready" means.
+     * "ready" means
      */
     private void startByeDpiRootProxy(ByeDpiSettings settings, int generation) throws Exception {
         byeDpiFrontProxyActive = true;
         byeDpiDialHost = settings.resolveRuntimeDialHost();
         byeDpiDialPort = settings.resolveRuntimeListenPort();
-        // No protect path: there is no VpnService to protect from here.
+        // No protect path: there is no VpnService to protect from here
         List<String> proxyArgs = settings.buildRuntimeArguments(null);
         if (startByeDpiViaDaemon(proxyArgs, generation)) {
             return;
@@ -2800,14 +2746,13 @@ public class ProxyTunnelService extends Service {
         if (settings == null || (!settings.launchOnXrayStart && !AppPrefs.hasByeDpiApps(this))) {
             return;
         }
-        // TUN-backed VPN runtime requires the protect-socket bridge: ByeDPI's
-        // upstream dials would otherwise loop back through the TUN under the
-        // VpnService's catch-all default route and never reach the network.
-        // TPROXY has no VpnService and therefore no protect(fd); its equivalent is
-        // running ByeDPI as root, where the mangle chain's "--uid-owner 0 -j RETURN"
-        // lets the dials out. In-process it would run as our uid, get marked, be
-        // TPROXYed back into Xray and handed to ByeDPI again - a loop that shows up as
-        // every connection being reset.
+        // A TUN-backed VPN runtime needs the protect-socket bridge, or ByeDPI's upstream
+        // dials loop back through the TUN under the VpnService catch-all default route
+        // and never reach the network. TPROXY has no VpnService and no protect(fd); its
+        // equivalent is running ByeDPI as root, where the mangle chain's
+        // "--uid-owner 0 -j RETURN" lets the dials out. In-process it runs as our uid,
+        // gets marked, comes back into Xray via TPROXY and lands on ByeDPI again - a
+        // loop the user sees as every connection being reset
         if (activeXrayTproxyMode) {
             startByeDpiRootProxy(settings, generation);
             return;
@@ -2840,8 +2785,8 @@ public class ProxyTunnelService extends Service {
         long deadline = SystemClock.elapsedRealtime() + BYEDPI_START_TIMEOUT_MS;
         while (SystemClock.elapsedRealtime() < deadline) {
             ensureRuntimeStillWanted(generation);
-            // The root helper is a process, not a Future: if it died the port will never
-            // open, so notice now rather than after the full start timeout.
+            // The root helper is a process, not a Future: once it dies the port never
+            // opens, so catch it now instead of after the full start timeout
             Process rootProcess = byeDpiRootProcess;
             if (rootProcess != null && !rootProcess.isAlive()) {
                 throw new IllegalStateException(getString(R.string.proxy_byedpi_exited_before_start));
@@ -2870,10 +2815,6 @@ public class ProxyTunnelService extends Service {
         throw new IllegalStateException(getString(R.string.proxy_byedpi_local_proxy_timeout));
     }
 
-    // Probes for a currently-free TCP port for the Xray TPROXY listener so it never
-    // collides with whatever else is bound. There is a small window between the probe
-    // and xray binding the port, acceptable for an ephemeral port; on any failure it
-    // falls back to the fixed port.
     // Отдаёт стандартный порт redirect-инбаунда, пока его можно занять, иначе
     // любой свободный. Инбаунд слушает все интерфейсы, поэтому и проба идёт по
     // ним же: занятость на 127.0.0.1 тут ничего не говорит
@@ -2893,6 +2834,9 @@ public class ProxyTunnelService extends Service {
         return XrayConfigFactory.REDIRECT_PORT;
     }
 
+    // Probes for a free TCP port so the Xray TPROXY listener never collides with
+    // whatever else is bound. The gap between probe and bind is a risk we take for an
+    // ephemeral port; on failure we fall back to the fixed one
     private static int allocateFreeTproxyPort() {
         try (java.net.ServerSocket socket = new java.net.ServerSocket()) {
             socket.setReuseAddress(true);
@@ -3001,7 +2945,7 @@ public class ProxyTunnelService extends Service {
         byeDpiDaemonChildId = 0L;
         if (daemonChildId != 0L) {
             // The module owns this one. Its clear_routing reaps children anyway, so a
-            // failure here is not worth surfacing.
+            // failure here is not worth surfacing
             RootdClient client = RootExecutor.acquire(getApplicationContext());
             if (client != null) {
                 try {
@@ -3016,7 +2960,7 @@ public class ProxyTunnelService extends Service {
         byeDpiRootProcess = null;
         if (rootProcess != null) {
             // SIGTERM; the helper's shutdown hook stops the proxy. Nothing else to wind
-            // down here - the in-process fields below are untouched on this path.
+            // down here - the in-process fields below are untouched on this path
             try {
                 rootProcess.destroy();
             } catch (Exception ignored) {}
@@ -3087,15 +3031,11 @@ public class ProxyTunnelService extends Service {
             );
         }
         if (!usesXrayBackend(activeBackendType)) {
-            // libwg-go/libamneziawg_go keep global native handles; do not
-            // overlap DOWN with a later UP (the "later UP" being the racing
-            // concern, not the parallel service stop here). Run the WG-DOWN
-            // native call and the GoBackend/Awg VpnService stop in parallel:
-            // they touch independent state (vpnBackendLock for the native
-            // teardown, Android binder for the service stop) and together
-            // dominate the VKTP/WG stop latency. Worst-case bound by the
-            // group timeout; whichever finishes first does not wait for the
-            // other.
+            // libwg-go / libamneziawg_go keep global native handles, so a DOWN must
+            // never overlap a later UP. The WG-DOWN native call and the GoBackend/Awg
+            // VpnService stop do run in parallel: independent state (vpnBackendLock
+            // against Android binder), and together they dominate the VKTP/WG stop
+            // latency
             runFastStopCleanupGroup(
                 FAST_STOP_CLEANUP_TIMEOUT_MS,
                 new CleanupTask("Userspace VPN backend WG down", this::shutdownVpnBackendsLocked),
@@ -3107,28 +3047,24 @@ public class ProxyTunnelService extends Service {
         releaseTunnelWifiLock();
         releaseSharingWifiLocks();
 
-        // Shut the AppControl gRPC client (and its cookie poller) before the relay
-        // dies so the channel tears down cleanly instead of thrashing on a vanished
-        // socket.
+        // Close the AppControl client before the relay dies, or the channel thrashes
+        // on a socket that is already gone
         closeAppControl();
 
         if (proxyProcess != null) {
-            // Forcibly kill (SIGKILL) the vk-turn-proxy helper rather than a
-            // graceful destroy(): during VK account auth the relay is blocked in
-            // its fetchAccountVkCreds wait (up to ~5 min) and a polite SIGTERM can
-            // be slow to land. A hard kill closes its stdout/stdin immediately so
-            // any app thread parked on the relay output unblocks at once and the
-            // stop completes without hanging in "Starting".
+            // SIGKILL, not a polite destroy(): during VK account auth the relay parks
+            // in its fetchAccountVkCreds wait for up to ~5 min and SIGTERM takes its
+            // time landing. A hard kill shuts stdout/stdin at once, so any app thread
+            // reading the relay output unblocks and the stop does not hang on "Starting"
             proxyProcess.destroyForcibly();
             proxyProcess = null;
         }
 
-        // All teardown runs in the fast parallel group (best-effort, backgrounded
-        // past the deadline) so stopping never blocks the UI. The connectivity-
-        // critical clears (root routing + UID filter) are listed first so their
-        // threads hit the root shell first. If the process dies before a backgrounded
-        // clear finishes, the next app launch reconciles any stale root rules - see
-        // cleanStaleRootRoutingOnLaunch().
+        // Everything runs in the fast parallel group, best-effort and backgrounded past
+        // the deadline, so stopping never blocks the UI. The connectivity-critical
+        // clears (root routing, UID filter) go first so their threads reach the root
+        // shell first. A process death mid-clear is covered by
+        // cleanStaleRootRoutingOnLaunch() on the next launch
         java.util.List<CleanupTask> stopTasks = new java.util.ArrayList<>();
         stopTasks.addAll(java.util.Arrays.asList(rootStopCleanupTasks()));
         stopTasks.add(new CleanupTask("Active tunnel force link down", this::forceLinkDownActiveTunnelIfNeeded));
@@ -3191,10 +3127,9 @@ public class ProxyTunnelService extends Service {
         long normalizedTimeoutMs = Math.max(1L, timeoutMs);
         boolean stopped = XrayVpnService.waitForStopped(normalizedTimeoutMs);
         if (!stopped) {
-            // A wedged tun teardown leaves the system VPN slot held. Forcibly
-            // displace it with a stub-VPN pulse (the same mechanism AutoSearch uses):
-            // establishing a throwaway VPN revokes the stuck tun, which fires
-            // onRevoke and lets the service finally reach DOWN.
+            // A wedged tun teardown keeps the system VPN slot held. Establishing a
+            // throwaway VPN revokes the stuck tun, which fires onRevoke and lets the
+            // service finally reach DOWN
             appendRuntimeLogLine(reason + " timed out after " + normalizedTimeoutMs + "ms; displacing the stuck VPN");
             EmergencyVpnResetService.pulse(
                 getApplicationContext(),
@@ -3405,11 +3340,10 @@ public class ProxyTunnelService extends Service {
 
         BackendType resolvedBackendToStop = backendToStop != null ? backendToStop : activeBackendType;
         boolean shouldStopGoBackendBridgeService = shouldStopGoBackendBridgeServiceExplicitly(resolvedBackendToStop);
-        // A non-root VK TURN / plain-WG run tunnels through the xray-core TUN
-        // (XrayVpnService), not the GoBackend userspace VpnService, even though its
-        // backend type is not an xray one. Route its teardown to the XrayVpnService
-        // stop, or the tun is never torn down and the VpnService lingers after
-        // disconnect.
+        // A non-root VK TURN / plain-WG run tunnels through the xray-core TUN, not the
+        // GoBackend userspace VpnService, even though its backend type is not an xray
+        // one. Its teardown has to go to the XrayVpnService stop, or the tun stays up
+        // and the VpnService lingers after disconnect
         if (usesXrayBackend(resolvedBackendToStop) || activeXrayWgRuntime) {
             // Xray VPN force stop и core stop запараллеливаем: первая ждёт
             // Android binder destroy, вторая дёргает native xray cleanup,
@@ -3458,9 +3392,9 @@ public class ProxyTunnelService extends Service {
         stopTasks.add(
             new CleanupTask("Proxy process destroy", () -> {
                 if (proxyProcessToDestroy != null) {
-                    // Hard kill: the relay can be parked in a long account-auth
-                    // creds wait that ignores a graceful stop; SIGKILL unblocks any
-                    // app thread reading its output immediately.
+                    // Hard kill: the relay can be parked in a long account-auth creds
+                    // wait that ignores a graceful stop, and SIGKILL unblocks every app
+                    // thread reading its output at once
                     proxyProcessToDestroy.destroyForcibly();
                 }
             })
@@ -3491,8 +3425,7 @@ public class ProxyTunnelService extends Service {
         lastTetherSyncConfig = null;
         pendingSharingRestoreOnBoot = false;
 
-        // Финальные cleanup'ы: bridge close + два service stop + final Xray
-        // service stop - всё независимое.
+        // Финальные cleanup'ы независимы друг от друга, поэтому идут пачкой
         java.util.List<CleanupTask> finalTasks = new java.util.ArrayList<>(6);
         finalTasks.add(new CleanupTask("Protect bridge close", this::closeProtectBridge));
         if (shouldStopGoBackendBridgeService) {
@@ -3570,12 +3503,11 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // The root teardown steps each shell out to su, which is slow and can block for
-    // seconds; skip them entirely when the user's master Root functions toggle is
-    // off. A no-root run never installed any root routing, and turning the toggle
-    // off already runs its own immediate cleanup - so running them here on a non-root
-    // run only times out (su is granted at the OS level even when the app is no-root)
-    // and stalls the stop.
+    // Every root teardown step shells out to su and can block for seconds, so with the
+    // Root functions toggle off they are skipped outright. A no-root run installed no
+    // root routing, and flipping the toggle off already ran its own cleanup. Left in,
+    // they only time out - su is granted at the OS level even when the app is no-root -
+    // and stall the stop
     private CleanupTask[] rootStopCleanupTasks() {
         if (!AppPrefs.isRootModeEnabled(getApplicationContext())) {
             return new CleanupTask[0];
@@ -3792,7 +3724,7 @@ public class ProxyTunnelService extends Service {
         clearLastError();
         resetRuntimeSnapshot();
 
-        // Trust cached grant; see startWork comment.
+        // Trust the cached grant; see the startWork comment
         String rootUnavailableReason = RootUtils.getKernelWireGuardUnavailableReason(
             getApplicationContext(),
             settings.backendType,
@@ -3904,9 +3836,8 @@ public class ProxyTunnelService extends Service {
         throw new IllegalStateException(firstNonEmpty(launchError, getString(R.string.proxy_start_failed)));
     }
 
-    /** Передаём собственные DNS-резолверы юзера в vk-turn-proxy через
-     *  -user-dns. Прокси сам парсит формат и prepend'ит их к встроенному
-     *  списку (yandex → google → cloudflare). */
+    /** Свои DNS-резолверы юзера уезжают в vk-turn-proxy через -user-dns: прокси
+     *  сам их парсит и ставит перед встроенным списком (yandex, google, cloudflare) */
     private static void appendUserDnsArg(List<String> command, @Nullable ProxySettings settings) {
         if (settings == null || TextUtils.isEmpty(settings.vkTurnUserDns)) {
             return;
@@ -3946,14 +3877,14 @@ public class ProxyTunnelService extends Service {
     private int appControlTcpPort;
     private String appControlToken;
 
-    // Unix socket + random token the embedded vk-turn-proxy client serves its
-    // AppControl gRPC on. Kept in the app-private files dir so only this app can
-    // reach it; the token is regenerated per service instance.
+    // Unix socket plus random token the relay serves its AppControl gRPC on. It lives
+    // in the app-private files dir so nobody else reaches it, and the token is fresh
+    // per service instance
     private String appControlSocketPath() {
-        // Root/kernel-WG path: the relay runs under su in the priv_app domain and
-        // SELinux forbids untrusted_app -> priv_app unix_stream_socket connectto, so a
-        // unix socket can never be reached however it is labelled. Use a 127.0.0.1 TCP
-        // listener there (no domain-connectto check); the token is the access control.
+        // Under root/kernel-WG the relay runs under su in the priv_app domain, and
+        // SELinux forbids untrusted_app -> priv_app unix_stream_socket connectto, so no
+        // label makes a unix socket reachable. A 127.0.0.1 TCP listener skips the
+        // domain-connectto check, and the token does the access control
         if (kernelWireguardActive) {
             return "tcp:127.0.0.1:" + appControlTcpPort();
         }
@@ -3980,10 +3911,9 @@ public class ProxyTunnelService extends Service {
         return appControlTcpPort;
     }
 
-    // Derives the SELinux file context the AppControl socket must carry so this
-    // untrusted_app can connect: our process context (user:role:type:level) with the
-    // role/type swapped to the app_data_file object label, keeping our per-app MLS
-    // categories. Returns "" when the context is unreadable (no SELinux / bad format).
+    // The SELinux file context the AppControl socket must carry for this untrusted_app
+    // to connect: our own process context with role/type swapped to the app_data_file
+    // object label, keeping the per-app MLS categories. "" when it is unreadable
     private String appControlSocketContext() {
         try (java.io.FileInputStream in = new java.io.FileInputStream("/proc/self/attr/current")) {
             byte[] buf = new byte[256];
@@ -4016,10 +3946,8 @@ public class ProxyTunnelService extends Service {
         return appControlToken;
     }
 
-    // Opens the AppControl gRPC client to the just-launched relay (non-root path)
-    // and starts the rotated-cookie poller. The channel connects lazily, so the
-    // socket not existing yet is fine; the first RPC retries. No-op when the relay
-    // was launched without the socket (root path).
+    // The channel connects lazily, so a socket that does not exist yet is fine - the
+    // first RPC retries. No-op when the relay was launched without the socket (root)
     private void startAppControlIfActive(int generation) {
         if (!appControlGrpcActive) {
             return;
@@ -4045,20 +3973,17 @@ public class ProxyTunnelService extends Service {
         telemetryPoller.setDaemon(true);
         appControlTelemetryPoller = telemetryPoller;
         telemetryPoller.start();
-        // Subscribe to the control-event stream before Configure boots the relay
-        // engine, so no early status/caps event is missed in the warmup window.
+        // Subscribe before Configure boots the relay engine, or the early status/caps
+        // events of the warmup window are lost
         Thread eventPoller = new Thread(() -> appControlEventStreamLoop(generation), "appcontrol-event-stream");
         eventPoller.setDaemon(true);
         appControlEventPoller = eventPoller;
         eventPoller.start();
     }
 
-    // Delivers the relay runtime configuration (formerly CLI flags) to the embedded
-    // vk-turn-proxy over the AppControl Configure RPC. The relay launches with only
-    // its gRPC socket flags and blocks until this arrives before booting its engine.
-    // Builds a PatchConfig delta from the changed preference keys and sends it over
-    // AppControl gRPC so the relay live-applies it without a restart. Falls back to a
-    // full reconnect when the gRPC path is unavailable (e.g. non-VK backend).
+    // Builds a PatchConfig delta from the changed preference keys and sends it to the
+    // relay over AppControl gRPC, which live-applies it without a restart. Falls back
+    // to a full reconnect when the gRPC path is unavailable, e.g. a non-VK backend
     private void handleLivePatch(@Nullable Intent intent) {
         if (intent == null || !isActive()) {
             return;
@@ -4129,8 +4054,8 @@ public class ProxyTunnelService extends Service {
         if (ks.contains(AppPrefs.KEY_VK_AUTH_MODE)) {
             b.setVkAuth(AppPrefs.normalizeVkAuthMode(settings.vkAuthMode));
         }
-        // WRAP is one coherent group: any WRAP key change sends the whole set so the
-        // relay resolves a consistent cipher/key/mode/in-band snapshot.
+        // WRAP is one coherent group: any change ships the whole set, or the relay
+        // resolves a mismatched cipher/key/mode/in-band snapshot
         if (
             ks.contains(AppPrefs.KEY_VK_TURN_WRAP_MODE) ||
             ks.contains(AppPrefs.KEY_VK_TURN_WRAP_CIPHER) ||
@@ -4145,6 +4070,8 @@ public class ProxyTunnelService extends Service {
         return b.build();
     }
 
+    // The relay launches with only its gRPC socket flags and blocks until this
+    // configuration arrives before it boots its engine
     private void sendConfigureIfActive(ProxySettings settings) {
         if (!appControlGrpcActive) {
             return;
@@ -4165,8 +4092,8 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // The managed client id of the profile currently configured on the relay, so a
-    // heartbeat TrafficUsageEvent (which carries no id) can be attributed to it.
+    // Managed client id of the profile currently configured on the relay: a heartbeat
+    // TrafficUsageEvent carries no id, so this is what attributes it
     private volatile String activeProvisionClientId = "";
 
     private wings.v.proto.appcontrol.AppControlProto.ConfigureRequest buildConfigure(ProxySettings settings) {
@@ -4206,8 +4133,8 @@ public class ProxyTunnelService extends Service {
         }
         b.setCaptchaSolver(captchaSolver);
         // A managed VK TURN profile announces its panel client id so the relay can
-        // attribute the mu session and echo this client's traffic-limit usage back
-        // in the heartbeat. Empty for an anonymous (non-managed) profile.
+        // attribute the mu session and echo the traffic-limit usage back in the
+        // heartbeat. Empty for an anonymous profile
         activeProvisionClientId = TextUtils.isEmpty(settings.provisionClientId) ? "" : settings.provisionClientId;
         if (!TextUtils.isEmpty(settings.provisionClientId)) {
             b.setClientId(settings.provisionClientId);
@@ -4226,8 +4153,8 @@ public class ProxyTunnelService extends Service {
             b.setSessionMode("mainline");
         } else if (settings.wgProvisioned) {
             // A managed profile provisions its wg config over the DTLS PROVISION
-            // exchange, which rides the mu/v1 WRAP-in-band channel; mainline has no
-            // SessionHello to install the cipher, so provisioning fails there.
+            // exchange, which rides the mu/v1 WRAP-in-band channel. mainline has no
+            // SessionHello to install the cipher, so provisioning dies there
             b.setSessionMode("mu");
         } else if (!TextUtils.isEmpty(settings.turnSessionMode)) {
             b.setSessionMode(settings.turnSessionMode);
@@ -4259,10 +4186,9 @@ public class ProxyTunnelService extends Service {
         return b.build();
     }
 
-    // Polls the relay for its current VK cookie jar and mirrors any rotation into
-    // MMKV, replacing the stdout vk_cookies_update line (which the relay redacts to
-    // empty while AppControl is active). Runs until the client is replaced/closed
-    // or the runtime generation moves on.
+    // Mirrors any VK cookie rotation into MMKV. The relay redacts its stdout
+    // vk_cookies_update line to empty while AppControl is active, so this poll is the
+    // only way the rotated jar reaches us
     private void appControlCookiePollLoop(int generation) {
         wings.v.ipc.AppControlClient client = appControlClient;
         String lastCookies = "";
@@ -4285,18 +4211,17 @@ public class ProxyTunnelService extends Service {
                     appendRuntimeLogLine("AppControl rotated VK session pulled (" + cookies.length() + " chars)");
                 }
             } catch (RuntimeException error) {
-                // Socket not up yet, or the relay went away; keep trying until the
-                // generation/client changes rather than tearing the loop down on a
-                // transient gRPC UNAVAILABLE during warmup.
+                // Socket not up yet, or the relay went away. Keep trying until the
+                // generation/client changes: a transient UNAVAILABLE during warmup must
+                // not kill the loop
                 continue;
             }
         }
     }
 
-    // Reads the relay's live telemetry (connected TURN stream count) off a blocking
-    // AppControl server stream and applies it, replacing the PROXY_EVENT telemetry
-    // stdout scrape. next() returns the instant the relay pushes a change, so there
-    // is no poll latency. The relay still prints the line, so it stays in the log.
+    // Live telemetry off a blocking AppControl server stream: next() returns the
+    // instant the relay pushes a change, so there is no poll latency. The relay still
+    // prints the line, so the log keeps it
     private void appControlTelemetryStreamLoop(int generation) {
         while (appControlClient != null && generation == runtimeGeneration.get()) {
             wings.v.ipc.AppControlClient client = appControlClient;
@@ -4314,8 +4239,8 @@ public class ProxyTunnelService extends Service {
                     );
                 }
             } catch (RuntimeException error) {
-                // Stream not up yet or dropped (relay warmup / restart); re-subscribe
-                // after a short backoff until the generation/client changes.
+                // Stream not up yet, or dropped on a relay warmup/restart. Re-subscribe
+                // after a short backoff until the generation/client changes
             }
             if (client != appControlClient || generation != runtimeGeneration.get()) {
                 return;
@@ -4329,11 +4254,9 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Reads the relay's control events (connection-progress status, capabilities,
-    // captcha prompts, VK account-auth drive) off a blocking AppControl server
-    // stream and dispatches them, replacing the stdout PROXY_EVENT JSONL scrape.
-    // next() returns the instant the relay pushes an event. The relay still prints
-    // the JSONL line, so it stays in the log; only control now flows over gRPC.
+    // Control events (status, capabilities, captcha prompts, VK account-auth drive)
+    // off a blocking AppControl server stream. The relay still prints the JSONL line
+    // for the log, but control itself travels over gRPC
     private void appControlEventStreamLoop(int generation) {
         while (appControlClient != null && generation == runtimeGeneration.get()) {
             wings.v.ipc.AppControlClient client = appControlClient;
@@ -4346,8 +4269,8 @@ public class ProxyTunnelService extends Service {
                     dispatchProxyEvent(stream.next());
                 }
             } catch (RuntimeException error) {
-                // Stream not up yet or dropped (relay warmup / restart); re-subscribe
-                // after a short backoff until the generation/client changes.
+                // Stream not up yet, or dropped on a relay warmup/restart. Re-subscribe
+                // after a short backoff until the generation/client changes
             }
             if (client != appControlClient || generation != runtimeGeneration.get()) {
                 return;
@@ -4361,8 +4284,8 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Maps one typed AppControl ProxyEvent onto the same handlers the stdout JSONL
-    // path used, so the two channels behave identically.
+    // One typed ProxyEvent onto the same handlers the stdout JSONL path uses, so both
+    // channels behave identically
     private void dispatchProxyEvent(wings.v.proto.appcontrol.AppControlProto.ProxyEvent event) {
         if (event == null) {
             return;
@@ -4409,14 +4332,12 @@ public class ProxyTunnelService extends Service {
                 handleTrafficUsage(event.getTrafficUsage());
                 return;
             default:
-            // EVENT_NOT_SET or a variant added by a newer relay - ignore.
+            // EVENT_NOT_SET or a variant added by a newer relay - ignore
         }
     }
 
-    // Persists the managed client's traffic-limit usage the relay echoed in its
-    // heartbeat and notifies the profiles UI. The event carries no client id - the
-    // relay reports for the live session, so it belongs to the active managed
-    // profile whose id we sent in Configure.
+    // The event carries no client id: the relay reports for the live session, so the
+    // usage belongs to the managed profile whose id went out in Configure
     private void handleTrafficUsage(wings.v.proto.appcontrol.AppControlProto.TrafficUsageEvent usage) {
         if (usage == null) {
             return;
@@ -4439,21 +4360,21 @@ public class ProxyTunnelService extends Service {
         sendBroadcast(intent);
     }
 
-    // Relays a live-patch field status from the :tunnel process to the settings UI
-    // in the main process (a global broadcast; the fragment registers a receiver).
+    // Live-patch field status from :tunnel to the settings UI in the main process, so
+    // it has to be a global broadcast
     private void broadcastPatchStatus(wings.v.proto.appcontrol.AppControlProto.PatchStatusEvent status) {
         if (status == null) {
             return;
         }
         String field = status.getField();
         String state = status.getState();
-        // Persist the failed-field set so the warning survives the user leaving and
-        // returning to the settings screen; drop it once the field is re-applied.
+        // The failed-field set is persisted so the warning survives the user leaving
+        // and coming back to the settings screen
         if ("failed".equals(state) || "reverted_needs_restart".equals(state)) {
             AppPrefs.addLivePatchFailedField(this, field);
         } else if ("applied".equals(state) || "applying".equals(state)) {
-            // Clear on applying too: the field is being retried, so a stale warning
-            // must not resurface if the user leaves and returns mid-apply.
+            // Clear on applying too: the field is being retried, and a stale warning
+            // must not resurface if the user leaves and returns mid-apply
             AppPrefs.removeLivePatchFailedField(this, field);
         }
         Intent intent = new Intent(ACTION_PATCH_STATUS)
@@ -4464,9 +4385,8 @@ public class ProxyTunnelService extends Service {
         sendBroadcast(intent);
     }
 
-    // A fresh relay session clears any stale live-patch warnings: the boot config now
-    // reflects every setting, so nothing is left pending. Broadcast a reset so the UI
-    // clears its rows, and drop the persisted failed-field set.
+    // A fresh relay session boots from a config that already holds every setting, so
+    // nothing is pending and every stale live-patch warning goes away
     private void broadcastPatchReset() {
         AppPrefs.clearLivePatchFailedFields(this);
         Intent intent = new Intent(ACTION_PATCH_STATUS)
@@ -4479,8 +4399,8 @@ public class ProxyTunnelService extends Service {
     private void dispatchProxyCaptchaEvent(wings.v.proto.appcontrol.AppControlProto.CaptchaEvent captcha) {
         String state = captcha.getState().trim().toLowerCase(Locale.US);
         if (CAPTCHA_STATE_SOLVING.equals(state)) {
-            // Auto-captcha solved by the proxy with no user interaction - surface it
-            // as the captcha connect stage without any UI.
+            // The proxy solves this one itself, so it only shows up as the captcha
+            // connect stage - no UI
             proxyCaptchaInProgress = true;
             persistConnectProgress();
             return;
@@ -4500,8 +4420,8 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Hands VK cookies to the relay over AppControl. Returns false when the gRPC
-    // path is not active or the call failed, so the caller can fall back.
+    // Hands VK cookies to the relay over AppControl. False means the caller has to
+    // fall back: no gRPC path, or the call failed
     private boolean appControlSetVkCookies(String cookies, String userAgent) {
         wings.v.ipc.AppControlClient client = appControlClient;
         if (client == null) {
@@ -4539,7 +4459,7 @@ public class ProxyTunnelService extends Service {
             try {
                 client.close();
             } catch (RuntimeException ignored) {
-                // Best-effort shutdown; the relay process is being torn down anyway.
+                // Best-effort shutdown; the relay process is going down anyway
             }
         }
     }
@@ -4548,13 +4468,11 @@ public class ProxyTunnelService extends Service {
         return TextUtils.isEmpty(value) ? null : value;
     }
 
-    // Managed VK TURN profile: the wg transport is not carried by a stored profile
-    // but minted by the vk-turn-proxy node over its DTLS PROVISION exchange. Once
-    // the relay is up and the AppControl channel is open, ask it to provision and
-    // fold the returned WireGuard config into settings so the awg/wg backend builds
-    // from it. Works on both the non-root and root/kernel-WG paths: the relay owns
-    // the AppControl socket by the app uid (via -app-grpc-peer-uid) so the app can
-    // reach it even when the relay runs under su.
+    // A managed VK TURN profile stores no wg transport: the vk-turn-proxy node mints
+    // it over the DTLS PROVISION exchange, and the returned config is folded into
+    // settings so the awg/wg backend builds from it. Root and non-root both work
+    // because the relay chowns the AppControl socket to the app uid
+    // (-app-grpc-peer-uid), reachable even when the relay runs under su
     private void applyManagedProvisioningIfNeeded(ProxySettings settings) throws Exception {
         if (settings == null || !settings.wgProvisioned) {
             return;
@@ -4571,10 +4489,10 @@ public class ProxyTunnelService extends Service {
         String hwid = wings.v.core.SubscriptionHwidStore.getAutomaticPayload(getApplicationContext()).hwid;
         int localPort = parseEndpointPort(settings.localEndpoint);
         appendRuntimeLogLine("requesting managed WireGuard provisioning (client " + settings.provisionClientId + ")");
-        // The relay under su (root/kernel-WG path) needs longer to listen + chown the
-        // AppControl socket than the non-root in-process path, so the first provision
-        // calls can race it and fail UNAVAILABLE. Retry until the channel is up or the
-        // deadline passes; a real provision failure comes back as response.getError().
+        // Under su the relay takes longer to bind and chown the AppControl socket than
+        // the in-process path, so the first provision calls race it and come back
+        // UNAVAILABLE. Retry until the channel is up or the deadline passes; a real
+        // provision failure arrives as response.getError()
         wings.v.proto.appcontrol.AppControlProto.ProvisionResponse response = null;
         long provisionDeadline = SystemClock.elapsedRealtime() + APP_CONTROL_PROVISION_TIMEOUT_MS;
         int attempt = 0;
@@ -4663,20 +4581,19 @@ public class ProxyTunnelService extends Service {
         if (!executable.isFile()) {
             throw new IllegalStateException("VK TURN binary not found: " + executable.getAbsolutePath());
         }
-        // Recomputed per launch: only the VK TURN relay path below opens the
-        // AppControl gRPC channel, so a prior run must not leave this set.
+        // Recomputed per launch: only the VK TURN relay path below opens the AppControl
+        // channel, and a leftover true from a prior run would lie about it
         appControlGrpcActive = false;
         if (activeBackendType.isWbStreamBackend()) {
             return buildWbStreamProxyProcess(settings, executable);
         }
-        // [gRPC migration] app<->VKTP configuration now travels over the AppControl
-        // gRPC channel, not CLI flags. The relay launches with ONLY its gRPC socket +
-        // token; dns/peer/vk-link/listen/threads/creds/udp/dtls/captcha/vk-auth/
-        // session-mode/browser-fp/turn/wrap/proto-fp are delivered over AppControl
-        // after start. TODO: implement the AppControl Configure RPC on both sides.
+        // The relay launches with ONLY its gRPC socket and token. Everything else -
+        // dns, peer, vk-link, listen, threads, creds, udp, dtls, captcha, vk-auth,
+        // session-mode, browser-fp, turn, wrap, proto-fp - arrives over AppControl
+        // once it is up
         List<String> command = new ArrayList<>();
         command.add(executable.getAbsolutePath());
-        /* [gRPC migration] moved to AppControl:
+        /* Delivered over the AppControl Configure RPC instead:
         boolean xrayTurnProxyEnabled = usesXrayTurnProxy(settings);
         command.add("-dns");
         command.add(AppPrefs.getDnsMode(getApplicationContext()));
@@ -4688,29 +4605,27 @@ public class ProxyTunnelService extends Service {
         command.add("-listen");
         command.add(settings.localEndpoint);
         */
-        // [gRPC migration] app<->VKTP now talks over this AppControl gRPC socket on
-        // BOTH the non-root and root paths. Config + provision ride here.
+        // Config and provision both ride this AppControl socket, root path included
         appControlGrpcActive = true;
         command.add("-app-grpc-socket");
         command.add(appControlSocketPath());
         command.add("-app-grpc-token");
         command.add(appControlToken());
-        // Tell the relay which uid to accept and own the socket by. On the
-        // root/kernel-WG path it runs under su as uid 0 while we connect as the app
-        // uid, so it must chown the socket to us and peer-cred-accept us; on the
-        // non-root path this equals the relay's own uid and is a no-op.
+        // Which uid the relay accepts and owns the socket by. Under root/kernel-WG it
+        // runs as uid 0 while we connect as the app uid, so it has to chown the socket
+        // to us and peer-cred-accept us. Non-root, this is its own uid and a no-op
         command.add("-app-grpc-peer-uid");
         command.add(Integer.toString(android.os.Process.myUid()));
-        // On the root/kernel-WG path the relay creates the socket as root, so it gets
-        // the plain app_data_file:s0 label without our per-app MLS categories and the
-        // app is SELinux-denied sock_file connect. Pass our socket file context so the
-        // root relay relabels it to match. Harmless on the non-root path (same uid).
+        // A socket the relay creates as root lands on the plain app_data_file:s0 label
+        // without our per-app MLS categories, and SELinux then denies the app its
+        // sock_file connect. Hand over our own context so the relay relabels to match;
+        // on the non-root path it is the same uid and nothing happens
         String appControlPeerContext = appControlSocketContext();
         if (!TextUtils.isEmpty(appControlPeerContext)) {
             command.add("-app-grpc-peer-context");
             command.add(appControlPeerContext);
         }
-        /* [gRPC migration] moved to AppControl Configure RPC:
+        /* Delivered over the AppControl Configure RPC instead:
         if (!TextUtils.isEmpty(settings.vkLinkSecondary)) {
             command.add("-vk-link-secondary");
             command.add(settings.vkLinkSecondary);
@@ -4748,18 +4663,17 @@ public class ProxyTunnelService extends Service {
             AppPrefs.normalizeVkAuthMode(settings.vkAuthMode)
         );
         */
-        // Account mode is now configured over the Configure RPC (see buildConfigure),
-        // but the app still gates its VK auth-required / cookies-required handling on
-        // this flag, so set it from the same condition at launch.
+        // Account mode itself goes out in the Configure RPC, but the app gates its VK
+        // auth-required / cookies-required handling on this flag, so set it at launch
         vkAccountAuthActive = AppPrefs.VK_AUTH_MODE_ACCOUNT.equals(AppPrefs.normalizeVkAuthMode(settings.vkAuthMode));
-        // Fresh relay launch: drop stale in-flight guards from a prior run. A stuck
-        // vkCookiesRequestInFlight would otherwise silently swallow every
-        // vk_cookies_required (no browser, relay waits for stdin forever).
+        // Drop the in-flight guards of a prior run: a stuck vkCookiesRequestInFlight
+        // swallows every vk_cookies_required, no browser opens and the relay sits
+        // waiting on stdin forever
         vkAccountAuthInFlightUrl = null;
         vkCookiesRequestInFlight = false;
         silentCookieRejectCount = 0;
         lastSilentCookieDeliveryMs = 0L;
-        /* [gRPC migration] moved to AppControl Configure RPC:
+        /* Delivered over the AppControl Configure RPC instead:
         if (vkAccountModeRequested) {
             command.add("-vk-auth");
             command.add("account");
@@ -4844,10 +4758,9 @@ public class ProxyTunnelService extends Service {
         String e2eSecret = e2eEnabled ? AppPrefs.getWbStreamE2eSecret(appContext) : "";
         int roomCount = AppPrefs.getWbStreamRoomCount(appContext);
 
-        // Pre-create LiveKit rooms from Java so the handshake and the long-running
-        // proxy operate on the SAME ids. Otherwise handshake delivers "any" while
-        // the CLI mints fresh rooms of its own → client and server land in
-        // different rooms.
+        // Rooms are minted here so the handshake and the long-running proxy work on the
+        // SAME ids. Otherwise the handshake delivers one set while the CLI mints fresh
+        // rooms of its own, and client and server end up in different rooms
         java.util.List<String> roomIds = new ArrayList<>();
         if (!TextUtils.isEmpty(primaryRoomId)) {
             roomIds.add(primaryRoomId);
@@ -5616,20 +5529,11 @@ public class ProxyTunnelService extends Service {
         if (!activeXrayTproxyMode || tproxyListenerReady.get() || TextUtils.isEmpty(line)) {
             return;
         }
-        // Two paths fire readiness:
-        //
-        //  (a) xray-core's own log line from transport/internet/tcp/hub.go:
-        //        [Info] transport/internet/tcp: listening TCP on 0.0.0.0:55555
-        //      We pick it up by tailing the configured "error" log file (see
-        //      startXrayTproxyErrorLogTailer) because gomobile redirects the
-        //      Go runtime's stdout to logcat, which means the helper's stdout
-        //      pipe never sees this line.
-        //
-        //  (b) Our Java helper (RootXrayCommands.handle) prints PROXY_STATUS:ok
-        //      via System.out.println AFTER LibXray.runXrayFromJSON returns,
-        //      which only happens once xray-core is fully started and its
-        //      inbound listeners are bound. JVM stdout goes through the pipe
-        //      normally, so this acts as a primary signal.
+        // Readiness arrives two ways. xray-core's own "listening TCP on" line comes off
+        // the error log file we tail, because gomobile sends the Go runtime's stdout to
+        // logcat and the helper's stdout pipe never sees it. PROXY_STATUS:ok comes from
+        // the Java helper after LibXray.runXrayFromJSON returns, which only happens once
+        // the inbound listeners are bound - JVM stdout does go through the pipe
         if (matchesXrayTproxyListenerLogLine(line) || matchesRootHelperReadyMarker(line)) {
             if (tproxyListenerReady.compareAndSet(false, true)) {
                 synchronized (tproxyListenerReady) {
@@ -5673,10 +5577,8 @@ public class ProxyTunnelService extends Service {
         if (TextUtils.isEmpty(line)) {
             return;
         }
-        // When AppControl is active, control (status/caps/captcha/vk-auth) flows over
-        // the StreamEvents gRPC channel; the relay still prints the JSONL lines but
-        // they are kept for the log only (appended in startProxyOutputReader), so do
-        // not interpret them here to avoid double-dispatch.
+        // With AppControl up, control rides StreamEvents. The relay keeps printing the
+        // JSONL lines for the log, and interpreting them here would dispatch twice
         if (appControlGrpcActive) {
             return;
         }
@@ -5715,29 +5617,17 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // The relay needs the user to sign in to VK to obtain TURN credentials. It
-    // emits this event with a direct https://vk.com/call/join/<hash> URL. This
-    // service runs in the :tunnel process, where a WebView cannot be created
-    // (Android forbids WebView in two processes sharing one data dir,
-    // crbug.com/558377), so we launch VkAuthBrowserActivity in the MAIN process.
-    // That activity loads vk.com directly, intercepts the turn_server creds from
-    // VK's own fetch/XHR responses via injected JS, and delivers them back here
-    // (ACTION_VK_ACCOUNT_CREDS), which we write to the relay process stdin. The
-    // relay drives completion via vk_account_auth_complete / vk_account_auth_failed.
-    // True while a VK account-auth request is awaiting the user to sign in via
-    // VkAuthBrowserActivity. During this window the relay legitimately cannot
-    // establish connectivity (it is waiting to intercept the creds), so the
-    // runtime watchdog / active-probing restart-on-no-connectivity must be
-    // suspended; otherwise we would tear down the tunnel mid-auth.
+    // True while a VK account-auth request waits on the user signing in. The relay
+    // honestly cannot get connectivity in that window - it sits there waiting to
+    // intercept the creds - so the watchdog and the active-probing
+    // restart-on-no-connectivity stay suspended, or we tear the tunnel down mid-auth
     private boolean isVkAccountAuthInFlight() {
         return vkAccountAuthInFlightUrl != null;
     }
 
-    // Re-arm the watchdog timing baselines after the VK account auth window
-    // clears. The auth wait can elapse for minutes, so the grace/miss windows
-    // would be stale and fire immediately on the next supervisor tick. Reset
-    // every baseline the watchdogs compare against to "now" so each grace window
-    // restarts from a clean slate.
+    // The auth wait can run for minutes, so every grace/miss window the watchdogs
+    // compare against is stale by the time it clears and would fire on the next
+    // supervisor tick
     private void rearmRuntimeWatchdogTimingBaselines() {
         long now = SystemClock.elapsedRealtime();
         lastUnderlyingConnectivityEventAtElapsedMs = now;
@@ -5753,10 +5643,14 @@ public class ProxyTunnelService extends Service {
         }
     }
 
+    // A WebView cannot be created in :tunnel - Android forbids WebView in two processes
+    // sharing one data dir (crbug.com/558377) - so the sign-in runs as
+    // VkAuthBrowserActivity in the MAIN process, injected JS lifts the turn_server creds
+    // out of VK's own fetch/XHR responses, and they come back over ACTION_VK_ACCOUNT_CREDS
     private void handleVkAccountAuthRequired(final String url) {
         Log.i(TAG, "VK account auth required event received (url=" + url + ")");
         if (!vkAccountAuthActive) {
-            // Should not happen unless the relay emits this without the flag.
+            // Should not happen unless the relay emits this without the flag
             Log.w(TAG, "VK account auth not active; ignoring required event");
             return;
         }
@@ -5764,11 +5658,8 @@ public class ProxyTunnelService extends Service {
             Log.w(TAG, "VK account auth required with empty url; ignoring");
             return;
         }
-        // In-flight dedupe: the relay re-emits vk_account_auth_required
-        // repeatedly. Once we have launched the browser / posted the
-        // notification for a url, ignore further events until complete/failed
-        // comes back (cleared in handleVkAccountAuthDone). This stops the browser
-        // from being re-launched and the notification from flooding.
+        // The relay re-emits vk_account_auth_required over and over. Without this
+        // dedupe the browser relaunches and the notification floods
         if (vkAccountAuthInFlightUrl != null) {
             Log.i(
                 TAG,
@@ -5778,11 +5669,9 @@ public class ProxyTunnelService extends Service {
         }
         vkAccountAuthInFlightUrl = url;
         boolean foreground = isApplicationInForeground();
-        // Only post the high-priority notification when backgrounded: Android
-        // 10+ silently no-ops background Activity starts from a service, so the
-        // notification provides the user gesture that opens the activity. In the
-        // foreground the direct startActivity works, so skip the notification to
-        // avoid spamming the user while the browser is already open.
+        // Android 10+ silently no-ops a background Activity start from a service, so
+        // backgrounded we need the notification as the user gesture that opens it. In
+        // the foreground startActivity works and the notification would just spam
         if (!foreground) {
             postVkAccountAuthNotification(url);
         }
@@ -5793,21 +5682,19 @@ public class ProxyTunnelService extends Service {
             startActivity(intent);
             Log.i(TAG, "VK auth browser launched (foreground=" + foreground + ", url=" + url + ")");
         } catch (Exception error) {
-            // Expected when started from the background; the notification above
-            // is the user-facing path in that case.
+            // Expected from the background; the notification above is the way in then
             Log.w(TAG, "VK account: direct startActivity blocked, relying on notification", error);
             if (foreground) {
-                // We suppressed the notification on the foreground assumption but
-                // the start was blocked; post it so the user is not stuck.
+                // The foreground assumption was wrong and the start got blocked, so
+                // post the notification or the user is stuck
                 postVkAccountAuthNotification(url);
             }
         }
     }
 
-    // B' authorized account TURN: the relay needs the live VK web session to mint
-    // the privileged token. Open the WebView at vk.ru so the user can sign in (or
-    // reuse the persisted session); VkAuthBrowserActivity then delivers the cookies
-    // back via ACTION_VK_COOKIES.
+    // The relay needs the live VK web session to mint the privileged token, so the
+    // WebView opens at vk.ru and VkAuthBrowserActivity hands the cookies back over
+    // ACTION_VK_COOKIES
     private void handleVkCookiesRequired() {
         if (!vkAccountAuthActive) {
             appendRuntimeLogLine("vk_cookies_required ignored: account auth not active");
@@ -5818,11 +5705,9 @@ public class ProxyTunnelService extends Service {
             return;
         }
         vkCookiesRequestInFlight = true;
-        // Serve the cached session straight from cross-process MMKV (written by the
-        // auth browser delivery and by the relay's vk_cookies_update) with no
-        // browser. Fall back to the visible browser only when there is no cached
-        // session yet, or the cached cookies keep getting rejected (rapid repeats =>
-        // the session expired and a real re-login is needed).
+        // Serve the cached session from MMKV with no browser at all. The browser only
+        // comes up when there is no cached session, or when the cached cookies keep
+        // getting rejected - rapid repeats mean the session expired for real
         long now = SystemClock.elapsedRealtime();
         if (now - lastSilentCookieDeliveryMs < SILENT_COOKIE_REJECT_WINDOW_MS) {
             silentCookieRejectCount++;
@@ -5863,20 +5748,17 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // The relay refreshed its VK cookie jar (rotated Set-Cookie captured during a
-    // token re-mint) and pushed it back; mirror it into MMKV for later re-requests.
+    // The relay pushed back a rotated cookie jar it caught during a token re-mint
     private void handleVkCookiesUpdate(String cookies) {
         if (TextUtils.isEmpty(cookies)) {
             return;
         }
-        // Mirror the relay's rotated session into cross-process MMKV so a later
-        // re-request (e.g. after a relay restart) can be served straight from this
-        // process with no browser.
+        // Cross-process MMKV, so a re-request after a relay restart is served from here
+        // with no browser
         AppPrefs.setVkSession(this, cookies, null);
         if (kernelWireguardActive) {
-            // Root/kernel-WG: the relay does not persist the file itself (the app
-            // owns it), so mirror the rotated session back to disk for the next
-            // relay start.
+            // Under root/kernel-WG the app owns the file, not the relay, so the rotated
+            // session has to go back to disk for the next relay start
             writeVkSessionFile(cookies, AppPrefs.getVkSessionUa(this));
         }
     }
@@ -5892,9 +5774,7 @@ public class ProxyTunnelService extends Service {
         if (TextUtils.isEmpty(cookies)) {
             return;
         }
-        // Cache the freshly delivered session in cross-process MMKV so future
-        // re-requests are served from here with no browser, then hand it to the
-        // relay now.
+        // Cache it first: future re-requests are then served from here with no browser
         AppPrefs.setVkSession(this, cookies, userAgent);
         deliverVkCookiesLine(cookies, userAgent);
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -5908,14 +5788,14 @@ public class ProxyTunnelService extends Service {
             return;
         }
         if (kernelWireguardActive) {
-            // Root/kernel-WG: the relay has no writable stdin, so deliver cookies by
-            // writing the session file, which the relay polls (-vk-cookie-file-poll).
+            // Under root/kernel-WG the relay has no writable stdin, so cookies go
+            // through the session file it polls (-vk-cookie-file-poll)
             writeVkSessionFile(cookies, userAgent);
             return;
         }
         if (appControlGrpcActive && appControlSetVkCookies(cookies, userAgent)) {
-            // Non-root: the primary channel is AppControl SetVKCookies. Fall through
-            // to the stdin line only if the gRPC call is unavailable.
+            // AppControl SetVKCookies is the primary channel; the stdin line below is
+            // only for when the RPC is unavailable
             return;
         }
         try {
@@ -5931,10 +5811,9 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Writes the VK session to vk_session.json in the relay's persist format
-    // ({"cookies","ua"}) atomically. On the root/kernel-WG path this is the cookie
-    // delivery channel (no writable relay stdin); the relay adopts it via
-    // -vk-cookie-file-poll. The app owns the file so the root relay only reads it.
+    // vk_session.json in the relay's persist format, written atomically. Under
+    // root/kernel-WG this file IS the cookie channel - no writable relay stdin - and
+    // the relay picks it up with -vk-cookie-file-poll. The app owns it, the relay reads
     private void writeVkSessionFile(String cookies, String userAgent) {
         try {
             JSONObject payload = new JSONObject();
@@ -5960,17 +5839,13 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // The relay finished the VK account-auth flow (complete or failed). Clear the
-    // in-flight guard, dismiss the notification and close the browser across the
-    // process boundary by re-launching VkAuthBrowserActivity with a FINISH
-    // action that its onNewIntent handles (the activity lives in the MAIN
-    // process; this service runs in :tunnel). A null reason means success.
+    // Closing the browser crosses a process boundary: the activity lives in MAIN while
+    // this service runs in :tunnel, so the only way is re-launching it with a FINISH
+    // action its onNewIntent handles. A null reason means success
     private void handleVkAccountAuthDone(@Nullable String reason) {
         Log.i(TAG, "VK account auth done (reason=" + reason + ")");
         vkAccountAuthInFlightUrl = null;
-        // Auth window cleared: re-arm watchdog timing so the grace windows
-        // restart cleanly instead of firing on the (possibly minutes-long)
-        // elapsed time accumulated while the user was signing in.
+        // The sign-in may have taken minutes, so the grace windows need a clean start
         rearmRuntimeWatchdogTimingBaselines();
         cancelVkAccountAuthNotification();
         if (reason != null) {
@@ -5989,29 +5864,22 @@ public class ProxyTunnelService extends Service {
                 )
             );
         } catch (Exception error) {
-            // The browser may already be gone; nothing to close.
+            // The browser may already be gone; nothing to close
             Log.w(TAG, "VK account: failed to signal browser finish", error);
         }
-        // Auth failed (relay reported vk_account_auth_failed: its creds-wait
-        // timeout, an explicit cancel, or an upstream error) with no usable
-        // connection coming. While the auth window was open the runtime parked in
-        // CONNECTING ("Starting") and the watchdog reconnect was suppressed, so if
-        // we just clear the in-flight guard nothing tears the half-started runtime
-        // down and the UI stays stuck in "Starting". Proactively stop it to a
-        // terminal STOPPED state. A success (reason == null) leaves the runtime
-        // alone so it can finish coming up. The explicit Cancel button already
-        // routes through requestStop -> abortConnectingNow; this also covers the
-        // relay-side timeout/error where no stop intent is sent.
+        // On a failure no usable connection is coming. The runtime parked in CONNECTING
+        // for the whole auth window with the watchdog reconnect suppressed, so clearing
+        // the guard alone leaves a half-started runtime and the UI stuck on "Starting".
+        // The Cancel button goes through requestStop -> abortConnectingNow already;
+        // this covers the relay-side timeout or error that sends no stop intent
         if (reason != null && !stopping && isActive()) {
             appendRuntimeLogLine("VK account auth failed; aborting connecting runtime");
             forceAbortNow(true);
         }
     }
 
-    // Relay the intercepted VK TURN credentials (or a cancel) from
-    // VkAuthBrowserActivity to the relay process stdin as one vk_account_creds
-    // JSON line. Only the non-root ProcessBuilder path exposes a writable stdin,
-    // so this is gated on vkAccountAuthActive (set only on that path).
+    // Only the non-root ProcessBuilder path exposes a writable stdin, so the whole
+    // thing is gated on vkAccountAuthActive
     private void handleVkAccountCredsIntent(@Nullable Intent intent) {
         if (intent == null) {
             return;
@@ -6032,10 +5900,9 @@ public class ProxyTunnelService extends Service {
         submitVkAccountCreds(link, username, credential, urls, false);
     }
 
-    // Delivers the intercepted VK TURN creds (or a cancel) to the relay. Prefers the
-    // AppControl gRPC channel, which works on the root/kernel-WG path too (no
-    // writable stdin there); falls back to the legacy stdin line when gRPC is off.
-    // The blocking RPC runs off the caller (onStartCommand) thread.
+    // AppControl first, because it works under root/kernel-WG too where there is no
+    // writable stdin; the stdin line is the fallback. The RPC blocks, so it runs off
+    // the onStartCommand thread
     private void submitVkAccountCreds(
         @Nullable String link,
         @Nullable String username,
@@ -6251,8 +6118,8 @@ public class ProxyTunnelService extends Service {
             if (PROXY_EVENT_CAPTCHA.equals(type)) {
                 String state = event.optString("state", "").trim().toLowerCase(Locale.US);
                 if (CAPTCHA_STATE_SOLVING.equals(state)) {
-                    // Auto-captcha solved by the proxy with no user interaction -
-                    // surface it as the captcha connect stage without any UI.
+                    // The proxy solves this one itself, so it only shows up as the
+                    // captcha connect stage - no UI
                     proxyCaptchaInProgress = true;
                     persistConnectProgress();
                     return;
@@ -6275,8 +6142,7 @@ public class ProxyTunnelService extends Service {
                 return;
             }
             if (PROXY_EVENT_TELEMETRY.equals(type)) {
-                // Telemetry is consumed over the AppControl gRPC now
-                // (appControlTelemetryPollLoop); the line was already logged above.
+                // Telemetry rides AppControl; the line is already in the log above
                 return;
             }
             if (PROXY_EVENT_VK_ACCOUNT_AUTH_REQUIRED.equals(type)) {
@@ -6303,9 +6169,7 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Applies the relay's connected-stream count (pulled over AppControl): drives the
-    // connect-progress counter, refreshes the notification while (dis)connecting, and
-    // marks DTLS liveness. Runs on the telemetry poll thread.
+    // Runs on the telemetry stream thread, not the main one
     private void applyProxyStreamTelemetry(int connectedStreams, int workerStreams) {
         int connected = Math.max(0, connectedStreams);
         sProxyConnectedStreams = connected;
@@ -6314,8 +6178,8 @@ public class ProxyTunnelService extends Service {
         }
         persistConnectProgress();
         if (sServiceState == ServiceState.CONNECTING || sServiceState == ServiceState.RUNNING) {
-            // Refresh the notification so its stream counter (e.g. "2/12T") ticks
-            // up as streams connect - they keep filling after the tunnel is up.
+            // Streams keep filling after the tunnel is up, so the notification counter
+            // has to tick along with them
             updateNotification();
         }
         if (connected > 0) {
@@ -6637,13 +6501,10 @@ public class ProxyTunnelService extends Service {
             return;
         }
 
-        // Ждём появления реальной физической сети без дедлайна. В местах с
-        // глушилками или метро это может занять минуты - раньше метод
-        // возвращался по таймауту 8с, и proxy после этого падал на warmup,
-        // обрушая сервис в STOPPED. Цикл прерывается только когда юзер
-        // явно остановил тоннель (ensureRuntimeStillWanted кинет
-        // InterruptedException) или когда ConnectivityManager сообщил
-        // об изменении generation.
+        // Физическую сеть ждём без дедлайна: под глушилкой или в метро она может не
+        // появляться минутами, а по таймауту proxy сразу обсирается на warmup и валит
+        // сервис в STOPPED. Выйти из цикла можно только явной остановкой туннеля или
+        // сменой generation
         long startedAtMs = SystemClock.elapsedRealtime();
         long lastLoggedAtMs = 0L;
         boolean waitedAtAll = false;
@@ -6691,11 +6552,9 @@ public class ProxyTunnelService extends Service {
                 );
             }
             if (vkCookiesRequestInFlight) {
-                // The relay is blocked waiting for a VK cookie delivery (silent
-                // CookieManager read or browser login); it cannot reach DTLS ready
-                // until the cookies arrive. Pause the warmup deadline instead of
-                // killing and restarting the relay, which would wipe its warm token
-                // cache and re-trigger the whole cookie request.
+                // The relay is parked waiting on a VK cookie delivery and cannot reach
+                // DTLS ready until it lands. Pause the deadline: killing and restarting
+                // the relay wipes its warm token cache and asks for the cookies again
                 if (!cookieWaitLogged) {
                     appendRuntimeLogLine("vk-turn-proxy warmup paused: waiting for VK session cookies");
                     cookieWaitLogged = true;
@@ -6920,11 +6779,10 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Resolves the underlying physical default routes (main table, then full
-     * route dump, then ConnectivityManager fallback). Shared by the tether
-     * upstream table and by the kernel-WG bypass table so both reach the
-     * physical network the same way. Returns empty lists on failure - callers
-     * decide whether that is fatal (tether) or a graceful fallback (bypass).
+     * The physical default routes: main table, then the full dump, then
+     * ConnectivityManager. The tether upstream table and the kernel-WG bypass table
+     * share this so both reach the physical network the same way. Empty lists on
+     * failure - fatal for tether, a graceful fallback for bypass
      */
     private UnderlyingRoutes resolveUnderlyingDefaultRoutes() {
         List<String> ipv4Routes = new ArrayList<>();
@@ -6965,7 +6823,7 @@ public class ProxyTunnelService extends Service {
         // На сотовой сети дефолт обычно приходит из RA с атрибутами (proto ra,
         // expires Nsec, pref, hoplimit), которые ip route add не принимает, и
         // зеркало физического default'а молча не встаёт. Сводим строку к
-        // addable-форме default [via GW] dev IFACE [metric N].
+        // addable-форме default [via GW] dev IFACE [metric N]
         return new UnderlyingRoutes(sanitizeDefaultRouteLines(ipv4Routes), sanitizeDefaultRouteLines(ipv6Routes));
     }
 
@@ -7029,13 +6887,11 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return;
         }
-        // The VPN-sharing toggle decides whether WINGS V touches the hotspot at all.
-        // OFF -> hands-off: the system already forwards tethered clients DIRECT (as it
-        // does from a clean boot), so we install zero rules and only revert any
-        // leftover routing once on the on->off transition. Installing our own
-        // masquerade/iif/redirect when sharing is off is exactly what dragged the AP
-        // back into the tunnel. ON -> the engine owns the routing and tunnels the
-        // clients through the active backend.
+        // The VPN-sharing toggle decides whether we touch the hotspot at all. Off means
+        // hands-off: the system already forwards tethered clients direct, so we install
+        // zero rules and only revert leftovers once, on the on->off transition. Our own
+        // masquerade/iif/redirect with sharing off is exactly what drags the AP back
+        // into the tunnel. On, the engine owns the routing
         boolean shareViaVpn = AppPrefs.isAppSharingIntended(getApplicationContext());
         if (!shareViaVpn) {
             AppPrefs.clearRuntimeUpstreamState(getApplicationContext());
@@ -7087,27 +6943,23 @@ public class ProxyTunnelService extends Service {
             configuredInterfaces.add(tetherInterface);
         }
         if (configuredInterfaces.isEmpty()) {
-            // No active tether interfaces -> sharing is off. Do not run the
-            // masquerade sync: its ndc teardown surfaces a misleading
-            // "200 0 success" as a runtime error and can wedge the runtime. Clear
-            // any leftover tether routing once on the on->off transition, then skip.
+            // No tether interfaces means sharing is off. The masquerade sync must not
+            // run: its ndc teardown reports a misleading "200 0 success" as a runtime
+            // error and can wedge the runtime
             if (lastTetherSyncInterfaces != null && !lastTetherSyncInterfaces.isEmpty()) {
                 clearRootTetherRouting();
             }
             return;
         }
         VpnHotspotSharingConfig sharingConfig = buildSharingConfig();
-        // Skip-no-op: при пустом наборе tether-интерфейсов и неизменных upstream/
-        // конфиге дальше идёт runBlocking{ Routing.clean() } внутри
-        // VpnHotspotSharingRuntime, который форкает su+iptables. Это срабатывало
-        // каждые 3 секунды и составляло основной wakeup-shape в idle - кешируем
-        // последнее применённое состояние и пропускаем sync если ничего не
-        // менялось.
+        // Дальше внутри VpnHotspotSharingRuntime живёт runBlocking{ Routing.clean() },
+        // который форкает su+iptables. На неизменных upstream и конфиге это каждые 3
+        // секунды и есть основной wakeup в idle, поэтому держим последнее применённое
+        // состояние и молча пропускаем синк
         long now = SystemClock.elapsedRealtime();
-        // Re-apply on a cadence even when the desired state is unchanged: Android
-        // wipes the masquerade/routing out from under us, and "unchanged since our
-        // last sync" does not mean "still applied". Otherwise the rules stay gone
-        // until a manual reapply and sharing clients lose internet.
+        // Android wipes the masquerade out from under us, so "unchanged since our last
+        // sync" does not mean "still applied". Without the cadence the rules stay gone
+        // until a manual reapply and the sharing clients sit without internet
         boolean forceReapply =
             lastTetherForceReapplyAtElapsedMs <= 0L ||
             now - lastTetherForceReapplyAtElapsedMs >= ROOT_TETHER_FORCE_REAPPLY_INTERVAL_MS;
@@ -7144,8 +6996,7 @@ public class ProxyTunnelService extends Service {
             SharingApiGuard.syncSharing(getApplicationContext(), configuredInterfaces, sharingConfig);
             syncSharingWifiLocks(configuredInterfaces);
             applySharingTtlHide(configuredInterfaces);
-            // Sharing is on here (the off case returned hands-off above): tunnel the
-            // forwarded AP/hotspot clients through the active backend.
+            // Sharing is on here - the off case returned hands-off above
             if (redirectNeedsApply) {
                 applyForwardedClientRedirect(configuredInterfaces);
             }
@@ -7176,12 +7027,12 @@ public class ProxyTunnelService extends Service {
     }
 
     private void clearRootTetherRouting() {
-        // Revert the forwarded-client redirect FIRST. It is the iptables rule that
-        // tunnels AP traffic into the backend, so dropping it immediately frees the
-        // hotspot to exit direct. stopSharing below is slow (engine runBlocking
-        // su/ndc) and the fast-stop budget can cut this method off mid-way - if the
-        // revert ran after it, a backend switch / root-off would leave the redirect
-        // installed and keep dragging the AP through the tunnel until a reboot.
+        // The forwarded-client redirect goes FIRST: it is the rule that pulls AP traffic
+        // into the backend, and dropping it frees the hotspot to exit direct right away.
+        // stopSharing below is slow (engine runBlocking su/ndc) and the fast-stop budget
+        // can cut this method off mid-way; revert after it and a backend switch or
+        // root-off leaves the redirect installed, dragging the AP through the tunnel
+        // until a reboot
         if (rootModeActive) {
             XrayTproxyRouter.revertForwardedRedirectQuietly(getApplicationContext());
         }
@@ -7196,10 +7047,10 @@ public class ProxyTunnelService extends Service {
         releaseSharingWifiLocks();
     }
 
-    // Transparently REDIRECT shared (tethering) client traffic into the local xray
-    // dokodemo-door redirect inbound, so AP/hotspot clients are tunneled through
-    // the active backend instead of leaking out the physical upstream. Root only;
-    // bypasses the the TUN inbound entirely. Reverts when the interface set is empty.
+    // REDIRECTs shared-client traffic into the local xray redirect inbound, so AP and
+    // hotspot clients ride the active backend instead of leaking out the physical
+    // upstream. Root only, and it skips the TUN inbound entirely. An empty interface
+    // set reverts it
     private void applyForwardedClientRedirect(Set<String> downstreamInterfaces) {
         if (!rootModeActive) {
             return;
@@ -7221,8 +7072,8 @@ public class ProxyTunnelService extends Service {
             return;
         }
         boolean hasInterfaces = downstreamInterfaces != null && !downstreamInterfaces.isEmpty();
-        // Daemon-first: the module owns the carve-out so it is not stranded when the app
-        // dies. Falls back to su only when there is no usable daemon.
+        // Daemon-first: the module owns the carve-out, so it is not stranded when the
+        // app dies. su is the fallback when there is no usable daemon
         if (
             RootExecutor.applyForwardedRedirectViaDaemon(
                 getApplicationContext(),
@@ -7251,15 +7102,14 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Keep the TPROXY-mode device tproxy from tunneling AP/hotspot (forwarded)
-    // traffic unless the user turned sharing on in the app. Runs on tether changes
-    // and after the tproxy chain is (re)built. Sharing off / no hotspot reverts the
-    // carve-out; on carves out only the clients' DNS.
+    // In TPROXY mode the device tproxy must not swallow forwarded AP/hotspot traffic
+    // unless sharing is on. Sharing off or no hotspot reverts the carve-out; on, only
+    // the clients' DNS is carved out
     private void reconcileTproxyForwardedExclusion() {
         Context appContext = getApplicationContext();
         String preChain = XrayTproxyRouter.tproxyPreChain();
         if (!rootModeActive || !activeXrayTproxyMode) {
-            // An empty interface set clears the carve-out; daemon-first, su on fallback.
+            // An empty interface set clears the carve-out; daemon-first, su on fallback
             if (!RootExecutor.applyForwardedExclusionViaDaemon(appContext, new LinkedHashSet<>(), false, preChain)) {
                 XrayTproxyRouter.revertForwardedTproxyExclusionQuietly(appContext);
             }
@@ -7282,9 +7132,8 @@ public class ProxyTunnelService extends Service {
         refreshSupervisorSchedule();
     }
 
-    // Whether a downstream tether interface (hotspot / usb) is currently up, i.e.
-    // whether the forwarded carve-out is expected to exist. Mirrors the interface
-    // filter in reconcileTproxyForwardedExclusion.
+    // Is a downstream (hotspot / usb) up, i.e. should the forwarded carve-out exist.
+    // Mirrors the interface filter in reconcileTproxyForwardedExclusion
     private boolean hasTetherDownstream() {
         for (String tetherInterface : readLiveTetheredInterfaces(getStickyTetherIntent())) {
             if (!TextUtils.isEmpty(tetherInterface) && !tetherInterface.startsWith("lo")) {
@@ -7358,11 +7207,10 @@ public class ProxyTunnelService extends Service {
         reapOrphanXrayTproxyRuntime(appContext);
         tproxyListenerReady.set(false);
         startXrayTproxyErrorLogTailer(appContext);
-        // Xray binds its stats api socket as root, so it lands owned by uid 0 with the
-        // plain app_data_file label and no per-app MLS categories, and we would be
-        // SELinux-denied on connect. Hand the helper our uid and socket context so it
-        // can hand the socket back to us once Xray has bound it - the same deal the
-        // vk-turn-proxy relay gets via -app-grpc-peer-uid/-app-grpc-peer-context.
+        // Xray binds its stats api socket as root, so it lands owned by uid 0 on the
+        // plain app_data_file label with no per-app MLS categories, and SELinux denies
+        // us the connect. The helper gets our uid and socket context so it can hand the
+        // socket back once Xray has bound it
         Process process = RootUtils.spawnRootHelperProcess(
             appContext,
             "xray-tproxy",
@@ -7413,8 +7261,8 @@ public class ProxyTunnelService extends Service {
                     return false;
                 }
                 try {
-                    // Cap the wait so generation/cancellation can be re-checked
-                    // periodically even when xray is taking its time to log.
+                    // Capped so generation and cancellation get re-checked even while
+                    // xray takes its time logging
                     tproxyListenerReady.wait(Math.min(remaining, 150L));
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
@@ -7425,15 +7273,11 @@ public class ProxyTunnelService extends Service {
         return true;
     }
 
-    // xray-core is spawned via gomobile's LibXray binding in our root helper;
-    // gomobile rewires the Go runtime's os.Stdout/os.Stderr to logcat, so the
-    // "listening TCP on 0.0.0.0:55555" line from transport/internet/tcp/hub.go
-    // never reaches the helper's stdout pipe that startProxyOutputReader is
-    // reading. xray-core does still honour its config "error" file path, so
-    // we tail that file and feed each line into handleXrayTproxyListenerLine.
-    // This also serves as a backstop in case the helper's own PROXY_STATUS:ok
-    // marker (printed via JVM System.out after LibXray.runXrayFromJSON returns)
-    // races with whatever else is consuming stdout.
+    // gomobile rewires the Go runtime's os.Stdout/os.Stderr to logcat, so xray-core's
+    // "listening TCP on" line never reaches the helper's stdout pipe that
+    // startProxyOutputReader reads. The config "error" file path is still honoured, so
+    // we tail that instead. It doubles as a backstop when the helper's own
+    // PROXY_STATUS:ok marker races whatever else is consuming stdout
     private void startXrayTproxyErrorLogTailer(Context appContext) {
         stopXrayTproxyErrorLogTailer();
         tproxyErrorLogTailerStop = false;
@@ -7489,10 +7333,10 @@ public class ProxyTunnelService extends Service {
         Process process = tproxyXrayProcess;
         Context appContext = getApplicationContext();
         stopXrayTproxyErrorLogTailer();
-        // Always run the root-pkill sweep, even when the local Process handle is
-        // already gone: Process.destroy() only hits the top-level su, the real
-        // xray under app_process gets reparented to init and survives. The sweep
-        // by full cmdline is the only way to reliably take it down.
+        // The root-pkill sweep runs even with the local Process handle already gone:
+        // destroy() only hits the top-level su, while the real xray under app_process
+        // reparents to init and survives. The full-cmdline sweep is the only thing that
+        // actually kills it
         tproxyXrayProcess = null;
         resetTproxyTrafficBaselines();
         if (process != null) {
@@ -7509,28 +7353,25 @@ public class ProxyTunnelService extends Service {
             }
         }
         killOrphanXrayTproxyRuntime(appContext);
-        // The TPROXY listener should be gone after kill; wait briefly so the
-        // next start does not race against a still-bound :55555 socket.
+        // Wait for the listener to actually die, or the next start races a socket that
+        // is still bound
         waitForTproxyListenerGone(2_000L);
     }
 
     private void killOrphanXrayTproxyRuntime(Context appContext) {
         try {
-            // pkill -f matches against the FULL cmdline, including the pattern
-            // arg of any process running pkill (or its ancestor shell). If we
-            // pass the pattern literally, su/sh/app_process/RootCommandMain
-            // running this helper all carry the substring "RootCommandMain
-            // xray-tproxy" in their own argv, pkill matches them and SIGKILLs
-            // the chain. Java's runRootHelper sees su die with signal 9 and
-            // reports exit code 137. The orphan we actually wanted to kill
-            // also dies, but so does the helper that was supposed to report
-            // success, and the caller treats it as a failed cleanup.
+            // pkill -f matches the FULL cmdline, the pattern arg of pkill itself and of
+            // its ancestor shell included. Pass the pattern literally and
+            // su/sh/app_process/RootCommandMain running this helper all carry
+            // "RootCommandMain xray-tproxy" in their own argv: pkill SIGKILLs the whole
+            // chain, runRootHelper sees su die on signal 9 and reports exit 137. The
+            // orphan dies too, but so does the helper that was meant to report success,
+            // and the caller reads it as a failed cleanup.
             //
-            // Workaround: build the pattern string at runtime via printf with
-            // an octal-escaped space (\040). The literal substring "wings.v.
-            // root.RootCommandMain xray-tproxy" never appears in any cmdline
-            // we control; the orphan's argv has it because it was launched
-            // with that argument vector directly, so it still matches.
+            // So the pattern is assembled at runtime by printf with an octal-escaped
+            // space (\040): that literal substring never appears in a cmdline we
+            // control, while the orphan's argv has it because it was launched with
+            // exactly that argument vector
             RootUtils.runRootHelper(
                 appContext,
                 "shell",
@@ -7560,14 +7401,15 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Kills any leftover Xray TPROXY runtime spawned by a previous WINGSV process
-     * that was force-killed before it could call {@link #stopTproxyXrayProcess()}.
-     * The orphan keeps {@code :55555} bound, so a fresh spawn would silently lose
-     * the bind race while {@link #waitForXrayTproxyListenerSignal(long, int)} still
-     * matched the old listener's log marker and reported a phantom success.
+     * Kills an Xray TPROXY runtime left over from a WINGSV process that was
+     * force-killed before it reached {@link #stopTproxyXrayProcess()}. The orphan keeps
+     * its port bound, so a fresh spawn silently loses the bind race while
+     * {@link #waitForXrayTproxyListenerSignal(long, int)} matches the old listener's
+     * log marker and reports a phantom success.
      *
-     * Match key is the cmdline emitted by {@link wings.v.core.RootUtils#buildRootHelperShellCommand}:
-     * {@code app_process … wings.v.root.RootCommandMain xray-tproxy …}.
+     * The match key is the cmdline
+     * {@link wings.v.core.RootUtils#buildRootHelperShellCommand} emits:
+     * {@code app_process ... wings.v.root.RootCommandMain xray-tproxy ...}
      */
     private void reapOrphanXrayTproxyRuntime(Context appContext) {
         killOrphanXrayTproxyRuntime(appContext);
@@ -7596,8 +7438,8 @@ public class ProxyTunnelService extends Service {
                     return;
                 }
                 if (mainApplied && !localBypassStale) {
-                    // Only the forwarded carve-out drifted (vpnhotspot / system tether
-                    // flushed CHAIN_FWD); restore it without a full tproxy reapply.
+                    // Only the forwarded carve-out drifted - vpnhotspot or the system
+                    // tether flushed CHAIN_FWD - so no full tproxy reapply is needed
                     appendRuntimeLogLine("TPROXY forwarded carve-out missing after " + reason + ", reconciling");
                     reconcileTproxyForwardedExclusion();
                     return;
@@ -7862,8 +7704,8 @@ public class ProxyTunnelService extends Service {
     }
 
     private Set<Integer> collectRootBypassUids() {
-        // XBypass is unavailable on kernel WG and degrades to plain bypass here, so
-        // both bypass-family modes collect the same UIDs for the physical default.
+        // XBypass does not exist on kernel WG and degrades to plain bypass, so both
+        // bypass-family modes collect the same UIDs for the physical default
         if (!AppPrefs.getAppRoutingMode(getApplicationContext()).isBypassFamily()) {
             return new LinkedHashSet<>();
         }
@@ -7883,7 +7725,7 @@ public class ProxyTunnelService extends Service {
      *
      * <p>Worth the detour because the daemon outlives us: rules it owns cannot be
      * stranded by the app being killed mid-teardown, which is the failure the su path
-     * can only paper over by staying in the foreground long enough.
+     * can only paper over by staying in the foreground long enough
      */
     private boolean applyRootRoutingViaDaemon(RootRoutingState routingState) {
         RootdClient client = RootExecutor.acquire(getApplicationContext());
@@ -7895,7 +7737,7 @@ public class ProxyTunnelService extends Service {
             appendRuntimeLogLine("Root routing applied by the wingsvd module");
             return true;
         } catch (IOException error) {
-            // Never fatal: fall back to su so a broken module cannot stop the tunnel.
+            // Never fatal: fall back to su so a broken module cannot stop the tunnel
             appendRuntimeLogLine("wingsvd apply failed, using su: " + error.getMessage());
             Log.w(TAG, "wingsvd apply failed", error);
             RootExecutor.invalidate();
@@ -7921,7 +7763,7 @@ public class ProxyTunnelService extends Service {
                 spec.addBypassUids(uid);
             }
         }
-        // The mark chain only makes sense when there is something to divert into it.
+        // The mark chain only makes sense when there is something to divert into it
         spec.setBypassMarkEnabled(!routingState.bypassUids.isEmpty());
         return spec.build();
     }
@@ -8009,12 +7851,10 @@ public class ProxyTunnelService extends Service {
         runRootRoutingCommand(script.toString());
     }
 
-    // Re-marks bypassed apps' egress packets with the underlying cellular netId
-    // fwmark. Without this the packets carry the WG netId mark and the cellular
-    // uplink drops them, so the route in ROOT_UPSTREAM_TABLE alone is not enough -
-    // they must look like the protected tunnel socket to leave by the physical
-    // default. No-op when the underlying mark cannot be resolved (keeps the old
-    // route-only behavior as a safe fallback).
+    // Bypassed apps' egress packets get the underlying cellular netId fwmark. The route
+    // in ROOT_UPSTREAM_TABLE alone is not enough: with the WG netId mark on them the
+    // cellular uplink drops the packets, so they have to look like the protected tunnel
+    // socket to leave by the physical default. No resolvable mark means route-only
     private void appendBypassNetworkMarkCommands(StringBuilder script, RootRoutingState routingState) {
         if (routingState == null || routingState.bypassUids.isEmpty()) {
             return;
@@ -8060,7 +7900,7 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Pulls the interface name out of a sanitized default route line ("... dev X ...").
+    // Pulls the interface name out of a sanitized default route line ("... dev X ...")
     private static String extractRouteInterface(List<String> routes) {
         if (routes == null) {
             return null;
@@ -8083,9 +7923,9 @@ public class ProxyTunnelService extends Service {
         return null;
     }
 
-    // Reads the underlying network's netId fwmark (e.g. "0x10076/0x1ffff") from the
-    // ip rule that routes that physical interface, so we can stamp bypass packets
-    // with it. Prefers the generic "iif lo" selector over uid-scoped rules.
+    // The underlying network's netId fwmark (e.g. "0x10076/0x1ffff"), read off the ip
+    // rule that routes that physical interface. The generic "iif lo" selector wins over
+    // uid-scoped rules
     private String resolveUnderlyingNetworkMark(String iface) {
         if (TextUtils.isEmpty(iface)) {
             return null;
@@ -8140,7 +7980,7 @@ public class ProxyTunnelService extends Service {
      * the QS tile lose the race against the process being killed.
      *
      * <p>Returns false when there is no usable daemon, or when it never had a session -
-     * then the rules, if any, are ours to remove below.
+     * then the rules, if any, are ours to remove below
      */
     private boolean clearRootRoutingViaDaemon() {
         RootdClient client = RootExecutor.acquire(getApplicationContext());
@@ -8250,7 +8090,7 @@ public class ProxyTunnelService extends Service {
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
         // Зеркало физического default'а для bypass-таблицы: без него lookup main
-        // на части прошивок промахивается и bypass-приложения остаются без сети.
+        // на части прошивок промахивается и bypass-приложения сидят без сети
         UnderlyingRoutes bypassRoutes = resolveUnderlyingDefaultRoutes();
         try {
             RootMultiUserRouter.apply(
@@ -8288,13 +8128,12 @@ public class ProxyTunnelService extends Service {
         applyBypassDnsTunnelRoute(tunnelTableLookup);
     }
 
-    // Keeps DNS working for bypassed apps on kernel WG. The system resolver points
-    // at wgDns (set by wg-quick), which lives behind the tunnel; the bypass rules
-    // (12001+) would drag DNS queries out to the physical network where wgDns is
-    // unreachable, so name resolution dies while raw IP traffic still flows. We add
-    // a rule above the bypass priority that routes anything addressed to wgDns back
-    // into the tunnel - it matches by destination, so it catches the query whether
-    // netd or the app itself sends it. App data keeps bypassing as before.
+    // Keeps DNS alive for bypassed apps on kernel WG. The system resolver points at
+    // wgDns, which lives behind the tunnel, and the bypass rules (12001+) drag DNS
+    // queries out to the physical network where wgDns is unreachable: raw IP traffic
+    // flows while name resolution dies. The rule above the bypass priority sends
+    // anything addressed to wgDns back into the tunnel, and it matches by destination,
+    // so it catches the query whether netd or the app sends it. App data still bypasses
     private void applyBypassDnsTunnelRoute(String tunnelTableLookup) {
         if (TextUtils.isEmpty(tunnelTableLookup)) {
             return;
@@ -8345,12 +8184,11 @@ public class ProxyTunnelService extends Service {
             .append(" 2>/dev/null; do :; done;");
     }
 
-    // Defensive reconciliation on app launch: if a background stop teardown did not
-    // finish before the process died, stale root UID ip-rules / filter would keep
-    // steering app traffic into a dead tunnel table and block connectivity until the
-    // VPN is turned back on. When the app starts with the tunnel NOT active, clear
-    // them off the main thread. No-op when the tunnel is active (it owns the rules)
-    // or root is not granted.
+    // A background stop teardown that did not finish before the process died leaves
+    // root UID ip-rules and filter steering app traffic into a dead tunnel table, and
+    // the device has no connectivity until the VPN goes back on. So a launch with the
+    // tunnel NOT active clears them off the main thread. No-op while the tunnel is
+    // active - it owns the rules - or without root
     public static void cleanStaleRootRoutingOnLaunch(Context context) {
         if (isActive() || context == null) {
             return;
@@ -8382,9 +8220,9 @@ public class ProxyTunnelService extends Service {
                 runRootRoutingCommand(script.toString());
             } catch (Exception ignored) {}
         }
-        // Чистка iptables-фильтра идёт независимо от kernel-WG: для Xray-
-        // VpnService / Xray-TPROXY режимов с root'ом chain ставился через
-        // applyFilterOnly и ему тоже нужен teardown.
+        // Чистка iptables-фильтра идёт независимо от kernel-WG: в Xray-VpnService и
+        // Xray-TPROXY под root'ом цепочка ставится через applyFilterOnly, и ей тоже
+        // нужен teardown
         if (RootUtils.isRootAccessGranted(appContext)) {
             RootMultiUserRouter.clearQuietly(appContext);
         }
@@ -8400,22 +8238,20 @@ public class ProxyTunnelService extends Service {
      *   - excluded-приложения, идущие к системному loopback-прокси
      *     (com.android.proxyhandler/PAC и т.п.), который дальше передаёт трафик
      *     из своего UID и тот ловится TPROXY/VPN-маршрутизацией -> утечка IP.
-     * No-op без root или с выключенным lockdown-переключателем.
+     * No-op без root или с выключенным lockdown-переключателем
      */
     private void applySplitTunnelLockdown(String backendLabel, @Nullable String tunIface) {
-        // Сам apply iptables-фильтра уходит в rootRoutingExecutor, чтобы su-
-        // shell, который может занимать сотни мс на холодных startup'ах,
-        // не блокировал основной поток коннекта. Короткий промежуток до
-        // применения фильтра leak-windowsec, но это та же ситуация что и
-        // у любого split-tunnel firewall на старте; UI/tunnel виден сразу.
+        // Сам apply уходит в rootRoutingExecutor: su-shell на холодном старте жрёт
+        // сотни мс и не должен держать поток коннекта. До применения фильтра остаётся
+        // короткое окно утечки - как у любого split-tunnel firewall на старте
         Context appContext = getApplicationContext();
         rootRoutingExecutor.execute(() -> applySplitTunnelLockdownBlocking(appContext, backendLabel, tunIface));
     }
 
     private void applySplitTunnelLockdownBlocking(Context appContext, String backendLabel, @Nullable String tunIface) {
-        // Master Root functions toggle off -> behave as no-root (do not touch
-        // iptables even if su is still granted at OS level). If a previous
-        // session left filter chains in place, sweep them now.
+        // Root functions off means behave as no-root and keep hands off iptables even
+        // when su is still granted at the OS level. Filter chains a previous session
+        // left behind get swept here
         ProxySettings prefSettings = AppPrefs.getSettings(appContext);
         if (prefSettings == null || !prefSettings.rootModeEnabled || !RootUtils.isRootAccessGranted(appContext)) {
             if (lastSplitTunnelLockdownBackendLabel != null && RootUtils.isRootAccessGranted(appContext)) {
@@ -8428,7 +8264,7 @@ public class ProxyTunnelService extends Service {
         java.util.List<Integer> systemProxyPorts = discoverSystemProxyPorts();
         boolean hasTun = !TextUtils.isEmpty(tunIface);
         if (!hasTun && systemProxyPorts.isEmpty()) {
-            // Ни tun-имени, ни локальных system-proxy портов - резать нечего.
+            // Ни tun-имени, ни локальных system-proxy портов - резать нечего
             RootMultiUserRouter.clearQuietly(appContext);
             lastSplitTunnelLockdownTunIface = null;
             lastSplitTunnelLockdownBackendLabel = backendLabel;
@@ -8436,13 +8272,12 @@ public class ProxyTunnelService extends Service {
         }
         RootMultiUserRouter.Mode mode = RootMultiUserRouter.modeFromPrefs(appContext);
         Set<String> packages = AppPrefs.getEffectiveAppRoutingPackages(appContext);
-        // The TUN-divert modes (XBYPASS / XWHITELIST) route every app THROUGH
-        // the tun and divert the relevant UIDs at the TUN level, so iptables
-        // must not reject them on tun egress there. Plain BYPASS excludes apps at
-        // the VpnService layer (addDisallowedApplication): they never enter the
-        // tun, and the filter must instead kick them OFF the tun (block 1) while
-        // still rejecting tunneled UIDs' direct egress (block 2), so
-        // SO_BINDTODEVICE / Network.bindSocket leaks are blocked with root.
+        // The TUN-divert modes (XBYPASS / XWHITELIST) push every app THROUGH the tun and
+        // divert the relevant UIDs at the TUN level, so iptables must not reject them on
+        // tun egress. Plain BYPASS excludes apps at the VpnService layer
+        // (addDisallowedApplication) and they never enter the tun, so the filter has to
+        // kick them OFF the tun instead while still rejecting tunneled UIDs' direct
+        // egress - that is what blocks SO_BINDTODEVICE / Network.bindSocket leaks
         boolean bypassEntersTun =
             usesXrayBackend(activeBackendType) &&
             !activeXrayTproxyMode &&
@@ -8493,10 +8328,9 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Перенакатывает фильтр после изменения сетевого состояния (например,
-     * Android запустил/убил PAC-обработчик при переключении Wi-Fi). Использует
-     * последний tunIface, с которым lockdown накатывался; если ничего не было
-     * применено - no-op.
+     * Перенакатывает фильтр после смены сетевого состояния: Android, например,
+     * поднимает или убивает PAC-обработчик при переключении Wi-Fi. Берёт последний
+     * tunIface, с которым накатывался lockdown, и молчит, если накатов не было
      */
     private void reapplySplitTunnelLockdownOnNetworkChange() {
         if (lastSplitTunnelLockdownBackendLabel == null) {
@@ -8512,10 +8346,9 @@ public class ProxyTunnelService extends Service {
         applySplitTunnelLockdown(lastSplitTunnelLockdownBackendLabel, iface);
     }
 
-    // Системные пакеты, которые поднимают локальные proxy-listener'ы и через
-    // которые трафик может уйти в туннель из чужого UID. Через них bypass-
-    // приложение видит чужой IP и обходит per-app исключение. UID этих пакетов
-    // решается в рантайме через PackageManager - он отличается по устройствам.
+    // Системные пакеты с локальными proxy-listener'ами: через них трафик уходит в
+    // туннель из чужого UID, и bypass-приложение видит чужой IP вместо своего прямого.
+    // UID считаем в рантайме через PackageManager - по устройствам он разный
     private static final String[] SYSTEM_PROXY_PACKAGES = { "com.android.proxyhandler" };
 
     @SuppressWarnings("deprecation")
@@ -8543,20 +8376,17 @@ public class ProxyTunnelService extends Service {
                 }
             } catch (Exception ignored) {}
         }
-        // Запасной путь - часть OEM не отдаёт PAC через ConnectivityManager,
-        // но соответствующий процесс висит listener'ом всё равно. Резолвим
-        // UID-ы известных system-proxy пакетов и читаем /proc/net/tcp[6] под
-        // root, чтобы вытащить их LISTEN-порты.
+        // Часть OEM не отдаёт PAC через ConnectivityManager, но процесс всё равно висит
+        // listener'ом, поэтому резолвим UID-ы известных пакетов и читаем
+        // /proc/net/tcp[6] под root ради их LISTEN-портов
         java.util.Set<Integer> proxyUids = resolveSystemProxyUids();
         if (!proxyUids.isEmpty()) {
             ports.addAll(findLoopbackListenPortsForUids(proxyUids));
         }
-        // Наши собственные Xray local SOCKS/HTTP inbound тоже должны быть
-        // недоступны bypass-приложениям: иначе исключённое приложение через
-        // 127.0.0.1:<our port> туннелирует трафик и его исходящий IP отличается
-        // от прямого underlying-исхода - это видимый split-tunnel сигнал.
-        // Наш собственный UID отпускается RETURN'ом ВЫШЕ этого блока, так что
-        // самим себе мы не режем.
+        // Свои Xray local SOCKS/HTTP inbound тоже закрыты от bypass-приложений: иначе
+        // исключённое приложение заворачивает трафик через 127.0.0.1 на наш порт, и его
+        // исходящий IP не совпадает с прямым underlying - готовый split-tunnel сигнал.
+        // Свой UID отпускается RETURN'ом выше этого блока, себе мы не режем
         collectXrayLocalProxyPorts(ports);
         return new java.util.ArrayList<>(ports);
     }
@@ -8623,7 +8453,7 @@ public class ProxyTunnelService extends Service {
                     continue;
                 }
                 if (!"0A".equalsIgnoreCase(parts[3])) {
-                    // 0A == TCP_LISTEN, остальное нас не интересует.
+                    // 0A == TCP_LISTEN, остальное не интересует
                     continue;
                 }
                 int colonIndex = parts[1].lastIndexOf(':');
@@ -8684,13 +8514,9 @@ public class ProxyTunnelService extends Service {
         }
 
         if (TextUtils.isEmpty(upstreamInterface)) {
-            // Sharing-off direct-via-physical (masquerade+iif on the physical upstream)
-            // is disabled: syncRootTetherRouting returns hands-off before building a
-            // config when sharing is off, so the system forwards the hotspot direct
-            // with zero WINGS V rules. Kept commented as the prior approach:
-            //   if (!AppPrefs.isAppSharingIntended(getApplicationContext())) {
-            //       upstreamInterface = resolveActivePhysicalInterfaceName();
-            //   } else
+            // With sharing off syncRootTetherRouting returns hands-off before a config
+            // is ever built, so the system forwards the hotspot direct with zero rules
+            // of ours and no physical-upstream masquerade is needed here
             if (activeXrayTproxyMode) {
                 upstreamInterface = resolveActivePhysicalInterfaceName();
             } else if (!usesVpnServiceUpstreamForRootSharing()) {
@@ -8717,14 +8543,12 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Returns true if the root-server / tether-routing scaffolding must be
-     * initialised on this run. Kernel WireGuard always needs it for routing
-     * RootShell traffic. Userspace backends with rootMode only need it when
-     * the user actually relies on hotspot/USB sharing - initialising the root
-     * server unconditionally has been observed to destabilise WB Stream
-     * connections (the iptables/MASQUERADE rules pushed by syncSharing for an
-     * empty tether set still touched routing tables and disrupted the
-     * libvkturn child process).
+     * Whether the root-server / tether-routing scaffolding is needed on this run.
+     * Kernel WireGuard always needs it to route RootShell traffic. Userspace backends
+     * under rootMode only need it when the user actually uses hotspot/USB sharing:
+     * initialising the root server unconditionally destabilises WB Stream, because the
+     * iptables/MASQUERADE rules syncSharing pushes for an empty tether set still touch
+     * the routing tables and knock the libvkturn child around
      */
     private boolean shouldInitializeRootSharing() {
         if (kernelWireguardActive) {
@@ -8734,10 +8558,9 @@ public class ProxyTunnelService extends Service {
         if (AppPrefs.isSharingAutoStartOnBootEnabled(appContext)) {
             return true;
         }
-        // VPN sharing activates only when the user turned it on from inside the
-        // app. A hotspot started purely through the system (no app toggle) is left
-        // to the system's own routing - the app does not pull its forwarded clients
-        // through the tunnel, and the in-app toggles stay off.
+        // VPN sharing only activates when the user turned it on inside the app. A
+        // hotspot started from the system alone keeps the system's own routing - we do
+        // not pull its forwarded clients into the tunnel
         return AppPrefs.isAppSharingIntended(appContext);
     }
 
@@ -9157,9 +8980,9 @@ public class ProxyTunnelService extends Service {
         if (task != null) {
             task.cancel(true);
         }
-        // Drop a reconnect that is still waiting out its delay: the generation bump
-        // above would make it bail anyway, but cancelling frees the latch now rather
-        // than at the end of a delay that can run to minutes.
+        // Drop a reconnect still waiting out its delay: the generation bump above would
+        // make it bail anyway, but cancelling frees the latch now instead of at the end
+        // of a delay that can run to minutes
         ScheduledFuture<?> pendingReconnect = pendingReconnectTask;
         pendingReconnectTask = null;
         if (pendingReconnect != null && pendingReconnect.cancel(false)) {
@@ -9241,10 +9064,9 @@ public class ProxyTunnelService extends Service {
         if (capabilities == null) {
             return false;
         }
-        // Exclude VPN networks: a VpnService network reports its underlying physical
-        // transport (cellular/wifi) alongside TRANSPORT_VPN, so without this guard the
-        // active VPN (tun0) is mistaken for the physical upstream and tethered clients
-        // get routed back through the VPN instead of going direct.
+        // A VpnService network reports its underlying physical transport alongside
+        // TRANSPORT_VPN, so without this guard tun0 passes for the physical upstream and
+        // tethered clients get routed back through the VPN instead of going direct
         if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
             return false;
         }
@@ -9318,11 +9140,10 @@ public class ProxyTunnelService extends Service {
         scheduleTetherReconcileOnStart();
     }
 
-    // After an abrupt termination (force-stop, low-memory kill) the graceful tether
-    // cleanup never runs, so stale masquerade/routing and the sharing engine's
-    // runtime state survive into the next launch and leave clients dead until a
-    // manual reapply. Reconcile once shortly after start with the same full
-    // clear+reapply the manual button does, so recovery is automatic.
+    // A force-stop or low-memory kill skips the graceful tether cleanup, so stale
+    // masquerade/routing and the sharing engine's runtime state survive into the next
+    // launch and the clients stay dead until someone presses reapply. This runs the
+    // same full clear+reapply once, shortly after start
     private void scheduleTetherReconcileOnStart() {
         if (!rootModeActive || statsExecutor == null || statsExecutor.isShutdown()) {
             return;
@@ -9344,10 +9165,10 @@ public class ProxyTunnelService extends Service {
         );
     }
 
-    // scheduleAtFixedRate cancels a task forever on the first uncaught throwable,
-    // which silently kills periodic maintenance (the tether sync/reapply most
-    // visibly -- it drops every active sharing client until the service restarts).
-    // Wrap every polling body so one transient failure never stops the cadence.
+    // scheduleAtFixedRate cancels a task forever on the first uncaught throwable, which
+    // silently kills periodic maintenance - the tether sync/reapply most visibly, it
+    // drops every active sharing client until the service restarts. So every polling
+    // body is wrapped and one transient failure never stops the cadence
     private void scheduleGuardedPolling(
         String label,
         long initialDelayMs,
@@ -9406,10 +9227,9 @@ public class ProxyTunnelService extends Service {
         );
     }
 
-    // Runs the runtime supervisor faster (3s) while a downstream is being shared
-    // through the tproxy tunnel, so a flushed chain / carve-out is caught and
-    // restored within ~3s; falls back to the 5s default otherwise. Re-evaluated on
-    // every tether / sharing change via reconcileTproxyForwardedExclusion.
+    // While a downstream is shared through the tproxy tunnel the supervisor runs at 3s
+    // so a flushed chain or carve-out is caught and restored fast; otherwise it drops
+    // back to the 5s default. Re-evaluated on every tether / sharing change
     private void refreshSupervisorSchedule() {
         if (statsExecutor == null || statsExecutor.isShutdown()) {
             return;
@@ -9435,10 +9255,8 @@ public class ProxyTunnelService extends Service {
                 try {
                     runRuntimeSupervisorTick();
                 } catch (Throwable error) {
-                    // scheduleAtFixedRate cancels the task forever on any uncaught
-                    // throwable, which silently kills the periodic tether
-                    // sync/reapply and drops every active sharing client until some
-                    // event restarts the supervisor. Swallow so it keeps ticking.
+                    // Same trap as scheduleGuardedPolling: one uncaught throwable and
+                    // scheduleAtFixedRate kills the supervisor for good
                     appendRuntimeLogLine(
                         "Runtime supervisor tick failed: " +
                             firstNonEmpty(error.getMessage(), error.getClass().getSimpleName())
@@ -9818,7 +9636,7 @@ public class ProxyTunnelService extends Service {
                     AwgBackendVpnAccess.clearServiceOwner();
                 }
                 if (backend != null && currentTunnel != null) {
-                    // GoBackend.VpnService.onDestroy may race our shutdown path and call wgTurnOff too.
+                    // GoBackend.VpnService.onDestroy can race us here and call wgTurnOff too
                     GoBackendVpnAccess.clearServiceOwner();
                     try {
                         backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
@@ -9991,10 +9809,8 @@ public class ProxyTunnelService extends Service {
         sRxBytesPerSecond = Math.max(0L, Math.round(smoothedRxBytesPerSecond));
         sTxBytesPerSecond = Math.max(0L, Math.round(smoothedTxBytesPerSecond));
 
-        // Attribute the traffic delta to the active profile of the CURRENT backend,
-        // routed to the same store the profile list reads from (mirrors
-        // BackendProfilesFragment.trafficStatsMap), so per-profile stats show for
-        // VK TURN / WireGuard / AmneziaWG too, not only Xray.
+        // The delta lands in the same store the profile list reads from, so per-profile
+        // stats work for VK TURN / WireGuard / AmneziaWG, not only Xray
         if ((rxDelta > 0L || txDelta > 0L) && activeBackendType != null) {
             Context trafficContext = getApplicationContext();
             if (usesXrayBackend(activeBackendType)) {
@@ -10103,10 +9919,9 @@ public class ProxyTunnelService extends Service {
 
     /**
      * /proc/net/dev contents, or null when it cannot be read. Android 16 tightened
-     * SELinux so the app's own untrusted_app context is denied the read directly; in
-     * root mode the daemon (module) or a su shell (standalone, moduleless) reads it in a
-     * permitted context instead, which is what keeps the speed graph and per-interface
-     * traffic accounting alive there. See issue #76.
+     * SELinux so the app's own untrusted_app context is denied the read; under root the
+     * daemon or a su shell reads it in a permitted context instead, which is what keeps
+     * the speed graph and per-interface accounting alive there. See issue #76
      */
     @Nullable
     private String readProcNetDevContent() {
@@ -10136,16 +9951,16 @@ public class ProxyTunnelService extends Service {
         if (!rootModeActive) {
             return null;
         }
-        // Daemon path: a cheap socket round trip, so read fresh every sample. Gate on the
-        // cached status - acquire() redials whenever the client is null, so calling it
-        // every sample with no module installed would hammer connect().
+        // Daemon path: a cheap socket round trip, so read fresh every sample. The cached
+        // status gate matters because acquire() redials whenever the client is null, and
+        // with no module installed that hammers connect() once a sample
         if (RootExecutor.lastKnownStatus() == RootExecutor.Status.AVAILABLE) {
             String viaDaemon = RootExecutor.readNetDevViaDaemon(getApplicationContext());
             if (!TextUtils.isEmpty(viaDaemon)) {
                 return viaDaemon;
             }
         }
-        // su fallback: a process spawn, so coalesce the per-sample readers onto one read.
+        // su fallback: a process spawn, so the per-sample readers coalesce onto one read
         long nowElapsedMs = SystemClock.elapsedRealtime();
         if (cachedProcNetDev != null && nowElapsedMs - cachedProcNetDevAtElapsedMs < PROC_NET_DEV_ROOT_CACHE_MS) {
             return cachedProcNetDev;
@@ -10251,27 +10066,23 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Reconstructs proxy throughput in TPROXY mode where neither a TUN interface
-     * nor wings.v's UID counters reflect the relayed bytes (Xray runs in a
-     * root-launched subprocess, traffic flows app → mark → lo → Xray → wlan).
+     * Xray's own counters win whenever the api socket answers: they are exact in both
+     * directions and carry no loopback noise. The reconstruction below covers the
+     * window before the first bytes flow, when those counters do not exist yet, and
+     * configs whose api never came up.
      *
-     * TX (app → proxy) is read from the IPv4+IPv6 mangle MARK rule byte counters
-     * - these are the exact bytes that wings.v's iptables chain redirected into
-     * Xray. Counters are root-only, polled at most once per second to keep
-     * battery cost bounded against the 100ms-200ms sampling cadence.
+     * <p>In TPROXY mode neither a TUN interface nor our UID counters see the relayed
+     * bytes - Xray runs in a root-launched subprocess and traffic goes app, mark, lo,
+     * Xray, wlan. TX comes off the IPv4+IPv6 mangle MARK rule byte counters, the exact
+     * bytes our chain pushed into Xray; they are root-only and polled at most once a
+     * second against a 100ms-200ms sampling cadence.
      *
-     * RX (proxy → app) has no clean kernel hook because Xray's reply path is
-     * delivered locally without crossing wings.v's mangle chains. We approximate
-     * it as {@code lo.tx_delta - tx_mark}: every proxied packet (both
-     * directions) traverses the loopback device once, so subtracting the
-     * known-TX leaves the inbound replies. Background lo activity (DNS,
-     * binder-over-tcp) leaks in as small RX noise; acceptable trade-off
-     * for a non-zero per-direction split.
-     *
-     * <p>All of the above is now the fallback: Xray's own counters are exact in both
-     * directions and carry no loopback noise, so they win whenever the api socket
-     * answers. The reconstruction stays for the window before the first bytes flow
-     * (the counters do not exist until then) and for configs whose api never came up.
+     * <p>RX has no clean kernel hook, because Xray's replies are delivered locally
+     * without crossing our mangle chains. It is approximated as
+     * {@code lo.tx_delta - tx_mark}: every proxied packet crosses loopback once in each
+     * direction, so taking the known TX away leaves the inbound replies. Background lo
+     * activity (DNS, binder-over-tcp) leaks in as a bit of RX noise, which beats having
+     * no per-direction split at all
      */
     private InterfaceTrafficSnapshot readTproxyTrafficSnapshot() {
         InterfaceTrafficSnapshot exact = readXrayStatsSnapshot();
@@ -10292,7 +10103,7 @@ public class ProxyTunnelService extends Service {
                 ? RootExecutor.readTproxyMarkBytesViaDaemon(getApplicationContext())
                 : null;
         // The daemon read is a cheap socket round trip, so take it every sample; only the
-        // shell fallback needs the ~1 Hz throttle to keep su spawns down.
+        // shell fallback needs the ~1 Hz throttle to keep su spawns down
         boolean shouldRead =
             daemonMark != null ||
             tproxyMarkLastReadingBytes < 0L ||
@@ -10305,8 +10116,8 @@ public class ProxyTunnelService extends Service {
             } else if (markNow >= tproxyMarkLastReadingBytes) {
                 tproxyMarkAbsoluteBytes += markNow - tproxyMarkLastReadingBytes;
             } else {
-                // Counter reset (e.g., XrayTproxyRouter.apply re-flushed chains
-                // after a network change). Pick up from the new zero baseline.
+                // Counter reset - XrayTproxyRouter.apply re-flushed the chains after a
+                // network change - so pick up from the new zero baseline
                 tproxyMarkAbsoluteBytes += markNow;
             }
             tproxyMarkLastReadingBytes = markNow;
@@ -10327,7 +10138,7 @@ public class ProxyTunnelService extends Service {
      * zero (reconstruction minus a larger Xray baseline clamps to 0 for good) or jump
      * by a whole Xray counter. Xray reports a counter that has seen no traffic as
      * NOT_FOUND rather than zero, so this flip happens on every normal session start,
-     * not only in edge cases.
+     * not only in edge cases
      */
     private void noteTproxyStatsSource(boolean fromXrayApi) {
         if (tproxyStatsFromXrayApi != null && tproxyStatsFromXrayApi == fromXrayApi) {
@@ -10338,7 +10149,7 @@ public class ProxyTunnelService extends Service {
             xrayTrafficCarryTx = sTxBytes;
             xrayTrafficBaseRx = -1L;
             xrayTrafficBaseTx = -1L;
-            // Skip one delta so the re-baseline is not attributed as a burst of traffic.
+            // Skip one delta, or the re-baseline reads as a burst of traffic
             lastRxSample = -1L;
             lastTxSample = -1L;
             appendRuntimeLogLine(
@@ -10351,15 +10162,10 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Exact per-direction totals straight from Xray, or null when they are not
-     * available yet and the caller should fall back.
-     */
-    /**
      * Клиент статистики Xray, поднятый по требованию.
      *
-     * <p>Раньше он рождался только на пути tproxy, и в обычном VPN-режиме
-     * оставался пустым: расписки федерации тогда не выписывались вовсе, потому
-     * что счётчики брать было не у кого
+     * <p>Нужен не только на пути tproxy: в обычном VPN-режиме без него счётчики брать
+     * не у кого, и расписки федерации не выписываются вовсе
      */
     @Nullable
     private XrayStatsClient xrayStats() {
@@ -10377,6 +10183,10 @@ public class ProxyTunnelService extends Service {
         return client;
     }
 
+    /**
+     * Exact per-direction totals straight from Xray, or null when they are not there
+     * yet and the caller must fall back
+     */
     @Nullable
     private InterfaceTrafficSnapshot readXrayStatsSnapshot() {
         XrayStatsClient client = xrayStats();
@@ -10386,7 +10196,7 @@ public class ProxyTunnelService extends Service {
         long tx = client.readUplinkBytes();
         long rx = client.readDownlinkBytes();
         if (tx >= 0L && rx >= 0L) {
-            // Say so once, so a log that mentions the fallback also shows the recovery.
+            // Say so once, so a log that mentions the fallback also shows the recovery
             if (xrayStatsUnavailableReason != null) {
                 appendRuntimeLogLine("Xray stats api is answering; traffic counters are exact again");
                 xrayStatsUnavailableReason = null;
@@ -10394,9 +10204,9 @@ public class ProxyTunnelService extends Service {
             return new InterfaceTrafficSnapshot(rx, tx);
         }
         noteXrayStatsUnavailable(client.lastError());
-        // Both directions failing means the channel is broken rather than idle (an idle
-        // counter reports zero, not an error), so drop it and let the next sample redial
-        // the socket a restarted Xray recreated.
+        // Both directions failing means the channel is broken rather than idle - an idle
+        // counter reports zero, not an error - so drop it and let the next sample redial
+        // the socket a restarted Xray recreated
         if (tx < 0L && rx < 0L) {
             closeXrayStatsClient();
         }
@@ -10409,7 +10219,7 @@ public class ProxyTunnelService extends Service {
      * <p>The sampler runs several times a second, so this cannot log every miss - but it
      * has to log something: the fallback reconstruction reports RX as zero whenever
      * /proc/net/dev is denied, and a silent zero is indistinguishable from an idle
-     * tunnel. Whoever reads the log needs to know which of the two they are looking at.
+     * tunnel. Whoever reads the log needs to know which of the two they are looking at
      */
     private void noteXrayStatsUnavailable(String reason) {
         String text = TextUtils.isEmpty(reason) ? "unknown" : reason;
@@ -10428,7 +10238,7 @@ public class ProxyTunnelService extends Service {
      * разное и не сходятся нихуя.
      *
      * <p>Касается только профилей федерации: за чужие подписки никто расписок не
-     * ждёт, и слать их туда незачем.
+     * ждёт, и слать их туда незачем
      */
     private void collectFederationReceipt(Context context, String activeProfileId) {
         XrayStatsClient stats = xrayStats();
@@ -10508,7 +10318,7 @@ public class ProxyTunnelService extends Service {
      * Досылает всё, что накопилось в очереди расписок.
      *
      * <p>Сеть в отдельном потоке: сэмплер бежит по несколько раз в секунду, и
-     * вешать на него http значит подвесить весь учёт трафика.
+     * вешать на него http значит подвесить весь учёт трафика
      */
     private void flushFederationReceipts(Context context, String threadName) {
         new Thread(
@@ -10536,7 +10346,7 @@ public class ProxyTunnelService extends Service {
      *
      * <p>Цифры берутся у релея, а не с интерфейса: тот тащит локальный DNS,
      * keepalive и оверхед туннеля, и стороны потом считают разное. Касается
-     * только профилей, выданных по подписке федерации.
+     * только профилей, выданных по подписке федерации
      */
     private void collectVkTurnReceipt(Context context, String activeProfileId) {
         VkTurnProfile profile = VkTurnProfileStore.getActiveProfile(context);
@@ -10616,9 +10426,9 @@ public class ProxyTunnelService extends Service {
         tproxyMarkAbsoluteBytes = 0L;
         tproxyMarkLastReadingBytes = -1L;
         tproxyMarkLastReadElapsedMs = 0L;
-        // A restarted Xray counts from zero again, so the old baseline would clamp
-        // every later sample to 0. Carry the session total and re-baseline, the same
-        // way a source switch does.
+        // A restarted Xray counts from zero again, so the old baseline would clamp every
+        // later sample to 0. Carry the session total and re-baseline, the same way a
+        // source switch does
         xrayTrafficCarryRx = sRxBytes;
         xrayTrafficCarryTx = sTxBytes;
         xrayTrafficBaseRx = -1L;
@@ -10626,10 +10436,10 @@ public class ProxyTunnelService extends Service {
         lastRxSample = -1L;
         lastTxSample = -1L;
         tproxyStatsFromXrayApi = null;
-        // The channel belongs to the Xray instance whose counters we were reading; a
-        // new run recreates the socket, so hold no fd across the gap.
+        // The channel belongs to the Xray instance whose counters we were reading, and a
+        // new run recreates the socket, so no fd is held across the gap
         closeXrayStatsClient();
-        // A new run gets to report its own reason rather than inheriting the old one.
+        // A new run reports its own reason rather than inheriting the old one
         xrayStatsUnavailableReason = null;
     }
 
@@ -10750,10 +10560,9 @@ public class ProxyTunnelService extends Service {
             return;
         }
         if (!shouldUseHttpProbeForActiveBackend()) {
-            // Process-mode wake-probe: ни на wake'е, ни в периодическом цикле
-            // не нужен HTTP-roundtrip к CONNECTIVITY_PROBE_URL. Inherent
-            // liveness ловится supervisor'ом (isRunning / hasActiveTunnel /
-            // backend-handle alive). Экономит 1 HTTP-request каждые 20s.
+            // Ни на wake'е, ни в периодическом цикле HTTP-roundtrip к
+            // CONNECTIVITY_PROBE_URL не нужен: живость ловит supervisor по isRunning,
+            // hasActiveTunnel и живому backend-handle. Это минус запрос каждые 20s
             return;
         }
         if (!force && hasRecentConnectivityProbeSuccess()) {
@@ -10859,12 +10668,10 @@ public class ProxyTunnelService extends Service {
             if (activeXrayTproxyMode) {
                 Process xrayProcess = tproxyXrayProcess;
                 boolean processDead = xrayProcess == null || !xrayProcess.isAlive();
-                // Process.isAlive() может вернуть false-positive: например, su-fork
-                // переcнял ребёнка под себя и Java потеряла видимость exit-status,
-                // хотя реальный xray работает и слушает TPROXY-порт. Прежде чем
-                // объявлять "Xray умер" и убивать его сами своим reconnect-ом,
-                // проверим что local listener живой - если порт принимает TCP,
-                // значит Xray на месте и трогать его не надо.
+                // Process.isAlive() врёт: su-fork переснял ребёнка под себя, Java
+                // потеряла exit-status, а живой xray при этом слушает TPROXY-порт.
+                // Поэтому прежде чем объявить его мёртвым и добить своим reconnect'ом,
+                // стучимся в листенер - принимает TCP, значит Xray на месте
                 if (processDead && !isLocalTcpPortReady("127.0.0.1", xrayTproxyPort)) {
                     scheduleRuntimeReconnect("Xray TPROXY runtime exited unexpectedly", RUNTIME_RECONNECT_DELAY_MS);
                     return;
@@ -10960,8 +10767,8 @@ public class ProxyTunnelService extends Service {
         String watchdogReason = serviceAlive
             ? "Userspace WireGuard watchdog: runtime tunnel references lost"
             : "Userspace WireGuard watchdog: VPN service disappeared";
-        // preferSoftRecovery=true: для VK TURN userspace WG c живым vktp сперва
-        // пробуем переподнять VpnService без рестарта vktp, иначе обычный reconnect.
+        // preferSoftRecovery=true: для VK TURN userspace WG с живым vktp сперва пробуем
+        // переподнять один VpnService, не трогая vktp; не вышло - обычный reconnect
         scheduleRuntimeReconnect(watchdogReason, RUNTIME_RECONNECT_DELAY_MS, false, true);
         return false;
     }
@@ -11102,7 +10909,7 @@ public class ProxyTunnelService extends Service {
      * когда систему сносит туннель под нами: исключения нет, сокеты живы, отвал
      * виден только по пропавшему системному значку VPN. AmneziaWG сюда попадает
      * тем более: её runtime не покрыт liveness-вотчдогом, так что этот колбэк -
-     * вообще единственный сигнал.
+     * вообще единственный сигнал
      */
     private void onBackendTunnelDown(String backendLabel) {
         if (vpnBackendShutdownInProgress.get() || sServiceState != ServiceState.RUNNING) {
@@ -11123,14 +10930,11 @@ public class ProxyTunnelService extends Service {
         boolean allowTunnelProcessRestart,
         boolean preferSoftRecovery
     ) {
-        // VK account auth in flight: the relay is intentionally not connecting
-        // while the user signs in via VkAuthBrowserActivity (can take minutes).
-        // Suppress every watchdog / active-probing restart-on-no-connectivity so
-        // the tunnel is not torn down mid-auth. Timing baselines are re-armed in
-        // handleVkAccountAuthDone when the window clears, so the supervisor does
-        // not immediately fire on the stale elapsed time once auth completes.
-        // Manual cancel still works: the browser Cancel calls requestStop, which
-        // does not route through here.
+        // While the user signs in the relay is deliberately not connecting, and that can
+        // run for minutes, so every watchdog and active-probing restart is suppressed or
+        // the tunnel goes down mid-auth. handleVkAccountAuthDone re-arms the timing
+        // baselines when the window clears. Manual cancel still works: the browser's
+        // Cancel goes through requestStop, which does not come through here
         if (isVkAccountAuthInFlight()) {
             appendRuntimeLogLine(
                 "Suppressing runtime reconnect during VK account auth: " + firstNonEmpty(reason, "unknown reason")
@@ -11172,9 +10976,9 @@ public class ProxyTunnelService extends Service {
         try {
             pendingReconnectTask = reconnectScheduler.schedule(dispatch, effectiveDelayMs, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException rejected) {
-            // Nothing will ever clear the latch if the schedule failed, and a stuck
-            // latch permanently disables auto-restart (every later attempt bails on
-            // the compareAndSet above).
+            // Nothing else clears the latch when the schedule fails, and a stuck latch
+            // kills auto-restart for good - every later attempt bails on the
+            // compareAndSet above
             runtimeReconnectQueued.set(false);
         }
     }
@@ -11234,10 +11038,8 @@ public class ProxyTunnelService extends Service {
         if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
             return;
         }
-        // Soft-recovery fast-path: VpnService умер, но vktp ещё жив (VK TURN
-        // userspace WG). Переподнимаем только VpnService + WG, не убивая vktp и
-        // не повторяя его дорогой warmup. При неудаче или неприменимости падаем
-        // в обычный полный reconnect ниже.
+        // VpnService умер, а vktp ещё жив: поднимаем только VpnService и WG, не убивая
+        // vktp и не повторяя его дорогой warmup. Не вышло - идём в полный reconnect ниже
         if (preferSoftRecovery && attemptUserspaceWireGuardSoftRecovery(scheduledGeneration, reason)) {
             return;
         }
@@ -11287,23 +11089,21 @@ public class ProxyTunnelService extends Service {
         startWork(true);
     }
 
-    // Soft-recovery для userspace WG (GoBackend) c VK TURN: VpnService отвалился,
-    // но vktp-процесс ещё жив и прогрет (DTLS/TURN/captcha). Переподнимаем только
-    // VpnService + wireguard-go, не убивая vktp и не повторяя его дорогой warmup.
-    // Возвращает true при успехе; false (в т.ч. при любой ошибке или
-    // неприменимости) - вызывающий делает обычный полный reconnect.
+    // VpnService отвалился, а vktp-процесс жив и прогрет (DTLS/TURN/captcha), так что
+    // переподнимаем только VpnService и wireguard-go. false - любая ошибка или просто
+    // неприменимо, и вызывающий идёт в полный reconnect
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private boolean attemptUserspaceWireGuardSoftRecovery(int scheduledGeneration, @Nullable String reason) {
         if (!usesUserspaceWireGuardRuntime() || !usesTurnProxyBackend(activeBackendType)) {
             return false;
         }
         if (getConfiguredBackendType() != activeBackendType) {
-            // Пользователь переключает backend - пусть идёт полный reconnect.
+            // Пользователь переключает backend - пусть идёт полный reconnect
             return false;
         }
         Process proxy = proxyProcess;
         if (proxy == null || !proxy.isAlive()) {
-            // vktp мёртв - сохранять нечего, дешевле обычный reconnect.
+            // vktp мёртв - сохранять нечего, дешевле обычный reconnect
             return false;
         }
         if (TextUtils.isEmpty(protectSocketName) || backend == null || currentTunnel == null || currentConfig == null) {
@@ -11315,8 +11115,8 @@ public class ProxyTunnelService extends Service {
         try {
             appendRuntimeLogLine("Userspace WG soft-recovery (keeping vktp): " + firstNonEmpty(reason, ""));
             setServiceState(ServiceState.CONNECTING);
-            // Снимаем мёртвый WG-туннель и VpnService. vktp и имя protect-сокета
-            // не трогаем - живой vktp знает его из -protect-sock.
+            // Снимаем мёртвый WG-туннель и VpnService. vktp и имя protect-сокета не
+            // трогаем - живой vktp знает его из -protect-sock
             synchronized (vpnBackendLock) {
                 try {
                     backend.setState(currentTunnel, Tunnel.State.DOWN, currentConfig);
@@ -11333,8 +11133,8 @@ public class ProxyTunnelService extends Service {
             if (scheduledGeneration != runtimeGeneration.get() || sServiceState == ServiceState.STOPPED) {
                 return false;
             }
-            // Заново поднимаем VpnService + protect-bridge на ТОМ ЖЕ имени сокета,
-            // затем wireguard-go на свежем tun нового сервиса.
+            // Заново поднимаем VpnService и protect-bridge на ТОМ ЖЕ имени сокета, а
+            // потом wireguard-go на свежем tun нового сервиса
             if (ensureWireGuardVpnServiceStarted() == null) {
                 return false;
             }
@@ -11359,9 +11159,9 @@ public class ProxyTunnelService extends Service {
         }
     }
 
-    // Пересоздаёт protect-bridge на УЖЕ существующем имени сокета (не генерит
-    // новое, как ensureProtectBridgeReady): запущенный vktp знает старое имя из
-    // -protect-sock, и менять его на лету нельзя.
+    // Пересоздаёт protect-bridge на УЖЕ существующем имени сокета, а не генерит новое,
+    // как ensureProtectBridgeReady: запущенный vktp знает имя из -protect-sock, и на
+    // лету его не поменять
     private void reopenProtectBridgeForSoftRecovery(ProxyProtectBridgeServer.VpnServiceProvider provider)
         throws Exception {
         String name = protectSocketName;
@@ -11483,10 +11283,9 @@ public class ProxyTunnelService extends Service {
             );
         }
         if (sServiceState != ServiceState.RUNNING && sServiceState != ServiceState.CONNECTING) {
-            // STOPPING/STOPPED: показываем только слово статуса, остальные
-            // секции не репрезентативны. На CONNECTING строим полный композит
-            // по пользовательской раскладке, чтобы в уведомлении была настроенная
-            // строка статуса, а не голое "Подключение...".
+            // На STOPPING/STOPPED остальные секции ничего не значат, поэтому только
+            // слово статуса. На CONNECTING наоборот собираем полный композит по
+            // раскладке юзера, иначе в уведомлении голое "Подключение..."
             return status;
         }
         java.util.List<String> order = wings.v.core.UiPrefs.getNotificationOrder(this);
@@ -11536,14 +11335,13 @@ public class ProxyTunnelService extends Service {
             int threads = AppPrefs.getSettings(getApplicationContext()).threads;
             if (sProxyWorkerStreams > 0) {
                 // The relay's live fleet, not the configured target: a drained worker
-                // lowers the ceiling and "12T" would otherwise keep claiming twelve.
+                // lowers the ceiling, and "12T" would keep claiming twelve
                 threads = sProxyWorkerStreams;
             }
             if (threads <= 0) {
                 return "";
             }
-            // Show progress (connected/total) while streams are still filling or
-            // one dropped, e.g. "2/12T"; once all are up just the total, "12T".
+            // Progress while the streams fill or one drops, "2/12T"; all up, just "12T"
             int connected = Math.max(0, Math.min(sProxyConnectedStreams, threads));
             if (connected < threads) {
                 return connected + "/" + threads + "T";
@@ -11560,7 +11358,7 @@ public class ProxyTunnelService extends Service {
     private String describeDtlsActivityForNotification() {
         long activityAt = lastProxyDtlsActivityAtElapsedMs;
         if (activityAt <= 0L) {
-            // Нет данных DTLS - просто скрываем секцию из уведомления.
+            // Нет данных DTLS - просто скрываем секцию из уведомления
             return "";
         }
         long ageMs = Math.max(0L, SystemClock.elapsedRealtime() - activityAt);
@@ -11571,14 +11369,11 @@ public class ProxyTunnelService extends Service {
         return baseNotificationBuilder().build();
     }
 
-    // Promote the service to the foreground immediately. Used by the ACTION_STOP
-    // path: requestStop falls back to startForegroundService when the app is
-    // backgrounded, and Android then requires startForeground within ~5s or it
-    // throws ForegroundServiceDidNotStartInTimeException. The stop path otherwise
-    // only stops the service, so call this first to honour the contract; the
-    // ensuing stopForeground/stopSelf tears the notification right back down.
-    // Best effort: startForeground itself can throw under FGS-start restrictions,
-    // which we swallow because we are about to stop anyway.
+    // The ACTION_STOP path needs this: requestStop falls back to startForegroundService
+    // when the app is backgrounded, and Android then demands startForeground within ~5s
+    // or throws ForegroundServiceDidNotStartInTimeException. The stopForeground/stopSelf
+    // that follows tears the notification right back down. Best effort - startForeground
+    // can itself throw under FGS-start restrictions, and we are about to stop anyway
     private void ensureStartedForeground() {
         try {
             startForeground(SERVICE_NOTIFICATION_ID, buildNotification());
@@ -11598,8 +11393,8 @@ public class ProxyTunnelService extends Service {
         }
         if (state == ServiceState.RUNNING) {
             lastRunningStateAtElapsedMs = SystemClock.elapsedRealtime();
-            // Один успешный запуск сбрасывает backoff - следующий сбой
-            // снова начинает с минимальной задержки.
+            // Один успешный запуск сбрасывает backoff - следующий сбой снова начнёт
+            // с минимальной задержки
             runtimeStartFailureStreak.set(0);
             trafficProfileId = currentBackendProfileId();
         } else {
@@ -11852,11 +11647,9 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Дешёвая проверка живости без сетевого запроса: смотрим состояние
-     * native-Xray (если активен) и наличие tunnel-fd. Для остальных backend'ов
-     * (top-level WG / AmneziaWG, без VK TURN proxy) на wake'е достаточно
-     * довериться supervisor'у - возвращаем true, дальнейшие реальные сбои
-     * ловятся обычным polling'ом.
+     * Дешёвая проверка живости без сетевого запроса: состояние native-Xray и наличие
+     * tunnel-fd. Для остальных backend'ов на wake'е хватает supervisor'а, поэтому
+     * отдаём true - реальные сбои он поймает обычным polling'ом
      */
     private boolean runWakeFastPathProcessCheck(String trigger) {
         if (usesXrayBackend(activeBackendType) && !activeXrayProxyOnly && !activeXrayTproxyMode) {
@@ -11874,9 +11667,9 @@ public class ProxyTunnelService extends Service {
     }
 
     /**
-     * Проверяет, надо ли вообще делать HTTP-probe (1.1.1.1) для активного
-     * backend'a. По умолчанию process-check, HTTP только при явном выборе в
-     * настройках Xray (для других backend'ов опции пока нет, всегда process).
+     * Нужен ли HTTP-probe к 1.1.1.1 для активного бэкенда. По умолчанию process-check,
+     * HTTP только если его явно выбрали в настройках Xray; у остальных бэкендов такой
+     * опции нет вообще
      */
     private boolean shouldUseHttpProbeForActiveBackend() {
         if (!usesXrayBackend(activeBackendType)) {
@@ -11948,9 +11741,9 @@ public class ProxyTunnelService extends Service {
         String safeEvent = firstNonEmpty(event, "changed");
         workExecutor.execute(() -> {
             processUnderlyingNetworkEvent(safeEvent, network);
-            // Android может поднять/убить системные loopback-прокси (PAC handler
-            // и пр.) при смене активной сети, и набор портов в системном
-            // ProxyInfo меняется. Триггерим перенакат фильтра.
+            // На смене активной сети Android поднимает или убивает системные
+            // loopback-прокси (PAC handler и прочее), и набор портов в ProxyInfo
+            // уезжает - значит фильтр надо перекладывать
             if ("link".equals(safeEvent)) {
                 reapplySplitTunnelLockdownOnNetworkChange();
             }

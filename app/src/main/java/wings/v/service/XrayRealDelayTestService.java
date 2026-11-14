@@ -234,9 +234,8 @@ public abstract class XrayRealDelayTestService extends Service {
         XraySettings settings = source.copy();
         settings.allowLan = false;
         settings.localProxyEnabled = true;
-        // Auth настройки (localProxyAuthEnabled/Username/Password) наследуем
-        // от source - чтобы транзиентный probe-сокет нельзя было использовать
-        // как открытый локальный SOCKS из чужого приложения.
+        // Логин с паролем наследуются от source: иначе временный probe-сокет становится
+        // открытым локальным SOCKS для любого приложения на телефоне
         settings.localProxyPort = localProxyPort;
         return settings;
     }
