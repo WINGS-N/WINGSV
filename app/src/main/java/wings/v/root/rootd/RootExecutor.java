@@ -19,23 +19,23 @@ import wings.v.proto.RootdProto;
  *
  * <p>Availability is probed live, never remembered in prefs. The module can be flashed,
  * updated or removed while the app is installed, and a remembered answer would be a lie
- * the moment the user does any of that.
+ * the moment the user does any of that
  */
 public final class RootExecutor {
 
     private static final String TAG = "WINGSV-Rootd";
 
-    /** Oldest daemon protocol this app can still drive. */
+    /** Oldest daemon protocol this app can still drive */
     private static final int MIN_SUPPORTED_DAEMON = 1;
 
     public enum Status {
-        /** Not probed yet in this process. */
+        /** Not probed yet in this process */
         UNKNOWN,
-        /** Daemon answered and we agree on the protocol. */
+        /** Daemon answered and we agree on the protocol */
         AVAILABLE,
-        /** No module, or its daemon is not listening. */
+        /** No module, or its daemon is not listening */
         ABSENT,
-        /** Daemon is there but one side is too old; we fall back and warn the user. */
+        /** Daemon is there but one side is too old; we fall back and warn the user */
         VERSION_MISMATCH,
     }
 
@@ -50,14 +50,14 @@ public final class RootExecutor {
 
     private RootExecutor() {}
 
-    /** Current status without probing; for UI that must not block. */
+    /** Current status without probing; for UI that must not block */
     public static Status lastKnownStatus() {
         synchronized (LOCK) {
             return status;
         }
     }
 
-    /** The daemon's answer to our hello, or null if we never got one. */
+    /** The daemon's answer to our hello, or null if we never got one */
     @Nullable
     public static RootdProto.HelloReply lastHello() {
         synchronized (LOCK) {
@@ -66,9 +66,8 @@ public final class RootExecutor {
     }
 
     /**
-     * Connected client, or null when the module cannot be used. Reconnects if the last
-     * connection broke, so a daemon that restarted is picked up without restarting the
-     * app.
+     * Connected client, or null when the module cannot be used. Redials a broken
+     * connection, so a restarted daemon is picked up without restarting the app
      */
     @Nullable
     public static RootdClient acquire(Context context) {
@@ -116,7 +115,7 @@ public final class RootExecutor {
 
     /**
      * Both directions have to hold: we must be new enough for the daemon, and the
-     * daemon new enough for us. Either way round is a mismatch.
+     * daemon new enough for us. Either way round is a mismatch
      */
     private static boolean isCompatible(RootdProto.HelloReply reply) {
         return (
@@ -125,7 +124,7 @@ public final class RootExecutor {
         );
     }
 
-    /** Drops the connection after an I/O error so the next call redials. */
+    /** Drops the connection after an I/O error so the next call redials */
     public static void invalidate() {
         synchronized (LOCK) {
             if (client != null) {
@@ -139,10 +138,10 @@ public final class RootExecutor {
     }
 
     /**
-     * Session the daemon believes is live, or null when there is no usable daemon.
-     * This is what the app reconciles against after being killed, and what the tile
-     * shows instead of the app's own snapshot - which goes stale the moment the app
-     * dies, precisely when it matters.
+     * Session the daemon believes is live, or null when there is no usable daemon. The app
+     * reconciles against this after being killed, and the tile reads it instead of the
+     * app's own snapshot - that one goes stale the moment the app dies, exactly when it
+     * matters
      */
     @Nullable
     public static RootdProto.SessionState sessionStateOrNull(Context context) {
@@ -160,10 +159,10 @@ public final class RootExecutor {
     }
 
     /**
-     * /proc/net/dev read by the daemon in its own permitted context, or null when there
-     * is no usable daemon or it is too old to support the read (no "netdev" cap). The
-     * app's own untrusted_app context is denied this read on Android 16, which broke the
-     * speed graph and per-interface traffic accounting in root/tproxy mode. See issue #76.
+     * /proc/net/dev read by the daemon in its own permitted context, or null when there is
+     * no usable daemon or it is too old for the read (no "netdev" cap). Android 16 denies
+     * that read to our own untrusted_app context, which leaves the speed graph and
+     * per-interface accounting blind in root/tproxy mode. See issue #76
      */
     @Nullable
     public static String readNetDevViaDaemon(Context context) {
@@ -188,7 +187,7 @@ public final class RootExecutor {
      * Bytes matched by the tproxy mark rule, read via the daemon's counters RPC, or null
      * when there is no usable daemon or it is too old (no "counters" cap). This is a cheap
      * socket round trip, so the caller can poll it every sample instead of living with the
-     * ~1 Hz throttle that shelling out iptables for the same number forces.
+     * ~1 Hz throttle that shelling out iptables for the same number forces
      */
     @Nullable
     public static Long readTproxyMarkBytesViaDaemon(Context context) {
@@ -212,7 +211,7 @@ public final class RootExecutor {
     /**
      * Whether the daemon is usable and speaks the sharing carve-out commands. Callers use
      * this to decide up front whether the daemon or the su path owns the carve-out, so a
-     * later daemon failure sends them to su rather than silently dropping the rule.
+     * later daemon failure sends them to su rather than silently dropping the rule
      */
     private static boolean daemonSpeaksSharing() {
         RootdProto.HelloReply reply = lastHello();
@@ -223,7 +222,7 @@ public final class RootExecutor {
      * Installs (or, with an empty interface set, clears) the forwarded-client REDIRECT
      * carve-out through the daemon, so it outlives the app instead of being stranded on
      * the su path. Returns false when there is no usable daemon or it is too old, and the
-     * caller must run the su path instead.
+     * caller must run the su path instead
      */
     public static boolean applyForwardedRedirectViaDaemon(
         Context context,
@@ -257,7 +256,7 @@ public final class RootExecutor {
     /**
      * Installs (or, with an empty interface set, clears) the device-tproxy forwarded
      * carve-out through the daemon. Returns false when there is no usable daemon or it is
-     * too old, and the caller must run the su path instead.
+     * too old, and the caller must run the su path instead
      */
     public static boolean applyForwardedExclusionViaDaemon(
         Context context,

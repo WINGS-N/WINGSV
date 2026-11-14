@@ -25,7 +25,7 @@ import wings.v.proto.RootdProto;
  * out short of opening settings.
  *
  * <p>Deduped per version pair the way update notices are deduped per tag, so a mismatch
- * is announced once rather than on every probe.
+ * is announced once rather than on every probe
  */
 public final class RootdMismatchNotifier {
 
@@ -57,7 +57,7 @@ public final class RootdMismatchNotifier {
         }
 
         // Naming the stale side is the whole value of the message: "versions differ"
-        // leaves the user with nothing to do.
+        // leaves the user with nothing to do
         boolean moduleIsOlder = hello.getProtocolVersion() < RootdClient.PROTOCOL_VERSION;
         String text = context.getString(
             moduleIsOlder ? R.string.rootd_mismatch_update_module : R.string.rootd_mismatch_update_app

@@ -10,20 +10,20 @@ import java.util.List;
 import wings.v.byedpi.ByeDpiNative;
 
 /**
- * Runs the ByeDPI front proxy inside an app_process forked under {@code su}, mirroring
- * how {@link RootXrayCommands} runs Xray for the TPROXY path.
+ * Гоняет фронт-прокси ByeDPI в app_process под {@code su}, ровно как
+ * {@link RootXrayCommands} гоняет Xray для TPROXY.
  *
- * <p>It has to be root, and that is not about capabilities it needs for itself. On the
- * TUN path ByeDPI's upstream dials escape the tunnel via VpnService.protect(fd); TPROXY
- * has no VpnService and no protect, so an in-process ByeDPI dials under the app's uid,
- * gets caught by our own mangle MARK rule, is TPROXYed straight back into Xray, and Xray
- * hands it to ByeDPI again - an infinite loop that presents as every connection being
- * reset. Under uid 0 the existing "-m owner --uid-owner 0 -j RETURN" exclusion lets its
- * dials out, which is exactly what the TPROXY router already assumes happens.
+ * <p>Рут тут нужен не самому ByeDPI. На TUN его исходящие уходят мимо туннеля
+ * через VpnService.protect, а в TPROXY никакого protect нет: прокси звонит
+ * наружу под uid приложения, попадает под нашу же метку в mangle, его
+ * заворачивает обратно в Xray, Xray отдаёт его опять ByeDPI - и так по кругу,
+ * пока каждое соединение не отвалится по резету. Под нулевым uid его выпускает
+ * уже готовое исключение "-m owner --uid-owner 0 -j RETURN", на которое
+ * TPROXY-роутер и рассчитывает.
  *
- * <p>Lifecycle mirrors the Xray helper: jniStartProxy blocks for the life of the proxy,
- * so it runs on its own thread while main() parks; the parent kills the process with
- * SIGTERM and the shutdown hook stops the proxy.
+ * <p>Жизненный цикл как у хелпера Xray: jniStartProxy висит до самой смерти
+ * прокси, поэтому крутится в своём потоке, пока main спит. Родитель шлёт
+ * SIGTERM, хук на выходе гасит прокси
  */
 @SuppressWarnings(
     {

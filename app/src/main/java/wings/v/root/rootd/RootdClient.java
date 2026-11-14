@@ -20,7 +20,7 @@ import wings.v.proto.RootdProto;
  *
  * <p>Every method is best-effort by design. The module is optional, so a missing socket
  * or a broken daemon must read as "not available" and send the caller back to the su
- * path - never as a failure the user sees.
+ * path - never as a failure the user sees
  */
 public final class RootdClient implements Closeable {
 
@@ -30,10 +30,10 @@ public final class RootdClient implements Closeable {
     // A ceiling, not an expected latency: calls are serialized and return the moment the
     // reply lands. It has to clear the worst case - apply_routing running several iptables
     // and ip rule invocations on a slow device under load - or a real success reads as a
-    // timeout, drops the daemon connection and forces the su fallback.
+    // timeout, drops the daemon connection and forces the su fallback
     private static final int IO_TIMEOUT_MS = 10000;
 
-    /** Bumped only when semantics change; added fields do not move it. */
+    /** Bumped only when semantics change; added fields do not move it */
     public static final int PROTOCOL_VERSION = 1;
 
     private final LocalSocket socket;
@@ -43,7 +43,7 @@ public final class RootdClient implements Closeable {
     // Serializes each write+read round trip. The client is shared across threads
     // (routing apply/clear plus the traffic and net-dev pollers), and interleaving
     // two calls on the one socket desynchronizes the framing - call-id mismatch or a
-    // broken pipe - which drops the daemon connection and forces the su fallback.
+    // broken pipe - which drops the daemon connection and forces the su fallback
     private final Object callLock = new Object();
 
     private RootdClient(LocalSocket socket) throws IOException {
@@ -52,7 +52,7 @@ public final class RootdClient implements Closeable {
         this.output = new DataOutputStream(socket.getOutputStream());
     }
 
-    /** Connects to the daemon, or returns null when the module is not installed. */
+    /** Connects to the daemon, or returns null when the module is not installed */
     public static RootdClient connectOrNull() {
         LocalSocket socket = new LocalSocket();
         try {
@@ -60,7 +60,7 @@ public final class RootdClient implements Closeable {
             socket.setSoTimeout(IO_TIMEOUT_MS);
             return new RootdClient(socket);
         } catch (IOException error) {
-            // No module, or it is not up yet. Both are normal.
+            // No module, or it is not up yet. Both are normal
             try {
                 socket.close();
             } catch (IOException ignored) {}
@@ -123,7 +123,7 @@ public final class RootdClient implements Closeable {
             .getTproxyMarkBytes();
     }
 
-    /** Raw /proc/net/dev the daemon reads in its permitted context. Needs the "netdev" cap. */
+    /** Raw /proc/net/dev the daemon reads in its permitted context. Needs the "netdev" cap */
     public String readNetDev() throws IOException {
         return call(envelope().setReadNetDev(RootdProto.ReadNetDevCommand.getDefaultInstance()).build())
             .getNetDev()
